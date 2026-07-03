@@ -27,6 +27,7 @@ const TIMELINE_RESPONSE_TEXT_CHARS = 1200;
 const TIMELINE_RESPONSE_THINKING_CHARS = 800;
 const TIMELINE_TOOL_ARGUMENT_CHARS = 600;
 const SOURCE_META_FILE = "source-meta.json";
+const comparableMessageKeyCache = new WeakMap();
 
 const DEFAULT_SOURCES = [
   {
@@ -1975,7 +1976,7 @@ function summarizeCapture(capture, source, index, debugSource) {
       history_stack: summarizeHistoryStack(messages, currentUser),
       response: responseSummary,
       protocol: protocolProfile,
-      composition: analyzeRequestComposition(body, messages, systemParts, tools, currentUser, responseSummary),
+      composition: analyzeRequestComposition(body, messages, systemParts, tools, currentUser, responseSummary, capture.raw_body_length),
     },
     raw: compactCaptureForViewer(capture, responseSummary),
   };
@@ -2870,9 +2871,15 @@ function commonMessagePrefixLength(previousMessages, currentMessages) {
 }
 
 function comparableMessageKey(message) {
+  if (message && typeof message === "object") {
+    const cached = comparableMessageKeyCache.get(message);
+    if (cached) return cached;
+  }
   const normalized = normalizeComparableValue(message);
   if (normalized && typeof normalized === "object" && !Array.isArray(normalized)) normalized.content = normalizeComparableContent(message?.content);
-  return stableJson(normalized);
+  const key = stableJson(normalized);
+  if (message && typeof message === "object") comparableMessageKeyCache.set(message, key);
+  return key;
 }
 
 function normalizeComparableContent(content) {
@@ -3137,15 +3144,15 @@ function extractToolResults(messages) {
   return results;
 }
 
-function analyzeRequestComposition(body, messages, systemParts, tools, currentUser, responseSummary) {
+function analyzeRequestComposition(body, messages, systemParts, tools, currentUser, responseSummary, rawBodyLength = 0) {
   const params = Object.fromEntries(Object.entries(body || {}).filter(([key]) => !["messages", "system", "tools"].includes(key)));
-  const totalPayloadChars = charLength(stableJson(body || {}));
-  const messagesChars = charLength(stableJson(messages || []));
-  const systemChars = charLength(stableJson((systemParts || []).map((part) => part.text)));
-  const toolsChars = charLength(stableJson(tools || []));
-  const paramsChars = charLength(stableJson(params));
-  const currentUserChars = charLength(userVisibleText(currentUser));
   const messageParts = analyzeMessageComposition(messages || [], currentUser);
+  const totalPayloadChars = Number(rawBodyLength) || jsonCharLength(body || {});
+  const messagesChars = messageParts.total_chars;
+  const systemChars = (systemParts || []).reduce((sum, part) => sum + charLength(part.text), 0);
+  const toolsChars = jsonCharLength(tools || []);
+  const paramsChars = jsonCharLength(params);
+  const currentUserChars = messageParts.current_user_chars || charLength(userVisibleText(currentUser));
   const responseTextChars = charLength(responseSummary?.text || "");
   const responseThinkingChars = charLength(responseSummary?.thinking || "");
   const fixedContextChars = systemChars + toolsChars + paramsChars;
@@ -3238,6 +3245,14 @@ function ratio(value, total) {
 
 function charLength(value) {
   return String(value || "").length;
+}
+
+function jsonCharLength(value) {
+  try {
+    return JSON.stringify(value ?? null).length;
+  } catch {
+    return charLength(stableJson(value ?? null));
+  }
 }
 
 function buildStats(requests, agentTrace = null) {
@@ -3663,7 +3678,9 @@ function commandPreviewText(commandMessage) {
 }
 
 function isKnownFrameworkReminderText(text) {
-  const normalized = String(text || "").replace(/\s+/g, " ").trim();
+  const value = String(text || "").trimStart();
+  if (!/^The user stepped away and is coming back\./i.test(value.slice(0, 80))) return false;
+  const normalized = value.replace(/\s+/g, " ").trim();
   return /^The user stepped away and is coming back\. Recap in under 40 words,\s*1-2 plain sentences,\s*no markdown\./i.test(normalized);
 }
 

@@ -50,6 +50,7 @@
 - 导入 Trace 列表优先读 manifest 统计，不在 `/api/sources` 解析完整 `proxy-captures.json`。
 - Response Raw 默认展示最终解析结构和捕获元数据，不把 SSE/stream 原文整段下发到 viewer；大流式响应通过 `body_text_omitted` 标记保留可解释性。
 - Compact 时间线不再携带完整 `complete_response` 或长 tool_use 参数；首页只保留响应/参数预览，点击 Raw/详情时再通过 `/api/request` 恢复完整内容。
+- Compact 视图的上下文构成统计改用轻量字符估算，并缓存消息前缀比较 key，避免大 Trace 首页构建反复执行稳定 JSON 序列化。
 - Raw JSON 搜索增加 debounce，减少大 JSON 下的连续重渲染。
 - 切换/刷新视图时清理旧翻译 action 状态，避免长时间使用后积累无效 UI 状态。
 - 重命名持久化到 SQLite/import manifest，刷新后不再恢复旧标题。
