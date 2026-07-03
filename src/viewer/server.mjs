@@ -700,6 +700,8 @@ function persistedSources({ store, watches }) {
 
 function decoratePersistedSourceTitle(source, store) {
   if (source.user_title) return { ...source, label: cleanStoredSourceLabel(source.user_title) || source.user_title };
+  const conversationTitle = conversationTitleForSource(store, source);
+  if (conversationTitle) return { ...source, label: cleanStoredSourceLabel(conversationTitle) || conversationTitle, user_title: conversationTitle };
   const cleaned = cleanStoredSourceLabel(source.label);
   if (cleaned && !isGenericPersistedSourceLabel(cleaned, source)) return { ...source, label: cleaned };
   const captures = store?.loadInitialCaptures?.(source.store_watch_id, { limit: 5 }) || [];
@@ -1000,6 +1002,7 @@ async function ingestOtelCaptures(req, options) {
   const watch = {
     watch_id: watchId,
     label: input.label || `${agent} · OTel`,
+    title: input.title || conversationTitleForSource(store, { agent, conversation_id: conversationId }) || null,
     agent,
     mode: input.mode || "single_session",
     confidence: "exact",
@@ -1079,10 +1082,12 @@ async function startWatch(req, { cwd, watches, store, sharedCaptureProxy }) {
       },
     }));
   const sourceId = `live-${watchId}`;
+  const inheritedTitle = conversationTitleForSource(store, { agent, conversation_id: conversationId });
   watch = {
     id: sourceId,
     watch_id: watchId,
     label: `${agent} · ${modeLabel(mode)}`,
+    title: inheritedTitle || null,
     agent,
     mode,
     confidence: "exact",
@@ -1210,7 +1215,7 @@ async function restorePersistedWatch(source, input, { watches, store, sharedCapt
     id: `live-${watchId}`,
     watch_id: watchId,
     label: source.original_label || source.label || `${source.agent} · ${modeLabel(source.mode || input.mode || "single_session")}`,
-    title: source.user_title || null,
+    title: source.user_title || conversationTitleForSource(store, { agent: source.agent, conversation_id: input.conversation_id || source.conversation_id }) || null,
     agent: source.agent,
     mode: source.mode || input.mode || "single_session",
     confidence: source.confidence || "exact",
@@ -1325,6 +1330,7 @@ async function updateSource(req, options) {
     if (liveWatch) liveWatch.title = title || null;
     if (liveWatch?.watch_id) options.store?.updateWatchTitle(liveWatch.watch_id, title);
     else if (persistedSource?.store_watch_id) options.store?.updateWatchTitle(persistedSource.store_watch_id, title);
+    syncConversationTitle(options, liveWatch || persistedSource || source, title);
     if (importedSource?.path) updateImportedTraceTitle(importedSource.path, title);
   }
   setSourceMeta(options, metaKeys, meta);
@@ -3813,6 +3819,20 @@ function setSourceMeta(options, keys, meta) {
 function deleteSourceMeta(options, keys) {
   for (const key of keys) options.sourceMeta?.delete(key);
   if (options.sourceMetaPath && options.sourceMeta) writeSourceMeta(options.sourceMetaPath, options.sourceMeta);
+}
+
+function syncConversationTitle(options, source, title) {
+  const agent = source?.agent;
+  const conversationId = source?.conversation_id;
+  if (!agent || !conversationId) return;
+  options.store?.updateConversationTitle?.(agent, conversationId, title);
+  for (const watch of options.watches?.values?.() || []) {
+    if (watch.agent === agent && watch.conversation_id === conversationId) watch.title = title || null;
+  }
+}
+
+function conversationTitleForSource(store, source) {
+  return store?.conversationTitle?.(source?.agent, source?.conversation_id) || null;
 }
 
 function sourceMetaKeysForSource(source) {

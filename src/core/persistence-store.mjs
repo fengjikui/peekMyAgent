@@ -534,6 +534,35 @@ export class PersistenceStore {
     this.db.prepare("UPDATE watches SET title = ?, updated_at = ? WHERE watch_id = ?").run(value, new Date().toISOString(), watchId);
   }
 
+  updateConversationTitle(agent, conversationId, title) {
+    const cleanAgent = String(agent || "").trim();
+    const cleanConversationId = String(conversationId || "").trim();
+    if (!cleanAgent || !cleanConversationId) return { updated: 0 };
+    const value = String(title || "").trim() || null;
+    const result = this.db
+      .prepare("UPDATE watches SET title = ?, updated_at = ? WHERE agent = ? AND conversation_id = ?")
+      .run(value, new Date().toISOString(), cleanAgent, cleanConversationId);
+    return { updated: Number(result.changes) || 0 };
+  }
+
+  conversationTitle(agent, conversationId) {
+    const cleanAgent = String(agent || "").trim();
+    const cleanConversationId = String(conversationId || "").trim();
+    if (!cleanAgent || !cleanConversationId) return null;
+    const row = this.db
+      .prepare(
+        `
+          SELECT title
+          FROM watches
+          WHERE agent = ? AND conversation_id = ? AND title IS NOT NULL AND title <> ''
+          ORDER BY updated_at DESC, last_seen DESC, created_at DESC
+          LIMIT 1
+        `,
+      )
+      .get(cleanAgent, cleanConversationId);
+    return row?.title || null;
+  }
+
   deleteWatch(watchId) {
     this.db.prepare("DELETE FROM watches WHERE watch_id = ?").run(watchId);
     this.recomputeBlobRefCounts();

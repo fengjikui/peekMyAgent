@@ -59,6 +59,28 @@ try {
   assert.equal(sameConversationLive?.label, "Renamed live source", "rename follows the same conversation across a new live watch id");
   assert.equal(sameConversationLive?.user_title, "Renamed live source", "live source keeps user_title across a new live watch id");
 
+  const otelDir = path.join(tmpDir, "otel");
+  fs.mkdirSync(otelDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(otelDir, "source-meta-otel.request.json"),
+    JSON.stringify({
+      model: "claude-test",
+      messages: [{ role: "user", content: "same conversation via otel" }],
+      metadata: { user_id: JSON.stringify({ session_id: "source-meta-smoke-session" }) },
+    }),
+  );
+  const otel = await postJson(`${viewer.url}/api/capture/otel`, {
+    dir: otelDir,
+    watch_id: "claude-code-source-meta-otel",
+    agent: "Claude Code",
+    workspace: cwd,
+    conversation_id: "source-meta-smoke-session",
+  });
+  sources = await getJson(`${viewer.url}/api/sources`);
+  const sameConversationOtel = sources.find((source) => source.id === otel.source_id);
+  assert.equal(sameConversationOtel?.label, "Renamed live source", "rename follows the same conversation into OTel capture mode");
+  assert.equal(sameConversationOtel?.user_title, "Renamed live source", "OTel source inherits conversation user_title");
+
   await viewer.close();
 
   viewer = await startViewerServer({ cwd, storePath });
@@ -67,6 +89,9 @@ try {
   assert.equal(persistedLive?.label, "Renamed live source", "live source rename survives as stored source after viewer restart");
   assert.equal(persistedLive?.user_title, "Renamed live source", "stored source keeps user_title after viewer restart");
   assert.equal(persistedLive?.pinned, true, "live source pin survives as stored source after viewer restart");
+  const persistedOtel = sources.find((source) => source.store_watch_id === "claude-code-source-meta-otel");
+  assert.equal(persistedOtel?.label, "Renamed live source", "OTel source keeps conversation title after viewer restart");
+  assert.equal(persistedOtel?.user_title, "Renamed live source", "OTel source keeps conversation user_title after viewer restart");
   await viewer.close();
 
   console.log("source-meta persistence smoke passed");
