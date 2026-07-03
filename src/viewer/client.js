@@ -50,6 +50,7 @@ const DEFAULT_UI_LANGUAGE = "zh-CN";
 const DEFAULT_TRANSLATION_LANGUAGE = "zh-CN";
 const TIMELINE_WINDOW_THRESHOLD = 180;
 const TIMELINE_WINDOW_SIZE = 120;
+const RAW_MESSAGE_MARKDOWN_INLINE_CHARS = 5000;
 const SUPPORTED_UI_LANGUAGES = [
   { value: "zh-CN", label: "中文" },
   { value: "en-US", label: "English" },
@@ -327,6 +328,7 @@ const I18N = {
     messageType: "type",
     messageRawDetails: "原始块",
     messageTextFallback: "(无文本内容)",
+    messageTextTruncated: "整理视图仅渲染前 {shown} / {total} 字符；切换到原文查看完整 JSON。",
     unassignedProject: "未归属项目",
     requestUnit: "{count} 请求",
     requestCount: "{count} 条请求",
@@ -643,6 +645,7 @@ const I18N = {
     messageType: "type",
     messageRawDetails: "Raw block",
     messageTextFallback: "(no text content)",
+    messageTextTruncated: "Organized view renders the first {shown} of {total} characters only. Switch to Source for the full JSON.",
     unassignedProject: "Unassigned project",
     requestUnit: "{count} requests",
     requestCount: "{count} requests",
@@ -4697,6 +4700,7 @@ function renderOrganizedMessageBlock(block, index) {
   const type = block.type || "unknown";
   const text = block.text || "";
   const isText = type === "text" || (text && !hasStructuredMessagePayload(block.raw));
+  const markdownText = truncateOrganizedMessageText(text);
   return `
     <section class="raw-message-block ${escapeHtml(isText ? "text" : "structured")}">
       <header>
@@ -4705,7 +4709,12 @@ function renderOrganizedMessageBlock(block, index) {
       </header>
       ${
         text
-          ? `<div class="raw-message-markdown">${renderSafeMarkdown(text)}</div>`
+          ? `<div class="raw-message-markdown">${renderSafeMarkdown(markdownText.text)}</div>
+             ${
+               markdownText.truncated
+                 ? `<p class="raw-message-truncation">${escapeHtml(t("messageTextTruncated", { shown: formatCompactNumber(markdownText.text.length), total: formatCompactNumber(text.length) }))}</p>`
+                 : ""
+             }`
           : `<p class="raw-message-empty">${escapeHtml(t("messageTextFallback"))}</p>`
       }
       ${
@@ -4715,6 +4724,15 @@ function renderOrganizedMessageBlock(block, index) {
       }
     </section>
   `;
+}
+
+function truncateOrganizedMessageText(text) {
+  const value = String(text || "");
+  if (value.length <= RAW_MESSAGE_MARKDOWN_INLINE_CHARS) return { text: value, truncated: false };
+  return {
+    text: `${value.slice(0, RAW_MESSAGE_MARKDOWN_INLINE_CHARS).trimEnd()}\n\n...`,
+    truncated: true,
+  };
 }
 
 function hasStructuredMessagePayload(value) {

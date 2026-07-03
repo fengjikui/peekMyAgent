@@ -14,6 +14,7 @@ assert.equal(result.status, 0, result.stderr);
 const packs = JSON.parse(result.stdout);
 assert.equal(packs.length, 1);
 const files = new Set(packs[0].files.map((file) => file.path));
+const packageFiles = [...files].sort();
 const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
 assert.match(packageJson.description || "", /agent|request|dashboard/i);
 assert.ok(packageJson.keywords?.includes("agent"));
@@ -60,6 +61,19 @@ for (const excluded of [
 ]) {
   assert.equal(files.has(excluded), false, `did not expect ${excluded} in npm package`);
 }
+
+const deniedPatterns = [
+  /^docs\//,
+  /^tmp\//,
+  /^\.github\//,
+  /^\.local\//,
+  /^handovers?\//i,
+  /(^|\/)(private|resume|memory|drafts?)(\/|$)/i,
+  /(^|\/)\.env(?:\.|$)/,
+  /\.(?:sqlite|db|jsonl|log|zip|tar|tgz|gz|mp4|mov|webm|gif|png|jpe?g)$/i,
+];
+const deniedFiles = packageFiles.filter((file) => deniedPatterns.some((pattern) => pattern.test(file)));
+assert.deepEqual(deniedFiles, [], `npm package includes release-unsafe files: ${deniedFiles.join(", ")}`);
 
 assert.ok(packs[0].entryCount < 40, `expected a compact package, got ${packs[0].entryCount} files`);
 
