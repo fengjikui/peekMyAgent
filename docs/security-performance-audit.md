@@ -56,6 +56,7 @@
 - 重命名持久化到 SQLite/import manifest，刷新后不再恢复旧标题。
 - SQLite 持久化会话在左侧列表推断标题时只读取前几条 capture 样本，并且用户手动标题优先于任何自动推断，避免大 Trace 因列表刷新触发全量加载或标题回退。
 - `/api/request` 对 live watch 和 SQLite 持久化会话使用单条详情快路径，只加载目标请求附近的小窗口，不再为 Raw/System/Tools 详情点击重建整个大 Trace。
+- 长 Trace 主时间线超过阈值后只渲染当前 active turn 附近的窗口，Turn rail 仍保留全局跳转；1000 轮合成 Trace 的主时间线 DOM 从约 36k 节点降到约 2.8k 节点，总 DOM 约 4k。
 
 ## 新增/扩展的自动验证
 
@@ -74,7 +75,7 @@
 
 - 本机恶意进程仍可直接访问本地 loopback 服务。若以后支持更强安全模型，可增加一次性 session token、Unix domain socket 或浏览器端 nonce。
 - Trace 导出已经默认脱敏常见 secret/token pattern，但仍可能包含私有提示词、源码片段、文件路径、工具输出或业务数据；后续可增加导出前预览、风险扫描和可配置脱敏规则。
-- `/api/view` 仍会加载选中会话的完整视图，这是“用户点开详情”时的预期行为；未来可继续拆成分页/lazy raw/tree endpoints。
+- `/api/view` 仍会加载选中会话的完整 compact 视图，这是“用户点开详情”时的预期行为；未来可继续拆成真正分页的 turn endpoint，以及 lazy raw/tree endpoints。
 - Markdown 渲染、翻译和 Raw JSON 展示应继续避免一次性渲染超大 DOM；新增展示区时要补大样本 fixture 或 smoke。
 - 如果未来支持远程访问 dashboard，应设计成明确的远程模式，而不是简单开放 host：需要认证、CSRF token、CORS 策略、TLS/反代建议和更明确的隐私提示。
 

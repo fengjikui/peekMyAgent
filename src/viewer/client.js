@@ -48,6 +48,8 @@ const TARGET_TRANSLATION_LANGUAGE_KEY = "peekmyagent.targetTranslationLanguage";
 const RAW_MESSAGES_MODE_KEY = "peekmyagent.rawMessagesMode";
 const DEFAULT_UI_LANGUAGE = "zh-CN";
 const DEFAULT_TRANSLATION_LANGUAGE = "zh-CN";
+const TIMELINE_WINDOW_THRESHOLD = 180;
+const TIMELINE_WINDOW_SIZE = 120;
 const SUPPORTED_UI_LANGUAGES = [
   { value: "zh-CN", label: "中文" },
   { value: "en-US", label: "English" },
@@ -385,6 +387,11 @@ const I18N = {
     jumpToTurnAria: "跳转到 Turn {index}",
     turnRailAriaDynamic: "轮次导航，当前第 {current} 轮，共 {total} 轮",
     turnRailAriaTotal: "轮次导航，共 {total} 轮",
+    timelineWindowSummary: "长 Trace 分段渲染：当前显示第 {start}-{end} / {total} 轮",
+    timelineWindowBefore: "前面还有 {count} 轮未渲染",
+    timelineWindowAfter: "后面还有 {count} 轮未渲染",
+    jumpToFirstTurn: "跳到开头",
+    jumpToLastTurn: "跳到结尾",
     turnRequests: "{count} 请求",
     turnInternal: "{count} 内部",
     turnTools: "工具 {calls}/{results}",
@@ -696,6 +703,11 @@ const I18N = {
     jumpToTurnAria: "Jump to Turn {index}",
     turnRailAriaDynamic: "Turn navigation, currently turn {current} of {total}",
     turnRailAriaTotal: "Turn navigation, {total} turns",
+    timelineWindowSummary: "Large Trace window: showing turns {start}-{end} of {total}",
+    timelineWindowBefore: "{count} earlier turns are not rendered",
+    timelineWindowAfter: "{count} later turns are not rendered",
+    jumpToFirstTurn: "Jump to start",
+    jumpToLastTurn: "Jump to end",
     turnRequests: "{count} requests",
     turnInternal: "{count} internal",
     turnTools: "tools {calls}/{results}",
@@ -1130,7 +1142,7 @@ async function init() {
   els.turnRail.addEventListener("click", (event) => {
     const button = event.target.closest("[data-turn]");
     if (!button || !els.turnRail.contains(button)) return;
-    markActiveTurn(button.dataset.turn, true);
+    jumpToTurn(button.dataset.turn, true);
   });
   const updateRailHoverFromEvent = (event) => {
     const button = event.target.closest("[data-turn]");
@@ -2004,8 +2016,8 @@ function renderAll() {
   els.watchSummary.innerHTML = "";
   els.sessionInfoBody.innerHTML = renderSessionInfo(source, stats, requests);
   renderSessionNav();
-  const visibleTurns = visibleTurnList(turns, requests);
-  els.timeline.innerHTML = requests.length ? renderTurnTimeline(visibleTurns, requests) : renderEmptyTimeline(source.workbench);
+  const turnWindow = timelineWindowInfo(turns, requests);
+  els.timeline.innerHTML = requests.length ? renderTurnTimeline(turnWindow, requests) : renderEmptyTimeline(source.workbench);
   els.agentComposer.innerHTML = renderAgentComposer(source);
   renderTurnRail();
   bindSessionInfoControls();
@@ -2016,10 +2028,42 @@ function renderAll() {
   if (state.activeRequestId) markActiveRequest(state.activeRequestId, false);
 }
 
-function visibleTurnList(turns, requests) {
+function baseTurnList(turns, requests) {
   const normalizedTurns = Array.isArray(turns) && turns.length ? turns : fallbackTurns(requests);
   if (!state.latestOnly || normalizedTurns.length <= 1) return normalizedTurns;
   return [normalizedTurns.at(-1)];
+}
+
+function timelineWindowInfo(turns, requests) {
+  const allTurns = baseTurnList(turns, requests);
+  if (state.latestOnly || allTurns.length <= TIMELINE_WINDOW_THRESHOLD) {
+    return {
+      turns: allTurns,
+      allTurns,
+      start: 0,
+      end: allTurns.length,
+      total: allTurns.length,
+      windowed: false,
+    };
+  }
+  const rawActiveIndex = allTurns.findIndex((turn) => turn.id === state.activeId);
+  const activeIndex = rawActiveIndex >= 0 ? rawActiveIndex : 0;
+  const halfWindow = Math.floor(TIMELINE_WINDOW_SIZE / 2);
+  const maxStart = Math.max(0, allTurns.length - TIMELINE_WINDOW_SIZE);
+  const start = Math.min(Math.max(0, activeIndex - halfWindow), maxStart);
+  const end = Math.min(allTurns.length, start + TIMELINE_WINDOW_SIZE);
+  return {
+    turns: allTurns.slice(start, end),
+    allTurns,
+    start,
+    end,
+    total: allTurns.length,
+    windowed: true,
+  };
+}
+
+function visibleTurnList(turns, requests) {
+  return timelineWindowInfo(turns, requests).turns;
 }
 
 function renderEmptyTimeline(summary) {
@@ -2417,7 +2461,7 @@ function clearTurnRailHover() {
 function railTurnUniverse(data = state.data) {
   const requests = data?.requests || [];
   const turns = data?.turns || [];
-  return visibleTurnList(turns, requests);
+  return baseTurnList(turns, requests);
 }
 
 function activeTurnIds(data = state.data) {
@@ -2456,10 +2500,36 @@ function renderNavItem(request) {
   `;
 }
 
-function renderTurnTimeline(turns, requests) {
-  const normalizedTurns = Array.isArray(turns) && turns.length ? turns : fallbackTurns(requests);
+function renderTurnTimeline(turnWindowOrTurns, requests) {
+  const turnWindow = Array.isArray(turnWindowOrTurns)
+    ? {
+        turns: turnWindowOrTurns,
+        allTurns: turnWindowOrTurns,
+        start: 0,
+        end: turnWindowOrTurns.length,
+        total: turnWindowOrTurns.length,
+        windowed: false,
+      }
+    : turnWindowOrTurns;
+  const normalizedTurns = Array.isArray(turnWindow?.turns) && turnWindow.turns.length ? turnWindow.turns : fallbackTurns(requests);
   const requestMap = new Map(requests.map((request) => [request.id, request]));
-  return normalizedTurns.map((turn) => renderTurnGroup(turn, requestMap)).join("");
+  return [renderTimelineWindowEdge(turnWindow, "before"), ...normalizedTurns.map((turn) => renderTurnGroup(turn, requestMap)), renderTimelineWindowEdge(turnWindow, "after")].join("");
+}
+
+function renderTimelineWindowEdge(turnWindow, edge) {
+  if (!turnWindow?.windowed) return "";
+  const hiddenCount = edge === "before" ? turnWindow.start : turnWindow.total - turnWindow.end;
+  if (hiddenCount <= 0) return "";
+  const target = edge === "before" ? turnWindow.allTurns?.[0] : turnWindow.allTurns?.at(-1);
+  const label = edge === "before" ? t("timelineWindowBefore", { count: hiddenCount }) : t("timelineWindowAfter", { count: hiddenCount });
+  const summary = t("timelineWindowSummary", { start: turnWindow.start + 1, end: turnWindow.end, total: turnWindow.total });
+  return `
+    <section class="timeline-window-edge-card ${edge}" aria-label="${escapeHtml(label)}">
+      <span>${escapeHtml(label)}</span>
+      <span>${escapeHtml(summary)}</span>
+      ${target?.id ? `<button type="button" data-turn-window-jump="${escapeHtml(target.id)}">${escapeHtml(edge === "before" ? t("jumpToFirstTurn") : t("jumpToLastTurn"))}</button>` : ""}
+    </section>
+  `;
 }
 
 function fallbackTurns(requests) {
@@ -3766,6 +3836,13 @@ function bindRequestEvents() {
   document.querySelectorAll("[data-upstream-panel]").forEach((panel) => {
     panel.addEventListener("toggle", () => syncUpstreamDetailsState(panel));
   });
+  document.querySelectorAll("[data-turn-window-jump]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      jumpToTurn(button.dataset.turnWindowJump, true);
+    });
+  });
   document.querySelectorAll("[data-raw]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -3811,12 +3888,19 @@ function bindRequestEvents() {
   });
 }
 
+function jumpToTurn(turnId, scroll = true) {
+  if (!turnId) return;
+  state.activeId = turnId;
+  renderAll();
+  markActiveTurn(turnId, scroll);
+}
+
 function jumpToRequest(requestId) {
   if (!requestId) return;
   const request = state.data?.requests?.find((item) => item.id === requestId);
   if (!request) return;
+  if (request.turn_id && request.turn_id !== state.activeId) jumpToTurn(request.turn_id, false);
   markActiveRequest(requestId, true);
-  if (request.turn_id && request.turn_id !== state.activeId) markActiveTurn(request.turn_id, false);
 }
 
 function jumpToAgentBranch(branchId) {

@@ -1356,6 +1356,41 @@ select {
   max-width: min(1260px, calc(100vw - 64px));
 }
 
+.timeline-window-edge-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px dashed #c7d6f2;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.timeline-window-edge-card span:first-child {
+  color: var(--text);
+}
+
+.timeline-window-edge-card button {
+  padding: 5px 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.timeline-window-edge-card button:hover,
+.timeline-window-edge-card button:focus-visible {
+  background: #eff6ff;
+}
+
 .turn-rail {
   position: fixed;
   top: 154px;
