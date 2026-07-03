@@ -18,6 +18,15 @@ try {
     const viewerOrigin = new URL(viewer.url).origin;
     const viewerUrl = new URL(viewer.url);
     const otherLoopbackOrigin = `http://${viewerUrl.hostname}:${Number(viewerUrl.port) + 1}`;
+
+    const index = await fetch(viewer.url);
+    assert.equal(index.status, 200, "dashboard index loads");
+    assertSecurityHeaders(index, "dashboard index");
+
+    const sources = await fetch(`${viewer.url}/api/sources`);
+    assert.equal(sources.status, 200, "sources API loads");
+    assertSecurityHeaders(sources, "JSON API");
+
     const sameOrigin = await fetch(`${viewer.url}/api/watch/start`, {
       method: "POST",
       headers: {
@@ -32,6 +41,12 @@ try {
       }),
     });
     assert.equal(sameOrigin.status, 200, "same dashboard origin POST is accepted");
+    const startedWatch = await sameOrigin.json();
+
+    const exportResponse = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`);
+    assert.equal(exportResponse.status, 200, "trace export succeeds");
+    assert.equal(exportResponse.headers.get("content-type"), "application/gzip");
+    assertSecurityHeaders(exportResponse, "trace export");
 
     const loopbackWrongPort = await fetch(`${viewer.url}/api/watch/start`, {
       method: "POST",
@@ -107,4 +122,14 @@ try {
   console.log("security-boundary smoke: OK");
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+function assertSecurityHeaders(response, label) {
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff", `${label} sets nosniff`);
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer", `${label} sets referrer policy`);
+  assert.equal(response.headers.get("cross-origin-opener-policy"), "same-origin", `${label} sets COOP`);
+  const csp = response.headers.get("content-security-policy") || "";
+  assert.match(csp, /default-src 'self'/, `${label} sets a default CSP`);
+  assert.match(csp, /frame-ancestors 'none'/, `${label} cannot be framed`);
+  assert.match(csp, /object-src 'none'/, `${label} blocks plugins`);
 }

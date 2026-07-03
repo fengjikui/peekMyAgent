@@ -1225,6 +1225,7 @@ function exportTraceBundle(res, sourceId, options) {
   const payload = Buffer.from(`${JSON.stringify(bundle, null, 2)}\n`, "utf8");
   const gzipped = zlib.gzipSync(payload);
   res.writeHead(200, {
+    ...viewerSecurityHeaders(),
     "content-type": "application/gzip",
     "content-disposition": `attachment; filename="${fileBase}.peektrace.json.gz"`,
     "cache-control": "no-store",
@@ -4032,13 +4033,32 @@ function listen(server, host, port) {
 
 function serveFile(res, filePath, contentType) {
   const body = fs.readFileSync(filePath);
-  res.writeHead(200, { "content-type": contentType, "cache-control": "no-store" });
+  res.writeHead(200, { ...viewerSecurityHeaders(), "content-type": contentType, "cache-control": "no-store" });
   res.end(body);
 }
 
 function writeJson(res, status, value) {
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+  res.writeHead(status, { ...viewerSecurityHeaders(), "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
   res.end(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+function viewerSecurityHeaders() {
+  return {
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "cross-origin-opener-policy": "same-origin",
+    "content-security-policy": [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "form-action 'none'",
+      "frame-ancestors 'none'",
+    ].join("; "),
+  };
 }
 
 export function defaultWorkspace() {

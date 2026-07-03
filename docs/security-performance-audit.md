@@ -28,6 +28,7 @@
 - `src/viewer/server.mjs`
   - 拒绝非 loopback 绑定，除非显式开启 unsafe remote。
   - 为本地 API 增加 `Origin` / `Referer` / JSON content-type 防护。
+  - 为 dashboard、JSON API 和 Trace 导出统一增加基础浏览器安全响应头：`nosniff`、`no-referrer`、`COOP` 和限制脚本/对象/嵌入的 CSP。
   - 限制普通 JSON body、Trace 导入体积、gzip 解压体积和导入 capture 数量。
   - 翻译目标语言进入缓存路径前做安全归一化。
   - 导入 Trace 列表优先使用 manifest 统计，避免列会话时解析完整大文件。
@@ -54,7 +55,7 @@
 ## 新增/扩展的自动验证
 
 - `npm run smoke:security-boundary`
-  - 覆盖非 loopback 绑定拒绝、跨站 POST 拒绝、非 JSON 状态修改拒绝、不安全语言路径拒绝、超大 Trace capture 数拒绝。
+  - 覆盖非 loopback 绑定拒绝、跨站 POST 拒绝、非 JSON 状态修改拒绝、基础安全响应头、不安全语言路径拒绝、超大 Trace capture 数拒绝。
 - `npm run smoke:source-list-performance`
   - 构造一个 manifest-backed 大 Trace，故意让 `proxy-captures.json` 不可解析；`/api/sources` 仍应能列出它，防止会话列表退回全量解析慢路径。
 - `npm run smoke:persistence-store`
