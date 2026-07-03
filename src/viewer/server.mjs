@@ -695,11 +695,30 @@ function persistedSources({ store, watches }) {
 }
 
 function decoratePersistedSourceTitle(source, store) {
+  if (source.user_title) return { ...source, label: cleanStoredSourceLabel(source.user_title) || source.user_title };
   const cleaned = cleanStoredSourceLabel(source.label);
-  if (cleaned) return { ...source, label: cleaned };
-  const captures = store?.loadCaptures(source.store_watch_id) || [];
+  if (cleaned && !isGenericPersistedSourceLabel(cleaned, source)) return { ...source, label: cleaned };
+  const captures = store?.loadInitialCaptures?.(source.store_watch_id, { limit: 5 }) || [];
   const inferred = captures.map(inferCaptureTitle).find(Boolean);
-  return inferred ? { ...source, label: inferred } : source;
+  if (inferred) return { ...source, label: inferred };
+  return cleaned ? { ...source, label: cleaned } : source;
+}
+
+function isGenericPersistedSourceLabel(label, source = {}) {
+  const value = String(label || "").trim();
+  if (!value) return true;
+  const agent = String(source.agent || "").trim();
+  const mode = source.mode ? modeLabel(source.mode) : "";
+  const genericLabels = new Set(
+    [
+      agent && mode ? `${agent} · ${mode}` : "",
+      agent && source.kind === "otel_raw_body" ? `${agent} · OTel` : "",
+      "Claude Code · 监控一个会话",
+      "Claude Code · OTel",
+      "OpenClaw · 监控一个会话",
+    ].filter(Boolean),
+  );
+  return genericLabels.has(value);
 }
 
 function importedTraceSources({ importsDir }) {

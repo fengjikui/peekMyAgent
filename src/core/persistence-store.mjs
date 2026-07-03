@@ -389,6 +389,22 @@ export class PersistenceStore {
       .map((row) => this.captureFromRow(row));
   }
 
+  loadInitialCaptures(watchId, { limit = 5 } = {}) {
+    const safeLimit = Math.max(1, Math.min(50, Number(limit) || 5));
+    return this.db
+      .prepare(
+        `
+          SELECT *
+          FROM model_requests
+          WHERE watch_id = ?
+          ORDER BY request_index, received_at
+          LIMIT ?
+        `,
+      )
+      .all(watchId, safeLimit)
+      .map((row) => this.captureFromRow(row));
+  }
+
   loadCaptureWindow(watchId, requestId, { previousCount = 1 } = {}) {
     const target = this.findCaptureRow(watchId, requestId);
     if (!target) return [];
