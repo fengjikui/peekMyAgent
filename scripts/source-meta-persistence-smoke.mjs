@@ -59,6 +59,37 @@ try {
   assert.equal(sameConversationLive?.label, "Renamed live source", "rename follows the same conversation across a new live watch id");
   assert.equal(sameConversationLive?.user_title, "Renamed live source", "live source keeps user_title across a new live watch id");
 
+  const lateConversationLive = await postJson(`${viewer.url}/api/watch/start`, {
+    agent: "Claude Code",
+    mode: "single_session",
+    workspace: cwd,
+    target_base_url: upstreamUrl,
+    reuse: false,
+  });
+  await postJson(`${viewer.url}/api/source/update`, {
+    id: lateConversationLive.id,
+    title: "Renamed before first request",
+  });
+  await sendModelRequest(lateConversationLive.base_url, "first request after rename", {
+    "x-claude-code-session-id": "source-meta-late-session",
+  });
+  sources = await getJson(`${viewer.url}/api/sources`);
+  const lateConversationSource = sources.find((source) => source.live_watch_id === lateConversationLive.watch_id);
+  assert.equal(lateConversationSource?.conversation_id, "source-meta-late-session", "conversation id learned from first request");
+  assert.equal(lateConversationSource?.label, "Renamed before first request", "rename survives after conversation id is learned");
+
+  const freshLateConversationLive = await postJson(`${viewer.url}/api/watch/start`, {
+    agent: "Claude Code",
+    mode: "single_session",
+    workspace: cwd,
+    conversation_id: "source-meta-late-session",
+    target_base_url: upstreamUrl,
+    reuse: false,
+  });
+  sources = await getJson(`${viewer.url}/api/sources`);
+  const inheritedLateConversationLive = sources.find((source) => source.live_watch_id === freshLateConversationLive.watch_id);
+  assert.equal(inheritedLateConversationLive?.label, "Renamed before first request", "rename before first request follows the later conversation");
+
   const otelDir = path.join(tmpDir, "otel");
   fs.mkdirSync(otelDir, { recursive: true });
   fs.writeFileSync(
@@ -111,6 +142,20 @@ async function postJson(url, payload) {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+  return response.json();
+}
+
+async function sendModelRequest(baseUrl, text, headers = {}) {
+  const response = await fetch(`${baseUrl}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: "Bearer smoke", ...headers },
+    body: JSON.stringify({
+      model: "mock-claude",
+      system: "You are a smoke test.",
+      messages: [{ role: "user", content: text }],
+    }),
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
   return response.json();

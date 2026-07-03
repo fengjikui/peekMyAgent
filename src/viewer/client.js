@@ -1917,9 +1917,10 @@ async function updateSourceMeta(sourceId, payload) {
 async function updateSourceMetaLocally(sourceId, payload) {
   const source = state.sources.find((item) => item.id === sourceId);
   const meta = readLocalSourceMeta();
-  const item = { ...(meta[sourceId] || {}) };
+  const keys = sourceMetaKeysForClientSource(source || { id: sourceId });
+  const item = { ...mergedLocalSourceMeta(meta, source || { id: sourceId }) };
   if (payload.delete) {
-    delete meta[sourceId];
+    keys.forEach((key) => delete meta[key]);
     writeLocalSourceMeta(meta);
     return;
   }
@@ -1943,15 +1944,17 @@ async function updateSourceMetaLocally(sourceId, payload) {
     if (title) item.title = title;
     else delete item.title;
   }
-  if (item.hidden || item.pinned || item.title) meta[sourceId] = item;
-  else delete meta[sourceId];
+  for (const key of keys) {
+    if (item.hidden || item.pinned || item.title) meta[key] = item;
+    else delete meta[key];
+  }
   writeLocalSourceMeta(meta);
 }
 
 function applyLocalSourceMeta(sources) {
   const meta = readLocalSourceMeta();
   return (sources || [])
-    .map((source, order) => ({ ...decorateSourceLocally(source, meta[source.id]), source_order: order }))
+    .map((source, order) => ({ ...decorateSourceLocally(source, mergedLocalSourceMeta(meta, source)), source_order: order }))
     .filter((source) => !source.hidden)
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.source_order - b.source_order)
     .map(({ source_order, ...source }) => source);
@@ -1985,6 +1988,37 @@ function readLocalSourceMeta() {
 
 function writeLocalSourceMeta(meta) {
   localStorage.setItem(LOCAL_SOURCE_META_KEY, JSON.stringify(meta));
+}
+
+function mergedLocalSourceMeta(meta, source) {
+  return sourceMetaKeysForClientSource(source).reduce((merged, key) => ({ ...merged, ...(meta[key] || {}) }), {});
+}
+
+function sourceMetaKeysForClientSource(source = {}) {
+  const keys = new Set([source.id].filter(Boolean));
+  const watchId = source.live_watch_id || source.store_watch_id || watchIdFromClientSourceId(source.id);
+  if (watchId) {
+    keys.add(`live-${watchId}`);
+    keys.add(`stored-${watchId}`);
+  }
+  const agent = safeLocalMetaSegment(source.agent);
+  const conversationId = safeLocalMetaSegment(source.conversation_id);
+  if (agent && conversationId) keys.add(`conversation-${agent}-${conversationId}`);
+  return [...keys];
+}
+
+function watchIdFromClientSourceId(sourceId) {
+  const value = String(sourceId || "");
+  if (value.startsWith("live-")) return value.slice("live-".length);
+  if (value.startsWith("stored-")) return value.slice("stored-".length);
+  return null;
+}
+
+function safeLocalMetaSegment(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function readCollapsedProjects() {

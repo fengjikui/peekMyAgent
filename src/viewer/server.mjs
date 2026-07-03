@@ -295,10 +295,15 @@ async function generateTranslations(req, options) {
 }
 
 function writeTranslationMaterialsForViewerSource({ sourceId, agent, targetLanguage, options, section = "", requestId = "" }) {
-  const data = loadViewerData(sourceId, options);
   const byHash = new Map();
+  if (requestId) {
+    const detail = loadViewerRequestDetail(sourceId, requestId, options);
+    collectViewerRequestTranslationMaterials(byHash, detail.request, detail.source, targetLanguage, { section });
+    const materials = [...byHash.values()].sort(compareTranslationMaterial);
+    return writeTranslationMaterials({ materials, sourceId, agent, targetLanguage, sourceCount: 1 });
+  }
+  const data = loadViewerData(sourceId, options);
   for (const request of data.requests || []) {
-    if (requestId && request.id !== requestId) continue;
     collectViewerRequestTranslationMaterials(byHash, request, data.source, targetLanguage, { section });
   }
   const materials = [...byHash.values()].sort(compareTranslationMaterial);

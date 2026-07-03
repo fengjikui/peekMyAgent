@@ -54,8 +54,10 @@
 - Raw JSON 搜索增加 debounce，减少大 JSON 下的连续重渲染。
 - 切换/刷新视图时清理旧翻译 action 状态，避免长时间使用后积累无效 UI 状态。
 - 重命名持久化到 SQLite/import manifest，刷新后不再恢复旧标题。
+- 前端本地 source meta 兜底使用 source id、watch id 和 conversation id 多 key 合并，避免 live/stored id 切换后把用户重命名标题回退。
 - SQLite 持久化会话在左侧列表推断标题时只读取前几条 capture 样本，并且用户手动标题优先于任何自动推断，避免大 Trace 因列表刷新触发全量加载或标题回退。
 - `/api/request` 对 live watch 和 SQLite 持久化会话使用单条详情快路径，只加载目标请求附近的小窗口，不再为 Raw/System/Tools 详情点击重建整个大 Trace。
+- 请求级翻译刷新带 `request_id` 时复用单条详情快路径，只抽取目标请求的翻译材料；只有整段刷新才加载完整 source。
 - 长 Trace 主时间线超过阈值后只渲染当前 active turn 附近的窗口，Turn rail 仍保留全局跳转；1000 轮合成 Trace 的主时间线 DOM 从约 36k 节点降到约 2.8k 节点，总 DOM 约 4k。
 - Raw Messages 的“整理”视图对单个文本块设置 Markdown 渲染上限，长文本只展示预览并提示切换原文查看完整 JSON，避免压缩摘要或长工具结果造成右侧面板卡顿。
 
@@ -67,6 +69,10 @@
   - 构造一个 manifest-backed 大 Trace，故意让 `proxy-captures.json` 不可解析；同时构造 SQLite 通用标题会话并禁止 `loadCaptures()`；`/api/sources` 仍应能列出它们，防止会话列表退回全量解析慢路径或覆盖用户重命名标题。
 - `npm run smoke:persistence-store`
   - 覆盖会话重命名跨 viewer restart 持久化，以及 `/api/request` 不走全量 persisted source 加载。
+- `npm run smoke:source-meta`
+  - 覆盖静态、live、OTel 和 stored source 标题持久化；额外覆盖先重命名、后由首个请求识别 conversation id 的真实使用边界。
+- `npm run smoke:harness-translation`
+  - 覆盖 Harness 提示词翻译、缓存命中，以及带 `request_id` 的请求级翻译刷新。
 - `npm run smoke:platform`
   - 覆盖跨平台 browser opener 命令。
 - `npm run smoke:package`

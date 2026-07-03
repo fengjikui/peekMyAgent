@@ -105,6 +105,16 @@ try {
   const compactHash = clientHash("harness_compact", compactPrompt);
   assert.ok(entries[compactHash]?.translated_text, "client-computed hash for the compact prompt resolves to a cached translation");
 
+  const view = await (await fetch(`${viewer.url}/api/view?source=${encodeURIComponent(ingest.source_id)}&compact=1`)).json();
+  const requestId = view.requests?.[0]?.id;
+  assert.ok(requestId, "ingested request id is available for request-scoped translation refresh");
+  const requestScopedGen = await (await fetch(`${viewer.url}/api/translations/generate`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ source_id: ingest.source_id, request_id: requestId, section: "harness", agent: "Claude Code", target_language: "zh-CN" }),
+  })).json();
+  assert.ok(requestScopedGen.extract?.item_count > 0, "request-scoped translation refresh extracts materials");
+  assert.equal(requestScopedGen.extract?.source_count, 1, "request-scoped translation refresh reports one source");
+
   console.log(`harness-translation smoke: OK (reminder/compact/command/suggestion extracted + translated + lookup parity; ${gen.translate?.translated} blocks)`);
 } catch (error) {
   failed = true;
