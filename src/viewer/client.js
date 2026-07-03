@@ -3538,7 +3538,7 @@ function rawSectionData(request, section) {
 
 function rawResponseSectionValue(request) {
   const response = request.summary?.response || {};
-  const rawPayload = rawResponsePayload(request.raw?.response || null);
+  const rawResponse = request.raw?.response || null;
   return {
     complete_response: response.captured
       ? response.complete_response || {
@@ -3573,15 +3573,20 @@ function rawResponseSectionValue(request) {
           truncated: Boolean(response.truncated),
         }
       : null,
-    raw_response_body: rawPayload,
+    response_capture: rawResponse
+      ? {
+          status: rawResponse.status ?? response.status ?? null,
+          content_type: rawResponse.headers?.["content-type"] || rawResponse.headers?.["Content-Type"] || null,
+          raw_body_bytes: rawResponse.raw_body_length ?? response.raw_body_bytes ?? null,
+          captured_body_bytes: rawResponse.captured_body_length ?? response.captured_body_bytes ?? null,
+          received_at: rawResponse.received_at || response.received_at || null,
+          body_json_available: rawResponse.body_json !== undefined && rawResponse.body_json !== null,
+          body_text_omitted: rawResponse.body_text_omitted || null,
+          stream: Boolean(response.stream),
+          event_count: response.event_count || 0,
+        }
+      : null,
   };
-}
-
-function rawResponsePayload(response) {
-  if (!response || typeof response !== "object") return response || null;
-  if (response.body_json !== undefined && response.body_json !== null) return response.body_json;
-  if (response.body_text) return response.body_text;
-  return response;
 }
 
 function renderRawDetail(title, value) {

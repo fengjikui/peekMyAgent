@@ -42,6 +42,7 @@ const coreCommands = [
 ];
 const viewerCommands = [
   ["npm", "run", "smoke:response-capture"],
+  ["npm", "run", "smoke:large-response-compact"],
   ["npm", "run", "smoke:tool-exchange-delta"],
   ["npm", "run", "smoke:timeline-display"],
   ["npm", "run", "smoke:claude-internal-turn"],

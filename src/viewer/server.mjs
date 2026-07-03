@@ -21,6 +21,7 @@ const MAX_JSON_BODY_BYTES = 8 * 1024 * 1024;
 const MAX_TRACE_IMPORT_BYTES = 64 * 1024 * 1024;
 const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
 const MAX_TRACE_IMPORT_CAPTURES = 5000;
+const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
 
 const DEFAULT_SOURCES = [
   {
@@ -1689,7 +1690,37 @@ function summarizeCapture(capture, source, index, debugSource) {
       protocol: protocolProfile,
       composition: analyzeRequestComposition(body, messages, systemParts, tools, currentUser, responseSummary),
     },
-    raw: capture,
+    raw: compactCaptureForViewer(capture, responseSummary),
+  };
+}
+
+function compactCaptureForViewer(capture, responseSummary) {
+  if (!capture || typeof capture !== "object") return capture;
+  const response = compactResponseForViewer(capture.response, responseSummary);
+  return response === capture.response ? capture : { ...capture, response };
+}
+
+function compactResponseForViewer(response, responseSummary) {
+  if (!response || typeof response !== "object") return response || null;
+  if (typeof response.body_text !== "string") return response;
+  const bodyText = response.body_text;
+  const byteSize = Buffer.byteLength(bodyText, "utf8");
+  const contentType = headerValue(response.headers, "content-type");
+  const stream = Boolean(responseSummary?.stream) || /event-stream/i.test(contentType) || /^\s*(event:|data:)/m.test(bodyText);
+  const hasBodyJson = response.body_json !== undefined && response.body_json !== null;
+  const tooLarge = byteSize > VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES;
+  if (!stream && !hasBodyJson && !tooLarge) return response;
+  const { body_text, ...rest } = response;
+  return {
+    ...rest,
+    body_text_omitted: {
+      reason: stream ? "stream" : hasBodyJson ? "duplicated_body_json" : "large",
+      byte_size: byteSize,
+      raw_body_length: response.raw_body_length || byteSize,
+      captured_body_length: response.captured_body_length || byteSize,
+      body_json_available: hasBodyJson,
+      stream,
+    },
   };
 }
 

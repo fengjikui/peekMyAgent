@@ -126,7 +126,9 @@ try {
     assert.ok(view.requests[1].summary.response.event_count >= 3);
     assert.equal(view.requests[1].summary.response.complete_response.stop_reason, "stop");
     assert.equal(view.requests[1].summary.response.complete_response.content.some((part) => part.type === "tool_use" && part.name === "Read"), true);
-    assert.equal(view.requests[1].raw.response.body_text.includes("data:"), true);
+    assert.equal(view.requests[1].raw.response.body_text, undefined, "stream response body text is not sent to the viewer");
+    assert.equal(view.requests[1].raw.response.body_text_omitted.reason, "stream");
+    assert.equal(view.requests[1].raw.response.body_text_omitted.body_json_available, false);
     assert.equal(view.requests[2].summary.response.captured, true);
     assert.equal(view.requests[2].summary.response.preview, "anthropic stream reply");
     assert.equal(view.requests[2].summary.response.text.includes("anthropic anthropic"), false);
@@ -151,7 +153,9 @@ try {
     assert.equal(persistedView.requests[2].summary.response.preview, "anthropic stream reply");
     assert.equal(persistedView.requests[2].summary.response.thinking, "internal thought should be folded");
     assert.equal(persistedView.requests[0].raw.response.body_ref.kind, "response_body");
-    assert.equal(persistedView.requests[0].raw.response.body_text.includes("json reply from upstream"), true);
+    assert.equal(persistedView.requests[0].raw.response.body_text, undefined, "duplicated JSON response text is not sent to the viewer");
+    assert.equal(persistedView.requests[0].raw.response.body_text_omitted.reason, "duplicated_body_json");
+    assert.equal(persistedView.requests[0].raw.response.body_json.content[0].text, "json reply from upstream");
   } finally {
     await restarted.close();
   }
