@@ -424,6 +424,7 @@ const I18N = {
     toolUseUpstream: "Tool use 上行",
     resultReturnPreview: "Result 回传 · {count} 个工具结果",
     upstreamDetails: "上行详情 #{index}",
+    upstreamLazyPlaceholder: "展开后加载上行详情 #{index}",
     systemSummary: "System 摘要 · {count} 段",
     noSystemSummary: "(无 system 摘要)",
     toolsCount: "Tools · {count} 个",
@@ -731,6 +732,7 @@ const I18N = {
     toolUseUpstream: "Tool use upstream",
     resultReturnPreview: "Result return · {count} tool results",
     upstreamDetails: "Upstream details #{index}",
+    upstreamLazyPlaceholder: "Expand to load upstream details #{index}",
     systemSummary: "System summary · {count} blocks",
     noSystemSummary: "(no system summary)",
     toolsCount: "Tools · {count}",
@@ -2882,35 +2884,49 @@ function renderRequestCard(request, options = {}) {
       ${options.turnInput ? renderTurnInputEntry(request, options.turnInput) : renderUpstreamEntry(request)}
       <details class="request-upstream-details request-upstream-panel" data-upstream-panel="${escapeHtml(request.id)}" ${upstreamOpen ? "open" : ""}>
         <summary class="upstream-panel-summary">${escapeHtml(t("upstreamDetails", { index: request.request_index }))}</summary>
-        <div class="request-body">
-          <details>
-            <summary class="metric-summary">
-              <span>${escapeHtml(t("systemSummary", { count: request.counts.system }))}</span>
-              ${renderCompositionSectionStat(request, "system")}
-            </summary>
-            <div class="details-body">${renderPre(request.summary.system_preview || t("noSystemSummary"))}</div>
-          </details>
-          <details>
-            <summary class="metric-summary">
-              <span>${escapeHtml(t("toolsCount", { count: request.counts.tools }))}</span>
-              ${renderCompositionSectionStat(request, "tools")}
-            </summary>
-            <div class="details-body">
-              <div class="tool-list">
-                ${toolNames.map((name) => `<span class="tool-chip">${escapeHtml(name)}</span>`).join("")}
-                ${moreTools ? `<span class="tool-chip">+${moreTools}</span>` : ""}
-              </div>
-            </div>
-          </details>
-          ${renderHistoryStack(request)}
-          ${renderInternalRequestBlock(request)}
-          ${renderCurrentMessageDelta(request)}
-          ${renderContextComposition(request)}
-        </div>
+        ${upstreamOpen ? renderUpstreamDetailsBody(request, toolNames, moreTools) : renderCollapsedUpstreamPlaceholder(request)}
       </details>
       ${toolExchange}
       ${assistantResponse}
     </article>
+  `;
+}
+
+function renderUpstreamDetailsBody(request, toolNames, moreTools) {
+  return `
+    <div class="request-body">
+      <details>
+        <summary class="metric-summary">
+          <span>${escapeHtml(t("systemSummary", { count: request.counts.system }))}</span>
+          ${renderCompositionSectionStat(request, "system")}
+        </summary>
+        <div class="details-body">${renderPre(request.summary.system_preview || t("noSystemSummary"))}</div>
+      </details>
+      <details>
+        <summary class="metric-summary">
+          <span>${escapeHtml(t("toolsCount", { count: request.counts.tools }))}</span>
+          ${renderCompositionSectionStat(request, "tools")}
+        </summary>
+        <div class="details-body">
+          <div class="tool-list">
+            ${toolNames.map((name) => `<span class="tool-chip">${escapeHtml(name)}</span>`).join("")}
+            ${moreTools ? `<span class="tool-chip">+${moreTools}</span>` : ""}
+          </div>
+        </div>
+      </details>
+      ${renderHistoryStack(request)}
+      ${renderInternalRequestBlock(request)}
+      ${renderCurrentMessageDelta(request)}
+      ${renderContextComposition(request)}
+    </div>
+  `;
+}
+
+function renderCollapsedUpstreamPlaceholder(request) {
+  return `
+    <div class="request-body request-body-placeholder" aria-hidden="true">
+      <span>${escapeHtml(t("upstreamLazyPlaceholder", { index: request.request_index }))}</span>
+    </div>
   `;
 }
 
@@ -3620,6 +3636,9 @@ function bindRequestEvents() {
       toggleUpstreamDetails(button.dataset.upstreamToggle);
     });
   });
+  document.querySelectorAll("[data-upstream-panel]").forEach((panel) => {
+    panel.addEventListener("toggle", () => syncUpstreamDetailsState(panel));
+  });
   document.querySelectorAll("[data-raw]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -3720,22 +3739,36 @@ function nearestScrollParent(element) {
 
 function toggleUpstreamDetails(requestId) {
   if (!requestId) return;
-  const panel = document.querySelector(`[data-upstream-panel="${cssEscape(requestId)}"]`);
-  const nextOpen = !panel?.open;
+  const nextOpen = !state.upstreamExpanded.has(requestId);
   if (nextOpen) state.upstreamExpanded.add(requestId);
   else state.upstreamExpanded.delete(requestId);
-  if (panel) {
-    panel.open = nextOpen;
-    if (nextOpen) {
-      const internalWrapper = panel.closest(".turn-internal-request");
-      if (internalWrapper) internalWrapper.open = true;
-    }
+  renderAll();
+  const panel = document.querySelector(`[data-upstream-panel="${cssEscape(requestId)}"]`);
+  if (nextOpen) {
+    const internalWrapper = panel?.closest(".turn-internal-request");
+    if (internalWrapper) internalWrapper.open = true;
+    panel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
+  updateUpstreamToggleButtons(requestId, nextOpen);
+}
+
+function syncUpstreamDetailsState(panel) {
+  const requestId = panel?.dataset?.upstreamPanel;
+  if (!requestId) return;
+  const open = Boolean(panel.open);
+  if (open === state.upstreamExpanded.has(requestId)) return;
+  if (open) state.upstreamExpanded.add(requestId);
+  else state.upstreamExpanded.delete(requestId);
+  renderAll();
+  updateUpstreamToggleButtons(requestId, open);
+}
+
+function updateUpstreamToggleButtons(requestId, open) {
   document.querySelectorAll(`[data-upstream-toggle="${cssEscape(requestId)}"]`).forEach((button) => {
-    button.setAttribute("aria-expanded", nextOpen ? "true" : "false");
-    button.closest(".upstream-entry")?.classList.toggle("active", nextOpen);
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+    button.closest(".upstream-entry")?.classList.toggle("active", open);
     const label = button.querySelector(".toggle-label");
-    if (label) label.textContent = nextOpen ? t("collapseUpstream") : t("expandUpstream");
+    if (label) label.textContent = open ? t("collapseUpstream") : t("expandUpstream");
   });
 }
 

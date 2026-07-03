@@ -2337,6 +2337,12 @@ select {
   padding: 12px;
 }
 
+.request-body-placeholder {
+  padding: 8px 10px;
+  color: var(--faint);
+  font-size: 11px;
+}
+
 .structure-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
