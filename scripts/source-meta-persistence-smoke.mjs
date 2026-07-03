@@ -30,6 +30,7 @@ try {
   let sources = await getJson(`${viewer.url}/api/sources`);
   const renamedDemo = sources.find((source) => source.id === "openclaw-subagent");
   assert.equal(renamedDemo?.label, "Renamed demo source", "static source rename survives viewer restart");
+  assert.equal(renamedDemo?.user_title, "Renamed demo source", "static source keeps user_title after viewer restart");
   assert.equal(renamedDemo?.pinned, true, "static source pin survives viewer restart");
 
   const live = await postJson(`${viewer.url}/api/watch/start`, {
@@ -56,6 +57,7 @@ try {
   sources = await getJson(`${viewer.url}/api/sources`);
   const sameConversationLive = sources.find((source) => source.live_watch_id === freshLiveSameConversation.watch_id);
   assert.equal(sameConversationLive?.label, "Renamed live source", "rename follows the same conversation across a new live watch id");
+  assert.equal(sameConversationLive?.user_title, "Renamed live source", "live source keeps user_title across a new live watch id");
 
   await viewer.close();
 
@@ -63,6 +65,7 @@ try {
   sources = await getJson(`${viewer.url}/api/sources`);
   const persistedLive = sources.find((source) => source.store_watch_id === live.watch_id);
   assert.equal(persistedLive?.label, "Renamed live source", "live source rename survives as stored source after viewer restart");
+  assert.equal(persistedLive?.user_title, "Renamed live source", "stored source keeps user_title after viewer restart");
   assert.equal(persistedLive?.pinned, true, "live source pin survives as stored source after viewer restart");
   await viewer.close();
 

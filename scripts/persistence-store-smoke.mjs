@@ -125,9 +125,11 @@ try {
     const sourcesAfterRestart = await getJson(`${thirdViewer.url}/api/sources`);
     const renamedAfterRestart = sourcesAfterRestart.find((source) => source.id === sourceIdForWatch(watchId));
     assert.equal(renamedAfterRestart?.label, "Persisted renamed session", "rename survives viewer restart");
+    assert.equal(renamedAfterRestart?.user_title, "Persisted renamed session", "persisted source keeps user_title after viewer restart");
 
     const reconstructedView = await getJson(`${thirdViewer.url}/api/view?source=${encodeURIComponent(sourceIdForWatch(watchId))}`);
     assert.equal(reconstructedView.source.label, "Persisted renamed session");
+    assert.equal(reconstructedView.source.user_title, "Persisted renamed session");
     assert.equal(reconstructedView.requests[1].raw.body_source, "reconstructed");
     assert.equal(reconstructedView.requests[1].summary.current_user, "second request");
 

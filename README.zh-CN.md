@@ -130,6 +130,17 @@ node scripts/uninstall.mjs --remove-data
 
 `uninstall --remove-data` 只删除 peekMyAgent 已知拥有的数据，例如 session store、viewer registry、IDE integration registry 和翻译缓存；只有当 state 目录变空时才会删除目录本身。它不会改写 Agent 供应商配置。
 
+## 隐私与安全
+
+peekMyAgent 默认本地运行，但捕获内容仍可能包含 system prompt、工具 schema、源码片段、文件路径、命令输出、模型参数和原始 provider request body。
+
+- 第一次试用建议使用不敏感的项目。
+- 不要分享包含私有代码、密钥或专有 prompt 的 dashboard 截图。
+- 导出的 Trace 包会默认脱敏常见 token/API key pattern，但仍可能包含私有提示词、源码片段、文件路径或工具输出；分享前请先检查导出文件。
+- 不要把本地 dashboard 暴露到公网。
+- 输入敏感内容前可以先用 `/peekmyagent-pause` 暂停记录。
+- 不再需要某段记录时，用 `/peekmyagent-clear` 清理本地 dashboard 记录。
+
 ## Windows 注意事项
 
 - 推荐从 PowerShell 或 Git Bash 中运行。

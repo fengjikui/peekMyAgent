@@ -12,6 +12,7 @@ const storePath = path.join(tmpDir, "store.sqlite");
 const cwd = process.cwd();
 const originalStateDir = process.env.PEEKMYAGENT_STATE_DIR;
 const originalTarget = process.env.PEEK_CLAUDE_TARGET_BASE_URL;
+const exportSecret = "sk-exportsecret123456";
 
 const upstream = http.createServer(async (req, res) => {
   await readBody(req);
@@ -38,6 +39,7 @@ try {
       model: "mock-claude",
       messages: [{ role: "user", content: "export this trace" }],
       tools: [{ name: "Read", input_schema: { type: "object" } }],
+      metadata: { smoke_secret: exportSecret },
     });
     await postModelRequest(watch.base_url, {
       model: "mock-claude",
@@ -53,9 +55,16 @@ try {
     assert.equal(exported.status, 200);
     assert.match(exported.headers.get("content-disposition") || "", /\.peektrace\.json\.gz/);
     const bundle = JSON.parse(zlib.gunzipSync(exported.buffer).toString("utf8"));
+    const bundleText = JSON.stringify(bundle);
     assert.equal(bundle.format, "peekmyagent.trace.v1");
     assert.equal(bundle.captures.length, 2);
     assert.equal(bundle.manifest.request_count, 2);
+    assert.equal(bundleText.includes(exportSecret), false, "exported trace should not contain common secret patterns");
+    assert.equal(bundleText.includes("[REDACTED:secret]"), true, "exported trace should mark redacted secret patterns");
+    assert.equal(bundle.manifest.export_kind, "sanitized_share_bundle");
+    assert.equal(bundle.manifest.redaction.applied, true);
+    assert.ok(bundle.manifest.redaction.count >= 1);
+    assert.match(bundle.manifest.privacy_notice, /Review before sharing/);
 
     const imported = await postBuffer(`${viewer.url}/api/trace/import`, exported.buffer);
     assert.equal(imported.ok, true);

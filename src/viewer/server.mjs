@@ -11,6 +11,7 @@ import { importedTracesDir, safePathSegment, translationsDir } from "../core/app
 import { claudeCodeProxySettingsArgs, mergeClaudeCodeProcessEnv, resolveClaudeCodeTargetBaseUrl } from "../core/claude-code-settings.mjs";
 import { childProcessSpawnConfig, isAccessibleDirectory, safeProcessCwd, userHome } from "../core/platform.mjs";
 import { openPersistenceStore, sourceIdForWatch, watchIdFromSourceId } from "../core/persistence-store.mjs";
+import { redactText } from "../core/redaction.mjs";
 import { clearViewerRegistry, writeViewerRegistry } from "../core/viewer-registry.mjs";
 import { resolveTraeCnDynamicRoute } from "../adapters/trae-cn-integration.mjs";
 import { OTEL_WATCH_KIND, otelDirToCaptures } from "../core/otel-capture.mjs";
@@ -1235,7 +1236,9 @@ function exportTraceBundle(res, sourceId, options) {
 }
 
 function buildTraceBundle(data) {
-  const captures = (data.requests || []).map((request) => request.raw).filter(Boolean);
+  const rawCaptures = (data.requests || []).map((request) => request.raw).filter(Boolean);
+  const exportRedaction = redactTraceExportValue(rawCaptures);
+  const captures = exportRedaction.value;
   const traceId = crypto.createHash("sha256").update(JSON.stringify(captures.map((capture) => capture.capture_id || capture.request_index || ""))).digest("hex").slice(0, 12);
   return {
     format: "peekmyagent.trace.v1",
@@ -1248,6 +1251,13 @@ function buildTraceBundle(data) {
       response_count: data.stats?.response_count || 0,
       subagent_count: data.stats?.subagent_count || 0,
       raw_body_bytes: data.stats?.raw_body_bytes || 0,
+      export_kind: "sanitized_share_bundle",
+      redaction: {
+        applied: true,
+        strategy: "secret-patterns-in-string-values",
+        count: exportRedaction.redactions.length,
+      },
+      privacy_notice: "This portable trace is sanitized for common secret/token patterns, but may still contain private prompts, code, file paths, tool results, or business data. Review before sharing.",
       note: "Portable peekMyAgent trace bundle. Import in the dashboard for readonly viewing.",
     },
     source: {
@@ -1261,6 +1271,33 @@ function buildTraceBundle(data) {
     },
     captures,
   };
+}
+
+function redactTraceExportValue(value, pathParts = []) {
+  if (typeof value === "string") {
+    const fieldPath = pathParts.length ? pathParts.join(".") : "trace";
+    return redactText(value, fieldPath);
+  }
+  if (Array.isArray(value)) {
+    const redactions = [];
+    const output = value.map((item, index) => {
+      const child = redactTraceExportValue(item, [...pathParts, String(index)]);
+      redactions.push(...child.redactions);
+      return child.value;
+    });
+    return { value: output, redactions };
+  }
+  if (value && typeof value === "object") {
+    const redactions = [];
+    const output = {};
+    for (const [key, childValue] of Object.entries(value)) {
+      const child = redactTraceExportValue(childValue, [...pathParts, key]);
+      redactions.push(...child.redactions);
+      output[key] = child.value;
+    }
+    return { value: output, redactions };
+  }
+  return { value, redactions: [] };
 }
 
 async function importTraceBundle(req, options) {
@@ -3571,6 +3608,7 @@ function activeWatchSources(watches) {
     return {
       id: watch.id,
       label,
+      user_title: watch.title || null,
       original_label: watch.label,
       agent: watch.agent,
       mode: watch.mode,
@@ -3671,12 +3709,13 @@ function stableSourceMetaKeys(source) {
 function decorateSource(source, meta = {}) {
   const originalLabel = source.original_label || source.label;
   const workspace = source.workspace || null;
-  const label = meta?.title || cleanStoredSourceLabel(source.label) || source.label;
+  const userTitle = meta?.title || source.user_title || null;
+  const label = userTitle || cleanStoredSourceLabel(source.label) || source.label;
   return {
     ...source,
     original_label: originalLabel,
     label,
-    user_title: meta?.title || null,
+    user_title: userTitle,
     pinned: Boolean(meta?.pinned),
     hidden: Boolean(meta?.hidden),
     workspace,

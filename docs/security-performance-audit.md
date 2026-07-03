@@ -20,7 +20,7 @@
 | Capture proxy | 被当成通用 SSRF/open proxy | 上游 URL 只允许 `http:` / `https:`，剥离 hop-by-hop、proxy 和内部 `x-peek-*` 头 |
 | 大请求/导入包 | 请求体、gzip Trace、导入 captures 过大导致内存或 CPU 放大 | JSON body、captured request、Trace 压缩/解压大小和 capture 数量都有上限 |
 | 文件路径 | 翻译语言、导入目录、OTel 扫描造成路径穿越或大目录扫描 | 语言名经过 path segment 归一化；OTel 读取限制文件数、目录数和单文件大小 |
-| 数据留存 | raw body 长期保存或导出泄露敏感内容 | README/隐私文档明确说明；Trace 导出仍需用户自审，后续继续产品化导出前检查 |
+| 数据留存 | raw body 长期保存或导出泄露敏感内容 | README/隐私文档明确说明；Trace 导出默认脱敏常见 secret/token pattern，并在导出前提示用户自审 |
 | 同机恶意进程 | 本机其他进程直接访问本地端口 | 当前不把同机恶意进程视为完全可防边界；后续可考虑 session token/Unix socket |
 
 ## 已落地的安全修复
@@ -32,6 +32,7 @@
   - 限制普通 JSON body、Trace 导入体积、gzip 解压体积和导入 capture 数量。
   - 翻译目标语言进入缓存路径前做安全归一化。
   - 导入 Trace 列表优先使用 manifest 统计，避免列会话时解析完整大文件。
+  - Trace 导出包默认递归脱敏常见 token/API key 字符串，并在 manifest 标记脱敏策略与隐私提示。
 - `src/core/capture-proxy.mjs`
   - 限制捕获请求体大小。
   - 校验上游 URL 协议，只允许 `http:` / `https:`。
@@ -68,7 +69,7 @@
 ## 剩余风险与后续建议
 
 - 本机恶意进程仍可直接访问本地 loopback 服务。若以后支持更强安全模型，可增加一次性 session token、Unix domain socket 或浏览器端 nonce。
-- Trace 导出仍可能包含敏感 raw body。后续应实现导出前敏感信息扫描、红线提示和可选脱敏。
+- Trace 导出已经默认脱敏常见 secret/token pattern，但仍可能包含私有提示词、源码片段、文件路径、工具输出或业务数据；后续可增加导出前预览、风险扫描和可配置脱敏规则。
 - `/api/view` 仍会加载选中会话的完整视图，这是“用户点开详情”时的预期行为；未来可继续拆成分页/lazy raw/tree endpoints。
 - Markdown 渲染、翻译和 Raw JSON 展示应继续避免一次性渲染超大 DOM；新增展示区时要补大样本 fixture 或 smoke。
 - 如果未来支持远程访问 dashboard，应设计成明确的远程模式，而不是简单开放 host：需要认证、CSRF token、CORS 策略、TLS/反代建议和更明确的隐私提示。

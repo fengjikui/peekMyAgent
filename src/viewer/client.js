@@ -335,6 +335,7 @@ const I18N = {
     unpin: "取消置顶",
     rename: "重命名",
     exportTrace: "导出 Trace",
+    exportTraceConfirm: "导出的 Trace 会尽量脱敏常见 token/API key，但仍可能包含私有提示词、源码片段、文件路径或工具输出。分享前请先检查内容。继续导出吗？",
     archive: "归档",
     deleteData: "删除数据",
     renameSessionPrompt: "重命名会话",
@@ -645,6 +646,7 @@ const I18N = {
     unpin: "Unpin",
     rename: "Rename",
     exportTrace: "Export Trace",
+    exportTraceConfirm: "Exported traces are sanitized for common token/API-key patterns, but may still include private prompts, code snippets, file paths, or tool output. Review before sharing. Continue?",
     archive: "Archive",
     deleteData: "Delete data",
     renameSessionPrompt: "Rename session",
@@ -1821,6 +1823,7 @@ async function handleSourceAction(action, sourceId) {
 }
 
 function exportTraceSource(sourceId) {
+  if (!window.confirm(t("exportTraceConfirm"))) return;
   const url = `/api/trace/export?source=${encodeURIComponent(sourceId)}`;
   const link = document.createElement("a");
   link.href = url;

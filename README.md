@@ -306,6 +306,7 @@ Recommendations:
 
 - Start with a non-sensitive project when trying the tool.
 - Do not share dashboard screenshots that include private code, secrets, or proprietary prompts.
+- Exported Trace bundles are sanitized for common token/API-key patterns by default, but they can still include private prompts, code snippets, file paths, or tool output. Review exported files before sharing.
 - Do not expose the local dashboard to the public internet.
 - Use `/peekmyagent-pause` before entering sensitive content.
 - Use `/peekmyagent-clear` when a recording should be removed from the local dashboard list.
