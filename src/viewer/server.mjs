@@ -23,6 +23,9 @@ const MAX_TRACE_IMPORT_BYTES = 64 * 1024 * 1024;
 const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
 const MAX_TRACE_IMPORT_CAPTURES = 5000;
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
+const TIMELINE_RESPONSE_TEXT_CHARS = 1200;
+const TIMELINE_RESPONSE_THINKING_CHARS = 800;
+const TIMELINE_TOOL_ARGUMENT_CHARS = 600;
 const SOURCE_META_FILE = "source-meta.json";
 
 const DEFAULT_SOURCES = [
@@ -868,18 +871,63 @@ function compactViewerDataForTimeline(data) {
 function compactRequestForTimeline(request) {
   const summary = request.summary || {};
   const historyStack = Array.isArray(summary.history_stack) ? summary.history_stack : [];
-  const { history_stack, ...summaryWithoutHistory } = summary;
+  const { history_stack, tool_calls, tool_results, ...summaryWithoutHeavyFields } = summary;
   return {
     ...request,
     summary: {
-      ...summaryWithoutHistory,
+      ...summaryWithoutHeavyFields,
       history_stack: [],
       history_stack_omitted: {
         count: historyStack.length,
       },
+      tool_calls_omitted: Array.isArray(tool_calls) ? { count: tool_calls.length } : undefined,
+      tool_results_omitted: Array.isArray(tool_results) ? { count: tool_results.length } : undefined,
+      current_tool_calls: (summary.current_tool_calls || []).map(compactToolCallForTimeline),
+      current_tool_results: (summary.current_tool_results || []).map(compactToolResultForTimeline),
+      response: compactResponseSummaryForTimeline(summary.response),
     },
     raw: compactRawCaptureForTimeline(request.raw),
     detail_omitted: true,
+  };
+}
+
+function compactResponseSummaryForTimeline(response) {
+  if (!response || typeof response !== "object") return response || null;
+  const { complete_response, ...rest } = response;
+  return {
+    ...rest,
+    text: textPreview(response.text || "", TIMELINE_RESPONSE_TEXT_CHARS),
+    thinking: textPreview(response.thinking || "", TIMELINE_RESPONSE_THINKING_CHARS),
+    tool_calls: (response.tool_calls || []).map(compactToolCallForTimeline),
+    ...(complete_response ? { complete_response_omitted: true } : {}),
+  };
+}
+
+function compactToolCallForTimeline(call) {
+  if (!call || typeof call !== "object") return call;
+  return {
+    ...call,
+    arguments: compactPreviewValue(call.arguments),
+  };
+}
+
+function compactToolResultForTimeline(result) {
+  if (!result || typeof result !== "object") return result;
+  return {
+    ...result,
+    content: textPreview(result.content || "", Math.min(800, TIMELINE_TOOL_ARGUMENT_CHARS)),
+  };
+}
+
+function compactPreviewValue(value) {
+  const serialized = stableJson(value ?? null);
+  if (serialized.length <= TIMELINE_TOOL_ARGUMENT_CHARS) return value;
+  return {
+    preview: textPreview(serialized, TIMELINE_TOOL_ARGUMENT_CHARS),
+    omitted: {
+      reason: "compact_view",
+      chars: serialized.length,
+    },
   };
 }
 

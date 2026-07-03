@@ -9,6 +9,8 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peek-view-compact-detail-"
 const storePath = path.join(tmpDir, "store.sqlite");
 const hiddenTail = "UNIQUE_COMPACT_DETAIL_TAIL_0d6f5e9e";
 const largeText = `${"large context ".repeat(800)}${hiddenTail}`;
+const responseHiddenTail = "UNIQUE_RESPONSE_TOOL_ARGUMENT_TAIL_7b8e4d1c";
+const responseToolArgument = `${"response tool argument ".repeat(800)}${responseHiddenTail}`;
 
 const upstream = http.createServer(async (req, res) => {
   await readBody(req);
@@ -18,8 +20,11 @@ const upstream = http.createServer(async (req, res) => {
       id: "msg_compact_detail",
       type: "message",
       role: "assistant",
-      content: [{ type: "text", text: "ok" }],
-      stop_reason: "end_turn",
+      content: [
+        { type: "text", text: "ok" },
+        { type: "tool_use", id: "toolu_compact_detail", name: "HugeTool", input: { query: responseToolArgument } },
+      ],
+      stop_reason: "tool_use",
       usage: { input_tokens: 10, output_tokens: 1 },
     }),
   );
@@ -70,6 +75,7 @@ try {
     const compactText = await compactResponse.text();
     assert.equal(compactResponse.ok, true, compactText);
     assert.equal(compactText.includes(hiddenTail), false, "compact timeline payload should omit large raw fields");
+    assert.equal(compactText.includes(responseHiddenTail), false, "compact timeline payload should omit large response tool arguments");
     assert.ok(compactText.length < fullText.length / 2, "compact timeline payload should be substantially smaller than full view");
 
     const compact = JSON.parse(compactText);
@@ -81,12 +87,17 @@ try {
     assert.equal(compactRequest.raw.body_omitted.tools, 1);
     assert.equal(compactRequest.summary.history_stack.length, 0);
     assert.ok(compactRequest.summary.history_stack_omitted.count > 0);
+    assert.equal(compactRequest.summary.response.complete_response, undefined);
+    assert.equal(compactRequest.summary.response.complete_response_omitted, true);
+    assert.equal(compactRequest.summary.response.tool_calls[0].arguments.omitted.reason, "compact_view");
 
     const detail = await getJson(`${viewer.url}/api/request?source=${encodeURIComponent(sourceId)}&request=${encodeURIComponent(compactRequest.id)}`);
     assert.equal(JSON.stringify(detail.request).includes(hiddenTail), true, "detail endpoint restores complete raw request data");
+    assert.equal(JSON.stringify(detail.request).includes(responseHiddenTail), true, "detail endpoint restores complete response tool arguments");
     assert.equal(detail.request.raw.body.messages.length, 3);
     assert.equal(detail.request.raw.body.tools.length, 1);
     assert.equal(detail.request.summary.history_stack.length, compactRequest.summary.history_stack_omitted.count);
+    assert.equal(detail.request.summary.response.complete_response.content.some((part) => part.type === "tool_use"), true);
   } finally {
     await viewer.close();
   }
