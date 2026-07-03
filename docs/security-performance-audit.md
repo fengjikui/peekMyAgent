@@ -51,6 +51,7 @@
 - Response Raw 默认展示最终解析结构和捕获元数据，不把 SSE/stream 原文整段下发到 viewer；大流式响应通过 `body_text_omitted` 标记保留可解释性。
 - Compact 时间线不再携带完整 `complete_response` 或长 tool_use 参数；首页只保留响应/参数预览，点击 Raw/详情时再通过 `/api/request` 恢复完整内容。
 - Compact 视图的上下文构成统计改用轻量字符估算，并缓存消息前缀比较 key，避免大 Trace 首页构建反复执行稳定 JSON 序列化。
+- Compact 首屏进一步截短 system/assistant/internal preview、entry 文本和 response 重复预览，只保留时间线直接展示所需的 composition 分区；完整内容由 `/api/request` 单请求详情恢复。
 - Raw JSON 搜索增加 debounce，减少大 JSON 下的连续重渲染。
 - 切换/刷新视图时清理旧翻译 action 状态，避免长时间使用后积累无效 UI 状态。
 - 重命名持久化到 SQLite/import manifest，刷新后不再恢复旧标题。
@@ -79,6 +80,8 @@
   - 覆盖 npm 包内容边界，拒绝把 `docs/`、`tmp/`、handover/private/resume/memory 草稿、`.env`、数据库、日志、压缩包和录屏/截图素材打进发布包。
 - `npm run smoke:timeline-window`
   - 覆盖长 Trace 主时间线窗口渲染和 Raw Messages 整理视图截断，防止前端回退到大 DOM 全量渲染。
+- `npm run smoke:compact-view-performance`
+  - 构造 420 条包含大 system/tools/history/response 的合成 Trace，约束 `/api/view?compact=1` 首屏 payload、耗时和大字段省略行为，防止切会话路径回退到全量 Raw。
 - `npm run smoke:trace-bundle`
   - 覆盖 Trace 导出默认脱敏、导入后只读查看，以及导入 Trace 的 `/api/request` 单请求窗口详情。
 

@@ -26,6 +26,15 @@ const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
 const TIMELINE_RESPONSE_TEXT_CHARS = 1200;
 const TIMELINE_RESPONSE_THINKING_CHARS = 800;
 const TIMELINE_TOOL_ARGUMENT_CHARS = 600;
+const TIMELINE_CURRENT_USER_CHARS = 600;
+const TIMELINE_SYSTEM_PREVIEW_CHARS = 320;
+const TIMELINE_ASSISTANT_PREVIEW_CHARS = 320;
+const TIMELINE_INTERNAL_PREVIEW_CHARS = 320;
+const TIMELINE_ENTRY_TEXT_CHARS = 420;
+const TIMELINE_SUBAGENT_RESULT_CHARS = 1200;
+const TIMELINE_RESPONSE_PREVIEW_CHARS = 240;
+const TIMELINE_THINKING_PREVIEW_CHARS = 160;
+const TIMELINE_COMPOSITION_SECTION_KEYS = ["current_user", "history_context", "system", "tools", "tool_result", "params"];
 const SOURCE_META_FILE = "source-meta.json";
 const comparableMessageKeyCache = new WeakMap();
 
@@ -896,6 +905,12 @@ function compactRequestForTimeline(request) {
       history_stack_omitted: {
         count: historyStack.length,
       },
+      current_user: textPreview(summary.current_user || "", TIMELINE_CURRENT_USER_CHARS),
+      system_preview: textPreview(summary.system_preview || "", TIMELINE_SYSTEM_PREVIEW_CHARS),
+      assistant_preview: textPreview(summary.assistant_preview || "", TIMELINE_ASSISTANT_PREVIEW_CHARS),
+      internal_request_preview: textPreview(summary.internal_request_preview || "", TIMELINE_INTERNAL_PREVIEW_CHARS),
+      entry: compactEntryForTimeline(summary.entry),
+      composition: compactCompositionForTimeline(summary.composition),
       tool_calls_omitted: Array.isArray(tool_calls) ? { count: tool_calls.length } : undefined,
       tool_results_omitted: Array.isArray(tool_results) ? { count: tool_results.length } : undefined,
       current_tool_calls: (summary.current_tool_calls || []).map(compactToolCallForTimeline),
@@ -907,13 +922,46 @@ function compactRequestForTimeline(request) {
   };
 }
 
+function compactCompositionForTimeline(composition) {
+  if (!composition || typeof composition !== "object") return composition || null;
+  const sections = {};
+  for (const key of TIMELINE_COMPOSITION_SECTION_KEYS) {
+    if (composition.sections?.[key]) sections[key] = composition.sections[key];
+  }
+  return {
+    unit: composition.unit,
+    total_payload_chars: composition.total_payload_chars,
+    input_chars: composition.input_chars,
+    sections,
+  };
+}
+
+function compactEntryForTimeline(entry) {
+  if (!entry || typeof entry !== "object") return entry || null;
+  const output = { ...entry };
+  if (typeof output.text === "string") output.text = textPreview(output.text, TIMELINE_ENTRY_TEXT_CHARS);
+  if (output.value && typeof output.value === "string") output.value = textPreview(output.value, TIMELINE_ENTRY_TEXT_CHARS);
+  if (output.subagent && typeof output.subagent === "object") output.subagent = compactSubagentEntryForTimeline(output.subagent);
+  return output;
+}
+
+function compactSubagentEntryForTimeline(subagent) {
+  return {
+    ...subagent,
+    preview: textPreview(subagent.preview || "", TIMELINE_ENTRY_TEXT_CHARS),
+    result: textPreview(subagent.result || "", TIMELINE_SUBAGENT_RESULT_CHARS),
+  };
+}
+
 function compactResponseSummaryForTimeline(response) {
   if (!response || typeof response !== "object") return response || null;
   const { complete_response, ...rest } = response;
   return {
     ...rest,
+    preview: textPreview(response.preview || "", TIMELINE_RESPONSE_PREVIEW_CHARS),
     text: textPreview(response.text || "", TIMELINE_RESPONSE_TEXT_CHARS),
     thinking: textPreview(response.thinking || "", TIMELINE_RESPONSE_THINKING_CHARS),
+    thinking_preview: textPreview(response.thinking_preview || "", TIMELINE_THINKING_PREVIEW_CHARS),
     tool_calls: (response.tool_calls || []).map(compactToolCallForTimeline),
     ...(complete_response ? { complete_response_omitted: true } : {}),
   };

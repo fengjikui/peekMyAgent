@@ -44,6 +44,7 @@ const coreCommands = [
 const viewerCommands = [
   ["npm", "run", "smoke:response-capture"],
   ["npm", "run", "smoke:large-response-compact"],
+  ["npm", "run", "smoke:compact-view-performance"],
   ["npm", "run", "smoke:view-compact-detail"],
   ["npm", "run", "smoke:tool-exchange-delta"],
   ["npm", "run", "smoke:timeline-display"],
