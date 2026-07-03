@@ -811,15 +811,7 @@ function loadViewerRequestDetail(sourceId, requestId, options) {
   if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
   if (source.live_watch_id) return loadLiveWatchRequestDetail(source, requestId, options);
   if (source.kind === "persisted_capture") return loadPersistedRequestDetail(source, requestId, options);
-
-  const data = loadViewerData(sourceId, options);
-  const request = data.requests.find((item) => item.id === requestId || String(item.request_index) === String(requestId));
-  if (!request) throw new Error(`Request not found: ${requestId}`);
-  return {
-    generated_at: data.generated_at,
-    source: data.source,
-    request,
-  };
+  return loadFileRequestDetail(source, requestId);
 }
 
 function loadLiveWatchRequestDetail(source, requestId, { watches }) {
@@ -852,11 +844,27 @@ function loadPersistedRequestDetail(source, requestId, { store }) {
   };
 }
 
-function summarizeRequestDetailWindow(captures, source, requestId) {
+function loadFileRequestDetail(source, requestId) {
+  const captures = readJson(path.join(source.path, "proxy-captures.json"));
+  const targetIndex = captures.findIndex((capture) => captureMatchesRequestId(capture, requestId));
+  if (targetIndex < 0) throw new Error(`Request not found: ${requestId}`);
+  const startIndex = Math.max(0, targetIndex - 1);
+  const windowCaptures = captures.slice(startIndex, targetIndex + 1);
+  const debugSources = (readOptionalJson(path.join(source.path, "debug-api-sources.json")) || []).slice(startIndex, targetIndex + 1);
+  const request = summarizeRequestDetailWindow(windowCaptures, source, requestId, { startIndex, debugSources });
+  return {
+    generated_at: new Date().toISOString(),
+    source,
+    request,
+    detail_scope: "request_window",
+  };
+}
+
+function summarizeRequestDetailWindow(captures, source, requestId, { startIndex = 0, debugSources = [] } = {}) {
   const requests = captures.map((capture, index) => {
     const requestIndex = Number(capture.request_index);
-    const sourceIndex = Number.isFinite(requestIndex) && requestIndex > 0 ? requestIndex - 1 : index;
-    return summarizeCapture(capture, source, sourceIndex, null);
+    const sourceIndex = Number.isFinite(requestIndex) && requestIndex > 0 ? requestIndex - 1 : startIndex + index;
+    return summarizeCapture(capture, source, sourceIndex, debugSources[index] || null);
   });
   annotateRequestChanges(requests);
   const request = requests.find((item) => item.id === requestId || String(item.request_index) === String(requestId)) || requests.at(-1);

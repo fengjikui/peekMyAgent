@@ -4,6 +4,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { openPersistenceStore } from "../src/core/persistence-store.mjs";
 import { startViewerServer } from "../src/viewer/server.mjs";
 
 // Mirror of the client's lookup-key hashing (translationLookupKey + materialHash)
@@ -74,7 +75,8 @@ process.env.PEEKMYAGENT_TRANSLATION_BASE_URL = baseUrl;
 process.env.PEEKMYAGENT_TRANSLATION_API_KEY = "mock-key";
 process.env.PEEKMYAGENT_TRANSLATION_MODEL = "mock-model";
 
-const viewer = await startViewerServer({ cwd: process.cwd(), storePath });
+const store = openPersistenceStore(storePath);
+const viewer = await startViewerServer({ cwd: process.cwd(), persistenceStore: store });
 let failed = false;
 try {
   const ingest = await (await fetch(`${viewer.url}/api/capture/otel`, {
@@ -108,10 +110,19 @@ try {
   const view = await (await fetch(`${viewer.url}/api/view?source=${encodeURIComponent(ingest.source_id)}&compact=1`)).json();
   const requestId = view.requests?.[0]?.id;
   assert.ok(requestId, "ingested request id is available for request-scoped translation refresh");
-  const requestScopedGen = await (await fetch(`${viewer.url}/api/translations/generate`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ source_id: ingest.source_id, request_id: requestId, section: "harness", agent: "Claude Code", target_language: "zh-CN" }),
-  })).json();
+  const originalLoadCaptures = store.loadCaptures.bind(store);
+  store.loadCaptures = () => {
+    throw new Error("request-scoped translation must not full-load persisted captures");
+  };
+  let requestScopedGen;
+  try {
+    requestScopedGen = await (await fetch(`${viewer.url}/api/translations/generate`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ source_id: ingest.source_id, request_id: requestId, section: "harness", agent: "Claude Code", target_language: "zh-CN" }),
+    })).json();
+  } finally {
+    store.loadCaptures = originalLoadCaptures;
+  }
   assert.ok(requestScopedGen.extract?.item_count > 0, "request-scoped translation refresh extracts materials");
   assert.equal(requestScopedGen.extract?.source_count, 1, "request-scoped translation refresh reports one source");
 
@@ -121,6 +132,7 @@ try {
   console.error("harness-translation smoke FAILED:", error.message);
 } finally {
   await viewer.close();
+  store.close();
   await closeServer(server);
   fs.rmSync(tmp, { recursive: true, force: true });
 }

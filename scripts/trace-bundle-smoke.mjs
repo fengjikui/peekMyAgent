@@ -83,6 +83,11 @@ try {
     assert.equal(importedView.requests[0].summary.current_user, "export this trace");
     assert.equal(importedView.requests[1].summary.current_user, "second request");
 
+    const importedDetail = await getJson(`${viewer.url}/api/request?source=${encodeURIComponent(imported.source_id)}&request=${encodeURIComponent(importedView.requests[1].id)}`);
+    assert.equal(importedDetail.detail_scope, "request_window", "imported trace request detail should use a request window");
+    assert.equal(importedDetail.request.id, importedView.requests[1].id);
+    assert.equal(importedDetail.request.summary.current_user, "second request");
+
     console.log("trace-bundle smoke passed");
   } finally {
     await viewer.close();

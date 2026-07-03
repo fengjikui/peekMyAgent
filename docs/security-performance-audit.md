@@ -56,7 +56,7 @@
 - 重命名持久化到 SQLite/import manifest，刷新后不再恢复旧标题。
 - 前端本地 source meta 兜底使用 source id、watch id 和 conversation id 多 key 合并，避免 live/stored id 切换后把用户重命名标题回退。
 - SQLite 持久化会话在左侧列表推断标题时只读取前几条 capture 样本，并且用户手动标题优先于任何自动推断，避免大 Trace 因列表刷新触发全量加载或标题回退。
-- `/api/request` 对 live watch 和 SQLite 持久化会话使用单条详情快路径，只加载目标请求附近的小窗口，不再为 Raw/System/Tools 详情点击重建整个大 Trace。
+- `/api/request` 对 live watch、SQLite 持久化会话、导入 Trace 和静态 evidence 使用单条详情快路径，只加载目标请求附近的小窗口，不再为 Raw/System/Tools 详情点击重建整个大 Trace。
 - 请求级翻译刷新带 `request_id` 时复用单条详情快路径，只抽取目标请求的翻译材料；只有整段刷新才加载完整 source。
 - 长 Trace 主时间线超过阈值后只渲染当前 active turn 附近的窗口，Turn rail 仍保留全局跳转；1000 轮合成 Trace 的主时间线 DOM 从约 36k 节点降到约 2.8k 节点，总 DOM 约 4k。
 - Raw Messages 的“整理”视图对单个文本块设置 Markdown 渲染上限，长文本只展示预览并提示切换原文查看完整 JSON，避免压缩摘要或长工具结果造成右侧面板卡顿。
@@ -79,6 +79,8 @@
   - 覆盖 npm 包内容边界，拒绝把 `docs/`、`tmp/`、handover/private/resume/memory 草稿、`.env`、数据库、日志、压缩包和录屏/截图素材打进发布包。
 - `npm run smoke:timeline-window`
   - 覆盖长 Trace 主时间线窗口渲染和 Raw Messages 整理视图截断，防止前端回退到大 DOM 全量渲染。
+- `npm run smoke:trace-bundle`
+  - 覆盖 Trace 导出默认脱敏、导入后只读查看，以及导入 Trace 的 `/api/request` 单请求窗口详情。
 
 这些 smoke 已加入 `scripts/release-check.mjs` 的发布门禁。
 
