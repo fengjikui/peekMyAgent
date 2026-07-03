@@ -1,0 +1,80 @@
+name: Bug report
+description: Report a reproducible peekMyAgent bug.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not paste API keys, raw private prompts, proprietary source code, or unredacted captures.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Install
+        - Start or open dashboard
+        - Agent wrapper
+        - Capture proxy
+        - Trace display
+        - Translation
+        - Clear or uninstall
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 15.5 / Ubuntu 24.04 / Windows 11"
+    validations:
+      required: true
+  - type: input
+    id: shell
+    attributes:
+      label: Shell
+      placeholder: "zsh / bash / PowerShell / CMD / Git Bash"
+  - type: input
+    id: node
+    attributes:
+      label: Node and npm versions
+      placeholder: "node -v; npm -v"
+    validations:
+      required: true
+  - type: textarea
+    id: commands
+    attributes:
+      label: Commands run
+      render: shell
+      placeholder: |
+        peekmyagent doctor --json
+        peekmyagent open --print --no-open
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Paste redacted output only.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Redacted `peekmyagent doctor --json` output is useful.
+      render: json

@@ -1,0 +1,53 @@
+name: Trace display bug
+description: Report confusing or incorrect dashboard rendering.
+title: "[Trace]: "
+labels: ["trace-display"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Prefer a redacted screenshot or synthetic fixture. Do not share private source code, raw secrets, or full captured prompts.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What looks wrong?
+    validations:
+      required: true
+  - type: dropdown
+    id: trace_type
+    attributes:
+      label: Trace type
+      options:
+        - Normal user turn
+        - Tool call
+        - Tool result
+        - Sub-agent
+        - Slash command
+        - Translation
+        - Raw JSON view
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected display
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual display
+    validations:
+      required: true
+  - type: textarea
+    id: redacted_shape
+    attributes:
+      label: Redacted request or response shape
+      description: Include structure only if possible.
+      render: json
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Redact private data first.

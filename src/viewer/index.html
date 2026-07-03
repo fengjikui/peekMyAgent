@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>peekMyAgent Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <button class="layout-icon sidebar-toggle" id="toggleSidebar" type="button" title="折叠会话栏" aria-label="切换会话栏" data-i18n-title="toggleSidebarTitle" data-i18n-aria-label="toggleSidebarAria">
+      <span class="pane-icon pane-icon-left" aria-hidden="true"></span>
+    </button>
+    <button class="layout-icon raw-toggle" id="rawToggle" type="button" title="折叠 Raw JSON 面板" aria-label="切换 Raw JSON 面板" data-i18n-title="toggleRawTitle" data-i18n-aria-label="toggleRawAria">
+      <span class="pane-icon pane-icon-right" aria-hidden="true"></span>
+    </button>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">p</div>
+          <div class="brand-copy">
+            <h1>peekMyAgent</h1>
+            <p data-i18n="brandSubtitle">本地请求观察器</p>
+          </div>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">
+            <p class="field-label" data-i18n="sessionsLabel">会话</p>
+            <button class="sidebar-inline-button" id="traceImportButton" type="button" data-i18n="importTrace">导入 Trace</button>
+            <input id="traceImportInput" class="hidden-file-input" type="file" accept=".gz,.json,.peektrace,.peektrace.json,.peektrace.json.gz,application/gzip,application/json" />
+          </div>
+          <nav id="sessionNav" class="session-nav" aria-label="会话列表" data-i18n-aria-label="sessionListAria"></nav>
+        </div>
+      </aside>
+
+      <div class="sidebar-resizer" id="sidebarResizer" role="separator" aria-label="调整会话栏宽度" aria-orientation="vertical" tabindex="0" data-i18n-aria-label="sidebarResizerAria"></div>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <div class="topbar-inner">
+            <div>
+              <p class="eyeline" data-i18n="dashboardEyeline">Local dashboard · 请求时间线</p>
+              <h2 id="pageTitle" data-i18n="timelineTitle">Agent 请求时间线</h2>
+            </div>
+            <div class="topbar-actions">
+              <div id="stats" class="stats"></div>
+              <div class="topbar-control-row">
+                <div id="viewControls" class="view-controls"></div>
+                <div class="language-controls" aria-label="语言设置" data-i18n-aria-label="languageSettingsAria">
+                  <label class="language-control">
+                    <span data-i18n="uiLanguageLabel">界面</span>
+                    <select id="uiLanguageSelect"></select>
+                  </label>
+                  <label class="language-control">
+                    <span data-i18n="translationLanguageLabel">翻译</span>
+                    <select id="translationLanguageSelect"></select>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+        <section id="watchSummary" class="watch-summary"></section>
+        <section id="timeline" class="timeline"></section>
+        <section id="agentComposer" class="agent-composer"></section>
+        <nav id="turnRail" class="turn-rail" aria-label="当前会话轮次导航" data-i18n-aria-label="turnRailAria"></nav>
+      </main>
+
+      <div class="raw-resizer" id="rawResizer" role="separator" aria-label="调整 Raw JSON 面板宽度" aria-orientation="vertical" tabindex="0" data-i18n-aria-label="rawResizerAria"></div>
+
+      <aside class="raw-panel" id="rawPanel">
+        <div class="raw-content">
+          <div class="raw-header">
+            <div>
+              <p class="eyeline">Raw JSON</p>
+              <h2 id="rawTitle" data-i18n="rawTitleEmpty">选择一条请求</h2>
+            </div>
+          </div>
+          <div id="rawTree" class="raw-tree empty" data-i18n="rawEmpty">点击任意请求的 Raw 按钮查看完整捕获。</div>
+        </div>
+      </aside>
+    </div>
+    <div class="modal-backdrop hidden" id="sessionInfoModal" aria-hidden="true">
+      <section class="session-info-modal" role="dialog" aria-modal="true" aria-labelledby="sessionInfoTitle">
+        <header class="modal-header">
+          <div>
+            <p class="eyeline" data-i18n="sessionInfoEyeline">当前会话</p>
+            <h2 id="sessionInfoTitle" data-i18n="sessionInfoTitle">会话信息</h2>
+          </div>
+          <button class="icon-button modal-close" type="button" data-session-info-close aria-label="关闭会话信息" data-i18n-aria-label="closeSessionInfoAria">×</button>
+        </header>
+        <div id="sessionInfoBody" class="session-info-body"></div>
+      </section>
+    </div>
+    <script type="module" src="/client.js"></script>
+  </body>
+</html>

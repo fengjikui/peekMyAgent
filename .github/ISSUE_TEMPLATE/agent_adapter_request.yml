@@ -1,0 +1,46 @@
+name: Agent adapter request
+description: Request support for another coding agent or provider configuration.
+title: "[Adapter]: "
+labels: ["adapter"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include API keys or unredacted provider configs.
+  - type: input
+    id: agent
+    attributes:
+      label: Agent or tool name
+      placeholder: "Claude Code, OpenClaw, Codex CLI, ..."
+    validations:
+      required: true
+  - type: textarea
+    id: launch
+    attributes:
+      label: How do users launch it?
+      description: Include the command shape and shell, not secrets.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: How is the model endpoint configured?
+      description: Environment variables, settings files, profiles, or UI switches. Redact values.
+    validations:
+      required: true
+  - type: textarea
+    id: restore
+    attributes:
+      label: Stop or restore behavior
+      description: How can peekMyAgent safely stop capture or restore original config?
+  - type: input
+    id: platforms
+    attributes:
+      label: Platforms you can test
+      placeholder: "macOS, Linux, Windows PowerShell, Windows Git Bash"
+  - type: textarea
+    id: notes
+    attributes:
+      label: Links or notes
+      description: Link public docs if available.

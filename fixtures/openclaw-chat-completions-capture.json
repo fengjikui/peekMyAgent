@@ -1,0 +1,52 @@
+{
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "headers": {
+    "authorization": "Bearer sk-test-openclaw",
+    "content-type": "application/json"
+  },
+  "receivedAt": "2026-05-29T00:00:00.000Z",
+  "body": {
+    "model": "peek/peek-test",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a test system prompt."
+      },
+      {
+        "role": "user",
+        "content": "hello"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "id": "call_1",
+            "type": "function",
+            "function": {
+              "name": "read_file",
+              "arguments": "{}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "content": "file content"
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "read_file",
+          "parameters": {
+            "type": "object"
+          }
+        }
+      }
+    ],
+    "temperature": 0
+  }
+}

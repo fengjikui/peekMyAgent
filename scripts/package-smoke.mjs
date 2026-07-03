@@ -1,0 +1,66 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { spawnSync } from "node:child_process";
+import { childProcessSpawnConfig } from "../src/core/platform.mjs";
+
+const packConfig = childProcessSpawnConfig("npm", ["pack", "--dry-run", "--json"]);
+const result = spawnSync(packConfig.command, packConfig.args, {
+  cwd: process.cwd(),
+  encoding: "utf8",
+  ...packConfig.options,
+});
+
+assert.equal(result.status, 0, result.stderr);
+const packs = JSON.parse(result.stdout);
+assert.equal(packs.length, 1);
+const files = new Set(packs[0].files.map((file) => file.path));
+const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+assert.match(packageJson.description || "", /agent|request|dashboard/i);
+assert.ok(packageJson.keywords?.includes("agent"));
+assert.ok(packageJson.keywords?.includes("observability"));
+assert.equal(packageJson.repository?.type, "git");
+assert.match(packageJson.repository?.url || "", /github\.com[:/]fengjikui\/peekMyAgent/i);
+assert.match(packageJson.bugs?.url || "", /github\.com\/fengjikui\/peekMyAgent\/issues/i);
+assert.match(packageJson.homepage || "", /github\.com\/fengjikui\/peekMyAgent/i);
+assert.equal(packageJson.engines?.node, ">=24.0.0");
+assert.notEqual(packageJson.private, true, "package must not be private before npm distribution");
+assert.equal(packageJson.bin?.peekmyagent, "./bin/peekmyagent.mjs");
+assert.equal(packageJson.bin?.pma, "./bin/peekmyagent.mjs");
+
+for (const required of [
+  "README.md",
+  "package.json",
+  "bin/peekmyagent.mjs",
+  "src/viewer/server.mjs",
+  "src/viewer/client.js",
+  "src/core/platform.mjs",
+  "integrations/claude-code/commands/peekmyagent.md",
+  "integrations/openclaw/skills/peek-watch/SKILL.md",
+  "scripts/install.mjs",
+  "scripts/lib/source-script-common.mjs",
+  "scripts/uninstall.mjs",
+  "scripts/extract-translation-materials.mjs",
+  "scripts/translate-materials-zh.mjs",
+]) {
+  assert.ok(files.has(required), `expected ${required} in npm package`);
+}
+
+for (const excluded of [
+  ".github/workflows/release-check.yml",
+  ".github/ISSUE_TEMPLATE/bug_report.yml",
+  ".github/pull_request_template.md",
+  "CONTRIBUTING.md",
+  "SECURITY.md",
+  "scripts/release-check.mjs",
+  "scripts/governance-smoke.mjs",
+  "scripts/source-install-smoke.mjs",
+  "scripts/source-uninstall-smoke.mjs",
+  "scripts/global-install-smoke.mjs",
+  "scripts/run-claude-wrapper-smoke.mjs",
+]) {
+  assert.equal(files.has(excluded), false, `did not expect ${excluded} in npm package`);
+}
+
+assert.ok(packs[0].entryCount < 40, `expected a compact package, got ${packs[0].entryCount} files`);
+
+console.log("package smoke passed");
