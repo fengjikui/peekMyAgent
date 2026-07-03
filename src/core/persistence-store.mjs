@@ -389,6 +389,66 @@ export class PersistenceStore {
       .map((row) => this.captureFromRow(row));
   }
 
+  loadCaptureWindow(watchId, requestId, { previousCount = 1 } = {}) {
+    const target = this.findCaptureRow(watchId, requestId);
+    if (!target) return [];
+    const previous = this.previousCaptureRows(watchId, target, previousCount);
+    return [...previous.reverse(), target].map((row) => this.captureFromRow(row));
+  }
+
+  findCaptureRow(watchId, requestId) {
+    const id = String(requestId || "");
+    const index = Number(id);
+    if (Number.isFinite(index) && id.trim()) {
+      return (
+        this.db
+          .prepare(
+            `
+              SELECT *
+              FROM model_requests
+              WHERE watch_id = ? AND (request_id = ? OR request_index = ?)
+              ORDER BY CASE WHEN request_id = ? THEN 0 ELSE 1 END
+              LIMIT 1
+            `,
+          )
+          .get(watchId, id, index, id) || null
+      );
+    }
+    return this.db.prepare("SELECT * FROM model_requests WHERE watch_id = ? AND request_id = ? LIMIT 1").get(watchId, id) || null;
+  }
+
+  previousCaptureRows(watchId, targetRow, previousCount) {
+    const limit = Math.max(0, Number(previousCount) || 0);
+    if (!limit) return [];
+    if (targetRow.request_index != null) {
+      return this.db
+        .prepare(
+          `
+            SELECT *
+            FROM model_requests
+            WHERE watch_id = ? AND request_index < ?
+            ORDER BY request_index DESC, received_at DESC
+            LIMIT ?
+          `,
+        )
+        .all(watchId, targetRow.request_index, limit);
+    }
+    if (targetRow.received_at) {
+      return this.db
+        .prepare(
+          `
+            SELECT *
+            FROM model_requests
+            WHERE watch_id = ? AND received_at < ?
+            ORDER BY received_at DESC
+            LIMIT ?
+          `,
+        )
+        .all(watchId, targetRow.received_at, limit);
+    }
+    return [];
+  }
+
   captureFromRow(row) {
     const capture = JSON.parse(row.capture_json);
     capture.body = row.raw_body_json ? JSON.parse(row.raw_body_json) : this.reconstructBody(row.request_id);

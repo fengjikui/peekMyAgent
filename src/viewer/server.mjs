@@ -775,6 +775,13 @@ function loadViewerData(sourceId, options) {
 
 function loadViewerRequestDetail(sourceId, requestId, options) {
   if (!requestId) throw new Error("Missing request id");
+  const sources = listSources(options);
+  const source = sources.find((item) => item.id === sourceId) || sources[0];
+  if (!source) throw new Error("No viewer sources configured");
+  if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
+  if (source.live_watch_id) return loadLiveWatchRequestDetail(source, requestId, options);
+  if (source.kind === "persisted_capture") return loadPersistedRequestDetail(source, requestId, options);
+
   const data = loadViewerData(sourceId, options);
   const request = data.requests.find((item) => item.id === requestId || String(item.request_index) === String(requestId));
   if (!request) throw new Error(`Request not found: ${requestId}`);
@@ -783,6 +790,53 @@ function loadViewerRequestDetail(sourceId, requestId, options) {
     source: data.source,
     request,
   };
+}
+
+function loadLiveWatchRequestDetail(source, requestId, { watches }) {
+  const watch = [...(watches?.values() || [])].find((item) => item.watch_id === source.live_watch_id || item.id === source.id);
+  if (!watch) throw new Error(`Live watch not found: ${source.live_watch_id || source.id}`);
+  const captures = capturesForWatch(watch);
+  const targetIndex = captures.findIndex((capture) => captureMatchesRequestId(capture, requestId));
+  if (targetIndex < 0) throw new Error(`Request not found: ${requestId}`);
+  const windowCaptures = captures.slice(Math.max(0, targetIndex - 1), targetIndex + 1);
+  const request = summarizeRequestDetailWindow(windowCaptures, source, requestId);
+  return {
+    generated_at: new Date().toISOString(),
+    source,
+    request,
+    detail_scope: "request_window",
+  };
+}
+
+function loadPersistedRequestDetail(source, requestId, { store }) {
+  const watchId = source.store_watch_id || watchIdFromSourceId(source.id);
+  if (!watchId) throw new Error(`Invalid persisted source id: ${source.id}`);
+  const captures = store.loadCaptureWindow(watchId, requestId, { previousCount: 1 });
+  if (!captures.length) throw new Error(`Request not found: ${requestId}`);
+  const request = summarizeRequestDetailWindow(captures, source, requestId);
+  return {
+    generated_at: new Date().toISOString(),
+    source,
+    request,
+    detail_scope: "request_window",
+  };
+}
+
+function summarizeRequestDetailWindow(captures, source, requestId) {
+  const requests = captures.map((capture, index) => {
+    const requestIndex = Number(capture.request_index);
+    const sourceIndex = Number.isFinite(requestIndex) && requestIndex > 0 ? requestIndex - 1 : index;
+    return summarizeCapture(capture, source, sourceIndex, null);
+  });
+  annotateRequestChanges(requests);
+  const request = requests.find((item) => item.id === requestId || String(item.request_index) === String(requestId)) || requests.at(-1);
+  if (!request) throw new Error(`Request not found: ${requestId}`);
+  request.detail_scope = "request_window";
+  return request;
+}
+
+function captureMatchesRequestId(capture, requestId) {
+  return capture?.capture_id === requestId || String(capture?.request_index) === String(requestId);
 }
 
 function compactViewerDataForTimeline(data) {

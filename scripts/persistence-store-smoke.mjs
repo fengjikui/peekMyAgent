@@ -106,6 +106,23 @@ try {
     await secondViewer.close();
   }
 
+  const fastDetailStore = openPersistenceStore(storePath);
+  let fullLoadCalled = false;
+  fastDetailStore.loadCaptures = () => {
+    fullLoadCalled = true;
+    throw new Error("loadCaptures should not be used for single request detail");
+  };
+  const fastDetailViewer = await startViewerServer({ cwd, persistenceStore: fastDetailStore });
+  try {
+    const fastDetail = await getJson(`${fastDetailViewer.url}/api/request?source=${encodeURIComponent(sourceIdForWatch(watchId))}&request=${encodeURIComponent(secondRequestId)}`);
+    assert.equal(fastDetail.request.summary.current_user, "second request", "request detail endpoint returns the target request");
+    assert.equal(fastDetail.request.raw.body.messages.length, 3, "request detail endpoint hydrates full target raw body");
+    assert.equal(fullLoadCalled, false, "request detail endpoint should avoid full source load for persisted captures");
+  } finally {
+    await fastDetailViewer.close();
+    fastDetailStore.close();
+  }
+
   const store = openPersistenceStore(storePath);
   try {
     store.clearRawBody(secondRequestId);

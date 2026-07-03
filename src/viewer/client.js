@@ -1328,8 +1328,20 @@ function mergeRequestDetail(fullRequest) {
   if (!fullRequest?.id || !state.data?.requests) return fullRequest;
   const index = state.data.requests.findIndex((request) => request.id === fullRequest.id);
   if (index === -1) return fullRequest;
-  state.data.requests[index] = fullRequest;
-  return fullRequest;
+  const previous = state.data.requests[index];
+  const merged = {
+    ...previous,
+    ...fullRequest,
+    changes: previous.changes || fullRequest.changes,
+    context_delta: previous.context_delta || fullRequest.context_delta,
+    trace: {
+      ...(fullRequest.trace || {}),
+      context_chain_key: previous.trace?.context_chain_key || fullRequest.trace?.context_chain_key || null,
+      previous_context_request_index: previous.trace?.previous_context_request_index || fullRequest.trace?.previous_context_request_index || null,
+    },
+  };
+  state.data.requests[index] = merged;
+  return merged;
 }
 
 async function rebuildTranslationLookupForCurrentData() {

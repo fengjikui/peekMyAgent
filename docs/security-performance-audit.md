@@ -52,6 +52,7 @@
 - Raw JSON 搜索增加 debounce，减少大 JSON 下的连续重渲染。
 - 切换/刷新视图时清理旧翻译 action 状态，避免长时间使用后积累无效 UI 状态。
 - 重命名持久化到 SQLite/import manifest，刷新后不再恢复旧标题。
+- `/api/request` 对 live watch 和 SQLite 持久化会话使用单条详情快路径，只加载目标请求附近的小窗口，不再为 Raw/System/Tools 详情点击重建整个大 Trace。
 
 ## 新增/扩展的自动验证
 
@@ -60,7 +61,7 @@
 - `npm run smoke:source-list-performance`
   - 构造一个 manifest-backed 大 Trace，故意让 `proxy-captures.json` 不可解析；`/api/sources` 仍应能列出它，防止会话列表退回全量解析慢路径。
 - `npm run smoke:persistence-store`
-  - 覆盖会话重命名跨 viewer restart 持久化。
+  - 覆盖会话重命名跨 viewer restart 持久化，以及 `/api/request` 不走全量 persisted source 加载。
 - `npm run smoke:platform`
   - 覆盖跨平台 browser opener 命令。
 
