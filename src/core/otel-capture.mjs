@@ -17,6 +17,9 @@ export const OTEL_CAPTURE_METHOD = "otel_raw_body";
 
 const REQUEST_SUFFIX = ".request.json";
 const RESPONSE_SUFFIX = ".response.json";
+const DEFAULT_MAX_SCAN_FILES = 2000;
+const DEFAULT_MAX_SCAN_DIRS = 2000;
+const DEFAULT_MAX_FILE_BYTES = 8 * 1024 * 1024;
 
 // Environment variables that make Claude Code dump raw API bodies to `dir`.
 export function otelTelemetryEnv(dir) {
@@ -35,8 +38,10 @@ function byteLength(value) {
   return Buffer.byteLength(text, "utf8");
 }
 
-function safeReadJson(filePath) {
+function safeReadJson(filePath, { maxFileBytes = DEFAULT_MAX_FILE_BYTES } = {}) {
   try {
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile() || stat.size > maxFileBytes) return null;
     const raw = fs.readFileSync(filePath, "utf8");
     return { raw, json: JSON.parse(raw) };
   } catch {
@@ -47,13 +52,15 @@ function safeReadJson(filePath) {
 // List request/response dump files under `dir`, sorted by write time so that
 // the Nth request can be paired with the Nth response (Claude Code writes them
 // in send/receive order).
-export function scanOtelDir(dir) {
+export function scanOtelDir(dir, { maxFiles = DEFAULT_MAX_SCAN_FILES, maxDirs = DEFAULT_MAX_SCAN_DIRS } = {}) {
   if (!dir || !fs.existsSync(dir)) return { requests: [], responses: [] };
   const requests = [];
   const responses = [];
   const stack = [dir];
-  while (stack.length) {
+  let visitedDirs = 0;
+  while (stack.length && visitedDirs < maxDirs && requests.length + responses.length < maxFiles) {
     const current = stack.pop();
+    visitedDirs += 1;
     let entries;
     try {
       entries = fs.readdirSync(current, { withFileTypes: true });
@@ -73,6 +80,7 @@ export function scanOtelDir(dir) {
       } catch {
         mtimeMs = 0;
       }
+      if (requests.length + responses.length >= maxFiles) break;
       if (entry.name.endsWith(REQUEST_SUFFIX)) {
         requests.push({ path: full, name: entry.name, mtimeMs, id: entry.name.slice(0, -REQUEST_SUFFIX.length) });
       } else if (entry.name.endsWith(RESPONSE_SUFFIX)) {

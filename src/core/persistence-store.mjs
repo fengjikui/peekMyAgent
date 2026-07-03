@@ -362,6 +362,7 @@ export class PersistenceStore {
       .map((row) => ({
         id: sourceIdForWatch(row.watch_id),
         label: row.title || row.label || row.watch_id,
+        user_title: row.title || null,
         agent: row.agent || "Unknown Agent",
         mode: row.mode || null,
         confidence: row.confidence || "exact",
@@ -450,6 +451,11 @@ export class PersistenceStore {
     this.db
       .prepare("UPDATE watches SET status = ?, updated_at = ?, last_seen = COALESCE(last_seen, ?) WHERE watch_id = ?")
       .run(status, new Date().toISOString(), new Date().toISOString(), watchId);
+  }
+
+  updateWatchTitle(watchId, title) {
+    const value = String(title || "").trim() || null;
+    this.db.prepare("UPDATE watches SET title = ?, updated_at = ? WHERE watch_id = ?").run(value, new Date().toISOString(), watchId);
   }
 
   deleteWatch(watchId) {

@@ -15,6 +15,8 @@ const MIN_NODE_VERSION = ">=24.0.0";
 const allowTrackedChanges = process.env.PEEKMYAGENT_RELEASE_CHECK_ALLOW_TRACKED_CHANGES === "1";
 const coreCommands = [
   ["npm", "run", "smoke:platform"],
+  ["npm", "run", "smoke:security-boundary"],
+  ["npm", "run", "smoke:source-list-performance"],
   ["npm", "run", "smoke:doctor"],
   ["npm", "run", "smoke:source-install"],
   ["npm", "run", "smoke:source-uninstall"],

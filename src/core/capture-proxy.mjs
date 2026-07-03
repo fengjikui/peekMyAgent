@@ -4,6 +4,7 @@ import https from "node:https";
 import { redactHeaders } from "./redaction.mjs";
 
 export const DEFAULT_WATCH_ID = "default";
+const MAX_CAPTURED_REQUEST_BYTES = 64 * 1024 * 1024;
 const MAX_CAPTURED_RESPONSE_BYTES = 4 * 1024 * 1024;
 
 export function listen(server, host = "127.0.0.1", port = 0) {
@@ -17,10 +18,19 @@ export function listen(server, host = "127.0.0.1", port = 0) {
   });
 }
 
-export function readBody(req) {
+export function readBody(req, { maxBytes = MAX_CAPTURED_REQUEST_BYTES } = {}) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
+    let total = 0;
+    req.on("data", (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        reject(Object.assign(new Error(`Request body is too large. Limit is ${formatBytes(maxBytes)}.`), { statusCode: 413 }));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     req.on("error", reject);
   });
@@ -114,11 +124,19 @@ export async function startCaptureProxy({
   onCaptureSkipped,
 } = {}) {
   if (!targetBaseUrl) throw new Error("targetBaseUrl is required");
+  assertSupportedUpstreamUrl(targetBaseUrl);
   const captures = captureStore || [];
   const requestCounters = requestCountersFromCaptures(captures);
   const sockets = new Set();
   const server = http.createServer(async (req, res) => {
-    const bodyText = await readBody(req);
+    let bodyText;
+    try {
+      bodyText = await readBody(req);
+    } catch (error) {
+      res.writeHead(error.statusCode || 400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: error.message }));
+      return;
+    }
     const attribution = resolveRequestAttribution(req, defaultAttribution);
     const shouldCaptureRequest = shouldCapture ? shouldCapture(attribution) !== false : true;
     const capture = shouldCaptureRequest
@@ -202,7 +220,14 @@ export async function startSharedCaptureProxy({
   const requestCounters = requestCountersFromCaptures(captures);
   const sockets = new Set();
   const server = http.createServer(async (req, res) => {
-    const bodyText = await readBody(req);
+    let bodyText;
+    try {
+      bodyText = await readBody(req);
+    } catch (error) {
+      res.writeHead(error.statusCode || 400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: error.message }));
+      return;
+    }
     const initialAttribution = resolveRequestAttribution(req, {});
     const watch = initialAttribution.agentRoute
       ? await getWatchForAgentRoute?.({
@@ -219,6 +244,13 @@ export async function startSharedCaptureProxy({
         ? `${initialAttribution.agentRoute.agentSlug}/${initialAttribution.agentRoute.installId}`
         : initialAttribution.watchId;
       res.end(JSON.stringify({ error: `Unknown or inactive watch: ${label}` }));
+      return;
+    }
+    try {
+      assertSupportedUpstreamUrl(watch.target_base_url);
+    } catch (error) {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: error.message }));
       return;
     }
 
@@ -378,12 +410,20 @@ function buildErrorResponseRecord(error, { rawBytes = 0, capturedBytes = 0, star
 
 export function resolveUpstreamUrl(targetBaseUrl, forwardPath, preserveTargetPathPrefix = false) {
   const base = new URL(targetBaseUrl);
+  assertSupportedUpstreamUrl(base);
   if (!preserveTargetPathPrefix) return new URL(forwardPath, base);
   const basePath = base.pathname.replace(/\/$/, "");
   const requestUrl = new URL(forwardPath, "http://peek.local");
   base.pathname = `${basePath}${requestUrl.pathname}`;
   base.search = requestUrl.search;
   return base;
+}
+
+function assertSupportedUpstreamUrl(value) {
+  const parsed = value instanceof URL ? value : new URL(value);
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new Error(`Unsupported upstream protocol: ${parsed.protocol}`);
+  }
 }
 
 function nextRequestIndex(counters, watchId) {
@@ -418,10 +458,19 @@ function safeDecode(value) {
 
 function upstreamHeaders(headers, host) {
   const output = {};
+  const hopByHop = new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"]);
   for (const [key, value] of Object.entries(headers || {})) {
-    if (key.toLowerCase().startsWith("x-peek-")) continue;
+    const lower = key.toLowerCase();
+    if (lower.startsWith("x-peek-") || hopByHop.has(lower)) continue;
     output[key] = value;
   }
   output.host = host;
   return output;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }

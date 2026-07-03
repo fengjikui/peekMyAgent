@@ -96,6 +96,12 @@ try {
     assert.equal(persistedView.requests[1].changes.system_changed, true);
     assert.equal(persistedView.requests[1].raw.body_source, "original");
 
+    const renamed = await postJson(`${secondViewer.url}/api/source/update`, {
+      id: persisted.id,
+      title: "Persisted renamed session",
+    });
+    assert.equal(renamed.source.label, "Persisted renamed session", "rename updates persisted source immediately");
+
     const archived = await postJson(`${secondViewer.url}/api/source/update`, {
       id: persisted.id,
       archive: true,
@@ -128,7 +134,12 @@ try {
 
   const thirdViewer = await startViewerServer({ cwd, storePath });
   try {
+    const sourcesAfterRestart = await getJson(`${thirdViewer.url}/api/sources`);
+    const renamedAfterRestart = sourcesAfterRestart.find((source) => source.id === sourceIdForWatch(watchId));
+    assert.equal(renamedAfterRestart?.label, "Persisted renamed session", "rename survives viewer restart");
+
     const reconstructedView = await getJson(`${thirdViewer.url}/api/view?source=${encodeURIComponent(sourceIdForWatch(watchId))}`);
+    assert.equal(reconstructedView.source.label, "Persisted renamed session");
     assert.equal(reconstructedView.requests[1].raw.body_source, "reconstructed");
     assert.equal(reconstructedView.requests[1].summary.current_user, "second request");
 

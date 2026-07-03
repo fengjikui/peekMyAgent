@@ -1362,12 +1362,20 @@ async function shutdownDaemonTarget(target) {
   }
 
   const registry = readViewerRegistry();
+  const registryPid = registry?.url && trimSlash(registry.url) === trimSlash(target.url) ? registry.pid : null;
   const owner = allowPidFallback || hasFlag("--force") ? listeningPidsForUrl(target.url) : null;
-  const pid = target.pid || (registry?.url && trimSlash(registry.url) === trimSlash(target.url) ? registry.pid : null) || owner?.pids?.[0] || null;
+  const pid = target.pid || registryPid || null;
   if (!allowPidFallback && !hasFlag("--force")) return null;
   if (!pid) {
     const ownerNote = owner && !owner.supported ? ` Owner lookup is unavailable: ${owner.error}.` : "";
-    throw new Error(`No registry PID for ${target.url}${allowPidFallback ? " after detecting an older daemon" : ""}.${ownerNote}`);
+    const ownerPids = owner?.pids?.length ? ` Detected listener pid(s): ${owner.pids.join(", ")}.` : "";
+    throw new Error(`No peekMyAgent registry PID for ${target.url}${allowPidFallback ? " after detecting an older daemon" : ""}.${ownerPids}${ownerNote} Refusing to kill an unknown port owner.`);
+  }
+  if (Number(pid) === process.pid) {
+    throw new Error("Refusing to terminate the current peekMyAgent CLI process.");
+  }
+  if (owner?.supported && owner.pids.length && !owner.pids.includes(Number(pid))) {
+    throw new Error(`Registry PID ${pid} is not the listener for ${target.url}. Detected listener pid(s): ${owner.pids.join(", ")}. Refusing to kill an unknown port owner.`);
   }
   const killResults = terminatePids([pid]);
   const failed = killResults.find((item) => !item.ok);

@@ -28,7 +28,7 @@ export function ideRegistryPath(options = {}) {
 }
 
 export function translationsDir(agent, targetLanguage, options = {}) {
-  return joinPlatformPath(options.platform || process.platform, defaultStateDir(options), "translations", slugify(agent), targetLanguage);
+  return joinPlatformPath(options.platform || process.platform, defaultStateDir(options), "translations", slugify(agent), safePathSegment(targetLanguage, "target-language"));
 }
 
 export function importedTracesDir(options = {}) {
@@ -60,4 +60,14 @@ export function slugify(value) {
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80) || "agent";
+}
+
+export function safePathSegment(value, fallback = "item") {
+  const text = String(value || "")
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1F]+/g, "-")
+    .replace(/\.\.+/g, ".")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return text && text !== "." ? text : fallback;
 }

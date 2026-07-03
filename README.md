@@ -328,17 +328,19 @@ node /path/to/peekMyAgent/bin/peekmyagent.mjs open
 
 ### Port 43110 is already in use
 
-Try restarting the daemon:
+First check what is already listening:
 
 ```bash
-pma restart --print --no-open --force
+pma doctor
 ```
 
-Or shut it down:
+If it is your peekMyAgent daemon, restart it:
 
 ```bash
-pma shutdown --force
+pma restart --print --no-open
 ```
+
+If another app owns the port, either stop that app yourself or choose another port with `PEEKMYAGENT_DAEMON_PORT`.
 
 ### Claude Code says the selected model cannot be used
 
@@ -353,7 +355,7 @@ If this fails, fix the provider/model configuration first.
 If it works in your shell but fails from the dashboard composer, restart peekMyAgent from the same shell environment where your provider variables are available:
 
 ```bash
-pma restart --print --no-open --force
+pma restart --print --no-open
 ```
 
 On macOS/Linux, reload your shell profile first if your provider variables live there. On Windows, restart PowerShell or set the variables in that PowerShell session before running `pma restart`.
@@ -427,6 +429,7 @@ node --check src/viewer/client.js
 - [User guide](docs/user-guide.md)
 - [Roadmap](docs/roadmap.md)
 - [Privacy and retention strategy](docs/privacy-retention-strategy.md)
+- [Security and performance audit notes](docs/security-performance-audit.md)
 - [Manual integration smoke matrix](docs/manual-integration-smoke-matrix.md)
 - [Claude Code current-session control](docs/claude-code-current-session-control.md)
 - [OpenClaw profile watch](docs/openclaw-profile-watch.md)

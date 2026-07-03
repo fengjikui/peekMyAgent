@@ -50,8 +50,8 @@ try {
     args: ["http://127.0.0.1:43110"],
   });
   assert.deepEqual(openBrowserCommand("http://127.0.0.1:43110", { platform: "win32" }), {
-    command: "cmd",
-    args: ["/c", "start", "", "http://127.0.0.1:43110"],
+    command: "rundll32.exe",
+    args: ["url.dll,FileProtocolHandler", "http://127.0.0.1:43110"],
   });
   assert.deepEqual(openBrowserCommand("http://127.0.0.1:43110", { platform: "linux" }), {
     command: "xdg-open",
@@ -66,12 +66,12 @@ try {
     },
   });
   assert.deepEqual(launched, {
-    command: "cmd",
-    args: ["/c", "start", "", "http://127.0.0.1:43110"],
+    command: "rundll32.exe",
+    args: ["url.dll,FileProtocolHandler", "http://127.0.0.1:43110"],
   });
   assert.deepEqual(browserLaunches, [{
-    command: "cmd",
-    args: ["/c", "start", "", "http://127.0.0.1:43110"],
+    command: "rundll32.exe",
+    args: ["url.dll,FileProtocolHandler", "http://127.0.0.1:43110"],
     options: { stdio: "ignore", detached: true, windowsHide: true },
   }]);
   assert.equal(shouldSpawnViaShell("claude", { platform: "win32" }), true);

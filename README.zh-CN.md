@@ -134,12 +134,13 @@ node scripts/uninstall.mjs --remove-data
 
 - 推荐从 PowerShell 或 Git Bash 中运行。
 - Claude Code 可以通过环境变量或 `.claude/settings.json` 配置上游模型；peekMyAgent 会尽量读取这些配置。
-- 如果端口 `43110` 或 `43111` 被占用，可以先运行：
+- 如果端口 `43110` 或 `43111` 被占用，先看清楚端口归属：
 
 ```powershell
-pma shutdown
 pma doctor
 ```
+
+如果确认是自己的 peekMyAgent daemon，再运行 `pma restart`；如果是其他程序占用，请手动停止那个程序或换用 `PEEKMYAGENT_DAEMON_PORT`。
 
 项目维护者验证对应平台时可以运行：
 
@@ -172,6 +173,7 @@ npm run release:check
 - [用户指南](docs/user-guide.md)
 - [Roadmap / 待实现计划](docs/roadmap.md)
 - [隐私与保留策略](docs/privacy-retention-strategy.md)
+- [安全与性能审计纪要](docs/security-performance-audit.md)
 - [手动集成 smoke 矩阵](docs/manual-integration-smoke-matrix.md)
 - [Claude Code 当前会话控制](docs/claude-code-current-session-control.md)
 - [OpenClaw profile watch](docs/openclaw-profile-watch.md)

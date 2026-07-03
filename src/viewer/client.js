@@ -8,6 +8,7 @@ const state = {
   rawOpen: true,
   activeRawSection: "full",
   rawSearchQuery: "",
+  rawSearchTimer: 0,
   rawMessagesMode: "organized",
   rawWidth: 0,
   sidebarOpen: true,
@@ -1096,14 +1097,17 @@ async function init() {
     if (!input || !els.rawTree.contains(input)) return;
     state.rawSearchQuery = input.value || "";
     if (!state.activeRequestId) return;
-    showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
-    requestAnimationFrame(() => {
-      const nextInput = els.rawTree.querySelector("[data-raw-search]");
-      if (!nextInput) return;
-      nextInput.focus();
-      const cursor = nextInput.value.length;
-      nextInput.setSelectionRange(cursor, cursor);
-    });
+    window.clearTimeout(state.rawSearchTimer);
+    state.rawSearchTimer = window.setTimeout(() => {
+      showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
+      requestAnimationFrame(() => {
+        const nextInput = els.rawTree.querySelector("[data-raw-search]");
+        if (!nextInput) return;
+        nextInput.focus();
+        const cursor = nextInput.value.length;
+        nextInput.setSelectionRange(cursor, cursor);
+      });
+    }, 120);
   });
   document.addEventListener("click", (event) => {
     const retranslateButton = event.target.closest("[data-translation-retranslate]");
@@ -1860,6 +1864,7 @@ function writeCollapsedProjects(collapsed) {
 }
 
 function renderAll() {
+  clearTranslationActions();
   const { source, stats, requests, turns } = state.data;
   els.pageTitle.textContent = displaySourceLabel(source.label);
   els.stats.innerHTML = [
@@ -4054,6 +4059,7 @@ function syncActiveFromScroll() {
 function showRaw(id, section = "full", { mode = "request" } = {}) {
   const request = state.data.requests.find((item) => item.id === id);
   if (!request) return;
+  clearTranslationActions("raw");
   markActiveRequest(id, false);
   state.activeRawSection = section;
   state.activeRawMode = mode;
@@ -4633,6 +4639,17 @@ function registerTranslationAction({ kind, sourceText, section, requestId = "", 
     materials,
   });
   return id;
+}
+
+function clearTranslationActions(surface = "") {
+  if (!surface) {
+    state.translationActionItems.clear();
+    state.nextTranslationActionId = 1;
+    return;
+  }
+  for (const [id, item] of state.translationActionItems.entries()) {
+    if (item.surface === surface) state.translationActionItems.delete(id);
+  }
 }
 
 function translationKindClass(kind) {

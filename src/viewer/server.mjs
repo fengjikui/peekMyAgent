@@ -7,7 +7,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { startCaptureProxy, startSharedCaptureProxy } from "../core/capture-proxy.mjs";
-import { importedTracesDir, translationsDir } from "../core/app-paths.mjs";
+import { importedTracesDir, safePathSegment, translationsDir } from "../core/app-paths.mjs";
 import { claudeCodeProxySettingsArgs, mergeClaudeCodeProcessEnv, resolveClaudeCodeTargetBaseUrl } from "../core/claude-code-settings.mjs";
 import { childProcessSpawnConfig, isAccessibleDirectory, safeProcessCwd, userHome } from "../core/platform.mjs";
 import { openPersistenceStore, sourceIdForWatch, watchIdFromSourceId } from "../core/persistence-store.mjs";
@@ -17,6 +17,10 @@ import { OTEL_WATCH_KIND, otelDirToCaptures } from "../core/otel-capture.mjs";
 
 const viewerDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(viewerDir, "../..");
+const MAX_JSON_BODY_BYTES = 8 * 1024 * 1024;
+const MAX_TRACE_IMPORT_BYTES = 64 * 1024 * 1024;
+const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
+const MAX_TRACE_IMPORT_CAPTURES = 5000;
 
 const DEFAULT_SOURCES = [
   {
@@ -57,7 +61,9 @@ const DEFAULT_SOURCES = [
   },
 ];
 
-export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.0.1", port = 0, demo, evidencePath, storePath, persistenceStore, capturePort = null, captureHost = host, exitOnShutdown = false } = {}) {
+export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.0.1", port = 0, demo, evidencePath, storePath, persistenceStore, capturePort = null, captureHost = host, exitOnShutdown = false, unsafeAllowRemote = false } = {}) {
+  assertSafeBindHost(host, { unsafeAllowRemote });
+  assertSafeBindHost(captureHost, { unsafeAllowRemote });
   const watches = new Map();
   const sourceMeta = new Map();
   const store = persistenceStore || openPersistenceStore(storePath);
@@ -97,6 +103,8 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
     try {
       await handleRequest(req, res, {
         cwd,
+        host,
+        unsafeAllowRemote,
         demo,
         evidencePath,
         watches,
@@ -126,7 +134,7 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
         },
       });
     } catch (error) {
-      writeJson(res, 500, { error: error.message });
+      writeJson(res, error.statusCode || 500, { error: error.message });
     }
   });
   const address = await listen(server, host, port);
@@ -159,6 +167,8 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
 
 async function handleRequest(req, res, options) {
   const url = new URL(req.url || "/", "http://peek.local");
+  const guard = validateLocalHttpRequest(req, url, options);
+  if (guard) return writeJson(res, guard.status, { error: guard.message });
   if (url.pathname === "/") return serveFile(res, path.join(viewerDir, "index.html"), "text/html; charset=utf-8");
   if (url.pathname === "/styles.css") return serveFile(res, path.join(viewerDir, "styles.css"), "text/css; charset=utf-8");
   if (url.pathname === "/client.js") return serveFile(res, path.join(viewerDir, "client.js"), "text/javascript; charset=utf-8");
@@ -195,7 +205,7 @@ async function handleRequest(req, res, options) {
 async function generateTranslations(req, options) {
   const input = await readJsonBody(req);
   const agent = String(input.agent || "Claude Code").trim() || "Claude Code";
-  const targetLanguage = String(input.target_language || "zh-CN").trim() || "zh-CN";
+  const targetLanguage = normalizePathBackedLabel(input.target_language || "zh-CN", "target_language");
   const concurrency = positiveInt(input.concurrency, 8);
   const sourceId = String(input.source_id || "").trim();
   const section = String(input.section || "").trim();
@@ -271,6 +281,7 @@ function writeTranslationMaterialsFromInput({ materials: inputMaterials, sourceI
 }
 
 function writeTranslationMaterials({ materials, sourceId, agent, targetLanguage, sourceCount }) {
+  const safeTargetLanguage = normalizePathBackedLabel(targetLanguage, "target_language");
   const dir = translationsDir(agent, targetLanguage);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const materialsPath = path.join(dir, "materials.jsonl");
@@ -279,7 +290,7 @@ function writeTranslationMaterials({ materials, sourceId, agent, targetLanguage,
     generated_at: new Date().toISOString(),
     source_id: sourceId,
     agent,
-    target_language: targetLanguage,
+    target_language: safeTargetLanguage,
     materials_path: materialsPath,
     item_count: materials.length,
     counts_by_kind: countTranslationMaterialsByKind(materials),
@@ -538,6 +549,7 @@ function positiveInt(value, fallback) {
 }
 
 function loadTranslationCache({ agent, targetLanguage }) {
+  targetLanguage = normalizePathBackedLabel(targetLanguage || "zh-CN", "target_language");
   const candidates = translationCacheCandidates(agent, targetLanguage);
   const found = candidates.find((candidate) => fs.existsSync(candidate.cachePath));
   const { cachePath, manifestPath, slug } = found || candidates[0];
@@ -577,13 +589,14 @@ function loadTranslationCache({ agent, targetLanguage }) {
 }
 
 function translationCacheCandidates(agent, targetLanguage) {
+  const safeTargetLanguage = normalizePathBackedLabel(targetLanguage || "zh-CN", "target_language");
   const slugs = [...new Set([slugify(agent), ...translationAliasSlugs(agent)])].filter(Boolean);
   return slugs.map((slug) => {
-    const dir = translationsDir(slug, targetLanguage);
+    const dir = translationsDir(slug, safeTargetLanguage);
     return {
       slug,
       dir,
-      cachePath: path.join(dir, `${targetLanguage}.json`),
+      cachePath: path.join(dir, `${safePathSegment(safeTargetLanguage, "target-language")}.json`),
       manifestPath: path.join(dir, "manifest.json"),
     };
   });
@@ -657,7 +670,7 @@ function importedTraceSourceFromDir(dir, idPart = path.basename(dir)) {
   if (!hasCaptureFile(dir)) return null;
   const manifest = readOptionalJson(path.join(dir, "manifest.json")) || {};
   const source = manifest.source || {};
-  const stats = sourceListStats(dir);
+  const stats = traceManifestStats(manifest) || sourceListStats(dir);
   return {
     id: `imported-${idPart}`,
     label: manifest.title || source.label || path.basename(dir),
@@ -674,6 +687,17 @@ function importedTraceSourceFromDir(dir, idPart = path.basename(dir)) {
     workspace: source.workspace || stats.workspace || null,
     conversation_id: source.conversation_id || null,
     ...stats,
+  };
+}
+
+function traceManifestStats(manifest) {
+  const requestCount = Number(manifest?.request_count);
+  if (!Number.isFinite(requestCount) || requestCount <= 0) return null;
+  return {
+    request_count: requestCount,
+    response_count: Number(manifest.response_count) || 0,
+    subagent_count: Number(manifest.subagent_count) || 0,
+    raw_body_bytes: Number(manifest.raw_body_bytes) || 0,
   };
 }
 
@@ -1046,10 +1070,23 @@ async function updateSource(req, options) {
     const title = String(input.title || "").trim().slice(0, 80);
     if (title) meta.title = title;
     else delete meta.title;
+    if (liveWatch) liveWatch.title = title || null;
+    if (persistedSource?.store_watch_id) options.store?.updateWatchTitle(persistedSource.store_watch_id, title);
+    if (importedSource?.path) updateImportedTraceTitle(importedSource.path, title);
   }
   if (meta.hidden || meta.pinned || meta.title) options.sourceMeta.set(id, meta);
   else options.sourceMeta.delete(id);
   return { id, source: decorateSource(source, meta), sources: listSources(options) };
+}
+
+function updateImportedTraceTitle(dir, title) {
+  const manifestPath = path.join(dir, "manifest.json");
+  const manifest = readOptionalJson(manifestPath);
+  if (!manifest) return;
+  const value = String(title || "").trim().slice(0, 80);
+  if (value) manifest.title = value;
+  else delete manifest.title;
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
 }
 
 function exportTraceBundle(res, sourceId, options) {
@@ -1080,6 +1117,7 @@ function buildTraceBundle(data) {
       request_count: captures.length,
       response_count: data.stats?.response_count || 0,
       subagent_count: data.stats?.subagent_count || 0,
+      raw_body_bytes: data.stats?.raw_body_bytes || 0,
       note: "Portable peekMyAgent trace bundle. Import in the dashboard for readonly viewing.",
     },
     source: {
@@ -1096,7 +1134,7 @@ function buildTraceBundle(data) {
 }
 
 async function importTraceBundle(req, options) {
-  const buffer = await readRawBody(req);
+  const buffer = await readRawBody(req, { maxBytes: MAX_TRACE_IMPORT_BYTES });
   const bundle = parseTraceBundle(buffer);
   const captures = validateTraceBundle(bundle);
   fs.mkdirSync(options.importsDir, { recursive: true, mode: 0o700 });
@@ -1127,7 +1165,17 @@ async function importTraceBundle(req, options) {
 
 function parseTraceBundle(buffer) {
   if (!buffer?.length) throw new Error("Trace bundle is empty.");
-  const payload = isGzipBuffer(buffer) ? zlib.gunzipSync(buffer) : buffer;
+  if (buffer.length > MAX_TRACE_IMPORT_BYTES) throw httpError(413, `Trace bundle is too large. Limit is ${formatBytes(MAX_TRACE_IMPORT_BYTES)}.`);
+  let payload;
+  try {
+    payload = isGzipBuffer(buffer) ? zlib.gunzipSync(buffer, { maxOutputLength: MAX_TRACE_IMPORT_UNZIPPED_BYTES }) : buffer;
+  } catch (error) {
+    if (/maxOutputLength|too large|buffer/i.test(error?.message || "")) {
+      throw httpError(413, `Trace bundle expands beyond ${formatBytes(MAX_TRACE_IMPORT_UNZIPPED_BYTES)}.`);
+    }
+    throw error;
+  }
+  if (payload.length > MAX_TRACE_IMPORT_UNZIPPED_BYTES) throw httpError(413, `Trace bundle expands beyond ${formatBytes(MAX_TRACE_IMPORT_UNZIPPED_BYTES)}.`);
   try {
     return JSON.parse(payload.toString("utf8"));
   } catch {
@@ -1140,6 +1188,7 @@ function validateTraceBundle(bundle) {
   if (bundle.format && bundle.format !== "peekmyagent.trace.v1") throw new Error(`Unsupported trace bundle format: ${bundle.format}`);
   const captures = Array.isArray(bundle.captures) ? bundle.captures : Array.isArray(bundle["proxy-captures"]) ? bundle["proxy-captures"] : null;
   if (!captures?.length) throw new Error("Trace bundle does not contain captures.");
+  if (captures.length > MAX_TRACE_IMPORT_CAPTURES) throw httpError(413, `Trace bundle contains too many captures. Limit is ${MAX_TRACE_IMPORT_CAPTURES}.`);
   for (const [index, capture] of captures.entries()) {
     if (!capture || typeof capture !== "object") throw new Error(`Invalid capture at index ${index}.`);
     capture.capture_id ||= crypto.randomUUID();
@@ -3342,7 +3391,7 @@ function sourceListStats(dir) {
     const workspaces = uniqueValues(captures.map((capture) => capture.workspace || capture.body?.workspace));
     const workspace = workspaces[0] || null;
     return {
-      request_count: requests.length,
+      request_count: captures.length,
       subagent_count: requests.filter((request) => request.is_subagent).length,
       raw_body_bytes: requests.reduce((sum, request) => sum + request.counts.raw_body_bytes, 0),
       workspace,
@@ -3356,10 +3405,8 @@ function sourceListStats(dir) {
 function activeWatchSources(watches) {
   if (!watches) return [];
   return [...watches.values()].map((watch) => {
-    const requests = capturesForWatch(watch).map((capture, index) =>
-      summarizeCapture(capture, { agent: watch.agent, confidence: watch.confidence, kind: watch.kind }, index, null),
-    );
-    const inferredTitle = requests.map((request) => request.summary?.current_user).find(Boolean);
+    const captures = capturesForWatch(watch);
+    const inferredTitle = captures.map(inferCaptureTitle).find(Boolean);
     const label = cleanStoredSourceLabel(watch.title || watch.label) || textPreview(cleanTitleText(inferredTitle), 48) || watch.label;
     return {
       id: watch.id,
@@ -3377,26 +3424,26 @@ function activeWatchSources(watches) {
       provider_id: watch.provider_id,
       config_patched: watch.config_patched,
       note: watch.note,
-      request_count: requests.length,
+      request_count: captures.length,
       workspace: watch.workspace,
       created_at: watch.created_at,
       restarted_at: watch.restarted_at || null,
       paused_at: watch.paused_at || null,
       resumed_at: watch.resumed_at || null,
       stopped_at: watch.stopped_at || null,
-      last_seen: watch.last_seen || requests.at(-1)?.captured_at || watch.restarted_at || watch.created_at,
+      last_seen: watch.last_seen || captures.at(-1)?.received_at || watch.restarted_at || watch.created_at,
       skipped_while_paused: Number(watch.skipped_while_paused) || 0,
-      response_count: requests.filter((request) => request.summary.response?.captured).length,
-      last_response_seen: watch.last_response_seen || latestResponseSeen(requests),
-      subagent_count: requests.filter((request) => request.is_subagent).length,
-      raw_body_bytes: requests.reduce((sum, request) => sum + request.counts.raw_body_bytes, 0),
+      response_count: captures.filter((capture) => capture.response).length,
+      last_response_seen: watch.last_response_seen || latestCaptureResponseSeen(captures),
+      subagent_count: captures.filter((capture) => headerValue(capture.headers, "x-claude-code-agent-id")).length,
+      raw_body_bytes: captures.reduce((sum, capture) => sum + (Number(capture.raw_body_length) || byteLength(capture.body)), 0),
     };
   });
 }
 
-function latestResponseSeen(requests) {
-  return requests
-    .map((request) => request.summary.response?.received_at)
+function latestCaptureResponseSeen(captures) {
+  return captures
+    .map((capture) => capture.response?.received_at)
     .filter(Boolean)
     .sort()
     .at(-1) || null;
@@ -3546,10 +3593,23 @@ function readJsonFile(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
-function readJsonBody(req) {
+function readJsonBody(req, { maxBytes = MAX_JSON_BODY_BYTES } = {}) {
+  const contentType = headerValue(req.headers || {}, "content-type");
+  if (contentType && !/^application\/(?:json|[^;]+\+json)\b/i.test(contentType)) {
+    throw httpError(415, "Expected application/json request body.");
+  }
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
+    let total = 0;
+    req.on("data", (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        reject(httpError(413, `JSON request body is too large. Limit is ${formatBytes(maxBytes)}.`));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => {
       const text = Buffer.concat(chunks).toString("utf8");
       if (!text.trim()) return resolve({});
@@ -3563,13 +3623,109 @@ function readJsonBody(req) {
   });
 }
 
-function readRawBody(req) {
+function readRawBody(req, { maxBytes = MAX_TRACE_IMPORT_BYTES } = {}) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
+    let total = 0;
+    req.on("data", (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        reject(httpError(413, `Request body is too large. Limit is ${formatBytes(maxBytes)}.`));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
+}
+
+function validateLocalHttpRequest(req, url, { unsafeAllowRemote = false } = {}) {
+  if (!url.pathname.startsWith("/api/")) return null;
+  const host = hostNameFromHeader(headerValue(req.headers || {}, "host"));
+  if (host && !unsafeAllowRemote && !isLoopbackHost(host)) {
+    return { status: 403, message: "peekMyAgent dashboard only accepts loopback Host headers by default." };
+  }
+  const origin = headerValue(req.headers || {}, "origin");
+  if (origin) {
+    let originHost = "";
+    try {
+      originHost = new URL(origin).hostname;
+    } catch {
+      return { status: 403, message: "Invalid Origin header." };
+    }
+    if (!unsafeAllowRemote && !isLoopbackHost(originHost)) {
+      return { status: 403, message: "Cross-site browser requests are not allowed." };
+    }
+  }
+  const referer = headerValue(req.headers || {}, "referer");
+  if (referer) {
+    let refererHost = "";
+    try {
+      refererHost = new URL(referer).hostname;
+    } catch {
+      return { status: 403, message: "Invalid Referer header." };
+    }
+    if (!unsafeAllowRemote && !isLoopbackHost(refererHost)) {
+      return { status: 403, message: "Cross-site browser requests are not allowed." };
+    }
+  }
+  const secFetchSite = headerValue(req.headers || {}, "sec-fetch-site").toLowerCase();
+  if (secFetchSite === "cross-site") {
+    return { status: 403, message: "Cross-site browser requests are not allowed." };
+  }
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(String(req.method || "").toUpperCase())) {
+    const contentType = headerValue(req.headers || {}, "content-type");
+    const acceptsBodylessJson = url.pathname === "/api/daemon/shutdown" && !contentType;
+    const isJson = /^application\/(?:json|[^;]+\+json)\b/i.test(contentType);
+    const isTraceImport = url.pathname === "/api/trace/import" && /^(application\/(?:octet-stream|gzip|json)|[^;]+\/[^;]+\+json)\b/i.test(contentType);
+    if (!acceptsBodylessJson && !isJson && !isTraceImport) {
+      return { status: 415, message: "State-changing API calls require application/json or an accepted trace import content type." };
+    }
+  }
+  return null;
+}
+
+function assertSafeBindHost(host, { unsafeAllowRemote = false } = {}) {
+  const normalized = String(host || "").trim();
+  if (!normalized || isLoopbackHost(normalized) || unsafeAllowRemote || process.env.PEEKMYAGENT_UNSAFE_ALLOW_REMOTE === "1") return;
+  throw new Error(`Refusing to bind peekMyAgent to non-loopback host ${normalized}. Use PEEKMYAGENT_UNSAFE_ALLOW_REMOTE=1 only on trusted networks.`);
+}
+
+function hostNameFromHeader(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (text.startsWith("[")) return text.slice(1, text.indexOf("]"));
+  return text.split(":")[0];
+}
+
+function isLoopbackHost(host) {
+  const value = String(host || "").trim().toLowerCase();
+  if (!value) return false;
+  return value === "localhost" || value === "127.0.0.1" || value === "::1" || value === "0:0:0:0:0:0:0:1";
+}
+
+function normalizePathBackedLabel(value, fieldName) {
+  const text = String(value || "").trim();
+  if (!text) throw httpError(400, `${fieldName} is required.`);
+  if (/[\/\\\x00-\x1F]/.test(text) || text.includes("..")) {
+    throw httpError(400, `${fieldName} contains unsafe path characters.`);
+  }
+  return text.slice(0, 80);
+}
+
+function httpError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function byteLength(value) {

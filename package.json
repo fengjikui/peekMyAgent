@@ -79,6 +79,8 @@
     "smoke:dashboard-open": "node scripts/dashboard-open-smoke.mjs",
     "smoke:agent-send": "node scripts/agent-send-smoke.mjs",
     "smoke:platform": "node scripts/platform-smoke.mjs",
+    "smoke:security-boundary": "node scripts/security-boundary-smoke.mjs",
+    "smoke:source-list-performance": "node scripts/source-list-performance-smoke.mjs",
     "smoke:audit-data-sources": "node scripts/audit-data-sources-smoke.mjs",
     "smoke:release-workflow": "node scripts/release-workflow-smoke.mjs",
     "smoke:release-check": "node scripts/release-check-smoke.mjs",
