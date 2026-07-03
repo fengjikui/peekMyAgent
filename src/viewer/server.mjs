@@ -3553,6 +3553,7 @@ function sourceMetaKeysForSource(source) {
     keys.add(`live-${watchId}`);
     keys.add(sourceIdForWatch(watchId));
   }
+  for (const key of stableSourceMetaKeys(source)) keys.add(key);
   return [...keys];
 }
 
@@ -3563,7 +3564,15 @@ function sourceMetaKeysForSourceId(id, { source, liveWatch, persistedSource } = 
     keys.add(`live-${watchId}`);
     keys.add(sourceIdForWatch(watchId));
   }
+  for (const key of stableSourceMetaKeys(liveWatch || persistedSource || source)) keys.add(key);
   return [...keys];
+}
+
+function stableSourceMetaKeys(source) {
+  const agent = safePathSegment(source?.agent || "");
+  const conversationId = safePathSegment(source?.conversation_id || "");
+  if (!agent || !conversationId) return [];
+  return [`conversation-${agent}-${conversationId}`];
 }
 
 function decorateSource(source, meta = {}) {
@@ -3752,33 +3761,20 @@ function readRawBody(req, { maxBytes = MAX_TRACE_IMPORT_BYTES } = {}) {
 
 function validateLocalHttpRequest(req, url, { unsafeAllowRemote = false } = {}) {
   if (!url.pathname.startsWith("/api/")) return null;
-  const host = hostNameFromHeader(headerValue(req.headers || {}, "host"));
+  const hostHeader = headerValue(req.headers || {}, "host");
+  const host = hostNameFromHeader(hostHeader);
   if (host && !unsafeAllowRemote && !isLoopbackHost(host)) {
     return { status: 403, message: "peekMyAgent dashboard only accepts loopback Host headers by default." };
   }
   const origin = headerValue(req.headers || {}, "origin");
   if (origin) {
-    let originHost = "";
-    try {
-      originHost = new URL(origin).hostname;
-    } catch {
-      return { status: 403, message: "Invalid Origin header." };
-    }
-    if (!unsafeAllowRemote && !isLoopbackHost(originHost)) {
-      return { status: 403, message: "Cross-site browser requests are not allowed." };
-    }
+    const originGuard = validateBrowserSourceHeader(origin, hostHeader, { unsafeAllowRemote, headerName: "Origin" });
+    if (originGuard) return originGuard;
   }
   const referer = headerValue(req.headers || {}, "referer");
   if (referer) {
-    let refererHost = "";
-    try {
-      refererHost = new URL(referer).hostname;
-    } catch {
-      return { status: 403, message: "Invalid Referer header." };
-    }
-    if (!unsafeAllowRemote && !isLoopbackHost(refererHost)) {
-      return { status: 403, message: "Cross-site browser requests are not allowed." };
-    }
+    const refererGuard = validateBrowserSourceHeader(referer, hostHeader, { unsafeAllowRemote, headerName: "Referer" });
+    if (refererGuard) return refererGuard;
   }
   const secFetchSite = headerValue(req.headers || {}, "sec-fetch-site").toLowerCase();
   if (secFetchSite === "cross-site") {
@@ -3794,6 +3790,48 @@ function validateLocalHttpRequest(req, url, { unsafeAllowRemote = false } = {}) 
     }
   }
   return null;
+}
+
+function validateBrowserSourceHeader(value, hostHeader, { unsafeAllowRemote = false, headerName = "Origin" } = {}) {
+  if (unsafeAllowRemote) return null;
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return { status: 403, message: `Invalid ${headerName} header.` };
+  }
+  if (!isLoopbackHost(parsed.hostname)) {
+    return { status: 403, message: "Cross-site browser requests are not allowed." };
+  }
+  if (!browserSourceMatchesHost(parsed, hostHeader)) {
+    return { status: 403, message: "Browser API requests must come from the active peekMyAgent dashboard origin." };
+  }
+  return null;
+}
+
+function browserSourceMatchesHost(parsedSource, hostHeader) {
+  const request = hostParts(hostHeader);
+  if (!request.hostname) return false;
+  if (parsedSource.protocol !== "http:") return false;
+  if (!isLoopbackHost(request.hostname) || !isLoopbackHost(parsedSource.hostname)) return false;
+  return normalizedPort(parsedSource.protocol, parsedSource.port) === request.port;
+}
+
+function hostParts(value) {
+  const text = String(value || "").trim();
+  if (!text) return { hostname: "", port: "" };
+  try {
+    const parsed = new URL(`http://${text}`);
+    return { hostname: parsed.hostname, port: normalizedPort(parsed.protocol, parsed.port) };
+  } catch {
+    return { hostname: hostNameFromHeader(text), port: "" };
+  }
+}
+
+function normalizedPort(protocol, port) {
+  if (port) return String(port);
+  if (protocol === "https:") return "443";
+  return "80";
 }
 
 function assertSafeBindHost(host, { unsafeAllowRemote = false } = {}) {

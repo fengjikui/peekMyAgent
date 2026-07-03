@@ -44,6 +44,19 @@ try {
     title: "Renamed live source",
     pinned: true,
   });
+
+  const freshLiveSameConversation = await postJson(`${viewer.url}/api/watch/start`, {
+    agent: "Claude Code",
+    mode: "single_session",
+    workspace: cwd,
+    conversation_id: "source-meta-smoke-session",
+    target_base_url: upstreamUrl,
+    reuse: false,
+  });
+  sources = await getJson(`${viewer.url}/api/sources`);
+  const sameConversationLive = sources.find((source) => source.live_watch_id === freshLiveSameConversation.watch_id);
+  assert.equal(sameConversationLive?.label, "Renamed live source", "rename follows the same conversation across a new live watch id");
+
   await viewer.close();
 
   viewer = await startViewerServer({ cwd, storePath });

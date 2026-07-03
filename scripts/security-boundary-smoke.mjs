@@ -15,6 +15,44 @@ try {
 
   const viewer = await startViewerServer({ cwd: process.cwd(), storePath });
   try {
+    const viewerOrigin = new URL(viewer.url).origin;
+    const viewerUrl = new URL(viewer.url);
+    const otherLoopbackOrigin = `http://${viewerUrl.hostname}:${Number(viewerUrl.port) + 1}`;
+    const sameOrigin = await fetch(`${viewer.url}/api/watch/start`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: viewerOrigin,
+      },
+      body: JSON.stringify({
+        agent: "Claude Code",
+        target_base_url: "http://127.0.0.1:9",
+        workspace: process.cwd(),
+        conversation_id: "same-origin-security-smoke",
+      }),
+    });
+    assert.equal(sameOrigin.status, 200, "same dashboard origin POST is accepted");
+
+    const loopbackWrongPort = await fetch(`${viewer.url}/api/watch/start`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: otherLoopbackOrigin,
+      },
+      body: JSON.stringify({ agent: "Claude Code" }),
+    });
+    assert.equal(loopbackWrongPort.status, 403, "same-host different-port browser POST is rejected");
+
+    const loopbackWrongRefererPort = await fetch(`${viewer.url}/api/watch/start`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        referer: `${otherLoopbackOrigin}/page`,
+      },
+      body: JSON.stringify({ agent: "Claude Code" }),
+    });
+    assert.equal(loopbackWrongRefererPort.status, 403, "same-host different-port Referer POST is rejected");
+
     const crossSite = await fetch(`${viewer.url}/api/watch/start`, {
       method: "POST",
       headers: {
