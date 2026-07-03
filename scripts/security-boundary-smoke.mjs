@@ -48,6 +48,21 @@ try {
     assert.equal(exportResponse.headers.get("content-type"), "application/gzip");
     assertSecurityHeaders(exportResponse, "trace export");
 
+    const crossSiteExport = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`, {
+      headers: { origin: "https://evil.example" },
+    });
+    assert.equal(crossSiteExport.status, 403, "cross-site trace export is rejected");
+
+    const fetchMetadataExport = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`, {
+      headers: { "sec-fetch-site": "cross-site" },
+    });
+    assert.equal(fetchMetadataExport.status, 403, "cross-site Fetch Metadata trace export is rejected");
+
+    const sameOriginExport = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`, {
+      headers: { "sec-fetch-site": "same-origin", referer: `${viewerOrigin}/` },
+    });
+    assert.equal(sameOriginExport.status, 200, "same-origin trace export remains accepted");
+
     const loopbackWrongPort = await fetch(`${viewer.url}/api/watch/start`, {
       method: "POST",
       headers: {
