@@ -235,7 +235,13 @@ async function handleRequest(req, res, options) {
   }
   if (url.pathname === "/api/view") {
     const sourceId = url.searchParams.get("source") || options.demo || null;
-    return writeJson(res, 200, loadViewerData(sourceId, options));
+    const data = loadViewerData(sourceId, options);
+    return writeJson(res, 200, url.searchParams.get("compact") === "1" ? compactViewerDataForTimeline(data) : data);
+  }
+  if (url.pathname === "/api/request") {
+    const sourceId = url.searchParams.get("source") || options.demo || null;
+    const requestId = url.searchParams.get("request") || "";
+    return writeJson(res, 200, loadViewerRequestDetail(sourceId, requestId, options));
   }
   writeJson(res, 404, { error: "Not found" });
 }
@@ -764,6 +770,92 @@ function loadViewerData(sourceId, options) {
     turns,
     agent_trace: agentTrace,
   };
+}
+
+function loadViewerRequestDetail(sourceId, requestId, options) {
+  if (!requestId) throw new Error("Missing request id");
+  const data = loadViewerData(sourceId, options);
+  const request = data.requests.find((item) => item.id === requestId || String(item.request_index) === String(requestId));
+  if (!request) throw new Error(`Request not found: ${requestId}`);
+  return {
+    generated_at: data.generated_at,
+    source: data.source,
+    request,
+  };
+}
+
+function compactViewerDataForTimeline(data) {
+  return {
+    ...data,
+    requests: (data.requests || []).map(compactRequestForTimeline),
+  };
+}
+
+function compactRequestForTimeline(request) {
+  const summary = request.summary || {};
+  const historyStack = Array.isArray(summary.history_stack) ? summary.history_stack : [];
+  const { history_stack, ...summaryWithoutHistory } = summary;
+  return {
+    ...request,
+    summary: {
+      ...summaryWithoutHistory,
+      history_stack: [],
+      history_stack_omitted: {
+        count: historyStack.length,
+      },
+    },
+    raw: compactRawCaptureForTimeline(request.raw),
+    detail_omitted: true,
+  };
+}
+
+function compactRawCaptureForTimeline(raw) {
+  if (!raw || typeof raw !== "object") return raw || null;
+  const body = raw.body && typeof raw.body === "object" ? raw.body : null;
+  const response = raw.response && typeof raw.response === "object" ? raw.response : null;
+  const { body: _body, response: _response, ...rest } = raw;
+  return {
+    ...rest,
+    body: compactRawBodyMetadata(body),
+    body_omitted: body
+      ? {
+          messages: Array.isArray(body.messages) ? body.messages.length : 0,
+          tools: Array.isArray(body.tools) ? body.tools.length : 0,
+          system: Array.isArray(body.system) ? body.system.length : body.system ? 1 : 0,
+          raw_body_length: raw.raw_body_length || byteLength(body),
+        }
+      : null,
+    response: compactRawResponseMetadata(response),
+    detail_omitted: true,
+  };
+}
+
+function compactRawBodyMetadata(body) {
+  if (!body || typeof body !== "object") return null;
+  const output = {};
+  for (const key of ["model", "stream", "max_tokens", "temperature", "top_p"]) {
+    if (body[key] !== undefined) output[key] = body[key];
+  }
+  return output;
+}
+
+function compactRawResponseMetadata(response) {
+  if (!response || typeof response !== "object") return response || null;
+  const output = {};
+  for (const key of ["status", "headers", "header_redactions", "received_at", "duration_ms", "raw_body_length", "captured_body_length", "truncated", "body_text_omitted"]) {
+    if (response[key] !== undefined) output[key] = response[key];
+  }
+  if (response.body_json !== undefined && response.body_json !== null) output.body_json_omitted = true;
+  if (typeof response.body_text === "string") {
+    output.body_text_omitted =
+      response.body_text_omitted || {
+        reason: "compact_view",
+        byte_size: Buffer.byteLength(response.body_text, "utf8"),
+        raw_body_length: response.raw_body_length || Buffer.byteLength(response.body_text, "utf8"),
+        captured_body_length: response.captured_body_length || Buffer.byteLength(response.body_text, "utf8"),
+      };
+  }
+  return output;
 }
 
 // Ingest Claude Code OTel raw-body dumps (subscription/OAuth path). The wrapper

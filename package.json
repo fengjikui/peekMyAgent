@@ -83,6 +83,7 @@
     "smoke:source-list-performance": "node scripts/source-list-performance-smoke.mjs",
     "smoke:source-meta": "node scripts/source-meta-persistence-smoke.mjs",
     "smoke:large-response-compact": "node scripts/large-response-compact-smoke.mjs",
+    "smoke:view-compact-detail": "node scripts/view-compact-detail-smoke.mjs",
     "smoke:audit-data-sources": "node scripts/audit-data-sources-smoke.mjs",
     "smoke:release-workflow": "node scripts/release-workflow-smoke.mjs",
     "smoke:release-check": "node scripts/release-check-smoke.mjs",

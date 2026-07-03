@@ -10,6 +10,9 @@ const state = {
   rawSearchQuery: "",
   rawSearchTimer: 0,
   rawMessagesMode: "organized",
+  requestDetails: new Map(),
+  requestDetailPromises: new Map(),
+  requestDetailErrors: new Map(),
   rawWidth: 0,
   sidebarOpen: true,
   sidebarWidth: 0,
@@ -218,6 +221,8 @@ const I18N = {
     languageSettingsAria: "语言设置",
     rawTitleEmpty: "选择一条请求",
     rawEmpty: "点击任意请求的 Raw 按钮查看完整捕获。",
+    requestDetailLoading: "正在加载这条请求的完整详情…",
+    requestDetailLoadFailed: "请求详情加载失败：{message}",
     sessionInfoTitle: "会话信息",
     toggleSidebarTitle: "折叠会话栏",
     expandSidebarTitle: "展开会话栏",
@@ -526,6 +531,8 @@ const I18N = {
     languageSettingsAria: "Language settings",
     rawTitleEmpty: "Select a request",
     rawEmpty: "Click any Raw button to inspect the full capture.",
+    requestDetailLoading: "Loading full request detail...",
+    requestDetailLoadFailed: "Failed to load request detail: {message}",
     sessionInfoTitle: "Session Info",
     toggleSidebarTitle: "Collapse session sidebar",
     expandSidebarTitle: "Expand session sidebar",
@@ -1149,7 +1156,8 @@ async function init() {
 
 async function loadSource(sourceId, { preserveScroll = false } = {}) {
   const scrollTop = els.mainPanel.scrollTop;
-  state.data = applyLocalSourceMetaToData(await fetchJson(`/api/view?source=${encodeURIComponent(sourceId)}`));
+  if (state.activeSourceId && state.activeSourceId !== sourceId) clearRequestDetailCache();
+  state.data = mergeCachedRequestDetails(applyLocalSourceMetaToData(await fetchViewerData(sourceId)));
   await loadTranslationsForActiveSource();
   const turnIds = activeTurnIds();
   if (!preserveScroll || !turnIds.includes(state.activeId)) {
@@ -1214,7 +1222,7 @@ async function refreshLiveData({ force = false } = {}) {
 
 async function refreshActiveSource(activeSource) {
   const previousData = state.data;
-  const nextData = applyLocalSourceMetaToData(await fetchJson(`/api/view?source=${encodeURIComponent(activeSource.id)}`));
+  const nextData = mergeCachedRequestDetails(applyLocalSourceMetaToData(await fetchViewerData(activeSource.id)));
   if (!shouldRenderRefreshedData(previousData, nextData)) return;
 
   const wasNearBottom = isMainPanelNearBottom();
@@ -1238,6 +1246,95 @@ async function refreshActiveSource(activeSource) {
   scheduleActiveSync();
 }
 
+function fetchViewerData(sourceId) {
+  return fetchJson(`/api/view?source=${encodeURIComponent(sourceId)}&compact=1`);
+}
+
+function clearRequestDetailCache() {
+  state.requestDetails.clear();
+  state.requestDetailPromises.clear();
+  state.requestDetailErrors.clear();
+}
+
+function mergeCachedRequestDetails(data) {
+  if (!data?.requests?.length || !state.requestDetails.size) return data;
+  return {
+    ...data,
+    requests: data.requests.map((request) => state.requestDetails.get(request.id) || request),
+  };
+}
+
+function requestNeedsDetail(request) {
+  return Boolean(request?.detail_omitted || request?.raw?.detail_omitted || request?.summary?.history_stack_omitted);
+}
+
+function currentRequestById(requestId) {
+  return (state.data?.requests || []).find((item) => item.id === requestId) || null;
+}
+
+async function ensureRequestDetailLoaded(requestId) {
+  const request = currentRequestById(requestId);
+  if (!request) return null;
+  if (!requestNeedsDetail(request)) return request;
+  if (state.requestDetails.has(requestId)) return mergeRequestDetail(state.requestDetails.get(requestId));
+  if (state.requestDetailPromises.has(requestId)) return state.requestDetailPromises.get(requestId);
+
+  const sourceId = state.data?.source?.id || state.activeSourceId || "";
+  const promise = fetchJson(`/api/request?source=${encodeURIComponent(sourceId)}&request=${encodeURIComponent(requestId)}`)
+    .then(async (payload) => {
+      const fullRequest = normalizeRequestDetail(payload.request);
+      state.requestDetails.set(requestId, fullRequest);
+      state.requestDetailErrors.delete(requestId);
+      const merged = mergeRequestDetail(fullRequest);
+      await rebuildTranslationLookupForCurrentData();
+      return merged;
+    })
+    .catch((error) => {
+      state.requestDetailErrors.set(requestId, error);
+      throw error;
+    })
+    .finally(() => {
+      state.requestDetailPromises.delete(requestId);
+    });
+  state.requestDetailPromises.set(requestId, promise);
+  return promise;
+}
+
+async function ensureDetailsForRawSection(request, section) {
+  await ensureRequestDetailLoaded(request.id);
+  if (section === "system_diff") {
+    const previous = previousRequest(currentRequestById(request.id) || request);
+    if (previous) await ensureRequestDetailLoaded(previous.id);
+  }
+  return currentRequestById(request.id) || request;
+}
+
+function normalizeRequestDetail(request) {
+  const normalized = { ...(request || {}), detail_omitted: false };
+  if (normalized.raw && typeof normalized.raw === "object") {
+    normalized.raw = { ...normalized.raw, detail_omitted: false };
+    delete normalized.raw.body_omitted;
+  }
+  if (normalized.summary && typeof normalized.summary === "object") {
+    normalized.summary = { ...normalized.summary };
+    delete normalized.summary.history_stack_omitted;
+  }
+  return normalized;
+}
+
+function mergeRequestDetail(fullRequest) {
+  if (!fullRequest?.id || !state.data?.requests) return fullRequest;
+  const index = state.data.requests.findIndex((request) => request.id === fullRequest.id);
+  if (index === -1) return fullRequest;
+  state.data.requests[index] = fullRequest;
+  return fullRequest;
+}
+
+async function rebuildTranslationLookupForCurrentData() {
+  if (!state.translations?.available) return;
+  state.translationLookup = await buildTranslationLookup(state.data?.requests || [], state.translations);
+}
+
 async function loadTranslationsForActiveSource({ autoRefresh = true } = {}) {
   const agents = translationAgentCandidatesForData(state.data);
   const targetLanguage = currentTargetLanguage();
@@ -1253,7 +1350,7 @@ async function loadTranslationsForActiveSource({ autoRefresh = true } = {}) {
       attempts.push(translations);
       if (translations.available) {
         state.translations = translations;
-        state.translationLookup = await buildTranslationLookup(state.data?.requests || [], translations);
+        await rebuildTranslationLookupForCurrentData();
         return;
       }
     }
@@ -1283,6 +1380,13 @@ async function generateTranslationsForActiveSource(section, { automatic = false,
   if (state.translationGenerate.loading) return;
   const selectedAgent = agent || translationAgentCandidatesForData(state.data)[0] || "Claude Code";
   const activeSection = section || state.activeRawSection || "system";
+  if (state.activeRequestId) {
+    try {
+      await ensureRequestDetailLoaded(state.activeRequestId);
+    } catch (error) {
+      console.warn("peekMyAgent request detail unavailable before translation", error);
+    }
+  }
   const activeRequest = (state.data?.requests || []).find((request) => request.id === state.activeRequestId);
   const targetLanguage = currentTargetLanguage();
   const languageLabel = currentTargetLanguageLabel();
@@ -2893,6 +2997,14 @@ function renderRequestCard(request, options = {}) {
 }
 
 function renderUpstreamDetailsBody(request, toolNames, moreTools) {
+  if (requestNeedsDetail(request)) {
+    const error = state.requestDetailErrors.get(request.id);
+    return `
+      <div class="request-body">
+        ${error ? renderRequestDetailError(error) : renderRequestDetailLoading()}
+      </div>
+    `;
+  }
   return `
     <div class="request-body">
       <details>
@@ -3748,6 +3860,13 @@ function toggleUpstreamDetails(requestId) {
     const internalWrapper = panel?.closest(".turn-internal-request");
     if (internalWrapper) internalWrapper.open = true;
     panel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    ensureRequestDetailLoaded(requestId)
+      .then(() => {
+        if (state.upstreamExpanded.has(requestId)) renderAll();
+      })
+      .catch(() => {
+        if (state.upstreamExpanded.has(requestId)) renderAll();
+      });
   }
   updateUpstreamToggleButtons(requestId, nextOpen);
 }
@@ -3760,6 +3879,15 @@ function syncUpstreamDetailsState(panel) {
   if (open) state.upstreamExpanded.add(requestId);
   else state.upstreamExpanded.delete(requestId);
   renderAll();
+  if (open) {
+    ensureRequestDetailLoaded(requestId)
+      .then(() => {
+        if (state.upstreamExpanded.has(requestId)) renderAll();
+      })
+      .catch(() => {
+        if (state.upstreamExpanded.has(requestId)) renderAll();
+      });
+  }
   updateUpstreamToggleButtons(requestId, open);
 }
 
@@ -4094,7 +4222,7 @@ function syncActiveFromScroll() {
   }
 }
 
-function showRaw(id, section = "full", { mode = "request" } = {}) {
+async function showRaw(id, section = "full", { mode = "request" } = {}) {
   const request = state.data.requests.find((item) => item.id === id);
   if (!request) return;
   clearTranslationActions("raw");
@@ -4104,7 +4232,17 @@ function showRaw(id, section = "full", { mode = "request" } = {}) {
   setRawPanelOpen(true);
   els.rawTitle.textContent = `Request ${request.request_index} · ${mode === "response" ? responseRawSectionLabel(section) : rawSectionLabel(section)}`;
   els.rawTree.className = "raw-tree";
-  els.rawTree.innerHTML = renderRawSections(request, section, mode);
+  if (requestNeedsDetail(request)) {
+    els.rawTree.innerHTML = renderRequestDetailLoading();
+  }
+  try {
+    const hydrated = await ensureDetailsForRawSection(request, section);
+    if (state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode) return;
+    els.rawTree.innerHTML = renderRawSections(hydrated, section, mode);
+  } catch (error) {
+    if (state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode) return;
+    els.rawTree.innerHTML = renderRequestDetailError(error);
+  }
 }
 
 function showSystemDiff(id) {
@@ -4146,6 +4284,14 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
     ${renderRawDetail("headers / metadata", rawSectionData(request, "metadata").value)}
     `}
   `;
+}
+
+function renderRequestDetailLoading() {
+  return `<div class="empty-box">${escapeHtml(t("requestDetailLoading"))}</div>`;
+}
+
+function renderRequestDetailError(error) {
+  return `<div class="empty-box error">${escapeHtml(t("requestDetailLoadFailed", { message: error?.message || String(error || "unknown") }))}</div>`;
 }
 
 function renderResponseOnlyRawSection(request, activeSection) {
