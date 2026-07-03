@@ -22,6 +22,7 @@ const MAX_TRACE_IMPORT_BYTES = 64 * 1024 * 1024;
 const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
 const MAX_TRACE_IMPORT_CAPTURES = 5000;
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
+const SOURCE_META_FILE = "source-meta.json";
 
 const DEFAULT_SOURCES = [
   {
@@ -62,12 +63,47 @@ const DEFAULT_SOURCES = [
   },
 ];
 
+function readSourceMeta(filePath) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return new Map(
+      Object.entries(raw.sources || raw || {})
+        .filter(([, value]) => value && typeof value === "object")
+        .map(([key, value]) => [key, sanitizeSourceMeta(value)]),
+    );
+  } catch {
+    return new Map();
+  }
+}
+
+function writeSourceMeta(filePath, sourceMeta) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  const sources = Object.fromEntries(
+    [...sourceMeta.entries()]
+      .map(([key, value]) => [key, sanitizeSourceMeta(value)])
+      .filter(([, value]) => value.hidden || value.pinned || value.title),
+  );
+  const tmpPath = `${filePath}.tmp`;
+  fs.writeFileSync(tmpPath, `${JSON.stringify({ version: 1, updated_at: new Date().toISOString(), sources }, null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(tmpPath, filePath);
+}
+
+function sanitizeSourceMeta(meta = {}) {
+  const title = String(meta.title || "").trim().slice(0, 80);
+  return {
+    ...(meta.hidden ? { hidden: true } : {}),
+    ...(meta.pinned ? { pinned: true } : {}),
+    ...(title ? { title } : {}),
+  };
+}
+
 export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.0.1", port = 0, demo, evidencePath, storePath, persistenceStore, capturePort = null, captureHost = host, exitOnShutdown = false, unsafeAllowRemote = false } = {}) {
   assertSafeBindHost(host, { unsafeAllowRemote });
   assertSafeBindHost(captureHost, { unsafeAllowRemote });
   const watches = new Map();
-  const sourceMeta = new Map();
   const store = persistenceStore || openPersistenceStore(storePath);
+  const sourceMetaPath = path.join(path.dirname(store.path), SOURCE_META_FILE);
+  const sourceMeta = readSourceMeta(sourceMetaPath);
   const importsDir = importedTracesDir();
   const closeStore = !persistenceStore;
   let sharedCaptureProxy = null;
@@ -110,6 +146,7 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
         evidencePath,
         watches,
         sourceMeta,
+        sourceMetaPath,
         store,
         importsDir,
         sharedCaptureProxy,
@@ -1029,8 +1066,7 @@ async function updateSource(req, options) {
   if (wantsDelete && liveWatch) {
     await closeWatchProxy(liveWatch);
     options.watches.delete(id);
-    options.sourceMeta.delete(id);
-    options.sourceMeta.delete(sourceIdForWatch(liveWatch.watch_id));
+    deleteSourceMeta(options, sourceMetaKeysForSourceId(id, { liveWatch }));
     options.store?.deleteWatch(liveWatch.watch_id);
     return { id, removed: true, sources: listSources(options) };
   }
@@ -1040,31 +1076,31 @@ async function updateSource(req, options) {
     options.store?.updateWatchStatus(liveWatch.watch_id, liveWatch.status);
     options.watches.delete(id);
     const archivedMeta = { hidden: true };
-    options.sourceMeta.set(id, archivedMeta);
-    options.sourceMeta.set(sourceIdForWatch(liveWatch.watch_id), archivedMeta);
+    setSourceMeta(options, sourceMetaKeysForSourceId(id, { liveWatch }), archivedMeta);
     return { id, archived: true, sources: listSources(options) };
   }
 
   const persistedSource = findPersistedWatchSource(options.store, { watch_id: id });
   if (wantsDelete && persistedSource?.store_watch_id) {
     options.store?.deleteWatch(persistedSource.store_watch_id);
-    options.sourceMeta.delete(id);
-    options.sourceMeta.delete(`live-${persistedSource.store_watch_id}`);
+    deleteSourceMeta(options, sourceMetaKeysForSourceId(id, { persistedSource }));
     return { id, deleted: true, sources: listSources(options) };
   }
 
   const importedSource = importedTraceSources(options).find((item) => item.id === id);
   if (wantsDelete && importedSource?.path) {
     fs.rmSync(importedSource.path, { recursive: true, force: true });
-    options.sourceMeta.delete(id);
+    deleteSourceMeta(options, [id]);
     return { id, deleted: true, sources: listSources(options) };
   }
 
-  const source = persistedSource || importedSource || baseSources(options).find((item) => item.id === id);
+  const liveSource = liveWatch ? activeWatchSources(new Map([[liveWatch.id, liveWatch]])).find((item) => item.id === id) : null;
+  const source = liveSource || persistedSource || importedSource || baseSources(options).find((item) => item.id === id);
   if (!source) throw new Error(`Source not found: ${id}`);
   if (wantsDelete) throw new Error("This source has no persisted capture data to delete.");
 
-  const meta = { ...(options.sourceMeta.get(id) || {}) };
+  const metaKeys = sourceMetaKeysForSourceId(id, { source, liveWatch, persistedSource });
+  const meta = mergedSourceMeta(options.sourceMeta, metaKeys);
   if (wantsArchive) meta.hidden = true;
   if (Object.prototype.hasOwnProperty.call(input, "pinned")) meta.pinned = Boolean(input.pinned);
   if (Object.prototype.hasOwnProperty.call(input, "title")) {
@@ -1072,11 +1108,11 @@ async function updateSource(req, options) {
     if (title) meta.title = title;
     else delete meta.title;
     if (liveWatch) liveWatch.title = title || null;
-    if (persistedSource?.store_watch_id) options.store?.updateWatchTitle(persistedSource.store_watch_id, title);
+    if (liveWatch?.watch_id) options.store?.updateWatchTitle(liveWatch.watch_id, title);
+    else if (persistedSource?.store_watch_id) options.store?.updateWatchTitle(persistedSource.store_watch_id, title);
     if (importedSource?.path) updateImportedTraceTitle(importedSource.path, title);
   }
-  if (meta.hidden || meta.pinned || meta.title) options.sourceMeta.set(id, meta);
-  else options.sourceMeta.delete(id);
+  setSourceMeta(options, metaKeys, meta);
   return { id, source: decorateSource(source, meta), sources: listSources(options) };
 }
 
@@ -1228,7 +1264,7 @@ function safeFileName(value) {
     .slice(0, 120) || "trace";
 }
 
-async function stopWatch(req, { watches, sourceMeta, store }) {
+async function stopWatch(req, { watches, sourceMeta, sourceMetaPath, store }) {
   const input = await readJsonBody(req);
   const watch = findWatch(watches, input);
   if (!watch) throw new Error("Watch not found");
@@ -1237,7 +1273,7 @@ async function stopWatch(req, { watches, sourceMeta, store }) {
   watch.stopped_at = new Date().toISOString();
   if (input.clear) {
     watches.delete(watch.id);
-    sourceMeta?.delete(watch.id);
+    deleteSourceMeta({ sourceMeta, sourceMetaPath }, sourceMetaKeysForSourceId(watch.id, { liveWatch: watch }));
     store?.deleteWatch(watch.watch_id);
     return watchStopResponse(watch, { status: "cleared", cleared: true });
   }
@@ -3482,10 +3518,52 @@ function latestCaptureResponseSeen(captures) {
 
 function decorateSources(sources, sourceMeta) {
   return sources
-    .map((source, order) => ({ ...decorateSource(source, sourceMeta.get(source.id)), source_order: order }))
+    .map((source, order) => ({ ...decorateSource(source, sourceMetaForSource(sourceMeta, source)), source_order: order }))
     .filter((source) => !source.hidden)
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.source_order - b.source_order)
     .map(({ source_order, ...source }) => source);
+}
+
+function sourceMetaForSource(sourceMeta, source) {
+  return mergedSourceMeta(sourceMeta, sourceMetaKeysForSource(source));
+}
+
+function mergedSourceMeta(sourceMeta, keys) {
+  return keys.reduce((merged, key) => ({ ...merged, ...(sourceMeta.get(key) || {}) }), {});
+}
+
+function setSourceMeta(options, keys, meta) {
+  const sanitized = sanitizeSourceMeta(meta);
+  for (const key of keys) {
+    if (sanitized.hidden || sanitized.pinned || sanitized.title) options.sourceMeta.set(key, sanitized);
+    else options.sourceMeta.delete(key);
+  }
+  if (options.sourceMetaPath) writeSourceMeta(options.sourceMetaPath, options.sourceMeta);
+}
+
+function deleteSourceMeta(options, keys) {
+  for (const key of keys) options.sourceMeta?.delete(key);
+  if (options.sourceMetaPath && options.sourceMeta) writeSourceMeta(options.sourceMetaPath, options.sourceMeta);
+}
+
+function sourceMetaKeysForSource(source) {
+  const keys = new Set([source?.id].filter(Boolean));
+  const watchId = source?.live_watch_id || source?.store_watch_id;
+  if (watchId) {
+    keys.add(`live-${watchId}`);
+    keys.add(sourceIdForWatch(watchId));
+  }
+  return [...keys];
+}
+
+function sourceMetaKeysForSourceId(id, { source, liveWatch, persistedSource } = {}) {
+  const keys = new Set([id].filter(Boolean));
+  const watchId = liveWatch?.watch_id || persistedSource?.store_watch_id || source?.live_watch_id || source?.store_watch_id || watchIdFromSourceId(id) || (String(id || "").startsWith("live-") ? String(id).slice("live-".length) : null);
+  if (watchId) {
+    keys.add(`live-${watchId}`);
+    keys.add(sourceIdForWatch(watchId));
+  }
+  return [...keys];
 }
 
 function decorateSource(source, meta = {}) {

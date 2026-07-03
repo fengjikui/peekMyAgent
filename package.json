@@ -81,6 +81,7 @@
     "smoke:platform": "node scripts/platform-smoke.mjs",
     "smoke:security-boundary": "node scripts/security-boundary-smoke.mjs",
     "smoke:source-list-performance": "node scripts/source-list-performance-smoke.mjs",
+    "smoke:source-meta": "node scripts/source-meta-persistence-smoke.mjs",
     "smoke:large-response-compact": "node scripts/large-response-compact-smoke.mjs",
     "smoke:audit-data-sources": "node scripts/audit-data-sources-smoke.mjs",
     "smoke:release-workflow": "node scripts/release-workflow-smoke.mjs",

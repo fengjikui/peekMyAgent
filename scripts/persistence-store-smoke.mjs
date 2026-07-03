@@ -102,18 +102,6 @@ try {
     });
     assert.equal(renamed.source.label, "Persisted renamed session", "rename updates persisted source immediately");
 
-    const archived = await postJson(`${secondViewer.url}/api/source/update`, {
-      id: persisted.id,
-      archive: true,
-    });
-    assert.equal(archived.archived || archived.source?.hidden, true, "archive hides the source");
-    assert.equal(archived.sources.some((source) => source.id === persisted.id), false, "archived source should leave the sidebar list");
-    const storeAfterArchive = openPersistenceStore(storePath);
-    try {
-      assert.ok(storeAfterArchive.listSources().some((source) => source.store_watch_id === watchId), "archive keeps persisted data");
-    } finally {
-      storeAfterArchive.close();
-    }
   } finally {
     await secondViewer.close();
   }
@@ -142,6 +130,19 @@ try {
     assert.equal(reconstructedView.source.label, "Persisted renamed session");
     assert.equal(reconstructedView.requests[1].raw.body_source, "reconstructed");
     assert.equal(reconstructedView.requests[1].summary.current_user, "second request");
+
+    const archived = await postJson(`${thirdViewer.url}/api/source/update`, {
+      id: sourceIdForWatch(watchId),
+      archive: true,
+    });
+    assert.equal(archived.archived || archived.source?.hidden, true, "archive hides the source");
+    assert.equal(archived.sources.some((source) => source.id === sourceIdForWatch(watchId)), false, "archived source should leave the sidebar list");
+    const storeAfterArchive = openPersistenceStore(storePath);
+    try {
+      assert.ok(storeAfterArchive.listSources().some((source) => source.store_watch_id === watchId), "archive keeps persisted data");
+    } finally {
+      storeAfterArchive.close();
+    }
 
     const deleted = await postJson(`${thirdViewer.url}/api/source/update`, {
       id: sourceIdForWatch(watchId),
