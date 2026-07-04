@@ -270,14 +270,16 @@ async function handleRequest(req, res, options) {
     return;
   }
   if (url.pathname === "/api/view") {
-    const sourceId = url.searchParams.get("source") || options.demo || null;
-    const data = loadViewerData(sourceId, options);
+    const requestedSource = url.searchParams.get("source");
+    const sourceId = requestedSource || options.demo || null;
+    const data = loadViewerData(sourceId, options, { requireSource: Boolean(requestedSource) });
     return writeJson(res, 200, url.searchParams.get("compact") === "1" ? compactViewerDataForTimeline(data) : data);
   }
   if (url.pathname === "/api/request") {
-    const sourceId = url.searchParams.get("source") || options.demo || null;
+    const requestedSource = url.searchParams.get("source");
+    const sourceId = requestedSource || options.demo || null;
     const requestId = url.searchParams.get("request") || "";
-    return writeJson(res, 200, loadViewerRequestDetail(sourceId, requestId, options));
+    return writeJson(res, 200, loadViewerRequestDetail(sourceId, requestId, options, { requireSource: Boolean(requestedSource) }));
   }
   writeJson(res, 404, { error: "Not found" });
 }
@@ -328,12 +330,12 @@ async function generateTranslations(req, options) {
 function writeTranslationMaterialsForViewerSource({ sourceId, agent, targetLanguage, options, section = "", requestId = "" }) {
   const byHash = new Map();
   if (requestId) {
-    const detail = loadViewerRequestDetail(sourceId, requestId, options);
+    const detail = loadViewerRequestDetail(sourceId, requestId, options, { requireSource: true });
     collectViewerRequestTranslationMaterials(byHash, detail.request, detail.source, targetLanguage, { section });
     const materials = [...byHash.values()].sort(compareTranslationMaterial);
     return writeTranslationMaterials({ materials, sourceId, agent, targetLanguage, sourceCount: 1 });
   }
-  const data = loadViewerData(sourceId, options);
+  const data = loadViewerData(sourceId, options, { requireSource: true });
   for (const request of data.requests || []) {
     collectViewerRequestTranslationMaterials(byHash, request, data.source, targetLanguage, { section });
   }
@@ -842,10 +844,9 @@ function boundedManifestCount(value) {
   return Math.min(Math.floor(number), Number.MAX_SAFE_INTEGER);
 }
 
-function loadViewerData(sourceId, options) {
+function loadViewerData(sourceId, options, { requireSource = false } = {}) {
   const sources = listSources(options);
-  const source = sources.find((item) => item.id === sourceId) || sources[0];
-  if (!source) throw new Error("No viewer sources configured");
+  const source = resolveViewerSource(sources, sourceId, { requireSource });
   if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
   if (source.live_watch_id) return loadLiveWatchData(source, options);
   if (source.kind === "persisted_capture") return loadPersistedData(source, options);
@@ -869,15 +870,24 @@ function loadViewerData(sourceId, options) {
   };
 }
 
-function loadViewerRequestDetail(sourceId, requestId, options) {
+function loadViewerRequestDetail(sourceId, requestId, options, { requireSource = false } = {}) {
   if (!requestId) throw new Error("Missing request id");
   const sources = listSources(options);
-  const source = sources.find((item) => item.id === sourceId) || sources[0];
-  if (!source) throw new Error("No viewer sources configured");
+  const source = resolveViewerSource(sources, sourceId, { requireSource });
   if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
   if (source.live_watch_id) return loadLiveWatchRequestDetail(source, requestId, options);
   if (source.kind === "persisted_capture") return loadPersistedRequestDetail(source, requestId, options);
   return loadFileRequestDetail(source, requestId);
+}
+
+function resolveViewerSource(sources, sourceId, { requireSource = false } = {}) {
+  const requested = String(sourceId || "").trim();
+  const source = requested ? sources.find((item) => item.id === requested) : null;
+  if (source) return source;
+  if (requireSource || requested) throw httpError(404, `Source not found: ${requested || "missing"}`);
+  const fallback = sources[0];
+  if (!fallback) throw new Error("No viewer sources configured");
+  return fallback;
 }
 
 function loadLiveWatchRequestDetail(source, requestId, { watches }) {

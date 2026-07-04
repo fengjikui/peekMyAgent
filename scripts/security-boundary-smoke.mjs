@@ -63,6 +63,22 @@ try {
     assert.equal(sameOrigin.status, 200, "same dashboard origin POST is accepted");
     const startedWatch = await sameOrigin.json();
 
+    const defaultView = await fetch(`${viewer.url}/api/view`);
+    assert.equal(defaultView.status, 200, "view API without source may still open the default source");
+
+    const unknownView = await fetch(`${viewer.url}/api/view?source=missing-trace-source`);
+    assert.equal(unknownView.status, 404, "view API rejects unknown explicit sources instead of falling back");
+
+    const unknownRequestDetail = await fetch(`${viewer.url}/api/request?source=missing-trace-source&request=req_1`);
+    assert.equal(unknownRequestDetail.status, 404, "request detail API rejects unknown explicit sources instead of falling back");
+
+    const unknownTranslationSource = await fetch(`${viewer.url}/api/translations/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ source_id: "missing-trace-source", target_language: "zh-CN", section: "tools" }),
+    });
+    assert.equal(unknownTranslationSource.status, 404, "translation refresh rejects unknown explicit sources instead of falling back");
+
     const noIntentExport = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`, {
       headers: { "sec-fetch-site": "same-origin", referer: `${viewerOrigin}/` },
     });
