@@ -40,6 +40,7 @@
   - Trace 导出包默认递归脱敏常见 token/API key 字符串；对 `api_key`、`password`、`token`、`cookie`、`secret`、`session_id` 等敏感字段名整值脱敏，并在 manifest 标记脱敏策略与隐私提示。
   - Trace 导出脱敏增加最大递归深度和节点预算，异常嵌套或恶意构造的数据会被显式标记为 redacted，而不是拖垮导出流程。
   - Trace 导出不再接受普通导航式 GET，必须由 dashboard fetch 带 `x-peekmyagent-intent: trace-export` 触发，降低外部网页诱导下载敏感 Trace 的风险。
+  - Trace 导出必须显式指定已存在的 source id；缺失或未知 source 会返回 400/404，避免错误回退导出第一个会话。
   - 翻译生成接口限制最大并发为 100，并限制单次材料条数、单块字符数和总字符数，避免误操作或恶意本地调用导致外部模型请求风暴或本机资源放大。
 - `src/core/app-paths.mjs`
   - 底层 path segment 会移除全点段、首尾点/连字符，并规避 Windows 保留设备名；翻译缓存的 agent slug 不再保留点号，避免 `.` / `..` 形态影响目录层级。

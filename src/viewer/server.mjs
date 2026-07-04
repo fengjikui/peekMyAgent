@@ -1517,8 +1517,10 @@ function exportTraceBundle(res, sourceId, options) {
 
 function loadTraceExportData(sourceId, options) {
   const sources = decorateSources([...baseSources(options, { includeStats: false }), ...persistedSources(options), ...importedTraceSources(options)], options.sourceMeta);
-  const source = sources.find((item) => item.id === sourceId) || sources[0];
-  if (!source) throw new Error("No viewer sources configured");
+  if (!sources.length) throw new Error("No viewer sources configured");
+  if (!sourceId) throw httpError(400, "Trace export requires a source id.");
+  const source = sources.find((item) => item.id === sourceId);
+  if (!source) throw httpError(404, `Trace source not found: ${sourceId}`);
   if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
   if (source.live_watch_id) {
     const watch = [...(options.watches?.values() || [])].find((item) => item.watch_id === source.live_watch_id || item.id === source.id);

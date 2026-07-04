@@ -75,6 +75,16 @@ try {
     assert.equal(exportResponse.headers.get("content-type"), "application/gzip");
     assertSecurityHeaders(exportResponse, "trace export");
 
+    const missingSourceExport = await fetch(`${viewer.url}/api/trace/export`, {
+      headers: { "x-peekmyagent-intent": "trace-export" },
+    });
+    assert.equal(missingSourceExport.status, 400, "trace export requires an explicit source id");
+
+    const unknownSourceExport = await fetch(`${viewer.url}/api/trace/export?source=missing-trace-source`, {
+      headers: { "x-peekmyagent-intent": "trace-export" },
+    });
+    assert.equal(unknownSourceExport.status, 404, "trace export rejects unknown sources instead of falling back");
+
     const crossSiteExport = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`, {
       headers: { origin: "https://evil.example", "x-peekmyagent-intent": "trace-export" },
     });
