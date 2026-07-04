@@ -182,7 +182,7 @@ async function postJson(url, payload) {
 async function postBuffer(url, buffer) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/octet-stream" },
+    headers: { "content-type": "application/octet-stream", "x-peekmyagent-intent": "trace-import" },
     body: buffer,
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);

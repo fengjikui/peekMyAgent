@@ -42,6 +42,7 @@ const MAX_TRANSLATION_MATERIAL_CHARS = 200000;
 const MAX_TRANSLATION_TOTAL_CHARS = 2000000;
 const TRACE_EXPORT_INTENT_HEADER = "x-peekmyagent-intent";
 const TRACE_EXPORT_INTENT = "trace-export";
+const TRACE_IMPORT_INTENT = "trace-import";
 const AGENT_SEND_INTENT = "agent-send";
 const OTEL_INGEST_INTENT = "otel-ingest";
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
@@ -289,6 +290,8 @@ async function handleRequest(req, res, options) {
   }
   if (url.pathname === "/api/trace/import") {
     if (rejectWrongMethod(req, res, "POST")) return;
+    const intentGuard = validateTraceImportIntent(req);
+    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
     return writeJson(res, 200, await importTraceBundle(req, options));
   }
   if (url.pathname === "/api/trace/export") {
@@ -4501,6 +4504,15 @@ function validateTraceExportIntent(req) {
   return {
     status: 403,
     message: "Trace export requires an explicit dashboard export intent.",
+  };
+}
+
+function validateTraceImportIntent(req) {
+  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
+  if (intent === TRACE_IMPORT_INTENT) return null;
+  return {
+    status: 403,
+    message: "Trace import requires an explicit dashboard import intent.",
   };
 }
 

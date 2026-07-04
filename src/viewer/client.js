@@ -1886,6 +1886,7 @@ async function importTraceFromFile(event) {
       method: "POST",
       headers: {
         "content-type": "application/octet-stream",
+        "x-peekmyagent-intent": "trace-import",
         "x-peekmyagent-file-name": file.name,
       },
       body: await file.arrayBuffer(),

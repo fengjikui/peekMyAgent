@@ -319,9 +319,26 @@ try {
     });
     assert.equal(oversizedTranslationBatch.status, 413, "oversized translation batch is rejected before model calls");
 
-    const tooManyCaptures = await fetch(`${viewer.url}/api/trace/import`, {
+    const noIntentTraceImport = await fetch(`${viewer.url}/api/trace/import`, {
       method: "POST",
       headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        format: "peekmyagent.trace.v1",
+        captures: [
+          {
+            capture_id: "no-intent-import",
+            watch_id: "security",
+            request_index: 1,
+            body: { messages: [] },
+          },
+        ],
+      }),
+    });
+    assert.equal(noIntentTraceImport.status, 403, "trace import without explicit dashboard intent is rejected");
+
+    const tooManyCaptures = await fetch(`${viewer.url}/api/trace/import`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "trace-import" },
       body: JSON.stringify({
         format: "peekmyagent.trace.v1",
         captures: Array.from({ length: 5001 }, (_, index) => ({
@@ -337,7 +354,7 @@ try {
     const noisyTraceTitle = `  imported\ntrace\u0000with\u007fcontrols ${"x".repeat(200)}  `;
     const sanitizedTitleImport = await fetch(`${viewer.url}/api/trace/import`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "trace-import" },
       body: JSON.stringify({
         format: "peekmyagent.trace.v1",
         manifest: { trace_id: "title-sanitize-smoke", title: noisyTraceTitle },
