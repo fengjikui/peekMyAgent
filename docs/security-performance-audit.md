@@ -47,6 +47,8 @@
   - 底层 path segment 会移除全点段、首尾点/连字符，并规避 Windows 保留设备名；翻译缓存的 agent slug 不再保留点号，避免 `.` / `..` 形态影响目录层级。
 - `src/viewer/markdown.js`
   - 模型回复、Messages 整理视图、工具/系统提示词翻译和子 Agent 结果共用同一个安全 Markdown 渲染器；该渲染器先转义文本，再只生成有限的段落、列表、标题、代码、表格和加粗标签。
+- `src/viewer/server.mjs`
+  - 会话重命名、source meta、持久化 watch title 和导入 Trace 标题进入 source list 前会统一去除控制字符、压缩空白并限制长度，避免异常标题污染侧边栏或拖累渲染。
 - `src/core/persistence-store.mjs`
   - SQLite store 主文件和 WAL/SHM 边车文件在打开/关闭时尽量收紧到 `0600`，降低自定义 state/store 路径权限过宽时的 raw body 泄露风险。
 - `scripts/translate-materials-zh.mjs`

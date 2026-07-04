@@ -34,6 +34,19 @@ try {
   assert.equal(renamedDemo?.user_title, "Renamed demo source", "static source keeps user_title after viewer restart");
   assert.equal(renamedDemo?.pinned, true, "static source pin survives viewer restart");
 
+  const noisyTitle = `  Renamed\nsource\u0000with\u007fcontrols ${"x".repeat(120)}  `;
+  await postJson(`${viewer.url}/api/source/update`, {
+    id: "openclaw-subagent",
+    title: noisyTitle,
+  });
+  await viewer.close();
+  viewer = await startViewerServer({ cwd, demo: "openclaw-subagent", storePath });
+  sources = await getJson(`${viewer.url}/api/sources`);
+  const sanitizedDemo = sources.find((source) => source.id === "openclaw-subagent");
+  assert.equal(/[\x00-\x1F\x7F]/.test(sanitizedDemo?.user_title || ""), false, "source rename strips control characters before persistence");
+  assert.equal((sanitizedDemo?.user_title || "").includes("\n"), false, "source rename is normalized to one line");
+  assert.equal((sanitizedDemo?.user_title || "").length <= 80, true, "source rename is bounded before persistence");
+
   const live = await postJson(`${viewer.url}/api/watch/start`, {
     agent: "Claude Code",
     mode: "single_session",

@@ -57,6 +57,13 @@ try {
     title: "User renamed source",
   };
   store.upsertWatch(renamedGenericWatch);
+  const noisyTitleWatch = {
+    ...genericWatch,
+    watch_id: "claude-code-noisy-title-source-list-smoke",
+    conversation_id: "noisy-title-source-list-smoke-conversation",
+    title: `  Noisy\nsource\u0000title ${"x".repeat(120)}  `,
+  };
+  store.upsertWatch(noisyTitleWatch);
   store.upsertCapture({
     watch: genericWatch,
     capture: {
@@ -103,6 +110,11 @@ try {
     assert.ok(renamedPersisted, "renamed generic persisted source should be listed");
     assert.equal(renamedPersisted.label, "User renamed source", "user rename should not be replaced by inferred titles");
     assert.equal(renamedPersisted.user_title, "User renamed source", "user rename remains explicit metadata");
+    const noisyTitlePersisted = sources.find((item) => item.id === sourceIdForWatch(noisyTitleWatch.watch_id));
+    assert.ok(noisyTitlePersisted, "noisy persisted title source should be listed");
+    assert.equal(/[\x00-\x1F\x7F]/.test(noisyTitlePersisted.user_title || ""), false, "persisted title is stripped of control characters before source list");
+    assert.equal((noisyTitlePersisted.user_title || "").includes("\n"), false, "persisted title is normalized to one line before source list");
+    assert.equal((noisyTitlePersisted.user_title || "").length <= 80, true, "persisted title is bounded before source list");
     assert.equal(initialLoadCount, 1, "generic title inference should only load a bounded initial sample");
   } finally {
     await viewer.close();

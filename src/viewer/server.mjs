@@ -22,6 +22,7 @@ const MAX_JSON_BODY_BYTES = 8 * 1024 * 1024;
 const MAX_TRACE_IMPORT_BYTES = 64 * 1024 * 1024;
 const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
 const MAX_TRACE_IMPORT_CAPTURES = 5000;
+const MAX_SOURCE_TITLE_CHARS = 80;
 const MAX_TRACE_TITLE_CHARS = 120;
 const MAX_TRACE_EXPORT_REDACTION_DEPTH = 64;
 const MAX_TRACE_EXPORT_REDACTION_NODES = 200000;
@@ -116,7 +117,7 @@ function writeSourceMeta(filePath, sourceMeta) {
 }
 
 function sanitizeSourceMeta(meta = {}) {
-  const title = String(meta.title || "").trim().slice(0, 80);
+  const title = sanitizeSourceTitle(meta.title);
   return {
     ...(meta.hidden ? { hidden: true } : {}),
     ...(meta.pinned ? { pinned: true } : {}),
@@ -755,7 +756,8 @@ function persistedSources({ store, watches, sourceMeta }) {
 function decoratePersistedSourceTitle(source, { store, sourceMeta } = {}) {
   const manualTitle = manualConversationTitle(sourceMeta, source);
   if (manualTitle) return { ...source, label: cleanStoredSourceLabel(manualTitle) || manualTitle, user_title: manualTitle };
-  if (source.user_title) return { ...source, label: cleanStoredSourceLabel(source.user_title) || source.user_title };
+  const storedTitle = sanitizeSourceTitle(source.user_title);
+  if (storedTitle) return { ...source, label: cleanStoredSourceLabel(storedTitle) || storedTitle, user_title: storedTitle };
   const conversationTitle = conversationTitleForSource(store, source);
   if (conversationTitle) return { ...source, label: cleanStoredSourceLabel(conversationTitle) || conversationTitle, user_title: conversationTitle };
   const cleaned = cleanStoredSourceLabel(source.label);
@@ -1128,7 +1130,7 @@ async function ingestOtelCaptures(req, options) {
   const watch = {
     watch_id: watchId,
     label: input.label || `${agent} · OTel`,
-    title: input.title || conversationTitleForSource(store, { agent, conversation_id: conversationId }) || null,
+    title: sanitizeSourceTitle(input.title || conversationTitleForSource(store, { agent, conversation_id: conversationId })) || null,
     agent,
     mode: input.mode || "single_session",
     confidence: "exact",
@@ -1402,7 +1404,7 @@ function promoteWatchTitleToConversationMeta(watch, options = {}) {
   if (!watch?.watch_id || !watch?.agent || !watch?.conversation_id || !options.sourceMeta) return;
   const directKeys = [watch.id, `live-${watch.watch_id}`, sourceIdForWatch(watch.watch_id)].filter(Boolean);
   const directMeta = mergedSourceMeta(options.sourceMeta, directKeys);
-  const title = String(directMeta.title || "").trim();
+  const title = sanitizeSourceTitle(directMeta.title);
   if (!title) return;
   const stableKeys = stableSourceMetaKeys(watch);
   if (!stableKeys.length) return;
@@ -1468,7 +1470,7 @@ async function updateSource(req, options) {
   if (wantsArchive) meta.hidden = true;
   if (Object.prototype.hasOwnProperty.call(input, "pinned")) meta.pinned = Boolean(input.pinned);
   if (Object.prototype.hasOwnProperty.call(input, "title")) {
-    const title = String(input.title || "").trim().slice(0, 80);
+    const title = sanitizeSourceTitle(input.title);
     if (title) meta.title = title;
     else delete meta.title;
     if (liveWatch) liveWatch.title = title || null;
@@ -1485,7 +1487,7 @@ function updateImportedTraceTitle(dir, title) {
   const manifestPath = path.join(dir, "manifest.json");
   const manifest = readOptionalJson(manifestPath);
   if (!manifest) return;
-  const value = String(title || "").trim().slice(0, 80);
+  const value = sanitizeSourceTitle(title);
   if (value) manifest.title = value;
   else delete manifest.title;
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
@@ -3785,14 +3787,29 @@ function cleanStoredSourceLabel(text) {
   return textPreview(cleanTitleText(value), 48);
 }
 
-function sanitizeTraceTitle(value, fallback) {
-  const normalized = cleanTitleText(value)
+function sanitizeTitleText(value, { fallback = "", limit = MAX_SOURCE_TITLE_CHARS } = {}) {
+  let normalized = cleanTitleText(value)
     .replace(/[\x00-\x1F\x7F]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (!normalized) return String(fallback || "Imported trace").slice(0, MAX_TRACE_TITLE_CHARS);
-  if (normalized.length <= MAX_TRACE_TITLE_CHARS) return normalized;
-  return `${normalized.slice(0, MAX_TRACE_TITLE_CHARS - 3).trimEnd()}...`;
+  if (!normalized) {
+    normalized = cleanTitleText(fallback)
+      .replace(/[\x00-\x1F\x7F]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+  if (!normalized) return "";
+  const maxChars = Math.max(3, Number(limit) || MAX_SOURCE_TITLE_CHARS);
+  if (normalized.length <= maxChars) return normalized;
+  return `${normalized.slice(0, maxChars - 3).trimEnd()}...`;
+}
+
+function sanitizeSourceTitle(value) {
+  return sanitizeTitleText(value, { limit: MAX_SOURCE_TITLE_CHARS });
+}
+
+function sanitizeTraceTitle(value, fallback) {
+  return sanitizeTitleText(value, { fallback: fallback || "Imported trace", limit: MAX_TRACE_TITLE_CHARS });
 }
 
 function stripFrameworkReminderBlocks(text) {
@@ -4067,9 +4084,10 @@ function syncConversationTitle(options, source, title) {
   const agent = source?.agent;
   const conversationId = source?.conversation_id;
   if (!agent || !conversationId) return;
-  options.store?.updateConversationTitle?.(agent, conversationId, title);
+  const cleanTitle = sanitizeSourceTitle(title);
+  options.store?.updateConversationTitle?.(agent, conversationId, cleanTitle);
   for (const watch of options.watches?.values?.() || []) {
-    if (watch.agent === agent && watch.conversation_id === conversationId) watch.title = title || null;
+    if (watch.agent === agent && watch.conversation_id === conversationId) watch.title = cleanTitle || null;
   }
 }
 
@@ -4080,12 +4098,12 @@ function preferredConversationTitle({ store, sourceMeta } = {}, source) {
 function manualConversationTitle(sourceMeta, source) {
   if (!sourceMeta) return null;
   const meta = mergedSourceMeta(sourceMeta, stableSourceMetaKeys(source));
-  const title = String(meta.title || "").trim();
+  const title = sanitizeSourceTitle(meta.title);
   return title || null;
 }
 
 function conversationTitleForSource(store, source) {
-  return store?.conversationTitle?.(source?.agent, source?.conversation_id) || null;
+  return sanitizeSourceTitle(store?.conversationTitle?.(source?.agent, source?.conversation_id)) || null;
 }
 
 function sourceMetaKeysForSource(source) {
@@ -4120,7 +4138,7 @@ function stableSourceMetaKeys(source) {
 function decorateSource(source, meta = {}) {
   const originalLabel = source.original_label || source.label;
   const workspace = source.workspace || null;
-  const userTitle = meta?.title || source.user_title || null;
+  const userTitle = sanitizeSourceTitle(meta?.title || source.user_title) || null;
   const label = userTitle || cleanStoredSourceLabel(source.label) || source.label;
   return {
     ...source,
