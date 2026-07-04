@@ -36,6 +36,7 @@
   - 翻译目标语言进入缓存路径前做安全归一化。
   - 导入 Trace 列表优先使用 manifest 统计，避免列会话时解析完整大文件。
   - 导入 Trace 的 `trace_id` 不允许通过 `.` / `..` 之类的全点段逃出 imports 目录；创建导入目录前还会校验最终路径必须位于 imports 根目录内。
+  - 导入 Trace 的 manifest 标题进入 source list 前会去除控制字符、压缩空白并限制长度，避免共享包用异常标题污染侧边栏或放大渲染成本。
   - 删除导入 Trace 前校验目标目录必须位于 peekMyAgent imports 目录下。
   - Trace 导出包默认递归脱敏常见 token/API key 字符串；对 `api_key`、`password`、`token`、`cookie`、`secret`、`session_id` 等敏感字段名整值脱敏，并在 manifest 标记脱敏策略与隐私提示。
   - Trace 导出脱敏增加最大递归深度和节点预算，异常嵌套或恶意构造的数据会被显式标记为 redacted，而不是拖垮导出流程。

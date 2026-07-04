@@ -213,6 +213,28 @@ try {
       }),
     });
     assert.equal(tooManyCaptures.status, 413, "oversized trace capture count is rejected");
+
+    const noisyTraceTitle = `  imported\ntrace\u0000with\u007fcontrols ${"x".repeat(200)}  `;
+    const sanitizedTitleImport = await fetch(`${viewer.url}/api/trace/import`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        format: "peekmyagent.trace.v1",
+        manifest: { trace_id: "title-sanitize-smoke", title: noisyTraceTitle },
+        captures: [
+          {
+            capture_id: "title-sanitize-capture",
+            watch_id: "security",
+            request_index: 1,
+            body: { messages: [{ role: "user", content: "import title sanitize smoke" }] },
+          },
+        ],
+      }),
+    });
+    assert.equal(sanitizedTitleImport.status, 200, "trace import with noisy manifest title succeeds");
+    const sanitizedTitleImportJson = await sanitizedTitleImport.json();
+    assert.equal(/[\x00-\x1F\x7F]/.test(sanitizedTitleImportJson.source.label), false, "imported trace title is stripped of control characters");
+    assert.equal(sanitizedTitleImportJson.source.label.length <= 120, true, "imported trace title is bounded before entering source list");
   } finally {
     await viewer.close();
   }

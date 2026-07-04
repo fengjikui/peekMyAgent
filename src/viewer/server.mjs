@@ -22,6 +22,7 @@ const MAX_JSON_BODY_BYTES = 8 * 1024 * 1024;
 const MAX_TRACE_IMPORT_BYTES = 64 * 1024 * 1024;
 const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
 const MAX_TRACE_IMPORT_CAPTURES = 5000;
+const MAX_TRACE_TITLE_CHARS = 120;
 const MAX_TRACE_EXPORT_REDACTION_DEPTH = 64;
 const MAX_TRACE_EXPORT_REDACTION_NODES = 200000;
 const MAX_TRANSLATION_CONCURRENCY = 100;
@@ -796,10 +797,11 @@ function importedTraceSourceFromDir(dir, idPart = path.basename(dir)) {
   const manifest = readOptionalJson(path.join(dir, "manifest.json")) || {};
   const source = manifest.source || {};
   const stats = traceManifestStats(manifest) || sourceListStats(dir);
+  const label = sanitizeTraceTitle(manifest.title || source.label, path.basename(dir));
   return {
     id: `imported-${idPart}`,
-    label: manifest.title || source.label || path.basename(dir),
-    original_label: manifest.title || source.label || path.basename(dir),
+    label,
+    original_label: label,
     agent: source.agent || manifest.agent || "Imported Trace",
     confidence: "imported",
     kind: "imported_trace",
@@ -1652,11 +1654,12 @@ async function importTraceBundle(req, options) {
   const dir = uniqueImportDir(options.importsDir, traceId);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const importedAt = new Date().toISOString();
+  const title = sanitizeTraceTitle(bundle.manifest?.title || bundle.source?.label, `Imported trace ${traceId}`);
   const manifest = {
     ...(bundle.manifest || {}),
     trace_id: traceId,
     imported_at: importedAt,
-    title: bundle.manifest?.title || bundle.source?.label || `Imported trace ${traceId}`,
+    title,
     source: bundle.source || {},
     format: bundle.format || "peekmyagent.trace.v1",
   };
@@ -3780,6 +3783,16 @@ function cleanStoredSourceLabel(text) {
   const value = String(text || "").trim();
   if (!value || /<system-reminder/i.test(value) || isKnownFrameworkReminderText(value)) return "";
   return textPreview(cleanTitleText(value), 48);
+}
+
+function sanitizeTraceTitle(value, fallback) {
+  const normalized = cleanTitleText(value)
+    .replace(/[\x00-\x1F\x7F]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return String(fallback || "Imported trace").slice(0, MAX_TRACE_TITLE_CHARS);
+  if (normalized.length <= MAX_TRACE_TITLE_CHARS) return normalized;
+  return `${normalized.slice(0, MAX_TRACE_TITLE_CHARS - 3).trimEnd()}...`;
 }
 
 function stripFrameworkReminderBlocks(text) {
