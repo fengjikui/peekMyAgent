@@ -97,6 +97,8 @@ try {
     assert.equal(deletedImport.sources.some((source) => source.id === imported.source_id), false, "deleted imported trace leaves source list");
     assert.equal(fs.existsSync(importedSource.path), false, "delete removes imported trace directory");
 
+    await assertFileExportUsesRawCaptureFastPath(tmpDir);
+
     console.log("trace-bundle smoke passed");
   } finally {
     await viewer.close();
@@ -160,6 +162,61 @@ function listen(server) {
 
 function closeServer(server) {
   return new Promise((resolve) => server.close(() => resolve()));
+}
+
+async function assertFileExportUsesRawCaptureFastPath(rootDir) {
+  const evidenceDir = path.join(rootDir, "export-fast-path-evidence");
+  fs.mkdirSync(evidenceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(evidenceDir, "proxy-captures.json"),
+    JSON.stringify([
+      {
+        capture_id: "fast-export-capture",
+        watch_id: "fast-export",
+        request_index: 1,
+        received_at: "2026-07-04T00:00:00.000Z",
+        method: "POST",
+        path: "/v1/messages",
+        headers: {},
+        body: {
+          model: "mock",
+          messages: [{ role: "user", content: "export fast path" }],
+        },
+        response: {
+          status: 200,
+          body_json: { content: [{ type: "text", text: "ok" }] },
+        },
+      },
+    ]),
+  );
+  fs.writeFileSync(path.join(evidenceDir, "debug-api-sources.json"), JSON.stringify([{ source: "should-not-be-read-for-export" }]));
+  fs.writeFileSync(path.join(evidenceDir, "command.json"), JSON.stringify({ command: "should-not-be-read-for-export" }));
+
+  const originalReadFileSync = fs.readFileSync;
+  const companionReads = [];
+  fs.readFileSync = function patchedReadFileSync(filePath, ...args) {
+    const text = String(filePath);
+    if (text.endsWith("debug-api-sources.json") || text.endsWith("command.json")) companionReads.push(text);
+    return originalReadFileSync.call(this, filePath, ...args);
+  };
+  let fastViewer = null;
+  try {
+    fastViewer = await startViewerServer({
+      cwd: rootDir,
+      evidencePath: path.relative(rootDir, evidenceDir),
+      storePath: path.join(rootDir, "export-fast-path-store.sqlite"),
+    });
+    const exported = await fetchBuffer(`${fastViewer.url}/api/trace/export?source=custom`);
+    assert.equal(exported.status, 200, "file evidence trace export succeeds");
+    const bundle = JSON.parse(zlib.gunzipSync(exported.buffer).toString("utf8"));
+    assert.equal(bundle.captures.length, 1);
+    assert.equal(bundle.manifest.request_count, 1);
+    assert.equal(bundle.manifest.response_count, 1);
+    assert.deepEqual(companionReads, [], "trace export should not build full timeline companion data");
+  } finally {
+    if (fastViewer) await fastViewer.close();
+    fs.readFileSync = originalReadFileSync;
+  }
 }
 
 function readBody(req) {

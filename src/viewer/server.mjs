@@ -677,7 +677,7 @@ function translationAliasSlugs(agent) {
   return aliases;
 }
 
-function baseSources({ cwd, demo, evidencePath, watches }) {
+function baseSources({ cwd, demo, evidencePath, watches }, { includeStats = true } = {}) {
   if (evidencePath) {
     const absPath = path.resolve(cwd, evidencePath);
     return [
@@ -690,14 +690,14 @@ function baseSources({ cwd, demo, evidencePath, watches }) {
         path: absPath,
         available: hasCaptureFile(absPath),
         note: "用户指定的证据目录。",
-        ...sourceListStats(absPath),
+        ...(includeStats ? sourceListStats(absPath) : {}),
       },
     ];
   }
   const defaultSources = demo
     ? DEFAULT_SOURCES.map((source) => {
         const absPath = path.resolve(cwd, source.path);
-        return { ...source, path: absPath, available: hasCaptureFile(absPath), ...sourceListStats(absPath) };
+        return { ...source, path: absPath, available: hasCaptureFile(absPath), ...(includeStats ? sourceListStats(absPath) : {}) };
       })
     : [];
   return [...activeWatchSources(watches), ...defaultSources];
@@ -1465,7 +1465,7 @@ function removeImportedTraceDir(dir, importsDir) {
 }
 
 function exportTraceBundle(res, sourceId, options) {
-  const data = loadViewerData(sourceId, options);
+  const data = loadTraceExportData(sourceId, options);
   const bundle = buildTraceBundle(data);
   const fileBase = safeFileName(`peekmyagent-trace-${bundle.manifest.trace_id}-${bundle.manifest.exported_at.slice(0, 10)}`);
   const payload = Buffer.from(`${JSON.stringify(bundle, null, 2)}\n`, "utf8");
@@ -1480,11 +1480,30 @@ function exportTraceBundle(res, sourceId, options) {
   res.end(gzipped);
 }
 
+function loadTraceExportData(sourceId, options) {
+  const sources = decorateSources([...baseSources(options, { includeStats: false }), ...persistedSources(options), ...importedTraceSources(options)], options.sourceMeta);
+  const source = sources.find((item) => item.id === sourceId) || sources[0];
+  if (!source) throw new Error("No viewer sources configured");
+  if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
+  if (source.live_watch_id) {
+    const watch = [...(options.watches?.values() || [])].find((item) => item.watch_id === source.live_watch_id || item.id === source.id);
+    if (!watch) throw new Error(`Live watch not found: ${source.live_watch_id || source.id}`);
+    return { source, captures: capturesForWatch(watch) };
+  }
+  if (source.kind === "persisted_capture") {
+    const watchId = source.store_watch_id || watchIdFromSourceId(source.id);
+    if (!watchId) throw new Error(`Invalid persisted source id: ${source.id}`);
+    return { source, captures: options.store?.loadCaptures(watchId) || [] };
+  }
+  return { source, captures: readJson(path.join(source.path, "proxy-captures.json")) };
+}
+
 function buildTraceBundle(data) {
-  const rawCaptures = (data.requests || []).map((request) => request.raw).filter(Boolean);
+  const rawCaptures = (data.captures || []).filter(Boolean);
   const exportRedaction = redactTraceExportValue(rawCaptures);
   const captures = exportRedaction.value;
   const traceId = crypto.createHash("sha256").update(JSON.stringify(captures.map((capture) => capture.capture_id || capture.request_index || ""))).digest("hex").slice(0, 12);
+  const stats = traceBundleStats(captures);
   return {
     format: "peekmyagent.trace.v1",
     manifest: {
@@ -1493,9 +1512,9 @@ function buildTraceBundle(data) {
       title: data.source?.label || data.source?.id || "peekMyAgent Trace",
       source_id: data.source?.id || null,
       request_count: captures.length,
-      response_count: data.stats?.response_count || 0,
-      subagent_count: data.stats?.subagent_count || 0,
-      raw_body_bytes: data.stats?.raw_body_bytes || 0,
+      response_count: stats.response_count,
+      subagent_count: stats.subagent_count,
+      raw_body_bytes: stats.raw_body_bytes,
       export_kind: "sanitized_share_bundle",
       redaction: {
         applied: true,
@@ -1515,6 +1534,14 @@ function buildTraceBundle(data) {
       conversation_id: data.source?.conversation_id || null,
     },
     captures,
+  };
+}
+
+function traceBundleStats(captures) {
+  return {
+    response_count: captures.filter((capture) => capture?.response).length,
+    subagent_count: captures.filter((capture) => headerValue(capture?.headers, "x-claude-code-agent-id")).length,
+    raw_body_bytes: captures.reduce((sum, capture) => sum + (Number(capture?.raw_body_length) || byteLength(capture?.body)), 0),
   };
 }
 

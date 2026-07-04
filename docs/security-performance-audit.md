@@ -54,6 +54,7 @@
 - Compact 视图的上下文构成统计改用轻量字符估算，并缓存消息前缀比较 key，避免大 Trace 首页构建反复执行稳定 JSON 序列化。
 - Compact 首屏进一步截短 system/assistant/internal preview、entry 文本和 response 重复预览，只保留时间线直接展示所需的 composition 分区；完整内容由 `/api/request` 单请求详情恢复。
 - Compact 首屏不再携带 Raw headers、上游 response headers、重复的 `response.preview` 和完整 `context_delta.previews.command_message` 对象；真实 137 请求 Trace 的 compact payload 从约 2.16MB 降到约 1.54MB，合成 420 请求样本从约 4.58MB 降到约 3.90MB。
+- Trace 导出直接读取 source 的 raw captures 并执行脱敏打包，不再先构建完整 viewer timeline，避免大 Trace 导出触发 turns、agent trace、context diff 等重计算。
 - Raw JSON 搜索增加 debounce，减少大 JSON 下的连续重渲染。
 - 切换/刷新视图时清理旧翻译 action 状态，避免长时间使用后积累无效 UI 状态。
 - 重命名持久化到 SQLite/import manifest，刷新后不再恢复旧标题。
@@ -85,7 +86,7 @@
 - `npm run smoke:compact-view-performance`
   - 构造 420 条包含大 system/tools/history/response 的合成 Trace，约束 `/api/view?compact=1` 首屏 payload、耗时和大字段省略行为，防止切会话路径回退到全量 Raw。
 - `npm run smoke:trace-bundle`
-  - 覆盖 Trace 导出默认脱敏、导入后只读查看、导入 Trace 的 `/api/request` 单请求窗口详情，以及删除导入 Trace 会移除对应本地导入目录。
+  - 覆盖 Trace 导出默认脱敏、导入后只读查看、导入 Trace 的 `/api/request` 单请求窗口详情、删除导入 Trace 会移除对应本地导入目录，以及导出不读取完整 timeline companion 文件。
 
 这些 smoke 已加入 `scripts/release-check.mjs` 的发布门禁。
 
