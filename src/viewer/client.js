@@ -339,6 +339,7 @@ const I18N = {
     rename: "重命名",
     exportTrace: "导出 Trace",
     exportTraceConfirm: "导出的 Trace 会尽量脱敏常见 token/API key，但仍可能包含私有提示词、源码片段、文件路径或工具输出。分享前请先检查内容。继续导出吗？",
+    exportTraceFailed: "导出 Trace 失败：{message}",
     archive: "归档",
     deleteData: "删除数据",
     renameSessionPrompt: "重命名会话",
@@ -657,6 +658,7 @@ const I18N = {
     rename: "Rename",
     exportTrace: "Export Trace",
     exportTraceConfirm: "Exported traces are sanitized for common token/API-key patterns, but may still include private prompts, code snippets, file paths, or tool output. Review before sharing. Continue?",
+    exportTraceFailed: "Export Trace failed: {message}",
     archive: "Archive",
     deleteData: "Delete data",
     renameSessionPrompt: "Rename session",
@@ -1850,15 +1852,26 @@ async function handleSourceAction(action, sourceId) {
   }
 }
 
-function exportTraceSource(sourceId) {
+async function exportTraceSource(sourceId) {
   if (!window.confirm(t("exportTraceConfirm"))) return;
   const url = `/api/trace/export?source=${encodeURIComponent(sourceId)}`;
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  try {
+    const response = await fetch(url, {
+      headers: { "x-peekmyagent-intent": "trace-export" },
+    });
+    if (!response.ok) throw new Error(await responseErrorMessage(response));
+    const blob = await response.blob();
+    const link = document.createElement("a");
+    const objectUrl = URL.createObjectURL(blob);
+    link.href = objectUrl;
+    link.download = contentDispositionFileName(response.headers.get("content-disposition")) || "peekmyagent-trace.peektrace.json.gz";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  } catch (error) {
+    window.alert(t("exportTraceFailed", { message: error.message }));
+  }
 }
 
 async function importTraceFromFile(event) {
@@ -5494,17 +5507,35 @@ function renderPrimitive(value) {
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   if (!response.ok) {
-    const text = await response.text();
-    let message = text;
-    try {
-      const parsed = JSON.parse(text);
-      message = parsed.error || text;
-    } catch {
-      message = text;
-    }
-    throw new Error(message);
+    throw new Error(await responseErrorMessage(response));
   }
   return response.json();
+}
+
+async function responseErrorMessage(response) {
+  const text = await response.text();
+  try {
+    const parsed = JSON.parse(text);
+    return parsed.error || text;
+  } catch {
+    return text;
+  }
+}
+
+function contentDispositionFileName(value) {
+  const text = String(value || "");
+  const utf8Match = text.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim());
+    } catch {
+      return utf8Match[1].trim();
+    }
+  }
+  const quoted = text.match(/filename="([^"]+)"/i);
+  if (quoted) return quoted[1].trim();
+  const plain = text.match(/filename=([^;]+)/i);
+  return plain ? plain[1].trim() : "";
 }
 
 function escapeHtml(value) {

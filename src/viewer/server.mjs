@@ -24,6 +24,8 @@ const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
 const MAX_TRACE_IMPORT_CAPTURES = 5000;
 const MAX_TRACE_EXPORT_REDACTION_DEPTH = 64;
 const MAX_TRACE_EXPORT_REDACTION_NODES = 200000;
+const TRACE_EXPORT_INTENT_HEADER = "x-peekmyagent-intent";
+const TRACE_EXPORT_INTENT = "trace-export";
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
 const TIMELINE_RESPONSE_TEXT_CHARS = 700;
 const TIMELINE_RESPONSE_THINKING_CHARS = 360;
@@ -243,7 +245,11 @@ async function handleRequest(req, res, options) {
   if (url.pathname === "/api/agent/send" && req.method === "POST") return writeJson(res, 200, await sendAgentMessage(req, options));
   if (url.pathname === "/api/source/update" && req.method === "POST") return writeJson(res, 200, await updateSource(req, options));
   if (url.pathname === "/api/trace/import" && req.method === "POST") return writeJson(res, 200, await importTraceBundle(req, options));
-  if (url.pathname === "/api/trace/export") return exportTraceBundle(res, url.searchParams.get("source") || "", options);
+  if (url.pathname === "/api/trace/export") {
+    const intentGuard = validateTraceExportIntent(req);
+    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
+    return exportTraceBundle(res, url.searchParams.get("source") || "", options);
+  }
   if (url.pathname === "/api/capture/otel" && req.method === "POST") return writeJson(res, 200, await ingestOtelCaptures(req, options));
   if (url.pathname === "/api/watch/status") return writeJson(res, 200, listWatchStatus(options));
   if (url.pathname === "/api/daemon/ping") return writeJson(res, 200, daemonPing(options));
@@ -4264,6 +4270,15 @@ function validateLocalHttpRequest(req, url, { unsafeAllowRemote = false } = {}) 
     }
   }
   return null;
+}
+
+function validateTraceExportIntent(req) {
+  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
+  if (intent === TRACE_EXPORT_INTENT) return null;
+  return {
+    status: 403,
+    message: "Trace export requires an explicit dashboard export intent.",
+  };
 }
 
 function validateBrowserSourceHeader(value, hostHeader, { unsafeAllowRemote = false, headerName = "Origin" } = {}) {

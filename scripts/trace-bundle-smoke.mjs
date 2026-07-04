@@ -160,7 +160,7 @@ async function getJson(url) {
 }
 
 async function fetchBuffer(url) {
-  const response = await fetch(url);
+  const response = await fetch(url, { headers: { "x-peekmyagent-intent": "trace-export" } });
   const buffer = Buffer.from(await response.arrayBuffer());
   return { status: response.status, headers: response.headers, buffer };
 }

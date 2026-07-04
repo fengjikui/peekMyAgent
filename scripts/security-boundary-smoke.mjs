@@ -43,13 +43,20 @@ try {
     assert.equal(sameOrigin.status, 200, "same dashboard origin POST is accepted");
     const startedWatch = await sameOrigin.json();
 
-    const exportResponse = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`);
+    const noIntentExport = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`, {
+      headers: { "sec-fetch-site": "same-origin", referer: `${viewerOrigin}/` },
+    });
+    assert.equal(noIntentExport.status, 403, "trace export without explicit dashboard intent is rejected");
+
+    const exportResponse = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`, {
+      headers: { "x-peekmyagent-intent": "trace-export" },
+    });
     assert.equal(exportResponse.status, 200, "trace export succeeds");
     assert.equal(exportResponse.headers.get("content-type"), "application/gzip");
     assertSecurityHeaders(exportResponse, "trace export");
 
     const crossSiteExport = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`, {
-      headers: { origin: "https://evil.example" },
+      headers: { origin: "https://evil.example", "x-peekmyagent-intent": "trace-export" },
     });
     assert.equal(crossSiteExport.status, 403, "cross-site trace export is rejected");
 
@@ -59,7 +66,7 @@ try {
     assert.equal(fetchMetadataExport.status, 403, "cross-site Fetch Metadata trace export is rejected");
 
     const sameOriginExport = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`, {
-      headers: { "sec-fetch-site": "same-origin", referer: `${viewerOrigin}/` },
+      headers: { "sec-fetch-site": "same-origin", referer: `${viewerOrigin}/`, "x-peekmyagent-intent": "trace-export" },
     });
     assert.equal(sameOriginExport.status, 200, "same-origin trace export remains accepted");
 
