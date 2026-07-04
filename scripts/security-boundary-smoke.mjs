@@ -27,6 +27,26 @@ try {
     assert.equal(sources.status, 200, "sources API loads");
     assertSecurityHeaders(sources, "JSON API");
 
+    const dashboardStyleSources = await fetch(`${viewer.url}/api/sources`, {
+      headers: {
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        referer: `${viewerOrigin}/`,
+      },
+    });
+    assert.equal(dashboardStyleSources.status, 200, "same-origin dashboard fetch shape is accepted");
+
+    const resourceShapeSources = await fetch(`${viewer.url}/api/sources`, {
+      headers: { "sec-fetch-mode": "no-cors", "sec-fetch-dest": "image" },
+    });
+    assert.equal(resourceShapeSources.status, 403, "browser resource-shaped API GET is rejected");
+
+    const navigationShapeSources = await fetch(`${viewer.url}/api/sources`, {
+      headers: { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" },
+    });
+    assert.equal(navigationShapeSources.status, 403, "browser navigation-shaped API GET is rejected");
+
     const sameOrigin = await fetch(`${viewer.url}/api/watch/start`, {
       method: "POST",
       headers: {

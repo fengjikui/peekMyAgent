@@ -4272,6 +4272,11 @@ function validateLocalHttpRequest(req, url, { unsafeAllowRemote = false } = {}) 
   if (secFetchSite === "cross-site") {
     return { status: 403, message: "Cross-site browser requests are not allowed." };
   }
+  const secFetchMode = headerValue(req.headers || {}, "sec-fetch-mode").toLowerCase();
+  const secFetchDest = headerValue(req.headers || {}, "sec-fetch-dest").toLowerCase();
+  if (secFetchMode === "no-cors" || (secFetchDest && secFetchDest !== "empty")) {
+    return { status: 403, message: "Browser resource or navigation requests are not allowed for peekMyAgent APIs." };
+  }
   if (["POST", "PUT", "PATCH", "DELETE"].includes(String(req.method || "").toUpperCase())) {
     const contentType = headerValue(req.headers || {}, "content-type");
     const acceptsBodylessJson = url.pathname === "/api/daemon/shutdown" && !contentType;
