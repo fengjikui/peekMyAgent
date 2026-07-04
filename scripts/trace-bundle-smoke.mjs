@@ -13,6 +13,8 @@ const cwd = process.cwd();
 const originalStateDir = process.env.PEEKMYAGENT_STATE_DIR;
 const originalTarget = process.env.PEEK_CLAUDE_TARGET_BASE_URL;
 const exportSecret = "sk-exportsecret123456";
+const plainApiKey = "plain-api-key-that-does-not-match-token-pattern";
+const plainPassword = "correct-horse-battery-staple";
 
 const upstream = http.createServer(async (req, res) => {
   await readBody(req);
@@ -39,7 +41,11 @@ try {
       model: "mock-claude",
       messages: [{ role: "user", content: "export this trace" }],
       tools: [{ name: "Read", input_schema: { type: "object" } }],
-      metadata: { smoke_secret: exportSecret },
+      metadata: {
+        smoke_value: exportSecret,
+        api_key: plainApiKey,
+        nested: { password: plainPassword },
+      },
     });
     await postModelRequest(watch.base_url, {
       model: "mock-claude",
@@ -71,11 +77,14 @@ try {
     assert.equal(bundle.captures.length, 3);
     assert.equal(bundle.manifest.request_count, 3);
     assert.equal(bundleText.includes(exportSecret), false, "exported trace should not contain common secret patterns");
+    assert.equal(bundleText.includes(plainApiKey), false, "exported trace should redact api_key values by field name");
+    assert.equal(bundleText.includes(plainPassword), false, "exported trace should redact password values by field name");
     assert.equal(bundleText.includes("[REDACTED:secret]"), true, "exported trace should mark redacted secret patterns");
+    assert.equal(bundleText.includes("[REDACTED:trace_export_sensitive_field]"), true, "exported trace should mark field-name redactions");
     assert.equal(bundleText.includes("[REDACTED:trace_export_max_depth]"), true, "exported trace should bound pathological nesting");
     assert.equal(bundle.manifest.export_kind, "sanitized_share_bundle");
     assert.equal(bundle.manifest.redaction.applied, true);
-    assert.ok(bundle.manifest.redaction.count >= 2);
+    assert.ok(bundle.manifest.redaction.count >= 4);
     assert.match(bundle.manifest.privacy_notice, /Review before sharing/);
 
     const imported = await postBuffer(`${viewer.url}/api/trace/import`, exported.buffer);

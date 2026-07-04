@@ -1555,6 +1555,9 @@ function traceBundleStats(captures) {
 
 function redactTraceExportValue(value, pathParts = [], context = { nodes: 0 }) {
   const fieldPath = pathParts.length ? pathParts.join(".") : "trace";
+  if (pathParts.length && isSensitiveTraceExportField(pathParts[pathParts.length - 1])) {
+    return redactedTraceExportMarker(fieldPath, "trace_export_sensitive_field");
+  }
   if (pathParts.length > MAX_TRACE_EXPORT_REDACTION_DEPTH) {
     return redactedTraceExportMarker(fieldPath, "trace_export_max_depth");
   }
@@ -1605,6 +1608,10 @@ function redactedTraceExportMarker(fieldPath, reason) {
     value: `[REDACTED:${reason}]`,
     redactions: [{ field_path: fieldPath, reason }],
   };
+}
+
+function isSensitiveTraceExportField(fieldName) {
+  return /authorization|api[-_]?key|x-api-key|cookie|token|secret|password|credential|session[-_]?id/i.test(String(fieldName || ""));
 }
 
 async function importTraceBundle(req, options) {
