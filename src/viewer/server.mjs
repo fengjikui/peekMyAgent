@@ -25,6 +25,9 @@ const MAX_TRACE_IMPORT_CAPTURES = 5000;
 const MAX_TRACE_EXPORT_REDACTION_DEPTH = 64;
 const MAX_TRACE_EXPORT_REDACTION_NODES = 200000;
 const MAX_TRANSLATION_CONCURRENCY = 100;
+const MAX_TRANSLATION_MATERIALS = 1500;
+const MAX_TRANSLATION_MATERIAL_CHARS = 200000;
+const MAX_TRANSLATION_TOTAL_CHARS = 2000000;
 const TRACE_EXPORT_INTENT_HEADER = "x-peekmyagent-intent";
 const TRACE_EXPORT_INTENT = "trace-export";
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
@@ -358,6 +361,7 @@ function writeTranslationMaterialsFromInput({ materials: inputMaterials, sourceI
 
 function writeTranslationMaterials({ materials, sourceId, agent, targetLanguage, sourceCount }) {
   const safeTargetLanguage = normalizePathBackedLabel(targetLanguage, "target_language");
+  assertTranslationMaterialsWithinLimits(materials);
   const dir = translationsDir(agent, targetLanguage);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const materialsPath = path.join(dir, "materials.jsonl");
@@ -378,6 +382,23 @@ function writeTranslationMaterials({ materials, sourceId, agent, targetLanguage,
   const manifestPath = path.join(dir, "manifest.json");
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
   return { ...manifest, manifest_path: manifestPath };
+}
+
+function assertTranslationMaterialsWithinLimits(materials) {
+  if (materials.length > MAX_TRANSLATION_MATERIALS) {
+    throw httpError(413, `Translation material count is too large. Limit is ${MAX_TRANSLATION_MATERIALS}.`);
+  }
+  let totalChars = 0;
+  for (const item of materials) {
+    const textChars = Number.isFinite(item.text_chars) ? item.text_chars : String(item.source_text || "").length;
+    if (textChars > MAX_TRANSLATION_MATERIAL_CHARS) {
+      throw httpError(413, `Translation material is too large. Limit is ${MAX_TRANSLATION_MATERIAL_CHARS} chars per block.`);
+    }
+    totalChars += textChars;
+    if (totalChars > MAX_TRANSLATION_TOTAL_CHARS) {
+      throw httpError(413, `Translation materials are too large. Limit is ${MAX_TRANSLATION_TOTAL_CHARS} total chars.`);
+    }
+  }
 }
 
 function collectViewerRequestTranslationMaterials(byHash, request, source, targetLanguage, { section = "" } = {}) {

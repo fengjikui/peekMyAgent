@@ -147,6 +147,42 @@ try {
     });
     assert.equal(unsafeLanguage.status, 400, "unsafe path-backed language labels are rejected");
 
+    const tooManyTranslationMaterials = await fetch(`${viewer.url}/api/translations/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        target_language: "zh-CN",
+        materials: Array.from({ length: 1501 }, (_, index) => ({
+          kind: "manual_text",
+          source_text: `unique translation material ${index}`,
+        })),
+      }),
+    });
+    assert.equal(tooManyTranslationMaterials.status, 413, "too many translation materials are rejected before model calls");
+
+    const oversizedTranslationMaterial = await fetch(`${viewer.url}/api/translations/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        target_language: "zh-CN",
+        materials: [{ kind: "manual_text", source_text: "x".repeat(200001) }],
+      }),
+    });
+    assert.equal(oversizedTranslationMaterial.status, 413, "oversized translation material is rejected before model calls");
+
+    const oversizedTranslationBatch = await fetch(`${viewer.url}/api/translations/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        target_language: "zh-CN",
+        materials: Array.from({ length: 1001 }, (_, index) => ({
+          kind: "manual_text",
+          source_text: `${String(index).padStart(4, "0")} ${"x".repeat(1996)}`,
+        })),
+      }),
+    });
+    assert.equal(oversizedTranslationBatch.status, 413, "oversized translation batch is rejected before model calls");
+
     const tooManyCaptures = await fetch(`${viewer.url}/api/trace/import`, {
       method: "POST",
       headers: { "content-type": "application/json" },

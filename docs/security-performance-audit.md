@@ -21,7 +21,7 @@
 | 大请求/导入包 | 请求体、gzip Trace、导入 captures 过大导致内存或 CPU 放大 | JSON body、captured request、Trace 压缩/解压大小和 capture 数量都有上限 |
 | 文件路径 | 翻译语言、导入目录、OTel 扫描造成路径穿越或大目录扫描 | 语言名和导入 Trace id 经过 path segment 归一化；导入目录强制留在 imports 根目录下；OTel 读取限制文件数、目录数和单文件大小 |
 | 数据留存 | raw body 长期保存或导出泄露敏感内容 | README/隐私文档明确说明；SQLite store/WAL/SHM 和导入 Trace 文件使用私有权限；清理/卸载只把 store/registry 当作文件删除，不递归删除目录形态的误配置 store path；Trace 导出默认脱敏常见 secret/token pattern 和敏感字段名，并要求 dashboard 显式 intent header 触发下载 |
-| 外部模型调用 | 翻译刷新误触发过高并发，放大用户 API 成本或触发限流 | Dashboard 翻译接口和翻译脚本都限制最大并发为 100 |
+| 外部模型调用 | 翻译刷新误触发过高并发或过大材料集，放大用户 API 成本、触发限流或拖慢本机 | Dashboard 翻译接口和翻译脚本都限制最大并发为 100；翻译材料还限制条数、单块字符数和总字符数 |
 | 同机恶意进程 | 本机其他进程直接访问本地端口 | 当前不把同机恶意进程视为完全可防边界；后续可考虑 session token/Unix socket |
 
 ## 已落地的安全修复
@@ -39,7 +39,7 @@
   - Trace 导出包默认递归脱敏常见 token/API key 字符串；对 `api_key`、`password`、`token`、`cookie`、`secret`、`session_id` 等敏感字段名整值脱敏，并在 manifest 标记脱敏策略与隐私提示。
   - Trace 导出脱敏增加最大递归深度和节点预算，异常嵌套或恶意构造的数据会被显式标记为 redacted，而不是拖垮导出流程。
   - Trace 导出不再接受普通导航式 GET，必须由 dashboard fetch 带 `x-peekmyagent-intent: trace-export` 触发，降低外部网页诱导下载敏感 Trace 的风险。
-  - 翻译生成接口限制最大并发为 100，避免误操作或恶意本地调用导致外部模型请求风暴。
+  - 翻译生成接口限制最大并发为 100，并限制单次材料条数、单块字符数和总字符数，避免误操作或恶意本地调用导致外部模型请求风暴或本机资源放大。
 - `src/core/persistence-store.mjs`
   - SQLite store 主文件和 WAL/SHM 边车文件在打开/关闭时尽量收紧到 `0600`，降低自定义 state/store 路径权限过宽时的 raw body 泄露风险。
 - `scripts/translate-materials-zh.mjs`
@@ -78,7 +78,7 @@
 ## 新增/扩展的自动验证
 
 - `npm run smoke:security-boundary`
-  - 覆盖非 loopback 绑定拒绝、Trace 导出 intent 要求、跨站 API/Trace 导出拒绝、浏览器资源/导航形态 API 拒绝、非 JSON 状态修改拒绝、daemon shutdown JSON content-type 要求、基础安全响应头、不安全语言路径拒绝、超大 Trace capture 数拒绝。
+  - 覆盖非 loopback 绑定拒绝、Trace 导出 intent 要求、跨站 API/Trace 导出拒绝、浏览器资源/导航形态 API 拒绝、非 JSON 状态修改拒绝、daemon shutdown JSON content-type 要求、基础安全响应头、不安全语言路径拒绝、翻译材料规模拒绝、超大 Trace capture 数拒绝。
 - `npm run smoke:source-list-performance`
   - 构造一个 manifest-backed 大 Trace，故意让 `proxy-captures.json` 不可解析；同时构造 SQLite 通用标题会话并禁止 `loadCaptures()`；`/api/sources` 仍应能列出它们，防止会话列表退回全量解析慢路径或覆盖用户重命名标题。
 - `npm run smoke:maintenance`
