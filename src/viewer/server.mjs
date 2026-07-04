@@ -27,6 +27,11 @@ const MAX_TRACE_TITLE_CHARS = 120;
 const MAX_SOURCE_AGENT_CHARS = 80;
 const MAX_SOURCE_WORKSPACE_CHARS = 512;
 const MAX_SOURCE_CONVERSATION_CHARS = 256;
+const MAX_TRANSLATION_SOURCE_ID_CHARS = 512;
+const MAX_TRANSLATION_REQUEST_ID_CHARS = 256;
+const MAX_TRANSLATION_SECTION_CHARS = 48;
+const MAX_TRANSLATION_METADATA_KEYS = 32;
+const MAX_TRANSLATION_METADATA_STRING_CHARS = 512;
 const MAX_TRACE_EXPORT_REDACTION_DEPTH = 64;
 const MAX_TRACE_EXPORT_REDACTION_NODES = 200000;
 const MAX_TRANSLATION_CONCURRENCY = 100;
@@ -244,7 +249,7 @@ async function handleRequest(req, res, options) {
   if (url.pathname === "/markdown.js") return serveFile(res, path.join(viewerDir, "markdown.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/api/sources") return writeJson(res, 200, listSources(options));
   if (url.pathname === "/api/translations") {
-    const agent = url.searchParams.get("agent") || "Claude Code";
+    const agent = sanitizeSourceMetadataText(url.searchParams.get("agent") || "Claude Code", { fallback: "Claude Code", limit: MAX_SOURCE_AGENT_CHARS });
     const targetLanguage = url.searchParams.get("target_language") || "zh-CN";
     return writeJson(res, 200, publicTranslationCache(loadTranslationCache({ agent, targetLanguage })));
   }
@@ -286,12 +291,12 @@ async function handleRequest(req, res, options) {
 
 async function generateTranslations(req, options) {
   const input = await readJsonBody(req);
-  const agent = String(input.agent || "Claude Code").trim() || "Claude Code";
+  const agent = sanitizeSourceMetadataText(input.agent || "Claude Code", { fallback: "Claude Code", limit: MAX_SOURCE_AGENT_CHARS });
   const targetLanguage = normalizePathBackedLabel(input.target_language || "zh-CN", "target_language");
   const concurrency = boundedPositiveInt(input.concurrency, 8, MAX_TRANSLATION_CONCURRENCY);
-  const sourceId = String(input.source_id || "").trim();
-  const section = String(input.section || "").trim();
-  const requestId = String(input.request_id || "").trim();
+  const sourceId = sanitizeSourceMetadataText(input.source_id || "", { limit: MAX_TRANSLATION_SOURCE_ID_CHARS });
+  const section = sanitizeSourceMetadataText(input.section || "", { limit: MAX_TRANSLATION_SECTION_CHARS });
+  const requestId = sanitizeSourceMetadataText(input.request_id || "", { limit: MAX_TRANSLATION_REQUEST_ID_CHARS });
   const force = input.force === true;
   const inputMaterials = Array.isArray(input.materials) ? input.materials : [];
   const extract = inputMaterials.length
@@ -504,10 +509,29 @@ function addTranslationMaterial(byHash, input) {
     target_language: input.target_language,
     text_chars: sourceText.length,
     source_text: sourceText,
-    metadata: input.metadata || {},
+    metadata: sanitizeTranslationMaterialMetadata(input.metadata || {}),
     occurrences: [input.occurrence],
     occurrence_count: 1,
   });
+}
+
+function sanitizeTranslationMaterialMetadata(value, depth = 0) {
+  if (value == null) return {};
+  if (typeof value === "string") return sanitizeSourceMetadataText(value, { limit: MAX_TRANSLATION_METADATA_STRING_CHARS });
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "boolean") return value;
+  if (Array.isArray(value)) {
+    if (depth >= 2) return [];
+    return value.slice(0, MAX_TRANSLATION_METADATA_KEYS).map((item) => sanitizeTranslationMaterialMetadata(item, depth + 1));
+  }
+  if (typeof value !== "object") return null;
+  if (depth >= 2) return {};
+  const output = {};
+  for (const [key, child] of Object.entries(value).slice(0, MAX_TRANSLATION_METADATA_KEYS)) {
+    const cleanKey = sanitizeSourceMetadataText(key, { limit: MAX_TRANSLATION_METADATA_STRING_CHARS });
+    if (cleanKey) output[cleanKey] = sanitizeTranslationMaterialMetadata(child, depth + 1);
+  }
+  return output;
 }
 
 function extractTranslationSystemParts(body, messages) {

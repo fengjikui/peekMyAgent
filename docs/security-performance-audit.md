@@ -45,6 +45,7 @@
   - Trace 导出必须显式指定已存在的 source id；缺失或未知 source 会返回 400/404，避免错误回退导出第一个会话。
   - `/api/view`、`/api/request` 和按 source 刷新的翻译生成只在未指定 source 时允许默认打开第一个会话；显式未知 source 会返回 404，避免误展示或误翻译另一个会话。
   - 翻译缓存查询和翻译刷新结果不向浏览器返回 `cache_path`、`materials_path`、`manifest_path` 这类本机绝对路径；前端只接收缓存状态、slug、条目数和翻译统计。
+  - 翻译 API 的 `agent`、`source_id`、`request_id`、`section` 以及材料 metadata 会去除控制字符、压缩空白并限制长度，避免异常输入被完整回显或写入缓存 manifest。
   - 翻译生成接口限制最大并发为 100，并限制单次材料条数、单块字符数和总字符数，避免误操作或恶意本地调用导致外部模型请求风暴或本机资源放大。
 - `src/core/app-paths.mjs`
   - 底层 path segment 会移除全点段、首尾点/连字符，并规避 Windows 保留设备名；翻译缓存的 agent slug 不再保留点号，避免 `.` / `..` 形态影响目录层级。

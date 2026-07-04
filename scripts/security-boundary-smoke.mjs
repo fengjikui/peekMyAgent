@@ -179,6 +179,24 @@ try {
     assert.equal(unsafeAgentCacheJson.cache_slug, "agent", "unsafe-looking agent label is normalized to a safe slug");
     assert.equal(Object.hasOwn(unsafeAgentCacheJson, "cache_path"), false, "translation cache lookup does not expose local cache paths");
 
+    const noisyLongAgent = `  Claude\nCode\t${"x".repeat(500)}  `;
+    const noisyLongAgentCache = await fetch(`${viewer.url}/api/translations?agent=${encodeURIComponent(noisyLongAgent)}&target_language=zh-CN`);
+    assert.equal(noisyLongAgentCache.status, 200, "translation cache lookup accepts noisy agent labels");
+    const noisyLongAgentCacheJson = await noisyLongAgentCache.json();
+    assert.equal(noisyLongAgentCacheJson.agent.length <= 80, true, "translation cache agent label is bounded before API echo");
+    assert.equal(/[\x00-\x1F\x7F]/.test(noisyLongAgentCacheJson.agent), false, "translation cache agent label strips control characters");
+
+    const longMissingSource = `missing-source\n${"x".repeat(2000)}`;
+    const longMissingTranslationSource = await fetch(`${viewer.url}/api/translations/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ source_id: longMissingSource, target_language: "zh-CN", section: "tools" }),
+    });
+    assert.equal(longMissingTranslationSource.status, 404, "long unknown translation source is rejected before model calls");
+    const longMissingTranslationJson = await longMissingTranslationSource.json();
+    assert.equal(longMissingTranslationJson.error.length < 700, true, "unknown source error does not echo unbounded source ids");
+    assert.equal(/[\x00-\x1F\x7F]/.test(longMissingTranslationJson.error), false, "unknown source error strips control characters");
+
     const tooManyTranslationMaterials = await fetch(`${viewer.url}/api/translations/generate`, {
       method: "POST",
       headers: { "content-type": "application/json" },
