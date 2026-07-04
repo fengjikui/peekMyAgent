@@ -24,6 +24,9 @@ const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
 const MAX_TRACE_IMPORT_CAPTURES = 5000;
 const MAX_SOURCE_TITLE_CHARS = 80;
 const MAX_TRACE_TITLE_CHARS = 120;
+const MAX_SOURCE_AGENT_CHARS = 80;
+const MAX_SOURCE_WORKSPACE_CHARS = 512;
+const MAX_SOURCE_CONVERSATION_CHARS = 256;
 const MAX_TRACE_EXPORT_REDACTION_DEPTH = 64;
 const MAX_TRACE_EXPORT_REDACTION_NODES = 200000;
 const MAX_TRANSLATION_CONCURRENCY = 100;
@@ -800,11 +803,14 @@ function importedTraceSourceFromDir(dir, idPart = path.basename(dir)) {
   const source = manifest.source || {};
   const stats = traceManifestStats(manifest) || sourceListStats(dir);
   const label = sanitizeTraceTitle(manifest.title || source.label, path.basename(dir));
+  const agent = sanitizeSourceMetadataText(source.agent || manifest.agent, { fallback: "Imported Trace", limit: MAX_SOURCE_AGENT_CHARS });
+  const workspace = sanitizeSourceMetadataText(source.workspace || stats.workspace, { limit: MAX_SOURCE_WORKSPACE_CHARS }) || null;
+  const conversationId = sanitizeSourceMetadataText(source.conversation_id, { limit: MAX_SOURCE_CONVERSATION_CHARS }) || null;
   return {
     id: `imported-${idPart}`,
     label,
     original_label: label,
-    agent: source.agent || manifest.agent || "Imported Trace",
+    agent,
     confidence: "imported",
     kind: "imported_trace",
     path: dir,
@@ -813,21 +819,27 @@ function importedTraceSourceFromDir(dir, idPart = path.basename(dir)) {
     imported: true,
     note: "导入的 peekMyAgent Trace 包；只读查看，不绑定本机实时监听。",
     created_at: manifest.imported_at || manifest.exported_at || null,
-    workspace: source.workspace || stats.workspace || null,
-    conversation_id: source.conversation_id || null,
     ...stats,
+    workspace,
+    conversation_id: conversationId,
   };
 }
 
 function traceManifestStats(manifest) {
-  const requestCount = Number(manifest?.request_count);
-  if (!Number.isFinite(requestCount) || requestCount <= 0) return null;
+  const requestCount = boundedManifestCount(manifest?.request_count);
+  if (requestCount <= 0) return null;
   return {
     request_count: requestCount,
-    response_count: Number(manifest.response_count) || 0,
-    subagent_count: Number(manifest.subagent_count) || 0,
-    raw_body_bytes: Number(manifest.raw_body_bytes) || 0,
+    response_count: boundedManifestCount(manifest.response_count),
+    subagent_count: boundedManifestCount(manifest.subagent_count),
+    raw_body_bytes: boundedManifestCount(manifest.raw_body_bytes),
   };
+}
+
+function boundedManifestCount(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return 0;
+  return Math.min(Math.floor(number), Number.MAX_SAFE_INTEGER);
 }
 
 function loadViewerData(sourceId, options) {
@@ -3810,6 +3822,10 @@ function sanitizeSourceTitle(value) {
 
 function sanitizeTraceTitle(value, fallback) {
   return sanitizeTitleText(value, { fallback: fallback || "Imported trace", limit: MAX_TRACE_TITLE_CHARS });
+}
+
+function sanitizeSourceMetadataText(value, { fallback = "", limit = MAX_SOURCE_CONVERSATION_CHARS } = {}) {
+  return sanitizeTitleText(value, { fallback, limit });
 }
 
 function stripFrameworkReminderBlocks(text) {

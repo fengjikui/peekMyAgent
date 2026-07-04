@@ -36,6 +36,32 @@ try {
   );
   fs.writeFileSync(path.join(importDir, "proxy-captures.json"), "{ this intentionally is not parsed by /api/sources");
 
+  const noisyImportDir = path.join(stateDir, "imports", "noisy-manifest-trace");
+  fs.mkdirSync(noisyImportDir, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(
+    path.join(noisyImportDir, "manifest.json"),
+    JSON.stringify(
+      {
+        format: "peekmyagent.trace.v1",
+        title: "Noisy manifest backed trace",
+        exported_at: "2026-07-04T00:00:00.000Z",
+        request_count: "3.8",
+        response_count: "1e999",
+        subagent_count: -5,
+        raw_body_bytes: "90071992547409930",
+        source: {
+          label: "Noisy manifest backed trace",
+          agent: `Noisy\nAgent\u0000${"x".repeat(120)}`,
+          workspace: `/tmp/noisy\u0000workspace/${"x".repeat(600)}`,
+          conversation_id: `conversation\nid\u007f${"x".repeat(300)}`,
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  fs.writeFileSync(path.join(noisyImportDir, "proxy-captures.json"), "{ this intentionally is not parsed by /api/sources");
+
   const storePath = path.join(tmpDir, "store.sqlite");
   const store = openPersistenceStore(storePath);
   const genericWatch = {
@@ -102,6 +128,19 @@ try {
     assert.equal(source.response_count, 11999);
     assert.equal(source.subagent_count, 24);
     assert.equal(source.raw_body_bytes, 987654321);
+
+    const noisySource = sources.find((item) => item.id === "imported-noisy-manifest-trace");
+    assert.ok(noisySource, "noisy manifest-backed imported trace should be listed");
+    assert.equal(noisySource.request_count, 3, "manifest request_count is floored to an integer");
+    assert.equal(noisySource.response_count, 0, "non-finite manifest response_count is ignored");
+    assert.equal(noisySource.subagent_count, 0, "negative manifest subagent_count is ignored");
+    assert.equal(noisySource.raw_body_bytes, Number.MAX_SAFE_INTEGER, "huge manifest byte count is clamped");
+    assert.equal(/[\x00-\x1F\x7F]/.test(noisySource.agent || ""), false, "manifest agent is stripped of control characters");
+    assert.equal((noisySource.agent || "").length <= 80, true, "manifest agent is bounded");
+    assert.equal(/[\x00-\x1F\x7F]/.test(noisySource.workspace || ""), false, "manifest workspace is stripped of control characters");
+    assert.equal((noisySource.workspace || "").length <= 512, true, "manifest workspace is bounded");
+    assert.equal(/[\x00-\x1F\x7F]/.test(noisySource.conversation_id || ""), false, "manifest conversation id is stripped of control characters");
+    assert.equal((noisySource.conversation_id || "").length <= 256, true, "manifest conversation id is bounded");
 
     const persisted = sources.find((item) => item.id === sourceIdForWatch(genericWatch.watch_id));
     assert.ok(persisted, "generic persisted source should be listed");
