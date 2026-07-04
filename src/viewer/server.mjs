@@ -4680,6 +4680,8 @@ function viewerSecurityHeaders() {
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
     "cross-origin-opener-policy": "same-origin",
+    "cross-origin-resource-policy": "same-origin",
+    "permissions-policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), serial=(), usb=()",
     "content-security-policy": [
       "default-src 'self'",
       "script-src 'self'",

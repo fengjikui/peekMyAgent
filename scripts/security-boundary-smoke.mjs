@@ -353,6 +353,12 @@ function assertSecurityHeaders(response, label) {
   assert.equal(response.headers.get("x-content-type-options"), "nosniff", `${label} sets nosniff`);
   assert.equal(response.headers.get("referrer-policy"), "no-referrer", `${label} sets referrer policy`);
   assert.equal(response.headers.get("cross-origin-opener-policy"), "same-origin", `${label} sets COOP`);
+  assert.equal(response.headers.get("cross-origin-resource-policy"), "same-origin", `${label} sets CORP`);
+  const permissionsPolicy = response.headers.get("permissions-policy") || "";
+  assert.match(permissionsPolicy, /camera=\(\)/, `${label} disables camera access`);
+  assert.match(permissionsPolicy, /microphone=\(\)/, `${label} disables microphone access`);
+  assert.match(permissionsPolicy, /geolocation=\(\)/, `${label} disables geolocation access`);
+  assert.match(permissionsPolicy, /usb=\(\)/, `${label} disables USB access`);
   const csp = response.headers.get("content-security-policy") || "";
   assert.match(csp, /default-src 'self'/, `${label} sets a default CSP`);
   assert.match(csp, /frame-ancestors 'none'/, `${label} cannot be framed`);
