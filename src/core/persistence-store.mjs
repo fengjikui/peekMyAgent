@@ -5,6 +5,7 @@ import { defaultStateDir, defaultStorePath as resolveDefaultStorePath } from "./
 import { buildOrderedRequestTree, reconstructFromRequestTree } from "./request-tree.mjs";
 
 const require = createRequire(import.meta.url);
+const PRIVATE_STORE_FILE_MODE = 0o600;
 
 export function defaultStorePath() {
   return resolveDefaultStorePath();
@@ -27,6 +28,7 @@ export class PersistenceStore {
     this.db.exec("PRAGMA journal_mode = WAL");
     this.db.exec("PRAGMA foreign_keys = ON");
     this.init();
+    restrictStoreFilePermissions(storePath);
   }
 
   init() {
@@ -112,6 +114,7 @@ export class PersistenceStore {
   }
 
   close() {
+    restrictStoreFilePermissions(this.path);
     this.db.close();
   }
 
@@ -631,4 +634,18 @@ function loadNodeSqlite() {
   } finally {
     process.emitWarning = originalEmitWarning;
   }
+}
+
+function restrictStoreFilePermissions(storePath) {
+  for (const filePath of storeRelatedFiles(storePath)) {
+    try {
+      if (fs.existsSync(filePath)) fs.chmodSync(filePath, PRIVATE_STORE_FILE_MODE);
+    } catch {
+      // Best-effort hardening: Windows ACLs and unusual filesystems may ignore chmod.
+    }
+  }
+}
+
+function storeRelatedFiles(storePath) {
+  return [storePath, `${storePath}-wal`, `${storePath}-shm`];
 }

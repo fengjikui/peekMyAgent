@@ -82,6 +82,7 @@ try {
   } finally {
     await firstViewer.close();
   }
+  assertPrivateStoreFiles(storePath);
 
   const secondViewer = await startViewerServer({ cwd, storePath });
   try {
@@ -223,6 +224,15 @@ function readBody(req) {
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     req.on("error", reject);
   });
+}
+
+function assertPrivateStoreFiles(storePath) {
+  if (process.platform === "win32") return;
+  for (const filePath of [storePath, `${storePath}-wal`, `${storePath}-shm`]) {
+    if (!fs.existsSync(filePath)) continue;
+    const mode = fs.statSync(filePath).mode & 0o777;
+    assert.equal(mode & 0o077, 0, `${path.basename(filePath)} should not be group/world readable or writable; got ${mode.toString(8)}`);
+  }
 }
 
 function listen(server) {
