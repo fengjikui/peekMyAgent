@@ -1,4 +1,5 @@
 import http from "node:http";
+import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 import { listen, readBody, startCaptureProxy } from "../src/core/capture-proxy.mjs";
@@ -43,14 +44,14 @@ async function startProxy(targetBaseUrl) {
   });
 }
 
-async function postJson(url, payload, headers = {}) {
+async function requestJson(url, payload, { headers = {}, method = "POST" } = {}) {
   const body = JSON.stringify(payload);
   const target = new URL(url);
   return new Promise((resolve, reject) => {
     const req = http.request(
       target,
       {
-        method: "POST",
+        method,
         headers: {
           "content-type": "application/json",
           "content-length": Buffer.byteLength(body),
@@ -64,6 +65,26 @@ async function postJson(url, payload, headers = {}) {
     );
     req.on("error", reject);
     req.end(body);
+  });
+}
+
+async function postJson(url, payload, headers = {}) {
+  return requestJson(url, payload, { headers, method: "POST" });
+}
+
+async function rawHttpRequest(url, requestText) {
+  const target = new URL(url);
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const socket = net.createConnection({ host: target.hostname, port: Number(target.port) }, () => {
+      socket.write(requestText);
+    });
+    socket.on("data", (chunk) => chunks.push(chunk));
+    socket.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    socket.on("error", reject);
+    socket.setTimeout(3000, () => {
+      socket.destroy(new Error("raw HTTP request timed out"));
+    });
   });
 }
 
@@ -169,12 +190,32 @@ async function main() {
     "sec-fetch-mode": "no-cors",
     "sec-fetch-dest": "image",
   });
+  const browserRequestsNotCaptured = proxy.captures.length === countsBeforeBrowserGuards.captures;
+  const browserRequestsNotForwarded = upstream.seen.length === countsBeforeBrowserGuards.upstream;
+  const countsBeforeDisallowedMethod = { captures: proxy.captures.length, upstream: upstream.seen.length };
+  const disallowedMethodResponse = await requestJson(url, samplePayload(), { method: "DELETE" });
+  const host = new URL(url).host;
+  const connectResponse = await rawHttpRequest(url, `CONNECT /v1/chat/completions HTTP/1.1\r\nHost: ${host}\r\n\r\n`);
+  const upgradeResponse = await rawHttpRequest(
+    url,
+    `GET /v1/chat/completions HTTP/1.1\r\nHost: ${host}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`,
+  );
   const evaluation = {
     ...evaluate(proxy.captures[0], upstream, response),
     browserCrossSiteRejected: crossSiteBrowserResponse.statusCode === 403,
     browserResourceShapeRejected: resourceShapeBrowserResponse.statusCode === 403,
-    blockedBrowserRequestsNotCaptured: proxy.captures.length === countsBeforeBrowserGuards.captures,
-    blockedBrowserRequestsNotForwarded: upstream.seen.length === countsBeforeBrowserGuards.upstream,
+    disallowedMethodRejected:
+      disallowedMethodResponse.statusCode === 405 &&
+      String(disallowedMethodResponse.headers.allow || "")
+        .split(",")
+        .map((value) => value.trim())
+        .join(", ") === "GET, HEAD, POST",
+    connectRejected: connectResponse.startsWith("HTTP/1.1 405 ") && connectResponse.includes("allow: GET, HEAD, POST"),
+    upgradeRejected: upgradeResponse.startsWith("HTTP/1.1 400 "),
+    blockedBrowserRequestsNotCaptured: browserRequestsNotCaptured,
+    blockedBrowserRequestsNotForwarded: browserRequestsNotForwarded,
+    blockedDisallowedMethodNotCaptured: proxy.captures.length === countsBeforeDisallowedMethod.captures,
+    blockedDisallowedMethodNotForwarded: upstream.seen.length === countsBeforeDisallowedMethod.upstream,
   };
   const report = renderReport(proxy, upstream, response, evaluation);
   fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });

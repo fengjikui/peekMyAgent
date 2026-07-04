@@ -7,6 +7,8 @@ export const DEFAULT_WATCH_ID = "default";
 const MAX_CAPTURED_REQUEST_BYTES = 64 * 1024 * 1024;
 const MAX_CAPTURED_RESPONSE_BYTES = 4 * 1024 * 1024;
 const HOP_BY_HOP_HEADERS = new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"]);
+const CAPTURE_PROXY_ALLOWED_METHODS = new Set(["GET", "HEAD", "POST"]);
+const CAPTURE_PROXY_ALLOW_HEADER = [...CAPTURE_PROXY_ALLOWED_METHODS].sort().join(", ");
 
 export function listen(server, host = "127.0.0.1", port = 0) {
   return new Promise((resolve, reject) => {
@@ -130,6 +132,11 @@ export async function startCaptureProxy({
   const requestCounters = requestCountersFromCaptures(captures);
   const sockets = new Set();
   const server = http.createServer(async (req, res) => {
+    const methodGuard = validateCaptureProxyMethod(req);
+    if (methodGuard) {
+      writeProxyJson(res, methodGuard.status, { error: methodGuard.message }, methodGuard.headers);
+      return;
+    }
     const browserGuard = validateCaptureProxyBrowserRequest(req);
     if (browserGuard) {
       writeProxyJson(res, browserGuard.status, { error: browserGuard.message });
@@ -174,6 +181,7 @@ export async function startCaptureProxy({
     });
     upstreamReq.end(bodyText);
   });
+  attachProxyProtocolGuards(server);
   server.on("connection", (socket) => {
     sockets.add(socket);
     socket.on("close", () => sockets.delete(socket));
@@ -224,6 +232,11 @@ export async function startSharedCaptureProxy({
   const requestCounters = requestCountersFromCaptures(captures);
   const sockets = new Set();
   const server = http.createServer(async (req, res) => {
+    const methodGuard = validateCaptureProxyMethod(req);
+    if (methodGuard) {
+      writeProxyJson(res, methodGuard.status, { error: methodGuard.message }, methodGuard.headers);
+      return;
+    }
     const browserGuard = validateCaptureProxyBrowserRequest(req);
     if (browserGuard) {
       writeProxyJson(res, browserGuard.status, { error: browserGuard.message });
@@ -297,6 +310,7 @@ export async function startSharedCaptureProxy({
     });
     upstreamReq.end(bodyText);
   });
+  attachProxyProtocolGuards(server);
   server.on("connection", (socket) => {
     sockets.add(socket);
     socket.on("close", () => sockets.delete(socket));
@@ -341,6 +355,30 @@ function parseAgentRoutePath(pathname) {
     protocol: safeDecode(match[3]),
     forwardPath: match[4] || "/",
   };
+}
+
+function validateCaptureProxyMethod(req) {
+  const method = String(req.method || "GET").toUpperCase();
+  if (CAPTURE_PROXY_ALLOWED_METHODS.has(method)) return null;
+  return {
+    status: 405,
+    message: `HTTP method ${method} is not allowed for the capture proxy.`,
+    headers: { allow: CAPTURE_PROXY_ALLOW_HEADER },
+  };
+}
+
+function attachProxyProtocolGuards(server) {
+  server.on("connect", (req, socket) => {
+    writeProxySocketJson(
+      socket,
+      405,
+      { error: "HTTP method CONNECT is not allowed for the capture proxy." },
+      { allow: CAPTURE_PROXY_ALLOW_HEADER },
+    );
+  });
+  server.on("upgrade", (req, socket) => {
+    writeProxySocketJson(socket, 400, { error: "HTTP upgrade requests are not allowed for the capture proxy." });
+  });
 }
 
 function validateCaptureProxyBrowserRequest(req) {
@@ -414,9 +452,23 @@ function isLoopbackHost(host) {
   return value === "localhost" || value === "127.0.0.1" || value === "::1" || value === "0:0:0:0:0:0:0:1";
 }
 
-function writeProxyJson(res, status, value) {
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+function writeProxyJson(res, status, value, headers = {}) {
+  res.writeHead(status, { ...headers, "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
   res.end(`${JSON.stringify(value)}\n`);
+}
+
+function writeProxySocketJson(socket, status, value, headers = {}) {
+  const body = `${JSON.stringify(value)}\n`;
+  const responseHeaders = {
+    ...headers,
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "content-length": Buffer.byteLength(body),
+    connection: "close",
+  };
+  const reason = http.STATUS_CODES[status] || "Error";
+  const lines = Object.entries(responseHeaders).map(([key, value]) => `${key}: ${value}`);
+  socket.end(`HTTP/1.1 ${status} ${reason}\r\n${lines.join("\r\n")}\r\n\r\n${body}`);
 }
 
 function proxyUpstreamResponse({ upstreamRes, downstreamRes, capture, watch, onCaptureUpdate }) {
