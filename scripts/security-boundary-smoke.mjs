@@ -72,6 +72,19 @@ try {
     const unknownRequestDetail = await fetch(`${viewer.url}/api/request?source=missing-trace-source&request=req_1`);
     assert.equal(unknownRequestDetail.status, 404, "request detail API rejects unknown explicit sources instead of falling back");
 
+    const longUnknownSourceId = `missing-source\n${"x".repeat(2000)}`;
+    const longUnknownView = await fetch(`${viewer.url}/api/view?source=${encodeURIComponent(longUnknownSourceId)}`);
+    assert.equal(longUnknownView.status, 404, "view API rejects long unknown sources");
+    const longUnknownViewJson = await longUnknownView.json();
+    assert.equal(longUnknownViewJson.error.length < 700, true, "view API does not echo unbounded source ids");
+    assert.equal(/[\x00-\x1F\x7F]/.test(longUnknownViewJson.error), false, "view API strips control characters from source errors");
+
+    const longUnknownRequest = await fetch(`${viewer.url}/api/request?source=${encodeURIComponent(startedWatch.id)}&request=${encodeURIComponent(`req\n${"x".repeat(2000)}`)}`);
+    assert.equal(longUnknownRequest.status, 404, "request detail rejects long unknown request ids");
+    const longUnknownRequestJson = await longUnknownRequest.json();
+    assert.equal(longUnknownRequestJson.error.length < 380, true, "request detail does not echo unbounded request ids");
+    assert.equal(/[\x00-\x1F\x7F]/.test(longUnknownRequestJson.error), false, "request detail strips control characters from request id errors");
+
     const unknownTranslationSource = await fetch(`${viewer.url}/api/translations/generate`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -100,6 +113,14 @@ try {
       headers: { "x-peekmyagent-intent": "trace-export" },
     });
     assert.equal(unknownSourceExport.status, 404, "trace export rejects unknown sources instead of falling back");
+
+    const longUnknownSourceExport = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(longUnknownSourceId)}`, {
+      headers: { "x-peekmyagent-intent": "trace-export" },
+    });
+    assert.equal(longUnknownSourceExport.status, 404, "trace export rejects long unknown sources");
+    const longUnknownSourceExportJson = await longUnknownSourceExport.json();
+    assert.equal(longUnknownSourceExportJson.error.length < 700, true, "trace export does not echo unbounded source ids");
+    assert.equal(/[\x00-\x1F\x7F]/.test(longUnknownSourceExportJson.error), false, "trace export strips control characters from source errors");
 
     const crossSiteExport = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`, {
       headers: { origin: "https://evil.example", "x-peekmyagent-intent": "trace-export" },
@@ -165,6 +186,16 @@ try {
 
     const bodylessShutdown = await fetch(`${viewer.url}/api/daemon/shutdown`, { method: "POST" });
     assert.equal(bodylessShutdown.status, 415, "daemon shutdown requires explicit JSON content type");
+
+    const longUnknownSourceUpdate = await fetch(`${viewer.url}/api/source/update`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: longUnknownSourceId, title: "ignored" }),
+    });
+    assert.equal(longUnknownSourceUpdate.status, 404, "source update rejects long unknown sources");
+    const longUnknownSourceUpdateJson = await longUnknownSourceUpdate.json();
+    assert.equal(longUnknownSourceUpdateJson.error.length < 700, true, "source update does not echo unbounded source ids");
+    assert.equal(/[\x00-\x1F\x7F]/.test(longUnknownSourceUpdateJson.error), false, "source update strips control characters from source errors");
 
     const unsafeLanguage = await fetch(`${viewer.url}/api/translations/generate`, {
       method: "POST",

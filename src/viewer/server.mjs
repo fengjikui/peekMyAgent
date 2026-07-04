@@ -32,6 +32,8 @@ const MAX_TRANSLATION_REQUEST_ID_CHARS = 256;
 const MAX_TRANSLATION_SECTION_CHARS = 48;
 const MAX_TRANSLATION_METADATA_KEYS = 32;
 const MAX_TRANSLATION_METADATA_STRING_CHARS = 512;
+const MAX_API_SOURCE_ID_CHARS = 512;
+const MAX_API_REQUEST_ID_CHARS = 256;
 const MAX_TRACE_EXPORT_REDACTION_DEPTH = 64;
 const MAX_TRACE_EXPORT_REDACTION_NODES = 200000;
 const MAX_TRANSLATION_CONCURRENCY = 100;
@@ -275,15 +277,15 @@ async function handleRequest(req, res, options) {
     return;
   }
   if (url.pathname === "/api/view") {
-    const requestedSource = url.searchParams.get("source");
+    const requestedSource = sanitizeApiLookupId(url.searchParams.get("source"), { limit: MAX_API_SOURCE_ID_CHARS });
     const sourceId = requestedSource || options.demo || null;
     const data = loadViewerData(sourceId, options, { requireSource: Boolean(requestedSource) });
     return writeJson(res, 200, url.searchParams.get("compact") === "1" ? compactViewerDataForTimeline(data) : data);
   }
   if (url.pathname === "/api/request") {
-    const requestedSource = url.searchParams.get("source");
+    const requestedSource = sanitizeApiLookupId(url.searchParams.get("source"), { limit: MAX_API_SOURCE_ID_CHARS });
     const sourceId = requestedSource || options.demo || null;
-    const requestId = url.searchParams.get("request") || "";
+    const requestId = sanitizeApiLookupId(url.searchParams.get("request") || "", { limit: MAX_API_REQUEST_ID_CHARS });
     return writeJson(res, 200, loadViewerRequestDetail(sourceId, requestId, options, { requireSource: Boolean(requestedSource) }));
   }
   writeJson(res, 404, { error: "Not found" });
@@ -903,7 +905,8 @@ function loadViewerData(sourceId, options, { requireSource = false } = {}) {
 }
 
 function loadViewerRequestDetail(sourceId, requestId, options, { requireSource = false } = {}) {
-  if (!requestId) throw new Error("Missing request id");
+  requestId = sanitizeApiLookupId(requestId, { limit: MAX_API_REQUEST_ID_CHARS });
+  if (!requestId) throw httpError(400, "Missing request id");
   const sources = listSources(options);
   const source = resolveViewerSource(sources, sourceId, { requireSource });
   if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
@@ -913,7 +916,7 @@ function loadViewerRequestDetail(sourceId, requestId, options, { requireSource =
 }
 
 function resolveViewerSource(sources, sourceId, { requireSource = false } = {}) {
-  const requested = String(sourceId || "").trim();
+  const requested = sanitizeApiLookupId(sourceId, { limit: MAX_API_SOURCE_ID_CHARS });
   const source = requested ? sources.find((item) => item.id === requested) : null;
   if (source) return source;
   if (requireSource || requested) throw httpError(404, `Source not found: ${requested || "missing"}`);
@@ -927,7 +930,7 @@ function loadLiveWatchRequestDetail(source, requestId, { watches }) {
   if (!watch) throw new Error(`Live watch not found: ${source.live_watch_id || source.id}`);
   const captures = capturesForWatch(watch);
   const targetIndex = captures.findIndex((capture) => captureMatchesRequestId(capture, requestId));
-  if (targetIndex < 0) throw new Error(`Request not found: ${requestId}`);
+  if (targetIndex < 0) throw httpError(404, `Request not found: ${requestId}`);
   const windowCaptures = captures.slice(Math.max(0, targetIndex - 1), targetIndex + 1);
   const request = summarizeRequestDetailWindow(windowCaptures, source, requestId);
   return {
@@ -942,7 +945,7 @@ function loadPersistedRequestDetail(source, requestId, { store }) {
   const watchId = source.store_watch_id || watchIdFromSourceId(source.id);
   if (!watchId) throw new Error(`Invalid persisted source id: ${source.id}`);
   const captures = store.loadCaptureWindow(watchId, requestId, { previousCount: 1 });
-  if (!captures.length) throw new Error(`Request not found: ${requestId}`);
+  if (!captures.length) throw httpError(404, `Request not found: ${requestId}`);
   const request = summarizeRequestDetailWindow(captures, source, requestId);
   return {
     generated_at: new Date().toISOString(),
@@ -955,7 +958,7 @@ function loadPersistedRequestDetail(source, requestId, { store }) {
 function loadFileRequestDetail(source, requestId) {
   const captures = readJson(path.join(source.path, "proxy-captures.json"));
   const targetIndex = captures.findIndex((capture) => captureMatchesRequestId(capture, requestId));
-  if (targetIndex < 0) throw new Error(`Request not found: ${requestId}`);
+  if (targetIndex < 0) throw httpError(404, `Request not found: ${requestId}`);
   const startIndex = Math.max(0, targetIndex - 1);
   const windowCaptures = captures.slice(startIndex, targetIndex + 1);
   const debugSources = (readOptionalJson(path.join(source.path, "debug-api-sources.json")) || []).slice(startIndex, targetIndex + 1);
@@ -976,7 +979,7 @@ function summarizeRequestDetailWindow(captures, source, requestId, { startIndex 
   });
   annotateRequestChanges(requests);
   const request = requests.find((item) => item.id === requestId || String(item.request_index) === String(requestId)) || requests.at(-1);
-  if (!request) throw new Error(`Request not found: ${requestId}`);
+  if (!request) throw httpError(404, `Request not found: ${requestId}`);
   request.detail_scope = "request_window";
   return request;
 }
@@ -1476,7 +1479,7 @@ function touchWatchFromSkippedCapture(watch) {
 
 async function updateSource(req, options) {
   const input = await readJsonBody(req);
-  const id = String(input.id || "");
+  const id = sanitizeApiLookupId(input.id, { limit: MAX_API_SOURCE_ID_CHARS });
   if (!id) throw new Error("Missing source id");
   const wantsArchive = Boolean(input.archive || input.remove);
   const wantsDelete = Boolean(input.delete);
@@ -1516,7 +1519,7 @@ async function updateSource(req, options) {
 
   const liveSource = liveWatch ? activeWatchSources(new Map([[liveWatch.id, liveWatch]])).find((item) => item.id === id) : null;
   const source = liveSource || persistedSource || importedSource || baseSources(options).find((item) => item.id === id);
-  if (!source) throw new Error(`Source not found: ${id}`);
+  if (!source) throw httpError(404, `Source not found: ${id}`);
   if (wantsDelete) throw new Error("This source has no persisted capture data to delete.");
 
   const metaKeys = sourceMetaKeysForSourceId(id, { source, liveWatch, persistedSource });
@@ -1574,6 +1577,7 @@ function exportTraceBundle(res, sourceId, options) {
 }
 
 function loadTraceExportData(sourceId, options) {
+  sourceId = sanitizeApiLookupId(sourceId, { limit: MAX_API_SOURCE_ID_CHARS });
   const sources = decorateSources([...baseSources(options, { includeStats: false }), ...persistedSources(options), ...importedTraceSources(options)], options.sourceMeta);
   if (!sources.length) throw new Error("No viewer sources configured");
   if (!sourceId) throw httpError(400, "Trace export requires a source id.");
@@ -1849,7 +1853,7 @@ async function pauseWatch(req, { watches, store }) {
 
 async function sendAgentMessage(req, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {
   const input = await readJsonBody(req);
-  const sourceId = String(input.source_id || input.id || "").trim();
+  const sourceId = sanitizeApiLookupId(input.source_id || input.id, { limit: MAX_API_SOURCE_ID_CHARS });
   const message = String(input.message || "").trim();
   if (!sourceId) throw new Error("Missing source_id");
   if (!message) throw new Error("Message is empty");
@@ -4492,6 +4496,17 @@ function normalizePathBackedLabel(value, fieldName) {
     throw httpError(400, `${fieldName} contains unsafe path characters.`);
   }
   return text.slice(0, 80);
+}
+
+function sanitizeApiLookupId(value, { limit = MAX_API_SOURCE_ID_CHARS } = {}) {
+  const text = String(value || "")
+    .replace(/[\x00-\x1F\x7F]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "";
+  const maxChars = Math.max(16, Number(limit) || MAX_API_SOURCE_ID_CHARS);
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars - 3).trimEnd()}...`;
 }
 
 function httpError(statusCode, message) {
