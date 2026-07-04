@@ -792,18 +792,39 @@ async function removePeekMyAgentData(stateDir) {
     ...storeRelatedFiles(defaultStorePath()),
     resolveViewerRegistryPath(),
     defaultIdeRegistryPath(),
-    path.join(stateDir, "translations"),
   ]) {
-    removed.push(...(await removeOwnedPath(filePath)));
+    removed.push(...(await removeOwnedFile(filePath)));
   }
+  removed.push(...(await removeOwnedStateSubdir(stateDir, "translations")));
   removed.push(...removeEmptyStateDir(stateDir));
   return removed;
 }
 
-async function removeOwnedPath(filePath) {
+async function removeOwnedFile(filePath) {
   if (!fs.existsSync(filePath)) return [];
-  await rmWithRetry(filePath, { recursive: true, force: true });
+  const stat = fs.lstatSync(filePath);
+  if (stat.isDirectory()) {
+    throw new Error(`Refusing to remove directory as file-backed peekMyAgent data: ${filePath}`);
+  }
+  await rmWithRetry(filePath, { force: true });
   return [{ path: filePath }];
+}
+
+async function removeOwnedStateSubdir(stateDir, name) {
+  const dirPath = path.join(stateDir, name);
+  if (!fs.existsSync(dirPath)) return [];
+  assertStateChildPath(dirPath, stateDir, name);
+  await rmWithRetry(dirPath, { recursive: true, force: true });
+  return [{ path: dirPath }];
+}
+
+function assertStateChildPath(childPath, stateDir, expectedName) {
+  const root = path.resolve(stateDir || "");
+  const target = path.resolve(childPath || "");
+  const relative = path.relative(root, target);
+  if (!root || !relative || relative.startsWith("..") || path.isAbsolute(relative) || path.basename(target) !== expectedName) {
+    throw new Error(`Refusing to remove path outside peekMyAgent state: ${childPath}`);
+  }
 }
 
 function removeEmptyStateDir(stateDir) {
@@ -820,9 +841,8 @@ function removeEmptyStateDir(stateDir) {
 async function removeFiles(paths) {
   const deleted = [];
   for (const filePath of paths) {
-    if (!fs.existsSync(filePath)) continue;
-    await rmWithRetry(filePath, { force: true });
-    deleted.push(filePath);
+    const removed = await removeOwnedFile(filePath);
+    deleted.push(...removed.map((item) => item.path));
   }
   return deleted;
 }

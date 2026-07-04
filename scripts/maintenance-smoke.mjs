@@ -45,6 +45,20 @@ try {
   assert.equal(fs.existsSync(stateDir), true);
 
   fs.mkdirSync(externalStoreDir, { recursive: true });
+  const directoryStoreEnv = {
+    ...env,
+    PEEKMYAGENT_STORE_PATH: externalStoreDir,
+  };
+  const clearDirectoryStoreResult = runCli(["clear", "--all-sessions", "--json"], directoryStoreEnv);
+  assert.equal(clearDirectoryStoreResult.status, 1);
+  assert.match(clearDirectoryStoreResult.stderr, /Refusing to remove directory as file-backed peekMyAgent data/);
+  assert.equal(fs.existsSync(externalStoreDir), true, "clear must not recursively delete a directory-shaped store path");
+
+  const uninstallDirectoryStoreResult = runCli(["uninstall", "--scope", "user", "--remove-data", "--json"], directoryStoreEnv);
+  assert.equal(uninstallDirectoryStoreResult.status, 1);
+  assert.match(uninstallDirectoryStoreResult.stderr, /Refusing to remove directory as file-backed peekMyAgent data/);
+  assert.equal(fs.existsSync(externalStoreDir), true, "uninstall --remove-data must not recursively delete a directory-shaped store path");
+
   fs.writeFileSync(externalStorePath, "store");
   fs.writeFileSync(`${externalStorePath}-wal`, "wal");
   fs.writeFileSync(`${externalStorePath}-shm`, "shm");

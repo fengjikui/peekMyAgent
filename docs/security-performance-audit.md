@@ -20,7 +20,7 @@
 | Capture proxy | 被当成通用 SSRF/open proxy | 上游 URL 只允许 `http:` / `https:`，剥离 hop-by-hop、proxy 和内部 `x-peek-*` 头 |
 | 大请求/导入包 | 请求体、gzip Trace、导入 captures 过大导致内存或 CPU 放大 | JSON body、captured request、Trace 压缩/解压大小和 capture 数量都有上限 |
 | 文件路径 | 翻译语言、导入目录、OTel 扫描造成路径穿越或大目录扫描 | 语言名和导入 Trace id 经过 path segment 归一化；导入目录强制留在 imports 根目录下；OTel 读取限制文件数、目录数和单文件大小 |
-| 数据留存 | raw body 长期保存或导出泄露敏感内容 | README/隐私文档明确说明；SQLite store/WAL/SHM 和导入 Trace 文件使用私有权限；Trace 导出默认脱敏常见 secret/token pattern 和敏感字段名，并要求 dashboard 显式 intent header 触发下载 |
+| 数据留存 | raw body 长期保存或导出泄露敏感内容 | README/隐私文档明确说明；SQLite store/WAL/SHM 和导入 Trace 文件使用私有权限；清理/卸载只把 store/registry 当作文件删除，不递归删除目录形态的误配置 store path；Trace 导出默认脱敏常见 secret/token pattern 和敏感字段名，并要求 dashboard 显式 intent header 触发下载 |
 | 外部模型调用 | 翻译刷新误触发过高并发，放大用户 API 成本或触发限流 | Dashboard 翻译接口和翻译脚本都限制最大并发为 100 |
 | 同机恶意进程 | 本机其他进程直接访问本地端口 | 当前不把同机恶意进程视为完全可防边界；后续可考虑 session token/Unix socket |
 
@@ -52,6 +52,7 @@
   - 限制 OTel 目录扫描规模和单个 JSON 文件大小。
 - `bin/peekmyagent.mjs`
   - `shutdown/restart --force` 不再杀未知端口占用者，只允许清理 registry 中确认属于 peekMyAgent 的进程。
+  - `clear --all-sessions` 和 `uninstall --remove-data` 删除 store/registry 这类文件型数据时拒绝目录形态路径，避免 `PEEKMYAGENT_STORE_PATH` 误设为目录后发生递归删除；目录型缓存只允许删除 stateDir 下固定子目录。
 - `src/core/platform.mjs`
   - Windows 打开浏览器改用 `rundll32.exe url.dll,FileProtocolHandler`，避免 `cmd /c start` 的 shell 语义。
 
@@ -80,6 +81,8 @@
   - 覆盖非 loopback 绑定拒绝、Trace 导出 intent 要求、跨站 API/Trace 导出拒绝、浏览器资源/导航形态 API 拒绝、非 JSON 状态修改拒绝、daemon shutdown JSON content-type 要求、基础安全响应头、不安全语言路径拒绝、超大 Trace capture 数拒绝。
 - `npm run smoke:source-list-performance`
   - 构造一个 manifest-backed 大 Trace，故意让 `proxy-captures.json` 不可解析；同时构造 SQLite 通用标题会话并禁止 `loadCaptures()`；`/api/sources` 仍应能列出它们，防止会话列表退回全量解析慢路径或覆盖用户重命名标题。
+- `npm run smoke:maintenance`
+  - 覆盖 `clear --all-sessions`、`uninstall --remove-data` 和 helper 清理路径；额外覆盖目录形态 `PEEKMYAGENT_STORE_PATH` 必须被拒绝，防止误配置导致递归删除。
 - `npm run smoke:persistence-store`
   - 覆盖会话重命名跨 viewer restart 持久化、SQLite store 文件私有权限，以及 `/api/request` 不走全量 persisted source 加载。
 - `npm run smoke:source-meta`
