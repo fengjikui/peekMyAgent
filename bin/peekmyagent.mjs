@@ -1362,7 +1362,7 @@ async function shutdownDaemonTarget(target) {
   let allowPidFallback = false;
   if (await canReachDaemon(target.url)) {
     try {
-      const result = await postJson(`${trimSlash(target.url)}/api/daemon/shutdown`, {});
+      const result = await postJson(`${trimSlash(target.url)}/api/daemon/shutdown`, {}, { headers: { "x-peekmyagent-intent": "daemon-shutdown" } });
       const pid = result.pid || target.pid || null;
       await waitForDaemonDown(target.url);
       await waitForPidExit(pid);

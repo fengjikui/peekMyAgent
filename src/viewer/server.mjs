@@ -47,6 +47,7 @@ const AGENT_SEND_INTENT = "agent-send";
 const OTEL_INGEST_INTENT = "otel-ingest";
 const TRANSLATION_GENERATE_INTENT = "translation-generate";
 const SOURCE_UPDATE_INTENT = "source-update";
+const DAEMON_SHUTDOWN_INTENT = "daemon-shutdown";
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
 const TIMELINE_RESPONSE_TEXT_CHARS = 700;
 const TIMELINE_RESPONSE_THINKING_CHARS = 360;
@@ -326,6 +327,8 @@ async function handleRequest(req, res, options) {
   }
   if (url.pathname === "/api/daemon/shutdown") {
     if (rejectWrongMethod(req, res, "POST")) return;
+    const intentGuard = validateDaemonShutdownIntent(req);
+    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
     res.once("finish", () => options.requestShutdown?.());
     writeJson(res, 200, { ok: true, action: "shutdown", pid: process.pid });
     return;
@@ -4555,6 +4558,15 @@ function validateSourceUpdateIntent(req) {
   return {
     status: 403,
     message: "Source update requires an explicit dashboard source action intent.",
+  };
+}
+
+function validateDaemonShutdownIntent(req) {
+  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
+  if (intent === DAEMON_SHUTDOWN_INTENT) return null;
+  return {
+    status: 403,
+    message: "Daemon shutdown requires an explicit local CLI shutdown intent.",
   };
 }
 

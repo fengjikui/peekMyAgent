@@ -235,6 +235,13 @@ try {
     const bodylessShutdown = await fetch(`${viewer.url}/api/daemon/shutdown`, { method: "POST" });
     assert.equal(bodylessShutdown.status, 415, "daemon shutdown requires explicit JSON content type");
 
+    const noIntentShutdown = await fetch(`${viewer.url}/api/daemon/shutdown`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    assert.equal(noIntentShutdown.status, 403, "daemon shutdown without explicit local CLI intent is rejected");
+
     const noIntentAgentSend = await fetch(`${viewer.url}/api/agent/send`, {
       method: "POST",
       headers: { "content-type": "application/json" },
