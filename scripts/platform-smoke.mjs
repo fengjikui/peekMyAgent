@@ -4,7 +4,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { traeCnAppDataRoot } from "../src/adapters/trae-cn-integration.mjs";
-import { appConfigDir, defaultStateDir, defaultStorePath, ideRegistryPath, translationsDir, viewerRegistryPath } from "../src/core/app-paths.mjs";
+import { appConfigDir, defaultStateDir, defaultStorePath, ideRegistryPath, safePathSegment, slugify, translationsDir, viewerRegistryPath } from "../src/core/app-paths.mjs";
 import { childProcessSpawnConfig, childProcessSpawnOptions, expandHomePath, launchBrowserUrl, npmGlobalBinPath, openBrowserCommand, safeProcessCwd, shellInlineEnv, shellQuote, shouldSpawnViaShell, userHome, workspaceFromEnv } from "../src/core/platform.mjs";
 import { canConnect, listeningPidsForPort, terminatePids } from "../src/core/process-tools.mjs";
 
@@ -126,6 +126,15 @@ try {
   assert.equal(defaultStorePath({ env: { PEEKMYAGENT_STATE_DIR: path.join(tmpDir, "state") }, platform: "linux" }), path.posix.join(path.join(tmpDir, "state"), "store.sqlite"));
   assert.equal(viewerRegistryPath({ env: { PEEKMYAGENT_STATE_DIR: path.join(tmpDir, "state") }, platform: "linux" }), path.posix.join(path.join(tmpDir, "state"), "viewer.json"));
   assert.equal(translationsDir("Claude Code", "zh-CN", { env: { PEEKMYAGENT_STATE_DIR: path.join(tmpDir, "state") } }), path.join(tmpDir, "state", "translations", "claude-code", "zh-CN"));
+  assert.equal(slugify(".."), "agent");
+  assert.equal(slugify(".Claude Code."), "claude-code");
+  assert.equal(safePathSegment("..", "fallback"), "fallback");
+  assert.equal(safePathSegment("../escape", "fallback"), "escape");
+  assert.equal(safePathSegment("CON", "fallback"), "CON-item");
+  const translationRoot = path.join(tmpDir, "state", "translations");
+  const unsafeTranslationDir = translationsDir("..", "..", { env: { PEEKMYAGENT_STATE_DIR: path.join(tmpDir, "state") } });
+  assert.equal(unsafeTranslationDir, path.join(translationRoot, "agent", "target-language"));
+  assert.equal(path.relative(translationRoot, unsafeTranslationDir).startsWith(".."), false, "unsafe translation labels must stay under translations root");
   assert.equal(ideRegistryPath({ env: { LOCALAPPDATA: "C:\\Users\\Ada\\AppData\\Local" }, platform: "win32" }), "C:\\Users\\Ada\\AppData\\Local\\peekMyAgent\\ide-integrations.json");
   assert.equal(appConfigDir("Demo App", { env: { HOME: home }, platform: "darwin" }), path.posix.join(home, "Library", "Application Support", "Demo App"));
   assert.equal(appConfigDir("Demo App", { env: { APPDATA: "C:\\Users\\Ada\\AppData\\Roaming", LOCALAPPDATA: "C:\\Users\\Ada\\AppData\\Local" }, platform: "win32" }), "C:\\Users\\Ada\\AppData\\Roaming\\Demo App");

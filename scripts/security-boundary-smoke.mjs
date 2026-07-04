@@ -147,6 +147,12 @@ try {
     });
     assert.equal(unsafeLanguage.status, 400, "unsafe path-backed language labels are rejected");
 
+    const unsafeAgentCache = await fetch(`${viewer.url}/api/translations?agent=${encodeURIComponent("..")}&target_language=zh-CN`);
+    assert.equal(unsafeAgentCache.status, 200, "translation cache lookup tolerates unsafe-looking agent labels");
+    const unsafeAgentCacheJson = await unsafeAgentCache.json();
+    assert.equal(unsafeAgentCacheJson.cache_slug, "agent", "unsafe-looking agent label is normalized to a safe slug");
+    assert.equal(/(?:^|[/\\])\.\.(?:[/\\]|$)/.test(unsafeAgentCacheJson.cache_path || ""), false, "translation cache path must not contain parent traversal segments");
+
     const tooManyTranslationMaterials = await fetch(`${viewer.url}/api/translations/generate`, {
       method: "POST",
       headers: { "content-type": "application/json" },

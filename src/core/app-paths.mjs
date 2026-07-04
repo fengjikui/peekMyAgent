@@ -55,19 +55,20 @@ export function appConfigDir(appName, { env = process.env, platform = process.pl
 }
 
 export function slugify(value) {
-  return String(value || "agent")
+  return safePathSegment(String(value || "agent")
     .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80) || "agent";
+    .replace(/[^a-z0-9_-]+/g, "-"), "agent");
 }
 
 export function safePathSegment(value, fallback = "item") {
-  const text = String(value || "")
+  let text = String(value || "")
     .trim()
     .replace(/[<>:"/\\|?*\x00-\x1F]+/g, "-")
     .replace(/\.\.+/g, ".")
-    .replace(/^-+|-+$/g, "")
+    .replace(/^[.-]+|[.-]+$/g, "")
     .slice(0, 80);
-  return text && text !== "." ? text : fallback;
+  text = text.replace(/[.-]+$/g, "");
+  if (!text || /^\.+$/.test(text)) return fallback;
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(text)) return `${text}-item`;
+  return text;
 }
