@@ -2188,7 +2188,7 @@ async function sendAgentComposerMessage(rawMessage) {
   try {
     const result = await fetchJson("/api/agent/send", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "agent-send" },
       body: JSON.stringify({
         source_id: sourceId,
         message,

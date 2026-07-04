@@ -43,7 +43,18 @@ console.log("fake claude response");
     reuse: false,
   });
 
-  const send = await postJson(`${viewer.url}/api/agent/send`, {
+  const noIntentSend = await postJson(
+    `${viewer.url}/api/agent/send`,
+    {
+      source_id: watch.id,
+      message: "missing dashboard send intent",
+    },
+    { headers: {}, allowError: true },
+  );
+  assert.equal(noIntentSend.status, 403, "agent send requires explicit dashboard intent");
+  assert.equal(fs.existsSync(fakeClaudeLog), false, "agent send without intent must not spawn claude");
+
+  const send = await postAgentSend(`${viewer.url}/api/agent/send`, {
     source_id: watch.id,
     message: "hello from dashboard",
   });
@@ -66,7 +77,7 @@ console.log("fake claude response");
     target_base_url: "http://127.0.0.1:9",
     reuse: false,
   });
-  const fallbackSend = await postJson(`${viewer.url}/api/agent/send`, {
+  const fallbackSend = await postAgentSend(`${viewer.url}/api/agent/send`, {
     source_id: missingWorkspaceWatch.id,
     message: "after workspace was removed",
   });
@@ -99,7 +110,7 @@ console.log("fake claude response");
   await viewer.close();
   viewer = await startViewerServer({ cwd: workspace, port: 0, capturePort: 0, storePath });
 
-  const restoredSend = await postJson(`${viewer.url}/api/agent/send`, {
+  const restoredSend = await postAgentSend(`${viewer.url}/api/agent/send`, {
     source_id: `stored-${persistedWatch.watch_id}`,
     message: "after dashboard restart",
   });
@@ -121,13 +132,18 @@ console.log("fake claude response");
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 
-async function postJson(url, payload) {
+async function postAgentSend(url, payload) {
+  return postJson(url, payload, { headers: { "x-peekmyagent-intent": "agent-send" } });
+}
+
+async function postJson(url, payload, { headers = {}, allowError = false } = {}) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(payload),
   });
   const data = await response.json();
+  if (allowError) return { status: response.status, ...data };
   if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
   return data;
 }

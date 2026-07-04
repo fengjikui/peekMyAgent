@@ -228,6 +228,13 @@ try {
     const bodylessShutdown = await fetch(`${viewer.url}/api/daemon/shutdown`, { method: "POST" });
     assert.equal(bodylessShutdown.status, 415, "daemon shutdown requires explicit JSON content type");
 
+    const noIntentAgentSend = await fetch(`${viewer.url}/api/agent/send`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ source_id: startedWatch.id, message: "should not send without explicit intent" }),
+    });
+    assert.equal(noIntentAgentSend.status, 403, "agent send without explicit dashboard intent is rejected");
+
     const longUnknownSourceUpdate = await fetch(`${viewer.url}/api/source/update`, {
       method: "POST",
       headers: { "content-type": "application/json" },
