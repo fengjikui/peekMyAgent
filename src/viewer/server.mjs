@@ -132,17 +132,17 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
           async getWatch(watchId) {
             const active = [...watches.values()].find((watch) => watch.watch_id === watchId && ["watching", "paused"].includes(watch.status));
             if (active) return active;
-            return restorePersistedWatchForSharedProxy(watchId, { watches, store, sharedCaptureProxy });
+            return restorePersistedWatchForSharedProxy(watchId, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy });
           },
           getWatchForAgentRoute({ route, body }) {
-            return resolveDynamicAgentRouteWatch({ route, body, watches, store, sharedCaptureProxy });
+            return resolveDynamicAgentRouteWatch({ route, body, watches, store, sourceMeta, sharedCaptureProxy });
           },
           onCapture(capture, watch) {
-            touchWatchFromCapture(watch, capture);
+            touchWatchFromCapture(watch, capture, { store, sourceMeta, sourceMetaPath });
             store?.upsertCapture({ watch, capture });
           },
           onCaptureUpdate(capture, watch) {
-            touchWatchFromCapture(watch, capture);
+            touchWatchFromCapture(watch, capture, { store, sourceMeta, sourceMetaPath });
             store?.updateCaptureResponse(capture);
           },
           onCaptureSkipped(watch) {
@@ -703,16 +703,18 @@ function listSources(options) {
   return decorateSources([...baseSources(options), ...persistedSources(options), ...importedTraceSources(options)], options.sourceMeta);
 }
 
-function persistedSources({ store, watches }) {
+function persistedSources({ store, watches, sourceMeta }) {
   if (!store) return [];
   const activeWatchIds = new Set([...watches.values()].map((watch) => watch.watch_id));
   return store
     .listSources()
     .filter((source) => !activeWatchIds.has(source.store_watch_id))
-    .map((source) => decoratePersistedSourceTitle(source, store));
+    .map((source) => decoratePersistedSourceTitle(source, { store, sourceMeta }));
 }
 
-function decoratePersistedSourceTitle(source, store) {
+function decoratePersistedSourceTitle(source, { store, sourceMeta } = {}) {
+  const manualTitle = manualConversationTitle(sourceMeta, source);
+  if (manualTitle) return { ...source, label: cleanStoredSourceLabel(manualTitle) || manualTitle, user_title: manualTitle };
   if (source.user_title) return { ...source, label: cleanStoredSourceLabel(source.user_title) || source.user_title };
   const conversationTitle = conversationTitleForSource(store, source);
   if (conversationTitle) return { ...source, label: cleanStoredSourceLabel(conversationTitle) || conversationTitle, user_title: conversationTitle };
@@ -1091,7 +1093,7 @@ async function ingestOtelCaptures(req, options) {
   };
 }
 
-async function startWatch(req, { cwd, watches, store, sharedCaptureProxy }) {
+async function startWatch(req, { cwd, watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {
   const input = await readJsonBody(req);
   const agent = input.agent || "Claude Code";
   const mode = input.mode || "next_request";
@@ -1099,15 +1101,15 @@ async function startWatch(req, { cwd, watches, store, sharedCaptureProxy }) {
   const conversationId = input.conversation_id || null;
   if (input.reuse_watch_id) {
     const explicitReusable = findWatch(watches, { id: input.reuse_watch_id, watch_id: input.reuse_watch_id });
-    if (explicitReusable) return reuseWatch(explicitReusable, input, { store, sharedCaptureProxy });
+    if (explicitReusable) return reuseWatch(explicitReusable, input, { store, sourceMeta, sourceMetaPath, sharedCaptureProxy });
     const persistedReusable = findPersistedWatchSource(store, { watch_id: input.reuse_watch_id });
-    if (persistedReusable) return restorePersistedWatch(persistedReusable, input, { watches, store, sharedCaptureProxy });
+    if (persistedReusable) return restorePersistedWatch(persistedReusable, input, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy });
   }
   if (input.reuse !== false) {
     const existing = findReusableWatch(watches, { agent, mode, workspace, conversationId });
-    if (existing) return reuseWatch(existing, input, { store, sharedCaptureProxy });
+    if (existing) return reuseWatch(existing, input, { store, sourceMeta, sourceMetaPath, sharedCaptureProxy });
     const persisted = findReusablePersistedWatch(store, { agent, mode, workspace, conversationId });
-    if (persisted) return restorePersistedWatch(persisted, input, { watches, store, sharedCaptureProxy });
+    if (persisted) return restorePersistedWatch(persisted, input, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy });
   }
   const targetBaseUrl = input.target_base_url || resolveTargetBaseUrl(agent, workspace);
   if (!targetBaseUrl) {
@@ -1130,11 +1132,11 @@ async function startWatch(req, { cwd, watches, store, sharedCaptureProxy }) {
         return watch?.status !== "paused";
       },
       onCapture(capture) {
-        touchWatchFromCapture(watch, capture);
+        touchWatchFromCapture(watch, capture, { store, sourceMeta, sourceMetaPath });
         store?.upsertCapture({ watch, capture });
       },
       onCaptureUpdate(capture) {
-        touchWatchFromCapture(watch, capture);
+        touchWatchFromCapture(watch, capture, { store, sourceMeta, sourceMetaPath });
         store?.updateCaptureResponse(capture);
       },
       onCaptureSkipped() {
@@ -1143,7 +1145,7 @@ async function startWatch(req, { cwd, watches, store, sharedCaptureProxy }) {
       },
     }));
   const sourceId = `live-${watchId}`;
-  const inheritedTitle = conversationTitleForSource(store, { agent, conversation_id: conversationId });
+  const inheritedTitle = preferredConversationTitle({ store, sourceMeta }, { agent, conversation_id: conversationId });
   watch = {
     id: sourceId,
     watch_id: watchId,
@@ -1172,7 +1174,7 @@ async function startWatch(req, { cwd, watches, store, sharedCaptureProxy }) {
   return watchResponse(watch, { reused: false });
 }
 
-async function reuseWatch(watch, input, { store, sharedCaptureProxy } = {}) {
+async function reuseWatch(watch, input, { store, sourceMeta, sourceMetaPath, sharedCaptureProxy } = {}) {
   if (watch.status === "watching") return watchResponse(watch, { reused: true });
   const targetBaseUrl = input.target_base_url || watch.target_base_url || resolveTargetBaseUrl(watch.agent, watch.workspace);
   if (!targetBaseUrl) throw new Error(`Missing upstream base URL for ${watch.agent}.`);
@@ -1207,11 +1209,11 @@ async function reuseWatch(watch, input, { store, sharedCaptureProxy } = {}) {
         return watch.status !== "paused";
       },
       onCapture(capture) {
-        touchWatchFromCapture(watch, capture);
+        touchWatchFromCapture(watch, capture, { store, sourceMeta, sourceMetaPath });
         store?.upsertCapture({ watch, capture });
       },
       onCaptureUpdate(capture) {
-        touchWatchFromCapture(watch, capture);
+        touchWatchFromCapture(watch, capture, { store, sourceMeta, sourceMetaPath });
         store?.updateCaptureResponse(capture);
       },
       onCaptureSkipped() {
@@ -1234,7 +1236,7 @@ async function reuseWatch(watch, input, { store, sharedCaptureProxy } = {}) {
   return watchResponse(watch, { reused: true });
 }
 
-async function restorePersistedWatch(source, input, { watches, store, sharedCaptureProxy } = {}) {
+async function restorePersistedWatch(source, input, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy } = {}) {
   const watchId = source.store_watch_id;
   if (!watchId) throw new Error("Persisted watch is missing store_watch_id");
   const targetBaseUrl = input.target_base_url || resolveTargetBaseUrl(source.agent, source.workspace);
@@ -1258,11 +1260,11 @@ async function restorePersistedWatch(source, input, { watches, store, sharedCapt
         return watch?.status !== "paused";
       },
       onCapture(capture) {
-        touchWatchFromCapture(watch, capture);
+        touchWatchFromCapture(watch, capture, { store, sourceMeta, sourceMetaPath });
         store?.upsertCapture({ watch, capture });
       },
       onCaptureUpdate(capture) {
-        touchWatchFromCapture(watch, capture);
+        touchWatchFromCapture(watch, capture, { store, sourceMeta, sourceMetaPath });
         store?.updateCaptureResponse(capture);
       },
       onCaptureSkipped() {
@@ -1276,7 +1278,7 @@ async function restorePersistedWatch(source, input, { watches, store, sharedCapt
     id: `live-${watchId}`,
     watch_id: watchId,
     label: source.original_label || source.label || `${source.agent} · ${modeLabel(source.mode || input.mode || "single_session")}`,
-    title: source.user_title || conversationTitleForSource(store, { agent: source.agent, conversation_id: input.conversation_id || source.conversation_id }) || null,
+    title: source.user_title || preferredConversationTitle({ store, sourceMeta }, { agent: source.agent, conversation_id: input.conversation_id || source.conversation_id }) || null,
     agent: source.agent,
     mode: source.mode || input.mode || "single_session",
     confidence: source.confidence || "exact",
@@ -1304,7 +1306,7 @@ async function restorePersistedWatch(source, input, { watches, store, sharedCapt
   return watchResponse(watch, { reused: true });
 }
 
-async function restorePersistedWatchForSharedProxy(watchId, { watches, store, sharedCaptureProxy } = {}) {
+async function restorePersistedWatchForSharedProxy(watchId, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy } = {}) {
   if (!sharedCaptureProxy) return null;
   const source = findPersistedWatchSource(store, { watch_id: watchId });
   if (!source || !["watching", "paused"].includes(source.live_status)) return null;
@@ -1316,17 +1318,35 @@ async function restorePersistedWatchForSharedProxy(watchId, { watches, store, sh
       conversation_id: source.conversation_id,
       started_by: "shared-proxy-auto-restore",
     },
-    { watches, store, sharedCaptureProxy },
+    { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy },
   );
   return watches.get(response.id) || null;
 }
 
-function touchWatchFromCapture(watch, capture) {
+function touchWatchFromCapture(watch, capture, options = {}) {
   if (!watch || !capture) return;
-  if (!watch.conversation_id && capture.conversation_id) watch.conversation_id = capture.conversation_id;
+  const learnedConversationId = !watch.conversation_id && capture.conversation_id;
+  if (learnedConversationId) {
+    watch.conversation_id = capture.conversation_id;
+    promoteWatchTitleToConversationMeta(watch, options);
+  }
   if (!watch.title) watch.title = inferCaptureTitle(capture);
   watch.last_seen = capture.response?.received_at || capture.received_at || new Date().toISOString();
   if (capture.response?.received_at) watch.last_response_seen = capture.response.received_at;
+}
+
+function promoteWatchTitleToConversationMeta(watch, options = {}) {
+  if (!watch?.watch_id || !watch?.agent || !watch?.conversation_id || !options.sourceMeta) return;
+  const directKeys = [watch.id, `live-${watch.watch_id}`, sourceIdForWatch(watch.watch_id)].filter(Boolean);
+  const directMeta = mergedSourceMeta(options.sourceMeta, directKeys);
+  const title = String(directMeta.title || "").trim();
+  if (!title) return;
+  const stableKeys = stableSourceMetaKeys(watch);
+  if (!stableKeys.length) return;
+  const stableMeta = mergedSourceMeta(options.sourceMeta, stableKeys);
+  setSourceMeta(options, stableKeys, { ...stableMeta, ...directMeta, title });
+  watch.title = title;
+  options.store?.updateConversationTitle?.(watch.agent, watch.conversation_id, title);
 }
 
 function touchWatchFromSkippedCapture(watch) {
@@ -1370,7 +1390,7 @@ async function updateSource(req, options) {
 
   const importedSource = importedTraceSources(options).find((item) => item.id === id);
   if (wantsDelete && importedSource?.path) {
-    fs.rmSync(importedSource.path, { recursive: true, force: true });
+    removeImportedTraceDir(importedSource.path, options.importsDir);
     deleteSourceMeta(options, [id]);
     return { id, deleted: true, sources: listSources(options) };
   }
@@ -1406,6 +1426,16 @@ function updateImportedTraceTitle(dir, title) {
   if (value) manifest.title = value;
   else delete manifest.title;
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+}
+
+function removeImportedTraceDir(dir, importsDir) {
+  const root = path.resolve(importsDir || "");
+  const target = path.resolve(dir || "");
+  const relative = path.relative(root, target);
+  if (!root || !target || !relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Refusing to delete an imported trace outside the imports directory.");
+  }
+  fs.rmSync(target, { recursive: true, force: true });
 }
 
 function exportTraceBundle(res, sourceId, options) {
@@ -1620,14 +1650,14 @@ async function pauseWatch(req, { watches, store }) {
   return watchControlResponse(watch, { action: status === "paused" ? "pause" : "resume" });
 }
 
-async function sendAgentMessage(req, { watches, store, sharedCaptureProxy }) {
+async function sendAgentMessage(req, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {
   const input = await readJsonBody(req);
   const sourceId = String(input.source_id || input.id || "").trim();
   const message = String(input.message || "").trim();
   if (!sourceId) throw new Error("Missing source_id");
   if (!message) throw new Error("Message is empty");
   if (message.length > 12000) throw new Error("Message is too long; please keep it under 12000 characters.");
-  const watch = await resolveAgentSendWatch(sourceId, { watches, store, sharedCaptureProxy });
+  const watch = await resolveAgentSendWatch(sourceId, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy });
   if (!watch) throw new Error("Live Agent session not found. Start the Agent through peekMyAgent first.");
   if (watch.status === "stopped") throw new Error("This Agent watch has stopped. Restart or create a new captured session before sending.");
   const command = buildAgentSendCommand(watch, message);
@@ -1653,7 +1683,7 @@ async function sendAgentMessage(req, { watches, store, sharedCaptureProxy }) {
   };
 }
 
-async function resolveAgentSendWatch(sourceId, { watches, store, sharedCaptureProxy }) {
+async function resolveAgentSendWatch(sourceId, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {
   const active = findWatch(watches, { id: sourceId, watch_id: sourceId });
   if (active) return active;
   const source = findPersistedWatchSource(store, { watch_id: sourceId });
@@ -1665,7 +1695,7 @@ async function resolveAgentSendWatch(sourceId, { watches, store, sharedCapturePr
       conversation_id: source.conversation_id,
       started_by: "dashboard-composer",
     },
-    { watches, store, sharedCaptureProxy },
+    { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy },
   );
   return watches.get(restored.id) || null;
 }
@@ -3890,6 +3920,17 @@ function syncConversationTitle(options, source, title) {
   for (const watch of options.watches?.values?.() || []) {
     if (watch.agent === agent && watch.conversation_id === conversationId) watch.title = title || null;
   }
+}
+
+function preferredConversationTitle({ store, sourceMeta } = {}, source) {
+  return manualConversationTitle(sourceMeta, source) || conversationTitleForSource(store, source);
+}
+
+function manualConversationTitle(sourceMeta, source) {
+  if (!sourceMeta) return null;
+  const meta = mergedSourceMeta(sourceMeta, stableSourceMetaKeys(source));
+  const title = String(meta.title || "").trim();
+  return title || null;
 }
 
 function conversationTitleForSource(store, source) {

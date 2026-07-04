@@ -32,6 +32,7 @@
   - 限制普通 JSON body、Trace 导入体积、gzip 解压体积和导入 capture 数量。
   - 翻译目标语言进入缓存路径前做安全归一化。
   - 导入 Trace 列表优先使用 manifest 统计，避免列会话时解析完整大文件。
+  - 删除导入 Trace 前校验目标目录必须位于 peekMyAgent imports 目录下。
   - Trace 导出包默认递归脱敏常见 token/API key 字符串，并在 manifest 标记脱敏策略与隐私提示。
 - `src/core/capture-proxy.mjs`
   - 限制捕获请求体大小。
@@ -83,7 +84,7 @@
 - `npm run smoke:compact-view-performance`
   - 构造 420 条包含大 system/tools/history/response 的合成 Trace，约束 `/api/view?compact=1` 首屏 payload、耗时和大字段省略行为，防止切会话路径回退到全量 Raw。
 - `npm run smoke:trace-bundle`
-  - 覆盖 Trace 导出默认脱敏、导入后只读查看，以及导入 Trace 的 `/api/request` 单请求窗口详情。
+  - 覆盖 Trace 导出默认脱敏、导入后只读查看、导入 Trace 的 `/api/request` 单请求窗口详情，以及删除导入 Trace 会移除对应本地导入目录。
 
 这些 smoke 已加入 `scripts/release-check.mjs` 的发布门禁。
 

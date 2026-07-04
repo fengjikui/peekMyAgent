@@ -3,6 +3,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { openPersistenceStore } from "../src/core/persistence-store.mjs";
 import { startViewerServer } from "../src/viewer/server.mjs";
 
 const cwd = process.cwd();
@@ -89,6 +90,27 @@ try {
   sources = await getJson(`${viewer.url}/api/sources`);
   const inheritedLateConversationLive = sources.find((source) => source.live_watch_id === freshLateConversationLive.watch_id);
   assert.equal(inheritedLateConversationLive?.label, "Renamed before first request", "rename before first request follows the later conversation");
+
+  const directStore = openPersistenceStore(storePath);
+  try {
+    directStore.upsertWatch({
+      watch_id: "source-meta-stale-auto-title",
+      label: "Claude Code · OTel",
+      agent: "Claude Code",
+      mode: "single_session",
+      confidence: "exact",
+      kind: "otel_raw_body",
+      workspace: cwd,
+      conversation_id: "source-meta-late-session",
+      status: "stopped",
+      title: "Old automatic title",
+    });
+  } finally {
+    directStore.close();
+  }
+  sources = await getJson(`${viewer.url}/api/sources`);
+  const staleSameConversationSource = sources.find((source) => source.store_watch_id === "source-meta-stale-auto-title");
+  assert.equal(staleSameConversationSource?.label, "Renamed before first request", "manual conversation title overrides later stale automatic titles");
 
   const otelDir = path.join(tmpDir, "otel");
   fs.mkdirSync(otelDir, { recursive: true });

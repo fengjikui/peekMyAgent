@@ -76,6 +76,7 @@ try {
     assert.ok(importedSource, "imported source should appear in sidebar sources");
     assert.equal(importedSource.kind, "imported_trace");
     assert.equal(importedSource.readonly, true);
+    assert.ok(fs.existsSync(importedSource.path), "imported trace directory exists before deletion");
 
     const importedView = await getJson(`${viewer.url}/api/view?source=${encodeURIComponent(imported.source_id)}`);
     assert.equal(importedView.stats.request_count, 2);
@@ -87,6 +88,14 @@ try {
     assert.equal(importedDetail.detail_scope, "request_window", "imported trace request detail should use a request window");
     assert.equal(importedDetail.request.id, importedView.requests[1].id);
     assert.equal(importedDetail.request.summary.current_user, "second request");
+
+    const deletedImport = await postJson(`${viewer.url}/api/source/update`, {
+      id: imported.source_id,
+      delete: true,
+    });
+    assert.equal(deletedImport.deleted, true, "delete removes imported trace source");
+    assert.equal(deletedImport.sources.some((source) => source.id === imported.source_id), false, "deleted imported trace leaves source list");
+    assert.equal(fs.existsSync(importedSource.path), false, "delete removes imported trace directory");
 
     console.log("trace-bundle smoke passed");
   } finally {
