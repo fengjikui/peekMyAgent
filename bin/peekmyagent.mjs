@@ -1073,7 +1073,7 @@ async function runClaudeOtelAgent(parsed, viewerUrl) {
   const ingestPayload = { dir: dumpDir, watch_id: watchId, agent: "Claude Code", workspace, conversation_id: conversationId };
   const ingest = async () => {
     try {
-      return await postJson(`${trimSlash(viewerUrl)}/api/capture/otel`, ingestPayload);
+      return await postJson(`${trimSlash(viewerUrl)}/api/capture/otel`, ingestPayload, { headers: { "x-peekmyagent-intent": "otel-ingest" } });
     } catch {
       return null;
     }
@@ -1845,12 +1845,12 @@ function buildOpenClawCommandHint(profile, conversationId) {
   return `openclaw --profile ${shellQuote(profile)} agent${session} --message '<your message>'`;
 }
 
-async function postJson(url, payload) {
+async function postJson(url, payload, { headers = {} } = {}) {
   let response;
   try {
     response = await fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...headers },
       body: JSON.stringify(payload),
     });
   } catch (error) {

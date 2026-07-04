@@ -101,7 +101,7 @@ const viewer = await startViewerServer({ cwd: process.cwd(), storePath });
 let failed = false;
 try {
   const ingest = await (await fetch(`${viewer.url}/api/capture/otel`, {
-    method: "POST", headers: { "content-type": "application/json" },
+    method: "POST", headers: { "content-type": "application/json", "x-peekmyagent-intent": "otel-ingest" },
     body: JSON.stringify({ dir: dumpDir, watch_id: "claude-code-currententry", agent: "Claude Code", workspace: tmp }),
   })).json();
   assert.equal(ingest.ok, true);

@@ -48,10 +48,17 @@ let failed = false;
 try {
   const watchId = "claude-code-oteltest1";
 
+  const noIntentRes = await fetch(`${viewer.url}/api/capture/otel`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ dir: dumpDir, watch_id: watchId, agent: "Claude Code", workspace: "/tmp/ws" }),
+  });
+  assert.equal(noIntentRes.status, 403, "OTel ingest requires explicit local wrapper intent");
+
   // --- ingest ---
   const ingestRes = await fetch(`${viewer.url}/api/capture/otel`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-peekmyagent-intent": "otel-ingest" },
     body: JSON.stringify({ dir: dumpDir, watch_id: watchId, agent: "Claude Code", workspace: "/tmp/ws" }),
   });
   const ingest = await ingestRes.json();
@@ -83,7 +90,7 @@ try {
   // --- incremental re-ingest is a dedup no-op for requests ---
   const reRes = await fetch(`${viewer.url}/api/capture/otel`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-peekmyagent-intent": "otel-ingest" },
     body: JSON.stringify({ dir: dumpDir, watch_id: watchId, agent: "Claude Code", workspace: "/tmp/ws" }),
   });
   const re = await reRes.json();
@@ -93,7 +100,7 @@ try {
   // --- bad input rejected ---
   const badRes = await fetch(`${viewer.url}/api/capture/otel`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-peekmyagent-intent": "otel-ingest" },
     body: JSON.stringify({ watch_id: watchId }),
   });
   const bad = await badRes.json();

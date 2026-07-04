@@ -141,7 +141,7 @@ try {
     agent: "Claude Code",
     workspace: cwd,
     conversation_id: "source-meta-smoke-session",
-  });
+  }, { headers: { "x-peekmyagent-intent": "otel-ingest" } });
   sources = await getJson(`${viewer.url}/api/sources`);
   const sameConversationOtel = sources.find((source) => source.id === otel.source_id);
   assert.equal(sameConversationOtel?.label, "Renamed live source", "rename follows the same conversation into OTel capture mode");
@@ -172,10 +172,10 @@ async function getJson(url) {
   return response.json();
 }
 
-async function postJson(url, payload) {
+async function postJson(url, payload, { headers = {} } = {}) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);

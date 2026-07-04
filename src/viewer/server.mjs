@@ -43,6 +43,7 @@ const MAX_TRANSLATION_TOTAL_CHARS = 2000000;
 const TRACE_EXPORT_INTENT_HEADER = "x-peekmyagent-intent";
 const TRACE_EXPORT_INTENT = "trace-export";
 const AGENT_SEND_INTENT = "agent-send";
+const OTEL_INGEST_INTENT = "otel-ingest";
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
 const TIMELINE_RESPONSE_TEXT_CHARS = 700;
 const TIMELINE_RESPONSE_THINKING_CHARS = 360;
@@ -298,6 +299,8 @@ async function handleRequest(req, res, options) {
   }
   if (url.pathname === "/api/capture/otel") {
     if (rejectWrongMethod(req, res, "POST")) return;
+    const intentGuard = validateOtelIngestIntent(req);
+    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
     return writeJson(res, 200, await ingestOtelCaptures(req, options));
   }
   if (url.pathname === "/api/watch/status") {
@@ -4507,6 +4510,15 @@ function validateAgentSendIntent(req) {
   return {
     status: 403,
     message: "Agent send requires an explicit dashboard send intent.",
+  };
+}
+
+function validateOtelIngestIntent(req) {
+  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
+  if (intent === OTEL_INGEST_INTENT) return null;
+  return {
+    status: 403,
+    message: "OTel ingest requires an explicit local wrapper ingest intent.",
   };
 }
 

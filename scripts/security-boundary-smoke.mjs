@@ -235,6 +235,13 @@ try {
     });
     assert.equal(noIntentAgentSend.status, 403, "agent send without explicit dashboard intent is rejected");
 
+    const noIntentOtelIngest = await fetch(`${viewer.url}/api/capture/otel`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dir: tmp, watch_id: "security-boundary-otel" }),
+    });
+    assert.equal(noIntentOtelIngest.status, 403, "OTel ingest without explicit local wrapper intent is rejected");
+
     const longUnknownSourceUpdate = await fetch(`${viewer.url}/api/source/update`, {
       method: "POST",
       headers: { "content-type": "application/json" },
