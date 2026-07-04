@@ -58,11 +58,27 @@ try {
     });
     assert.equal(navigationShapeSources.status, 403, "browser navigation-shaped API GET is rejected");
 
+    const noIntentWatchStart = await fetch(`${viewer.url}/api/watch/start`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: viewerOrigin,
+      },
+      body: JSON.stringify({
+        agent: "Claude Code",
+        target_base_url: "http://127.0.0.1:9",
+        workspace: process.cwd(),
+        conversation_id: "no-intent-watch-start-security-smoke",
+      }),
+    });
+    assert.equal(noIntentWatchStart.status, 403, "watch start without explicit wrapper intent is rejected");
+
     const sameOrigin = await fetch(`${viewer.url}/api/watch/start`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         origin: viewerOrigin,
+        "x-peekmyagent-intent": "watch-start",
       },
       body: JSON.stringify({
         agent: "Claude Code",
@@ -73,6 +89,20 @@ try {
     });
     assert.equal(sameOrigin.status, 200, "same dashboard origin POST is accepted");
     const startedWatch = await sameOrigin.json();
+
+    const noIntentWatchPause = await fetch(`${viewer.url}/api/watch/pause`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: startedWatch.id, status: "paused" }),
+    });
+    assert.equal(noIntentWatchPause.status, 403, "watch pause without explicit dashboard or CLI intent is rejected");
+
+    const noIntentWatchStop = await fetch(`${viewer.url}/api/watch/stop`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: startedWatch.id, clear: false }),
+    });
+    assert.equal(noIntentWatchStop.status, 403, "watch stop without explicit dashboard or CLI intent is rejected");
 
     const defaultView = await fetch(`${viewer.url}/api/view`);
     assert.equal(defaultView.status, 200, "view API without source may still open the default source");
@@ -190,6 +220,7 @@ try {
       headers: {
         "content-type": "application/json",
         origin: otherLoopbackOrigin,
+        "x-peekmyagent-intent": "watch-start",
       },
       body: JSON.stringify({ agent: "Claude Code" }),
     });
@@ -200,6 +231,7 @@ try {
       headers: {
         "content-type": "application/json",
         referer: `${otherLoopbackOrigin}/page`,
+        "x-peekmyagent-intent": "watch-start",
       },
       body: JSON.stringify({ agent: "Claude Code" }),
     });
@@ -210,6 +242,7 @@ try {
       headers: {
         "content-type": "application/json",
         origin: "https://evil.example",
+        "x-peekmyagent-intent": "watch-start",
       },
       body: JSON.stringify({ agent: "Claude Code" }),
     });
@@ -220,6 +253,7 @@ try {
       headers: {
         "content-type": "application/json",
         referer: "https://evil.example/page",
+        "x-peekmyagent-intent": "watch-start",
       },
       body: JSON.stringify({ agent: "Claude Code" }),
     });

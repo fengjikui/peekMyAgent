@@ -961,7 +961,7 @@ async function watchCurrent() {
     target_base_url: openclawPatch?.target_base_url,
     provider_id: openclawPatch?.provider_id,
     config_patched: Boolean(openclawPatch),
-  });
+  }, { headers: { "x-peekmyagent-intent": "watch-start" } });
   if (openclawPatch) patchOpenClawProviderBaseUrl(openclawPatch.profile, openclawPatch.provider_id, response.base_url);
   return {
     ...response,
@@ -1017,7 +1017,7 @@ async function runClaudeAgent(parsed, viewerUrl) {
     reuse: Boolean(reuseWatchId),
     reuse_watch_id: reuseWatchId,
     target_base_url: targetBaseUrl,
-  });
+  }, { headers: { "x-peekmyagent-intent": "watch-start" } });
   const proxySettings = claudeCodeProxySettingsArgs({ baseUrl: watch.base_url });
   printRunStarted({ viewerUrl, watch, command: "claude", args: parsed.childArgs });
   return runChildWithWatchCleanup({
@@ -1119,7 +1119,7 @@ async function runOpenClawAgent(parsed, viewerUrl) {
     target_base_url: openclawPatch.target_base_url,
     provider_id: openclawPatch.provider_id,
     config_patched: true,
-  });
+  }, { headers: { "x-peekmyagent-intent": "watch-start" } });
   patchOpenClawProviderBaseUrl(openclawPatch.profile, openclawPatch.provider_id, watch.base_url);
   const childArgs = ["--profile", openclawPatch.profile, ...normalizeOpenClawChildArgs(parsed.childArgs)];
   printRunStarted({ viewerUrl, watch, command: "openclaw", args: childArgs });
@@ -1728,7 +1728,7 @@ async function stopRunWatch(viewerUrl, watch, openclawProfile) {
   const stopped = await postJson(`${trimSlash(viewerUrl)}/api/watch/stop`, {
     id: watch.id,
     clear: false,
-  });
+  }, { headers: { "x-peekmyagent-intent": "watch-stop" } });
   if (openclawProfile && stopped.config_patched && stopped.provider_id && stopped.target_base_url) {
     patchOpenClawProviderBaseUrl(openclawProfile, stopped.provider_id, stopped.target_base_url);
   }
@@ -1761,7 +1761,7 @@ async function controlCurrentWatch({ status }) {
     workspace,
     conversation_id: conversationId,
     status,
-  });
+  }, { headers: { "x-peekmyagent-intent": "watch-pause" } });
   return {
     ...response,
     viewer_url: trimSlash(viewerUrl),
@@ -1783,7 +1783,7 @@ async function stopCurrentWatch({ clear }) {
     workspace,
     conversation_id: conversationId,
     clear,
-  });
+  }, { headers: { "x-peekmyagent-intent": "watch-stop" } });
   const openclawProfile = optionValue("--openclaw-profile") || process.env.PEEK_OPENCLAW_PROFILE || DEFAULT_OPENCLAW_PROFILE;
   if (/openclaw/i.test(agent) && response.config_patched && response.provider_id && response.target_base_url) {
     patchOpenClawProviderBaseUrl(openclawProfile, response.provider_id, response.target_base_url);

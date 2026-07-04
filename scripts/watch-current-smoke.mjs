@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { startViewerServer } from "../src/viewer/server.mjs";
+import { jsonHeadersForUrl } from "./lib/http-intents.mjs";
 
 const cwd = process.cwd();
 const originalTarget = process.env.PEEK_CLAUDE_TARGET_BASE_URL;
@@ -174,11 +175,9 @@ async function getJson(url) {
 }
 
 async function postJson(url, payload) {
-  const headers = { "content-type": "application/json" };
-  if (String(url).includes("/api/source/update")) headers["x-peekmyagent-intent"] = "source-update";
   const response = await fetch(url, {
     method: "POST",
-    headers,
+    headers: jsonHeadersForUrl(url),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);

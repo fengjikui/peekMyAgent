@@ -2275,7 +2275,7 @@ async function stopActiveWatch(clear) {
   try {
     await fetchJson("/api/watch/stop", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "watch-stop" },
       body: JSON.stringify({
         id: state.data.source.id,
         clear,

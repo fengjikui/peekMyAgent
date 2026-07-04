@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { readBody } from "../src/core/capture-proxy.mjs";
 import { startViewerServer } from "../src/viewer/server.mjs";
+import { jsonHeadersForUrl } from "./lib/http-intents.mjs";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peek-local-command-input-"));
 const upstream = http.createServer(async (req, res) => {
@@ -168,7 +169,7 @@ async function postCountTokensRequest(baseUrl, body) {
 async function postJson(url, body) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: jsonHeadersForUrl(url),
     body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);

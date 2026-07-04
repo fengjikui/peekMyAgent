@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { readBody } from "../src/core/capture-proxy.mjs";
+import { jsonHeadersForUrl } from "./lib/http-intents.mjs";
 
 const cwd = process.cwd();
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peek-shared-restore-"));
@@ -114,7 +115,7 @@ async function postModelRequest(baseUrl, content) {
 async function postJson(url, body) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: jsonHeadersForUrl(url),
     body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);

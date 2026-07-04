@@ -4,6 +4,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { startViewerServer } from "../src/viewer/server.mjs";
+import { jsonHeadersForUrl } from "./lib/http-intents.mjs";
 
 const cwd = process.cwd();
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-suggestion-"));
@@ -119,7 +120,7 @@ async function getJson(url) {
 async function postJson(url, payload) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: jsonHeadersForUrl(url),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { startViewerServer } from "../src/viewer/server.mjs";
 import { writeFakeNodeCommand } from "./lib/fake-node-command.mjs";
+import { jsonHeadersForUrl } from "./lib/http-intents.mjs";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peek-agent-send-"));
 const workspace = path.join(tmpDir, "workspace");
@@ -139,7 +140,7 @@ async function postAgentSend(url, payload) {
 async function postJson(url, payload, { headers = {}, allowError = false } = {}) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json", ...headers },
+    headers: jsonHeadersForUrl(url, headers),
     body: JSON.stringify(payload),
   });
   const data = await response.json();

@@ -48,6 +48,9 @@ const OTEL_INGEST_INTENT = "otel-ingest";
 const TRANSLATION_GENERATE_INTENT = "translation-generate";
 const SOURCE_UPDATE_INTENT = "source-update";
 const DAEMON_SHUTDOWN_INTENT = "daemon-shutdown";
+const WATCH_START_INTENT = "watch-start";
+const WATCH_STOP_INTENT = "watch-stop";
+const WATCH_PAUSE_INTENT = "watch-pause";
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
 const TIMELINE_RESPONSE_TEXT_CHARS = 700;
 const TIMELINE_RESPONSE_THINKING_CHARS = 360;
@@ -273,14 +276,20 @@ async function handleRequest(req, res, options) {
   }
   if (url.pathname === "/api/watch/start") {
     if (rejectWrongMethod(req, res, "POST")) return;
+    const intentGuard = validateWatchStartIntent(req);
+    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
     return writeJson(res, 200, await startWatch(req, options));
   }
   if (url.pathname === "/api/watch/stop") {
     if (rejectWrongMethod(req, res, "POST")) return;
+    const intentGuard = validateWatchStopIntent(req);
+    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
     return writeJson(res, 200, await stopWatch(req, options));
   }
   if (url.pathname === "/api/watch/pause") {
     if (rejectWrongMethod(req, res, "POST")) return;
+    const intentGuard = validateWatchPauseIntent(req);
+    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
     return writeJson(res, 200, await pauseWatch(req, options));
   }
   if (url.pathname === "/api/agent/send") {
@@ -4567,6 +4576,33 @@ function validateDaemonShutdownIntent(req) {
   return {
     status: 403,
     message: "Daemon shutdown requires an explicit local CLI shutdown intent.",
+  };
+}
+
+function validateWatchStartIntent(req) {
+  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
+  if (intent === WATCH_START_INTENT) return null;
+  return {
+    status: 403,
+    message: "Watch start requires an explicit local wrapper start intent.",
+  };
+}
+
+function validateWatchStopIntent(req) {
+  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
+  if (intent === WATCH_STOP_INTENT) return null;
+  return {
+    status: 403,
+    message: "Watch stop requires an explicit dashboard or CLI stop intent.",
+  };
+}
+
+function validateWatchPauseIntent(req) {
+  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
+  if (intent === WATCH_PAUSE_INTENT) return null;
+  return {
+    status: 403,
+    message: "Watch pause requires an explicit dashboard or CLI pause intent.",
   };
 }
 

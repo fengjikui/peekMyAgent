@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { defaultStoreDir, defaultStorePath, openPersistenceStore, sourceIdForWatch } from "../src/core/persistence-store.mjs";
 import { startViewerServer } from "../src/viewer/server.mjs";
+import { jsonHeadersForUrl } from "./lib/http-intents.mjs";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-store-"));
 const storePath = path.join(tmpDir, "store.sqlite");
@@ -208,11 +209,9 @@ async function getJson(url) {
 }
 
 async function postJson(url, payload) {
-  const headers = { "content-type": "application/json" };
-  if (String(url).includes("/api/source/update")) headers["x-peekmyagent-intent"] = "source-update";
   const response = await fetch(url, {
     method: "POST",
-    headers,
+    headers: jsonHeadersForUrl(url),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);

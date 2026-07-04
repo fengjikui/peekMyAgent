@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { openPersistenceStore } from "../src/core/persistence-store.mjs";
 import { startViewerServer } from "../src/viewer/server.mjs";
+import { jsonHeadersForUrl } from "./lib/http-intents.mjs";
 
 const cwd = process.cwd();
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-source-meta-"));
@@ -173,11 +174,9 @@ async function getJson(url) {
 }
 
 async function postJson(url, payload, { headers = {} } = {}) {
-  const defaultHeaders = { "content-type": "application/json" };
-  if (String(url).includes("/api/source/update")) defaultHeaders["x-peekmyagent-intent"] = "source-update";
   const response = await fetch(url, {
     method: "POST",
-    headers: { ...defaultHeaders, ...headers },
+    headers: jsonHeadersForUrl(url, headers),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);

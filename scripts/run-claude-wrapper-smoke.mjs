@@ -73,7 +73,7 @@ if (process.env.PEEK_FAKE_CLEAR_WATCH === '1') {
   if (!watchId) process.exit(3);
   const stopResponse = await fetch(process.env.PEEK_FAKE_VIEWER_URL + '/api/watch/stop', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-peekmyagent-intent': 'watch-stop' },
     body: JSON.stringify({ id: 'live-' + watchId, clear: true })
   });
   if (!stopResponse.ok) process.exit(4);
