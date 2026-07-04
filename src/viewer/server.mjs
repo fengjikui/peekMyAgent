@@ -236,6 +236,7 @@ async function handleRequest(req, res, options) {
   if (url.pathname === "/") return serveFile(res, path.join(viewerDir, "index.html"), "text/html; charset=utf-8");
   if (url.pathname === "/styles.css") return serveFile(res, path.join(viewerDir, "styles.css"), "text/css; charset=utf-8");
   if (url.pathname === "/client.js") return serveFile(res, path.join(viewerDir, "client.js"), "text/javascript; charset=utf-8");
+  if (url.pathname === "/markdown.js") return serveFile(res, path.join(viewerDir, "markdown.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/api/sources") return writeJson(res, 200, listSources(options));
   if (url.pathname === "/api/translations") {
     const agent = url.searchParams.get("agent") || "Claude Code";
