@@ -163,12 +163,28 @@ async function main() {
     "x-extra-hop": "remove-me",
     "x-peek-internal": "remove-me",
   });
-  const evaluation = evaluate(proxy.captures[0], upstream, response);
+  const countsBeforeBrowserGuards = { captures: proxy.captures.length, upstream: upstream.seen.length };
+  const crossSiteBrowserResponse = await postJson(url, samplePayload(), { origin: "https://evil.example" });
+  const resourceShapeBrowserResponse = await postJson(url, samplePayload(), {
+    "sec-fetch-mode": "no-cors",
+    "sec-fetch-dest": "image",
+  });
+  const evaluation = {
+    ...evaluate(proxy.captures[0], upstream, response),
+    browserCrossSiteRejected: crossSiteBrowserResponse.statusCode === 403,
+    browserResourceShapeRejected: resourceShapeBrowserResponse.statusCode === 403,
+    blockedBrowserRequestsNotCaptured: proxy.captures.length === countsBeforeBrowserGuards.captures,
+    blockedBrowserRequestsNotForwarded: upstream.seen.length === countsBeforeBrowserGuards.upstream,
+  };
   const report = renderReport(proxy, upstream, response, evaluation);
   fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });
   fs.writeFileSync(REPORT_PATH, report);
   proxy.server.close();
   upstream.server.close();
+  const failed = Object.entries(evaluation)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+  if (failed.length) throw new Error(`proxy smoke failed checks: ${failed.join(", ")}`);
   console.log(`Wrote ${REPORT_PATH}`);
   console.log(evaluation);
 }

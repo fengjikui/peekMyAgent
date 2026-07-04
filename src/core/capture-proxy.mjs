@@ -130,12 +130,16 @@ export async function startCaptureProxy({
   const requestCounters = requestCountersFromCaptures(captures);
   const sockets = new Set();
   const server = http.createServer(async (req, res) => {
+    const browserGuard = validateCaptureProxyBrowserRequest(req);
+    if (browserGuard) {
+      writeProxyJson(res, browserGuard.status, { error: browserGuard.message });
+      return;
+    }
     let bodyText;
     try {
       bodyText = await readBody(req);
     } catch (error) {
-      res.writeHead(error.statusCode || 400, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: error.message }));
+      writeProxyJson(res, error.statusCode || 400, { error: error.message });
       return;
     }
     const attribution = resolveRequestAttribution(req, defaultAttribution);
@@ -165,8 +169,7 @@ export async function startCaptureProxy({
         capture.upstream_error = error.message;
         capture.response = buildErrorResponseRecord(error);
       }
-      res.writeHead(502, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: error.message }));
+      writeProxyJson(res, 502, { error: error.message });
       if (capture && onCaptureUpdate) Promise.resolve(onCaptureUpdate(capture)).catch(() => {});
     });
     upstreamReq.end(bodyText);
@@ -221,12 +224,16 @@ export async function startSharedCaptureProxy({
   const requestCounters = requestCountersFromCaptures(captures);
   const sockets = new Set();
   const server = http.createServer(async (req, res) => {
+    const browserGuard = validateCaptureProxyBrowserRequest(req);
+    if (browserGuard) {
+      writeProxyJson(res, browserGuard.status, { error: browserGuard.message });
+      return;
+    }
     let bodyText;
     try {
       bodyText = await readBody(req);
     } catch (error) {
-      res.writeHead(error.statusCode || 400, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: error.message }));
+      writeProxyJson(res, error.statusCode || 400, { error: error.message });
       return;
     }
     const initialAttribution = resolveRequestAttribution(req, {});
@@ -240,18 +247,16 @@ export async function startSharedCaptureProxy({
         })
       : await getWatch(initialAttribution.watchId);
     if (!watch?.target_base_url) {
-      res.writeHead(404, { "content-type": "application/json" });
       const label = initialAttribution.agentRoute
         ? `${initialAttribution.agentRoute.agentSlug}/${initialAttribution.agentRoute.installId}`
         : initialAttribution.watchId;
-      res.end(JSON.stringify({ error: `Unknown or inactive watch: ${label}` }));
+      writeProxyJson(res, 404, { error: `Unknown or inactive watch: ${label}` });
       return;
     }
     try {
       assertSupportedUpstreamUrl(watch.target_base_url);
     } catch (error) {
-      res.writeHead(400, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: error.message }));
+      writeProxyJson(res, 400, { error: error.message });
       return;
     }
 
@@ -287,8 +292,7 @@ export async function startSharedCaptureProxy({
         capture.upstream_error = error.message;
         capture.response = buildErrorResponseRecord(error);
       }
-      res.writeHead(502, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: error.message }));
+      writeProxyJson(res, 502, { error: error.message });
       if (capture && onCaptureUpdate) Promise.resolve(onCaptureUpdate(capture, watch)).catch(() => {});
     });
     upstreamReq.end(bodyText);
@@ -337,6 +341,82 @@ function parseAgentRoutePath(pathname) {
     protocol: safeDecode(match[3]),
     forwardPath: match[4] || "/",
   };
+}
+
+function validateCaptureProxyBrowserRequest(req) {
+  const headers = req.headers || {};
+  const hostHeader = firstHeader(headers.host) || "";
+  const origin = firstHeader(headers.origin);
+  if (origin && !browserSourceMatchesHost(origin, hostHeader)) {
+    return { status: 403, message: "Browser requests to the capture proxy must come from the active capture origin." };
+  }
+  const referer = firstHeader(headers.referer);
+  if (referer && !browserSourceMatchesHost(referer, hostHeader)) {
+    return { status: 403, message: "Browser requests to the capture proxy must come from the active capture origin." };
+  }
+  const secFetchSite = String(firstHeader(headers["sec-fetch-site"]) || "").toLowerCase();
+  if (secFetchSite === "cross-site") {
+    return { status: 403, message: "Cross-site browser requests are not allowed for the capture proxy." };
+  }
+  const secFetchMode = String(firstHeader(headers["sec-fetch-mode"]) || "").toLowerCase();
+  const secFetchDest = String(firstHeader(headers["sec-fetch-dest"]) || "").toLowerCase();
+  if (secFetchMode === "no-cors" || (secFetchDest && secFetchDest !== "empty")) {
+    return { status: 403, message: "Browser resource or navigation requests are not allowed for the capture proxy." };
+  }
+  const accept = String(firstHeader(headers.accept) || "").toLowerCase();
+  if (String(req.method || "").toUpperCase() === "GET" && /\btext\/html\b/.test(accept)) {
+    return { status: 403, message: "HTML navigation requests are not allowed for the capture proxy." };
+  }
+  return null;
+}
+
+function browserSourceMatchesHost(value, hostHeader) {
+  let parsed;
+  try {
+    parsed = new URL(String(value || ""));
+  } catch {
+    return false;
+  }
+  const request = hostParts(hostHeader);
+  if (!request.hostname) return false;
+  if (parsed.protocol !== "http:") return false;
+  if (!isLoopbackHost(request.hostname) || !isLoopbackHost(parsed.hostname)) return false;
+  return normalizedPort(parsed.protocol, parsed.port) === request.port;
+}
+
+function hostParts(value) {
+  const text = String(value || "").trim();
+  if (!text) return { hostname: "", port: "" };
+  try {
+    const parsed = new URL(`http://${text}`);
+    return { hostname: parsed.hostname, port: normalizedPort(parsed.protocol, parsed.port) };
+  } catch {
+    return { hostname: hostNameFromHeader(text), port: "" };
+  }
+}
+
+function normalizedPort(protocol, port) {
+  if (port) return String(port);
+  if (protocol === "https:") return "443";
+  return "80";
+}
+
+function hostNameFromHeader(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (text.startsWith("[")) return text.slice(1, text.indexOf("]"));
+  return text.split(":")[0];
+}
+
+function isLoopbackHost(host) {
+  const value = String(host || "").trim().toLowerCase();
+  if (!value) return false;
+  return value === "localhost" || value === "127.0.0.1" || value === "::1" || value === "0:0:0:0:0:0:0:1";
+}
+
+function writeProxyJson(res, status, value) {
+  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+  res.end(`${JSON.stringify(value)}\n`);
 }
 
 function proxyUpstreamResponse({ upstreamRes, downstreamRes, capture, watch, onCaptureUpdate }) {
