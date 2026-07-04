@@ -40,7 +40,6 @@ const state = {
 
 const LIVE_REFRESH_MS = 1200;
 const LATEST_ONLY_KEY = "peekmyagent.latestOnly";
-const LOCAL_SOURCE_META_KEY = "peekmyagent.sourceMeta";
 const PROJECT_COLLAPSE_KEY = "peekmyagent.collapsedProjects";
 const TRANSLATION_MODE_KEY = "peekmyagent.translationMode";
 const UI_LANGUAGE_KEY = "peekmyagent.uiLanguage";
@@ -348,6 +347,7 @@ const I18N = {
     deleteLiveConfirm: "删除会停止这条监听，并删除已保存的捕获数据。正在运行的 Agent 需要重新通过 peekMyAgent 启动后才能继续捕获。确定删除吗？",
     deleteStaticConfirm: "删除会移除这条会话的本地捕获数据，无法从 dashboard 恢复。确定删除吗？",
     importTraceFailed: "导入 Trace 失败：{message}",
+    sourceUpdateFailed: "更新会话失败：{message}",
     archivedByWatch: "按监听任务归档",
     redactionCount: "{count} 处 header 脱敏",
     noHeaderRedaction: "未发现 header 脱敏",
@@ -665,6 +665,7 @@ const I18N = {
     deleteLiveConfirm: "Deleting will stop this watch and delete saved captures. The running Agent must be relaunched through peekMyAgent to capture again. Delete?",
     deleteStaticConfirm: "Deleting removes this session's local capture data and cannot be restored from the dashboard. Delete?",
     importTraceFailed: "Import Trace failed: {message}",
+    sourceUpdateFailed: "Session update failed: {message}",
     archivedByWatch: "Archived by watch",
     redactionCount: "{count} redacted headers",
     noHeaderRedaction: "No header redaction",
@@ -1053,7 +1054,7 @@ async function init() {
   if (state.sidebarWidth) applySidebarWidth(state.sidebarWidth);
   setRawPanelOpen(state.rawOpen);
   setSidebarOpen(state.sidebarOpen);
-  state.sources = applyLocalSourceMeta(await fetchJson("/api/sources"));
+  state.sources = await fetchJson("/api/sources");
   renderSessionNav();
   const requestedSource = new URLSearchParams(window.location.search).get("source");
   const first =
@@ -1174,7 +1175,7 @@ async function init() {
 async function loadSource(sourceId, { preserveScroll = false } = {}) {
   const scrollTop = els.mainPanel.scrollTop;
   if (state.activeSourceId && state.activeSourceId !== sourceId) clearRequestDetailCache();
-  state.data = mergeCachedRequestDetails(applyLocalSourceMetaToData(await fetchViewerData(sourceId)));
+  state.data = mergeCachedRequestDetails(await fetchViewerData(sourceId));
   await loadTranslationsForActiveSource();
   const turnIds = activeTurnIds();
   if (!preserveScroll || !turnIds.includes(state.activeId)) {
@@ -1194,7 +1195,7 @@ async function loadSource(sourceId, { preserveScroll = false } = {}) {
 }
 
 async function refreshSources() {
-  state.sources = applyLocalSourceMeta(await fetchJson("/api/sources"));
+  state.sources = await fetchJson("/api/sources");
   renderSessionNav();
   if (state.activeSourceId && !state.sources.some((source) => source.id === state.activeSourceId)) {
     const first = state.sources.find((source) => source.available) || state.sources[0];
@@ -1213,7 +1214,7 @@ async function refreshLiveData({ force = false } = {}) {
 
   state.autoRefreshInFlight = true;
   try {
-    const nextSources = applyLocalSourceMeta(await fetchJson("/api/sources"));
+    const nextSources = await fetchJson("/api/sources");
     const sourceChanged = sourcesSignature(nextSources) !== sourcesSignature(state.sources);
     state.sources = nextSources;
     if (sourceChanged) renderSessionNav();
@@ -1239,7 +1240,7 @@ async function refreshLiveData({ force = false } = {}) {
 
 async function refreshActiveSource(activeSource) {
   const previousData = state.data;
-  const nextData = mergeCachedRequestDetails(applyLocalSourceMetaToData(await fetchViewerData(activeSource.id)));
+  const nextData = mergeCachedRequestDetails(await fetchViewerData(activeSource.id));
   if (!shouldRenderRefreshedData(previousData, nextData)) return;
 
   const wasNearBottom = isMainPanelNearBottom();
@@ -1874,7 +1875,7 @@ async function importTraceFromFile(event) {
       },
       body: await file.arrayBuffer(),
     });
-    state.sources = applyLocalSourceMeta(response.sources || (await fetchJson("/api/sources")));
+    state.sources = response.sources || (await fetchJson("/api/sources"));
     renderSessionNav();
     if (response.source_id) await loadSource(response.source_id);
   } catch (error) {
@@ -1896,11 +1897,13 @@ async function updateSourceMeta(sourceId, payload) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: sourceId, ...payload }),
     });
-    state.sources = applyLocalSourceMeta(response.sources || (await fetchJson("/api/sources")));
+    state.sources = response.sources || (await fetchJson("/api/sources"));
   } catch (error) {
-    console.warn("peekMyAgent source update fallback", error);
-    await updateSourceMetaLocally(sourceId, payload);
-    state.sources = applyLocalSourceMeta(await fetchJson("/api/sources"));
+    console.warn("peekMyAgent source update failed", error);
+    window.alert(t("sourceUpdateFailed", { message: error.message }));
+    state.sources = await fetchJson("/api/sources");
+    renderSessionNav();
+    return;
   }
   if ((payload.archive || payload.remove || payload.delete) && state.activeSourceId === sourceId) {
     const first = state.sources.find((source) => source.available) || state.sources[0];
@@ -1912,113 +1915,6 @@ async function updateSourceMeta(sourceId, payload) {
   if (state.activeSourceId === sourceId && Object.prototype.hasOwnProperty.call(payload, "title")) {
     await loadSource(sourceId, { preserveScroll: true });
   }
-}
-
-async function updateSourceMetaLocally(sourceId, payload) {
-  const source = state.sources.find((item) => item.id === sourceId);
-  const meta = readLocalSourceMeta();
-  const keys = sourceMetaKeysForClientSource(source || { id: sourceId });
-  const item = { ...mergedLocalSourceMeta(meta, source || { id: sourceId }) };
-  if (payload.delete) {
-    keys.forEach((key) => delete meta[key]);
-    writeLocalSourceMeta(meta);
-    return;
-  }
-  if (payload.archive || payload.remove) {
-    if (source?.live_watch_id) {
-      try {
-        await fetchJson("/api/watch/stop", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ id: sourceId, clear: true }),
-        });
-      } catch (error) {
-        console.warn("peekMyAgent live remove fallback failed", error);
-      }
-    }
-    item.hidden = true;
-  }
-  if (Object.prototype.hasOwnProperty.call(payload, "pinned")) item.pinned = Boolean(payload.pinned);
-  if (Object.prototype.hasOwnProperty.call(payload, "title")) {
-    const title = String(payload.title || "").trim().slice(0, 80);
-    if (title) item.title = title;
-    else delete item.title;
-  }
-  for (const key of keys) {
-    if (item.hidden || item.pinned || item.title) meta[key] = item;
-    else delete meta[key];
-  }
-  writeLocalSourceMeta(meta);
-}
-
-function applyLocalSourceMeta(sources) {
-  const meta = readLocalSourceMeta();
-  return (sources || [])
-    .map((source, order) => ({ ...decorateSourceLocally(source, mergedLocalSourceMeta(meta, source)), source_order: order }))
-    .filter((source) => !source.hidden)
-    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.source_order - b.source_order)
-    .map(({ source_order, ...source }) => source);
-}
-
-function applyLocalSourceMetaToData(data) {
-  if (!data?.source) return data;
-  const [source] = applyLocalSourceMeta([data.source]);
-  return source ? { ...data, source } : data;
-}
-
-function decorateSourceLocally(source, meta = {}) {
-  if (!meta) return source;
-  return {
-    ...source,
-    original_label: source.original_label || source.label,
-    label: meta.title || source.label,
-    user_title: meta.title || source.user_title || null,
-    pinned: Boolean(meta.pinned || source.pinned),
-    hidden: Boolean(meta.hidden || source.hidden),
-  };
-}
-
-function readLocalSourceMeta() {
-  try {
-    return JSON.parse(localStorage.getItem(LOCAL_SOURCE_META_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function writeLocalSourceMeta(meta) {
-  localStorage.setItem(LOCAL_SOURCE_META_KEY, JSON.stringify(meta));
-}
-
-function mergedLocalSourceMeta(meta, source) {
-  return sourceMetaKeysForClientSource(source).reduce((merged, key) => ({ ...merged, ...(meta[key] || {}) }), {});
-}
-
-function sourceMetaKeysForClientSource(source = {}) {
-  const keys = new Set([source.id].filter(Boolean));
-  const watchId = source.live_watch_id || source.store_watch_id || watchIdFromClientSourceId(source.id);
-  if (watchId) {
-    keys.add(`live-${watchId}`);
-    keys.add(`stored-${watchId}`);
-  }
-  const agent = safeLocalMetaSegment(source.agent);
-  const conversationId = safeLocalMetaSegment(source.conversation_id);
-  if (agent && conversationId) keys.add(`conversation-${agent}-${conversationId}`);
-  return [...keys];
-}
-
-function watchIdFromClientSourceId(sourceId) {
-  const value = String(sourceId || "");
-  if (value.startsWith("live-")) return value.slice("live-".length);
-  if (value.startsWith("stored-")) return value.slice("stored-".length);
-  return null;
-}
-
-function safeLocalMetaSegment(value) {
-  return String(value || "")
-    .trim()
-    .replace(/[^a-zA-Z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 function readCollapsedProjects() {
@@ -2369,7 +2265,7 @@ async function stopActiveWatch(clear) {
         clear,
       }),
     });
-    state.sources = applyLocalSourceMeta(await fetchJson("/api/sources"));
+    state.sources = await fetchJson("/api/sources");
     renderSessionNav();
     if (clear) {
       const first = state.sources.find((source) => source.available) || state.sources[0];
