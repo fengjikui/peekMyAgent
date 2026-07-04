@@ -42,6 +42,7 @@ for (const [profile, description] of profiles) {
   assert.match(result.stdout, /npm run smoke:suggestion-mode/);
   assert.match(result.stdout, /npm run smoke:agent-trace-view/);
   assert.match(result.stdout, /npm run smoke:persistence-store/);
+  assert.match(result.stdout, /npm run smoke:project-source-actions/);
   assert.match(result.stdout, /npm run smoke:request-tree/);
   assert.match(result.stdout, /npm run smoke:shared-proxy-auto-restore/);
 }

@@ -36,6 +36,7 @@ const state = {
   openAgentDashboards: new Set(),
   agentSend: { loading: false, error: "", message: "", result: null },
   openSourceMenuId: null,
+  openProjectMenuKey: null,
   uiLanguage: "zh-CN",
   targetTranslationLanguage: "zh-CN",
 };
@@ -335,6 +336,7 @@ const I18N = {
     requestCount: "{count} 条请求",
     requestClipboardTitle: "请求 #{index}",
     sessionActionsAria: "会话操作",
+    projectActionsAria: "项目操作",
     moreActions: "更多操作",
     pin: "置顶",
     unpin: "取消置顶",
@@ -344,13 +346,18 @@ const I18N = {
     exportTraceFailed: "导出 Trace 失败：{message}",
     archive: "归档",
     deleteData: "删除数据",
+    archiveProject: "归档项目",
+    deleteProjectData: "删除项目数据",
     renameSessionPrompt: "重命名会话",
     archiveLiveConfirm: "归档会停止这条监听，但不会删除已保存的捕获数据。确定继续吗？",
     archiveStaticConfirm: "归档会从左侧隐藏这条会话，但不会删除本地捕获数据。确定继续吗？",
+    archiveProjectConfirm: "归档会从左侧隐藏项目“{project}”下的 {count} 条会话；正在监听的会话会停止，但不会删除已保存的捕获数据。确定继续吗？",
     deleteLiveConfirm: "删除会停止这条监听，并删除已保存的捕获数据。正在运行的 Agent 需要重新通过 peekMyAgent 启动后才能继续捕获。确定删除吗？",
     deleteStaticConfirm: "删除会移除这条会话的本地捕获数据，无法从 dashboard 恢复。确定删除吗？",
+    deleteProjectConfirm: "删除会移除项目“{project}”下 {count} 条会话的本地捕获数据，无法从 dashboard 恢复；正在运行的 Agent 需要重新通过 peekMyAgent 启动后才能继续捕获。确定删除吗？",
     importTraceFailed: "导入 Trace 失败：{message}",
     sourceUpdateFailed: "更新会话失败：{message}",
+    projectUpdateFailed: "更新项目失败：{message}",
     archivedByWatch: "按监听任务归档",
     redactionCount: "{count} 处 header 脱敏",
     noHeaderRedaction: "未发现 header 脱敏",
@@ -654,6 +661,7 @@ const I18N = {
     requestCount: "{count} requests",
     requestClipboardTitle: "Request #{index}",
     sessionActionsAria: "Session actions",
+    projectActionsAria: "Project actions",
     moreActions: "More actions",
     pin: "Pin",
     unpin: "Unpin",
@@ -663,13 +671,18 @@ const I18N = {
     exportTraceFailed: "Export Trace failed: {message}",
     archive: "Archive",
     deleteData: "Delete data",
+    archiveProject: "Archive project",
+    deleteProjectData: "Delete project data",
     renameSessionPrompt: "Rename session",
     archiveLiveConfirm: "Archiving will stop this watch without deleting saved captures. Continue?",
     archiveStaticConfirm: "Archiving hides this session from the sidebar without deleting local captures. Continue?",
+    archiveProjectConfirm: "Archiving hides {count} sessions under project \"{project}\" from the sidebar. Live watches will stop, but saved captures stay on disk. Continue?",
     deleteLiveConfirm: "Deleting will stop this watch and delete saved captures. The running Agent must be relaunched through peekMyAgent to capture again. Delete?",
     deleteStaticConfirm: "Deleting removes this session's local capture data and cannot be restored from the dashboard. Delete?",
+    deleteProjectConfirm: "Deleting removes local capture data for {count} sessions under project \"{project}\" and cannot be restored from the dashboard. Live Agents must be relaunched through peekMyAgent to capture again. Delete?",
     importTraceFailed: "Import Trace failed: {message}",
     sourceUpdateFailed: "Session update failed: {message}",
+    projectUpdateFailed: "Project update failed: {message}",
     archivedByWatch: "Archived by watch",
     redactionCount: "{count} redacted headers",
     noHeaderRedaction: "No header redaction",
@@ -1712,6 +1725,12 @@ function renderSessionNav() {
   document.querySelectorAll("[data-project-toggle]").forEach((button) => {
     button.addEventListener("click", () => toggleProjectGroup(button.dataset.projectToggle));
   });
+  document.querySelectorAll("[data-project-action]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      handleProjectAction(button.dataset.projectAction, button.dataset.projectKey);
+    });
+  });
   document.querySelectorAll("[data-source]").forEach((button) => {
     button.addEventListener("click", () => loadSource(button.dataset.source));
   });
@@ -1721,8 +1740,8 @@ function renderSessionNav() {
       handleSourceAction(button.dataset.sourceAction, button.dataset.sourceId);
     });
   });
-  document.removeEventListener("click", closeSourceMenuOnce);
-  document.addEventListener("click", closeSourceMenuOnce);
+  document.removeEventListener("click", closeNavMenuOnce);
+  document.addEventListener("click", closeNavMenuOnce);
 }
 
 function renderSourceGroups(sources) {
@@ -1742,13 +1761,27 @@ function renderSourceGroups(sources) {
 
 function renderProjectGroup(projectGroup, collapsed) {
   const isCollapsed = collapsed[projectGroup.key] === true;
+  const menuOpen = state.openProjectMenuKey === projectGroup.key;
   return `
-    <section class="source-project-group ${isCollapsed ? "collapsed" : ""}">
-      <button class="source-project-toggle" type="button" data-project-toggle="${escapeHtml(projectGroup.key)}" aria-expanded="${String(!isCollapsed)}">
-        <span class="source-project-chevron" aria-hidden="true">›</span>
-        <span class="source-project-name">${escapeHtml(projectGroup.project)}</span>
-        <span class="source-project-count">${projectGroup.sources.length}</span>
-      </button>
+    <section class="source-project-group ${isCollapsed ? "collapsed" : ""} ${menuOpen ? "menu-open" : ""}">
+      <div class="source-project-header">
+        <button class="source-project-toggle" type="button" data-project-toggle="${escapeHtml(projectGroup.key)}" aria-expanded="${String(!isCollapsed)}" title="${escapeHtml(projectGroup.workspace || projectGroup.project)}">
+          <span class="source-project-chevron" aria-hidden="true">›</span>
+          <span class="source-project-name">${escapeHtml(projectGroup.project)}</span>
+          <span class="source-project-count">${projectGroup.sources.length}</span>
+        </button>
+        <span class="source-project-actions" aria-label="${escapeHtml(t("projectActionsAria"))}">
+          <button class="session-action menu-trigger" type="button" data-project-action="menu" data-project-key="${escapeHtml(projectGroup.key)}" title="${escapeHtml(t("moreActions"))}" aria-haspopup="menu" aria-expanded="${String(menuOpen)}">⋯</button>
+        </span>
+        ${
+          menuOpen
+            ? `<div class="session-menu project-menu" role="menu">
+                <button type="button" role="menuitem" data-project-action="archive" data-project-key="${escapeHtml(projectGroup.key)}">${escapeHtml(t("archiveProject"))}</button>
+                <button class="danger" type="button" role="menuitem" data-project-action="delete" data-project-key="${escapeHtml(projectGroup.key)}">${escapeHtml(t("deleteProjectData"))}</button>
+              </div>`
+            : ""
+        }
+      </div>
       ${isCollapsed ? "" : `<div class="source-project-sessions">${projectGroup.sources.map(renderSessionItem).join("")}</div>`}
     </section>
   `;
@@ -1759,10 +1792,11 @@ function groupSourcesByAgentAndProject(sources) {
   for (const source of sources || []) {
     const agent = source.agent || "Unknown Agent";
     const project = source.project || projectNameFromWorkspace(source.workspace) || t("unassignedProject");
-    const projectKey = projectGroupKey(agent, project);
+    const workspace = source.workspace || "";
+    const projectKey = projectGroupKey(agent, workspace || project);
     if (!agentMap.has(agent)) agentMap.set(agent, { agent, projectMap: new Map() });
     const agentGroup = agentMap.get(agent);
-    if (!agentGroup.projectMap.has(projectKey)) agentGroup.projectMap.set(projectKey, { key: projectKey, project, sources: [] });
+    if (!agentGroup.projectMap.has(projectKey)) agentGroup.projectMap.set(projectKey, { key: projectKey, agent, workspace, project, sources: [] });
     agentGroup.projectMap.get(projectKey).sources.push(source);
   }
   return [...agentMap.values()].map((agentGroup) => ({
@@ -1776,6 +1810,12 @@ function toggleProjectGroup(key) {
   collapsed[key] = !collapsed[key];
   writeCollapsedProjects(collapsed);
   renderSessionNav();
+}
+
+function projectGroupByKey(key) {
+  return groupSourcesByAgentAndProject(state.sources)
+    .flatMap((agentGroup) => agentGroup.projects)
+    .find((projectGroup) => projectGroup.key === key);
 }
 
 function renderSessionItem(source) {
@@ -1817,6 +1857,7 @@ async function handleSourceAction(action, sourceId) {
   if (!source) return;
   if (action === "menu") {
     state.openSourceMenuId = state.openSourceMenuId === sourceId ? null : sourceId;
+    state.openProjectMenuKey = null;
     renderSessionNav();
     return;
   }
@@ -1851,6 +1892,29 @@ async function handleSourceAction(action, sourceId) {
         : t("deleteStaticConfirm");
     if (!window.confirm(message)) return;
     await updateSourceMeta(sourceId, { delete: true });
+  }
+}
+
+async function handleProjectAction(action, projectKey) {
+  const projectGroup = projectGroupByKey(projectKey);
+  if (!projectGroup) return;
+  if (action === "menu") {
+    state.openProjectMenuKey = state.openProjectMenuKey === projectKey ? null : projectKey;
+    state.openSourceMenuId = null;
+    renderSessionNav();
+    return;
+  }
+  state.openProjectMenuKey = null;
+  const count = projectGroup.sources.length;
+  const project = projectGroup.project;
+  if (action === "archive") {
+    if (!window.confirm(t("archiveProjectConfirm", { project, count }))) return;
+    await updateProjectSources(projectGroup, { archive: true });
+    return;
+  }
+  if (action === "delete") {
+    if (!window.confirm(t("deleteProjectConfirm", { project, count }))) return;
+    await updateProjectSources(projectGroup, { delete: true });
   }
 }
 
@@ -1899,10 +1963,11 @@ async function importTraceFromFile(event) {
   }
 }
 
-function closeSourceMenuOnce(event) {
-  if (!state.openSourceMenuId) return;
-  if (event.target?.closest?.("[data-source-action], .session-menu")) return;
+function closeNavMenuOnce(event) {
+  if (!state.openSourceMenuId && !state.openProjectMenuKey) return;
+  if (event.target?.closest?.("[data-source-action], [data-project-action], .session-menu")) return;
   state.openSourceMenuId = null;
+  state.openProjectMenuKey = null;
   renderSessionNav();
 }
 
@@ -1931,6 +1996,38 @@ async function updateSourceMeta(sourceId, payload) {
   if (state.activeSourceId === sourceId && Object.prototype.hasOwnProperty.call(payload, "title")) {
     await loadSource(sourceId, { preserveScroll: true });
   }
+}
+
+async function updateProjectSources(projectGroup, payload) {
+  const affectedActiveSource = projectGroup.sources.some((source) => source.id === state.activeSourceId);
+  try {
+    const response = await fetchJson("/api/source/update", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "source-update" },
+      body: JSON.stringify({
+        project: {
+          agent: projectGroup.agent,
+          workspace: projectGroup.workspace || "",
+          project: projectGroup.project,
+        },
+        ...payload,
+      }),
+    });
+    state.sources = response.sources || (await fetchJson("/api/sources"));
+  } catch (error) {
+    console.warn("peekMyAgent project update failed", error);
+    window.alert(t("projectUpdateFailed", { message: error.message }));
+    state.sources = await fetchJson("/api/sources");
+    renderSessionNav();
+    return;
+  }
+  if ((payload.archive || payload.remove || payload.delete) && affectedActiveSource) {
+    const first = state.sources.find((source) => source.available) || state.sources[0];
+    if (first) await loadSource(first.id);
+    else renderSessionNav();
+    return;
+  }
+  renderSessionNav();
 }
 
 function readCollapsedProjects() {

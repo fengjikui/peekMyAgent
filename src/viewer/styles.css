@@ -291,8 +291,16 @@ select {
 }
 
 .source-project-group {
+  position: relative;
   display: grid;
   gap: 2px;
+}
+
+.source-project-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .source-project-toggle {
@@ -302,7 +310,8 @@ select {
   align-items: center;
   width: 100%;
   min-height: 28px;
-  padding: 3px 8px;
+  min-width: 0;
+  padding: 3px 28px 3px 8px;
   border: 0;
   border-radius: 7px;
   background: transparent;
@@ -777,6 +786,21 @@ select {
   color: var(--text);
 }
 
+.source-project-actions {
+  position: absolute;
+  right: 4px;
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.source-project-header:hover .source-project-actions,
+.source-project-header:focus-within .source-project-actions,
+.source-project-group.menu-open .source-project-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .source-project-chevron {
   display: inline-grid;
   place-items: center;
@@ -947,6 +971,11 @@ select {
   border-radius: 7px;
   background: #fff;
   box-shadow: 0 12px 28px rgba(21, 35, 68, 0.16);
+}
+
+.project-menu {
+  top: 26px;
+  right: 2px;
 }
 
 .session-menu button {

@@ -1547,52 +1547,19 @@ function touchWatchFromSkippedCapture(watch) {
 
 async function updateSource(req, options) {
   const input = await readJsonBody(req);
-  const id = sanitizeApiLookupId(input.id, { limit: MAX_API_SOURCE_ID_CHARS });
-  if (!id) throw new Error("Missing source id");
   const wantsArchive = Boolean(input.archive || input.remove);
   const wantsDelete = Boolean(input.delete);
   if (wantsArchive && wantsDelete) throw new Error("Choose archive or delete, not both.");
+  if (input.project && typeof input.project === "object") return updateProjectSources(input.project, { wantsArchive, wantsDelete }, options);
 
-  const liveWatch = options.watches.get(id);
-  if (wantsDelete && liveWatch) {
-    await closeWatchProxy(liveWatch);
-    options.watches.delete(id);
-    deleteSourceMeta(options, sourceMetaKeysForSourceId(id, { liveWatch }));
-    options.store?.deleteWatch(liveWatch.watch_id);
-    return { id, removed: true, sources: listSources(options) };
-  }
-  if (wantsArchive && liveWatch) {
-    await closeWatchProxy(liveWatch);
-    liveWatch.status = "stopped";
-    options.store?.updateWatchStatus(liveWatch.watch_id, liveWatch.status);
-    options.watches.delete(id);
-    const archivedMeta = { hidden: true };
-    setSourceMeta(options, sourceMetaKeysForSourceId(id, { liveWatch }), archivedMeta);
-    return { id, archived: true, sources: listSources(options) };
-  }
+  const id = sanitizeApiLookupId(input.id, { limit: MAX_API_SOURCE_ID_CHARS });
+  if (!id) throw new Error("Missing source id");
+  const lifecycle = await applySourceLifecycleUpdate(id, { wantsArchive, wantsDelete }, options);
+  if (lifecycle) return { id, ...lifecycle, sources: listSources(options) };
 
-  const persistedSource = findPersistedWatchSource(options.store, { watch_id: id });
-  if (wantsDelete && persistedSource?.store_watch_id) {
-    options.store?.deleteWatch(persistedSource.store_watch_id);
-    deleteSourceMeta(options, sourceMetaKeysForSourceId(id, { persistedSource }));
-    return { id, deleted: true, sources: listSources(options) };
-  }
-
-  const importedSource = importedTraceSources(options).find((item) => item.id === id);
-  if (wantsDelete && importedSource?.path) {
-    removeImportedTraceDir(importedSource.path, options.importsDir);
-    deleteSourceMeta(options, [id]);
-    return { id, deleted: true, sources: listSources(options) };
-  }
-
-  const liveSource = liveWatch ? activeWatchSources(new Map([[liveWatch.id, liveWatch]])).find((item) => item.id === id) : null;
-  const source = liveSource || persistedSource || importedSource || baseSources(options).find((item) => item.id === id);
-  if (!source) throw httpError(404, `Source not found: ${id}`);
-  if (wantsDelete) throw new Error("This source has no persisted capture data to delete.");
-
+  const { liveWatch, persistedSource, importedSource, source } = resolveSourceForUpdate(id, options);
   const metaKeys = sourceMetaKeysForSourceId(id, { source, liveWatch, persistedSource });
   const meta = mergedSourceMeta(options.sourceMeta, metaKeys);
-  if (wantsArchive) meta.hidden = true;
   if (Object.prototype.hasOwnProperty.call(input, "pinned")) meta.pinned = Boolean(input.pinned);
   if (Object.prototype.hasOwnProperty.call(input, "title")) {
     const title = sanitizeSourceTitle(input.title);
@@ -1606,6 +1573,120 @@ async function updateSource(req, options) {
   }
   setSourceMeta(options, metaKeys, meta);
   return { id, source: decorateSource(source, meta), sources: listSources(options) };
+}
+
+async function updateProjectSources(rawSelector, { wantsArchive, wantsDelete }, options) {
+  if (!wantsArchive && !wantsDelete) throw new Error("Project update requires archive or delete.");
+  const selector = normalizeProjectSelector(rawSelector);
+  const sources = listSources(options).filter((source) => sourceMatchesProjectSelector(source, selector));
+  if (!sources.length) throw httpError(404, `Project sources not found: ${selectorLabel(selector)}`);
+  if (wantsDelete) {
+    const nonDeletable = sources.filter((source) => !isDeletableSource(source, options));
+    if (nonDeletable.length) {
+      throw httpError(
+        400,
+        `Some sources in ${selectorLabel(selector)} have no persisted capture data to delete: ${nonDeletable
+          .map((source) => source.id)
+          .slice(0, 5)
+          .join(", ")}`,
+      );
+    }
+  }
+  const results = [];
+  for (const source of sources) {
+    const result = await applySourceLifecycleUpdate(source.id, { wantsArchive, wantsDelete }, options);
+    results.push({ id: source.id, ...result });
+  }
+  return {
+    project: selector,
+    affected_ids: results.map((result) => result.id),
+    affected: results.length,
+    archived: wantsArchive ? results.length : 0,
+    deleted: wantsDelete ? results.length : 0,
+    results,
+    sources: listSources(options),
+  };
+}
+
+function normalizeProjectSelector(input = {}) {
+  const agent = sanitizeSourceMetadataText(input.agent || "", { limit: MAX_SOURCE_AGENT_CHARS });
+  const workspace = sanitizeSourceMetadataText(input.workspace || "", { limit: MAX_SOURCE_WORKSPACE_CHARS });
+  const project = sanitizeSourceMetadataText(input.project || "", { limit: MAX_SOURCE_TITLE_CHARS });
+  if (!agent && !workspace && !project) throw new Error("Missing project selector.");
+  return { agent, workspace, project };
+}
+
+function sourceMatchesProjectSelector(source, selector) {
+  if (selector.agent && source.agent !== selector.agent) return false;
+  if (selector.workspace) return String(source.workspace || "") === selector.workspace;
+  if (selector.project) return String(source.project || displayProjectName(source.workspace) || "") === selector.project;
+  return false;
+}
+
+function selectorLabel(selector) {
+  return selector.workspace || selector.project || selector.agent || "project";
+}
+
+function isDeletableSource(source, options) {
+  if (!source) return false;
+  if (source.live_watch_id || source.store_watch_id || source.kind === "persisted_capture") return true;
+  if (source.kind === "imported_trace") return true;
+  if (options.watches?.has?.(source.id)) return true;
+  return Boolean(findPersistedWatchSource(options.store, { watch_id: source.id }));
+}
+
+function resolveSourceForUpdate(id, options) {
+  const liveWatch = options.watches.get(id);
+  const persistedSource = findPersistedWatchSource(options.store, { watch_id: id });
+  const importedSource = importedTraceSources(options).find((item) => item.id === id);
+  const liveSource = liveWatch ? activeWatchSources(new Map([[liveWatch.id, liveWatch]])).find((item) => item.id === id) : null;
+  const source = liveSource || persistedSource || importedSource || baseSources(options).find((item) => item.id === id);
+  if (!source) throw httpError(404, `Source not found: ${id}`);
+  return { liveWatch, persistedSource, importedSource, source };
+}
+
+async function applySourceLifecycleUpdate(id, { wantsArchive, wantsDelete }, options) {
+  if (!wantsArchive && !wantsDelete) return null;
+  const liveWatch = options.watches.get(id);
+  if (wantsDelete && liveWatch) {
+    await closeWatchProxy(liveWatch);
+    options.watches.delete(id);
+    deleteSourceMeta(options, sourceMetaKeysForSourceId(id, { liveWatch }));
+    options.store?.deleteWatch(liveWatch.watch_id);
+    return { removed: true, deleted: true };
+  }
+  if (wantsArchive && liveWatch) {
+    await closeWatchProxy(liveWatch);
+    liveWatch.status = "stopped";
+    options.store?.updateWatchStatus(liveWatch.watch_id, liveWatch.status);
+    options.watches.delete(id);
+    const archivedMeta = { hidden: true };
+    setSourceMeta(options, sourceMetaKeysForSourceId(id, { liveWatch }), archivedMeta);
+    return { archived: true };
+  }
+
+  const persistedSource = findPersistedWatchSource(options.store, { watch_id: id });
+  if (wantsDelete && persistedSource?.store_watch_id) {
+    options.store?.deleteWatch(persistedSource.store_watch_id);
+    deleteSourceMeta(options, sourceMetaKeysForSourceId(id, { persistedSource }));
+    return { deleted: true };
+  }
+
+  const importedSource = importedTraceSources(options).find((item) => item.id === id);
+  if (wantsDelete && importedSource?.path) {
+    removeImportedTraceDir(importedSource.path, options.importsDir);
+    deleteSourceMeta(options, [id]);
+    return { deleted: true };
+  }
+
+  if (wantsDelete) throw new Error("This source has no persisted capture data to delete.");
+
+  const { source } = resolveSourceForUpdate(id, options);
+  const metaKeys = sourceMetaKeysForSourceId(id, { source, liveWatch, persistedSource });
+  const meta = mergedSourceMeta(options.sourceMeta, metaKeys);
+  if (wantsArchive) meta.hidden = true;
+  setSourceMeta(options, metaKeys, meta);
+  return { archived: Boolean(wantsArchive) };
 }
 
 function updateImportedTraceTitle(dir, title) {

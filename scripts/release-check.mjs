@@ -66,6 +66,7 @@ const protocolCommands = [
 ];
 const persistenceCommands = [
   ["npm", "run", "smoke:persistence-store"],
+  ["npm", "run", "smoke:project-source-actions"],
   ["npm", "run", "smoke:request-tree"],
   ["npm", "run", "smoke:shared-proxy-auto-restore"],
 ];
