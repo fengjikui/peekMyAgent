@@ -46,6 +46,7 @@ const TRACE_IMPORT_INTENT = "trace-import";
 const AGENT_SEND_INTENT = "agent-send";
 const OTEL_INGEST_INTENT = "otel-ingest";
 const TRANSLATION_GENERATE_INTENT = "translation-generate";
+const SOURCE_UPDATE_INTENT = "source-update";
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
 const TIMELINE_RESPONSE_TEXT_CHARS = 700;
 const TIMELINE_RESPONSE_THINKING_CHARS = 360;
@@ -289,6 +290,8 @@ async function handleRequest(req, res, options) {
   }
   if (url.pathname === "/api/source/update") {
     if (rejectWrongMethod(req, res, "POST")) return;
+    const intentGuard = validateSourceUpdateIntent(req);
+    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
     return writeJson(res, 200, await updateSource(req, options));
   }
   if (url.pathname === "/api/trace/import") {
@@ -4543,6 +4546,15 @@ function validateTranslationGenerateIntent(req) {
   return {
     status: 403,
     message: "Translation generation requires an explicit dashboard refresh intent.",
+  };
+}
+
+function validateSourceUpdateIntent(req) {
+  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
+  if (intent === SOURCE_UPDATE_INTENT) return null;
+  return {
+    status: 403,
+    message: "Source update requires an explicit dashboard source action intent.",
   };
 }
 

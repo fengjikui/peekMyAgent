@@ -173,9 +173,11 @@ async function getJson(url) {
 }
 
 async function postJson(url, payload, { headers = {} } = {}) {
+  const defaultHeaders = { "content-type": "application/json" };
+  if (String(url).includes("/api/source/update")) defaultHeaders["x-peekmyagent-intent"] = "source-update";
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json", ...headers },
+    headers: { ...defaultHeaders, ...headers },
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);

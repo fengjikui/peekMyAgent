@@ -170,9 +170,11 @@ async function postModelRequest(baseUrl, body) {
 }
 
 async function postJson(url, payload) {
+  const headers = { "content-type": "application/json" };
+  if (String(url).includes("/api/source/update")) headers["x-peekmyagent-intent"] = "source-update";
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);

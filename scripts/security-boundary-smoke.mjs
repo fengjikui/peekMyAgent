@@ -249,9 +249,16 @@ try {
     });
     assert.equal(noIntentOtelIngest.status, 403, "OTel ingest without explicit local wrapper intent is rejected");
 
-    const longUnknownSourceUpdate = await fetch(`${viewer.url}/api/source/update`, {
+    const noIntentSourceUpdate = await fetch(`${viewer.url}/api/source/update`, {
       method: "POST",
       headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: longUnknownSourceId, title: "ignored" }),
+    });
+    assert.equal(noIntentSourceUpdate.status, 403, "source update without explicit dashboard intent is rejected");
+
+    const longUnknownSourceUpdate = await fetch(`${viewer.url}/api/source/update`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "source-update" },
       body: JSON.stringify({ id: longUnknownSourceId, title: "ignored" }),
     });
     assert.equal(longUnknownSourceUpdate.status, 404, "source update rejects long unknown sources");

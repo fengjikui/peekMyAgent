@@ -1910,7 +1910,7 @@ async function updateSourceMeta(sourceId, payload) {
   try {
     const response = await fetchJson("/api/source/update", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "source-update" },
       body: JSON.stringify({ id: sourceId, ...payload }),
     });
     state.sources = response.sources || (await fetchJson("/api/sources"));
