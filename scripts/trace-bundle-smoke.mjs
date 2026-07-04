@@ -50,6 +50,17 @@ try {
       ],
       tools: [{ name: "Read", input_schema: { type: "object" } }],
     });
+    await postModelRequest(watch.base_url, {
+      model: "mock-claude",
+      messages: [
+        { role: "user", content: "export this trace" },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "second request" },
+        { role: "assistant", content: "ok again" },
+        { role: "user", content: "deep trace payload" },
+      ],
+      metadata: { nested: deepObject("trace-export-depth-guard", 90) },
+    });
 
     const exported = await fetchBuffer(`${viewer.url}/api/trace/export?source=${encodeURIComponent(watch.id)}`);
     assert.equal(exported.status, 200);
@@ -57,18 +68,19 @@ try {
     const bundle = JSON.parse(zlib.gunzipSync(exported.buffer).toString("utf8"));
     const bundleText = JSON.stringify(bundle);
     assert.equal(bundle.format, "peekmyagent.trace.v1");
-    assert.equal(bundle.captures.length, 2);
-    assert.equal(bundle.manifest.request_count, 2);
+    assert.equal(bundle.captures.length, 3);
+    assert.equal(bundle.manifest.request_count, 3);
     assert.equal(bundleText.includes(exportSecret), false, "exported trace should not contain common secret patterns");
     assert.equal(bundleText.includes("[REDACTED:secret]"), true, "exported trace should mark redacted secret patterns");
+    assert.equal(bundleText.includes("[REDACTED:trace_export_max_depth]"), true, "exported trace should bound pathological nesting");
     assert.equal(bundle.manifest.export_kind, "sanitized_share_bundle");
     assert.equal(bundle.manifest.redaction.applied, true);
-    assert.ok(bundle.manifest.redaction.count >= 1);
+    assert.ok(bundle.manifest.redaction.count >= 2);
     assert.match(bundle.manifest.privacy_notice, /Review before sharing/);
 
     const imported = await postBuffer(`${viewer.url}/api/trace/import`, exported.buffer);
     assert.equal(imported.ok, true);
-    assert.equal(imported.request_count, 2);
+    assert.equal(imported.request_count, 3);
     assert.ok(imported.source_id?.startsWith("imported-"));
 
     const sources = await getJson(`${viewer.url}/api/sources`);
@@ -79,7 +91,7 @@ try {
     assert.ok(fs.existsSync(importedSource.path), "imported trace directory exists before deletion");
 
     const importedView = await getJson(`${viewer.url}/api/view?source=${encodeURIComponent(imported.source_id)}`);
-    assert.equal(importedView.stats.request_count, 2);
+    assert.equal(importedView.stats.request_count, 3);
     assert.equal(importedView.source.kind, "imported_trace");
     assert.equal(importedView.requests[0].summary.current_user, "export this trace");
     assert.equal(importedView.requests[1].summary.current_user, "second request");
@@ -162,6 +174,14 @@ function listen(server) {
 
 function closeServer(server) {
   return new Promise((resolve) => server.close(() => resolve()));
+}
+
+function deepObject(value, depth) {
+  let output = value;
+  for (let index = 0; index < depth; index += 1) {
+    output = { index, next: output };
+  }
+  return output;
 }
 
 async function assertFileExportUsesRawCaptureFastPath(rootDir) {

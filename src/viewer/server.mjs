@@ -22,6 +22,8 @@ const MAX_JSON_BODY_BYTES = 8 * 1024 * 1024;
 const MAX_TRACE_IMPORT_BYTES = 64 * 1024 * 1024;
 const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
 const MAX_TRACE_IMPORT_CAPTURES = 5000;
+const MAX_TRACE_EXPORT_REDACTION_DEPTH = 64;
+const MAX_TRACE_EXPORT_REDACTION_NODES = 200000;
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
 const TIMELINE_RESPONSE_TEXT_CHARS = 700;
 const TIMELINE_RESPONSE_THINKING_CHARS = 360;
@@ -1545,31 +1547,58 @@ function traceBundleStats(captures) {
   };
 }
 
-function redactTraceExportValue(value, pathParts = []) {
+function redactTraceExportValue(value, pathParts = [], context = { nodes: 0 }) {
+  const fieldPath = pathParts.length ? pathParts.join(".") : "trace";
+  if (pathParts.length > MAX_TRACE_EXPORT_REDACTION_DEPTH) {
+    return redactedTraceExportMarker(fieldPath, "trace_export_max_depth");
+  }
+  if (context.nodes >= MAX_TRACE_EXPORT_REDACTION_NODES) {
+    return redactedTraceExportMarker(fieldPath, "trace_export_node_budget");
+  }
+  context.nodes += 1;
   if (typeof value === "string") {
-    const fieldPath = pathParts.length ? pathParts.join(".") : "trace";
     return redactText(value, fieldPath);
   }
   if (Array.isArray(value)) {
     const redactions = [];
-    const output = value.map((item, index) => {
-      const child = redactTraceExportValue(item, [...pathParts, String(index)]);
+    const output = [];
+    for (const [index, item] of value.entries()) {
+      if (context.nodes >= MAX_TRACE_EXPORT_REDACTION_NODES) {
+        const child = redactedTraceExportMarker(fieldPath, "trace_export_node_budget");
+        redactions.push(...child.redactions);
+        output.push(child.value);
+        break;
+      }
+      const child = redactTraceExportValue(item, [...pathParts, String(index)], context);
       redactions.push(...child.redactions);
-      return child.value;
-    });
+      output.push(child.value);
+    }
     return { value: output, redactions };
   }
   if (value && typeof value === "object") {
     const redactions = [];
     const output = {};
     for (const [key, childValue] of Object.entries(value)) {
-      const child = redactTraceExportValue(childValue, [...pathParts, key]);
+      if (context.nodes >= MAX_TRACE_EXPORT_REDACTION_NODES) {
+        const child = redactedTraceExportMarker(fieldPath, "trace_export_node_budget");
+        redactions.push(...child.redactions);
+        output.__peekmyagent_redacted__ = child.value;
+        break;
+      }
+      const child = redactTraceExportValue(childValue, [...pathParts, key], context);
       redactions.push(...child.redactions);
       output[key] = child.value;
     }
     return { value: output, redactions };
   }
   return { value, redactions: [] };
+}
+
+function redactedTraceExportMarker(fieldPath, reason) {
+  return {
+    value: `[REDACTED:${reason}]`,
+    redactions: [{ field_path: fieldPath, reason }],
+  };
 }
 
 async function importTraceBundle(req, options) {
