@@ -15,7 +15,7 @@
 
 | 风险面 | 典型问题 | 当前策略 |
 | --- | --- | --- |
-| 本地 dashboard API | 恶意网页通过浏览器向 `127.0.0.1` 发起读取、导出或状态修改请求 | 所有 API 拒绝跨站 `Origin` / `Referer` / Fetch Metadata，拒绝资源加载/页面导航形态的 API 请求，所有状态修改接口额外要求 JSON content-type |
+| 本地 dashboard API | 恶意网页通过浏览器向 `127.0.0.1` 发起读取、导出或状态修改请求 | 所有 API 拒绝跨站 `Origin` / `Referer` / Fetch Metadata，拒绝资源加载/页面导航形态的 API 请求，只读接口限制为 `GET`，状态修改接口限制为 `POST` 且额外要求 JSON content-type |
 | 远程暴露 | 用户误把 dashboard/proxy 绑定到 `0.0.0.0` | 默认拒绝非 loopback host；远程暴露必须显式 unsafe opt-in |
 | Capture proxy | 被当成通用 SSRF/open proxy | 上游 URL 只允许 `http:` / `https:`，剥离 hop-by-hop、proxy 和内部 `x-peek-*` 头 |
 | 大请求/导入包 | 请求体、gzip Trace、导入 captures 过大导致内存或 CPU 放大 | JSON body、captured request、Trace 压缩/解压大小和 capture 数量都有上限 |
@@ -30,6 +30,7 @@
 - `src/viewer/server.mjs`
   - 拒绝非 loopback 绑定，除非显式开启 unsafe remote。
   - 为本地 API 增加 `Origin` / `Referer` / Fetch Metadata 防护；包括 daemon shutdown 在内的所有状态修改接口额外要求 JSON content-type。
+  - 本地 API 显式限制 HTTP 方法：source/view/request/status/export/translation cache 等只读接口只接受 `GET`，watch/source update/import/send/shutdown/translation generate 等状态修改接口只接受 `POST`。
   - API 拒绝 `no-cors` 资源加载和 `document` 导航等浏览器资源型请求，避免恶意页面用图片、脚本或跳转形态诱导本地服务执行重活。
   - 为 dashboard、JSON API 和 Trace 导出统一增加基础浏览器安全响应头：`nosniff`、`no-referrer`、`COOP` 和限制脚本/对象/嵌入的 CSP。
   - 限制普通 JSON body、Trace 导入体积、gzip 解压体积和导入 capture 数量。
@@ -92,7 +93,7 @@
 ## 新增/扩展的自动验证
 
 - `npm run smoke:security-boundary`
-  - 覆盖非 loopback 绑定拒绝、Trace 导出 intent 要求、跨站 API/Trace 导出拒绝、浏览器资源/导航形态 API 拒绝、非 JSON 状态修改拒绝、daemon shutdown JSON content-type 要求、基础安全响应头、不安全语言路径拒绝、不安全 agent slug 归一化、翻译材料规模拒绝、超大 Trace capture 数拒绝。
+  - 覆盖非 loopback 绑定拒绝、只读/状态修改 API 方法限制、Trace 导出 intent 要求、跨站 API/Trace 导出拒绝、浏览器资源/导航形态 API 拒绝、非 JSON 状态修改拒绝、daemon shutdown JSON content-type 要求、基础安全响应头、不安全语言路径拒绝、不安全 agent slug 归一化、翻译材料规模拒绝、超大 Trace capture 数拒绝。
 - `npm run smoke:platform`
   - 覆盖 macOS/Windows/Linux 路径、浏览器打开、子进程启动和 app path 构造；额外覆盖翻译缓存路径在 `.` / `..` 和 Windows 保留名输入下不会逃出 state translations 根目录。
 - `npm run smoke:source-list-performance`

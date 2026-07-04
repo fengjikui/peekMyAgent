@@ -249,40 +249,81 @@ async function handleRequest(req, res, options) {
   if (url.pathname === "/styles.css") return serveFile(res, path.join(viewerDir, "styles.css"), "text/css; charset=utf-8");
   if (url.pathname === "/client.js") return serveFile(res, path.join(viewerDir, "client.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/markdown.js") return serveFile(res, path.join(viewerDir, "markdown.js"), "text/javascript; charset=utf-8");
-  if (url.pathname === "/api/sources") return writeJson(res, 200, listSources(options));
+  if (url.pathname === "/api/sources") {
+    if (rejectWrongMethod(req, res, "GET")) return;
+    return writeJson(res, 200, listSources(options));
+  }
   if (url.pathname === "/api/translations") {
+    if (rejectWrongMethod(req, res, "GET")) return;
     const agent = sanitizeSourceMetadataText(url.searchParams.get("agent") || "Claude Code", { fallback: "Claude Code", limit: MAX_SOURCE_AGENT_CHARS });
     const targetLanguage = url.searchParams.get("target_language") || "zh-CN";
     return writeJson(res, 200, publicTranslationCache(loadTranslationCache({ agent, targetLanguage })));
   }
-  if (url.pathname === "/api/translations/generate" && req.method === "POST") return writeJson(res, 200, await generateTranslations(req, options));
-  if (url.pathname === "/api/watch/start" && req.method === "POST") return writeJson(res, 200, await startWatch(req, options));
-  if (url.pathname === "/api/watch/stop" && req.method === "POST") return writeJson(res, 200, await stopWatch(req, options));
-  if (url.pathname === "/api/watch/pause" && req.method === "POST") return writeJson(res, 200, await pauseWatch(req, options));
-  if (url.pathname === "/api/agent/send" && req.method === "POST") return writeJson(res, 200, await sendAgentMessage(req, options));
-  if (url.pathname === "/api/source/update" && req.method === "POST") return writeJson(res, 200, await updateSource(req, options));
-  if (url.pathname === "/api/trace/import" && req.method === "POST") return writeJson(res, 200, await importTraceBundle(req, options));
+  if (url.pathname === "/api/translations/generate") {
+    if (rejectWrongMethod(req, res, "POST")) return;
+    return writeJson(res, 200, await generateTranslations(req, options));
+  }
+  if (url.pathname === "/api/watch/start") {
+    if (rejectWrongMethod(req, res, "POST")) return;
+    return writeJson(res, 200, await startWatch(req, options));
+  }
+  if (url.pathname === "/api/watch/stop") {
+    if (rejectWrongMethod(req, res, "POST")) return;
+    return writeJson(res, 200, await stopWatch(req, options));
+  }
+  if (url.pathname === "/api/watch/pause") {
+    if (rejectWrongMethod(req, res, "POST")) return;
+    return writeJson(res, 200, await pauseWatch(req, options));
+  }
+  if (url.pathname === "/api/agent/send") {
+    if (rejectWrongMethod(req, res, "POST")) return;
+    return writeJson(res, 200, await sendAgentMessage(req, options));
+  }
+  if (url.pathname === "/api/source/update") {
+    if (rejectWrongMethod(req, res, "POST")) return;
+    return writeJson(res, 200, await updateSource(req, options));
+  }
+  if (url.pathname === "/api/trace/import") {
+    if (rejectWrongMethod(req, res, "POST")) return;
+    return writeJson(res, 200, await importTraceBundle(req, options));
+  }
   if (url.pathname === "/api/trace/export") {
+    if (rejectWrongMethod(req, res, "GET")) return;
     const intentGuard = validateTraceExportIntent(req);
     if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
     return exportTraceBundle(res, url.searchParams.get("source") || "", options);
   }
-  if (url.pathname === "/api/capture/otel" && req.method === "POST") return writeJson(res, 200, await ingestOtelCaptures(req, options));
-  if (url.pathname === "/api/watch/status") return writeJson(res, 200, listWatchStatus(options));
-  if (url.pathname === "/api/daemon/ping") return writeJson(res, 200, daemonPing(options));
-  if (url.pathname === "/api/daemon/status") return writeJson(res, 200, daemonStatus(options));
-  if (url.pathname === "/api/daemon/shutdown" && req.method === "POST") {
+  if (url.pathname === "/api/capture/otel") {
+    if (rejectWrongMethod(req, res, "POST")) return;
+    return writeJson(res, 200, await ingestOtelCaptures(req, options));
+  }
+  if (url.pathname === "/api/watch/status") {
+    if (rejectWrongMethod(req, res, "GET")) return;
+    return writeJson(res, 200, listWatchStatus(options));
+  }
+  if (url.pathname === "/api/daemon/ping") {
+    if (rejectWrongMethod(req, res, "GET")) return;
+    return writeJson(res, 200, daemonPing(options));
+  }
+  if (url.pathname === "/api/daemon/status") {
+    if (rejectWrongMethod(req, res, "GET")) return;
+    return writeJson(res, 200, daemonStatus(options));
+  }
+  if (url.pathname === "/api/daemon/shutdown") {
+    if (rejectWrongMethod(req, res, "POST")) return;
     res.once("finish", () => options.requestShutdown?.());
     writeJson(res, 200, { ok: true, action: "shutdown", pid: process.pid });
     return;
   }
   if (url.pathname === "/api/view") {
+    if (rejectWrongMethod(req, res, "GET")) return;
     const requestedSource = sanitizeApiLookupId(url.searchParams.get("source"), { limit: MAX_API_SOURCE_ID_CHARS });
     const sourceId = requestedSource || options.demo || null;
     const data = loadViewerData(sourceId, options, { requireSource: Boolean(requestedSource) });
     return writeJson(res, 200, url.searchParams.get("compact") === "1" ? compactViewerDataForTimeline(data) : data);
   }
   if (url.pathname === "/api/request") {
+    if (rejectWrongMethod(req, res, "GET")) return;
     const requestedSource = sanitizeApiLookupId(url.searchParams.get("source"), { limit: MAX_API_SOURCE_ID_CHARS });
     const sourceId = requestedSource || options.demo || null;
     const requestId = sanitizeApiLookupId(url.searchParams.get("request") || "", { limit: MAX_API_REQUEST_ID_CHARS });
@@ -4408,7 +4449,10 @@ function validateLocalHttpRequest(req, url, { unsafeAllowRemote = false } = {}) 
   if (secFetchMode === "no-cors" || (secFetchDest && secFetchDest !== "empty")) {
     return { status: 403, message: "Browser resource or navigation requests are not allowed for peekMyAgent APIs." };
   }
-  if (["POST", "PUT", "PATCH", "DELETE"].includes(String(req.method || "").toUpperCase())) {
+  const method = String(req.method || "").toUpperCase();
+  const expectedMethod = expectedApiMethod(url.pathname);
+  const knownWrongMethod = expectedMethod && method !== expectedMethod;
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && !knownWrongMethod) {
     const contentType = headerValue(req.headers || {}, "content-type");
     const isJson = /^application\/(?:json|[^;]+\+json)\b/i.test(contentType);
     const isTraceImport = url.pathname === "/api/trace/import" && /^(application\/(?:octet-stream|gzip|json)|[^;]+\/[^;]+\+json)\b/i.test(contentType);
@@ -4419,6 +4463,32 @@ function validateLocalHttpRequest(req, url, { unsafeAllowRemote = false } = {}) 
   return null;
 }
 
+function expectedApiMethod(pathname) {
+  switch (pathname) {
+    case "/api/sources":
+    case "/api/translations":
+    case "/api/trace/export":
+    case "/api/watch/status":
+    case "/api/daemon/ping":
+    case "/api/daemon/status":
+    case "/api/view":
+    case "/api/request":
+      return "GET";
+    case "/api/translations/generate":
+    case "/api/watch/start":
+    case "/api/watch/stop":
+    case "/api/watch/pause":
+    case "/api/agent/send":
+    case "/api/source/update":
+    case "/api/trace/import":
+    case "/api/capture/otel":
+    case "/api/daemon/shutdown":
+      return "POST";
+    default:
+      return "";
+  }
+}
+
 function validateTraceExportIntent(req) {
   const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
   if (intent === TRACE_EXPORT_INTENT) return null;
@@ -4426,6 +4496,15 @@ function validateTraceExportIntent(req) {
     status: 403,
     message: "Trace export requires an explicit dashboard export intent.",
   };
+}
+
+function rejectWrongMethod(req, res, method) {
+  const actual = String(req.method || "GET").toUpperCase();
+  const expected = String(method || "GET").toUpperCase();
+  if (actual === expected) return false;
+  res.setHeader("allow", expected);
+  writeJson(res, 405, { error: `Method ${actual} is not allowed for this endpoint. Use ${expected}.` });
+  return true;
 }
 
 function validateBrowserSourceHeader(value, hostHeader, { unsafeAllowRemote = false, headerName = "Origin" } = {}) {

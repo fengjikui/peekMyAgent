@@ -27,6 +27,17 @@ try {
     assert.equal(sources.status, 200, "sources API loads");
     assertSecurityHeaders(sources, "JSON API");
 
+    const postSources = await fetch(`${viewer.url}/api/sources`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    assert.equal(postSources.status, 405, "read-only sources API rejects POST");
+    assert.equal(postSources.headers.get("allow"), "GET", "read-only sources API advertises GET");
+
+    const postSourcesWithoutJson = await fetch(`${viewer.url}/api/sources`, { method: "POST" });
+    assert.equal(postSourcesWithoutJson.status, 405, "read-only sources API rejects POST before JSON content-type checks");
+
     const dashboardStyleSources = await fetch(`${viewer.url}/api/sources`, {
       headers: {
         "sec-fetch-site": "same-origin",
@@ -66,6 +77,21 @@ try {
     const defaultView = await fetch(`${viewer.url}/api/view`);
     assert.equal(defaultView.status, 200, "view API without source may still open the default source");
 
+    const postView = await fetch(`${viewer.url}/api/view`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    assert.equal(postView.status, 405, "read-only view API rejects POST");
+    assert.equal(postView.headers.get("allow"), "GET", "read-only view API advertises GET");
+
+    const postRequest = await fetch(`${viewer.url}/api/request`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    assert.equal(postRequest.status, 405, "read-only request detail API rejects POST");
+
     const unknownView = await fetch(`${viewer.url}/api/view?source=missing-trace-source`);
     assert.equal(unknownView.status, 404, "view API rejects unknown explicit sources instead of falling back");
 
@@ -96,6 +122,14 @@ try {
       headers: { "sec-fetch-site": "same-origin", referer: `${viewerOrigin}/` },
     });
     assert.equal(noIntentExport.status, 403, "trace export without explicit dashboard intent is rejected");
+
+    const postExport = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "trace-export" },
+      body: "{}",
+    });
+    assert.equal(postExport.status, 405, "trace export rejects POST");
+    assert.equal(postExport.headers.get("allow"), "GET", "trace export advertises GET");
 
     const exportResponse = await fetch(`${viewer.url}/api/trace/export?source=${encodeURIComponent(startedWatch.id)}`, {
       headers: { "x-peekmyagent-intent": "trace-export" },
@@ -136,6 +170,13 @@ try {
       headers: { "sec-fetch-site": "same-origin", referer: `${viewerOrigin}/`, "x-peekmyagent-intent": "trace-export" },
     });
     assert.equal(sameOriginExport.status, 200, "same-origin trace export remains accepted");
+
+    const getWatchStart = await fetch(`${viewer.url}/api/watch/start`);
+    assert.equal(getWatchStart.status, 405, "state-changing watch start API rejects GET");
+    assert.equal(getWatchStart.headers.get("allow"), "POST", "state-changing watch start API advertises POST");
+
+    const putWatchStart = await fetch(`${viewer.url}/api/watch/start`, { method: "PUT" });
+    assert.equal(putWatchStart.status, 405, "state-changing watch start API rejects unsupported state-changing methods before JSON content-type checks");
 
     const loopbackWrongPort = await fetch(`${viewer.url}/api/watch/start`, {
       method: "POST",
