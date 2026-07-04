@@ -111,9 +111,16 @@ try {
     assert.equal(longUnknownRequestJson.error.length < 380, true, "request detail does not echo unbounded request ids");
     assert.equal(/[\x00-\x1F\x7F]/.test(longUnknownRequestJson.error), false, "request detail strips control characters from request id errors");
 
-    const unknownTranslationSource = await fetch(`${viewer.url}/api/translations/generate`, {
+    const noIntentTranslationGenerate = await fetch(`${viewer.url}/api/translations/generate`, {
       method: "POST",
       headers: { "content-type": "application/json" },
+      body: JSON.stringify({ target_language: "zh-CN", materials: [] }),
+    });
+    assert.equal(noIntentTranslationGenerate.status, 403, "translation generation without explicit dashboard intent is rejected");
+
+    const unknownTranslationSource = await fetch(`${viewer.url}/api/translations/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "translation-generate" },
       body: JSON.stringify({ source_id: "missing-trace-source", target_language: "zh-CN", section: "tools" }),
     });
     assert.equal(unknownTranslationSource.status, 404, "translation refresh rejects unknown explicit sources instead of falling back");
@@ -254,7 +261,7 @@ try {
 
     const unsafeLanguage = await fetch(`${viewer.url}/api/translations/generate`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "translation-generate" },
       body: JSON.stringify({ target_language: "../escape", materials: [] }),
     });
     assert.equal(unsafeLanguage.status, 400, "unsafe path-backed language labels are rejected");
@@ -275,7 +282,7 @@ try {
     const longMissingSource = `missing-source\n${"x".repeat(2000)}`;
     const longMissingTranslationSource = await fetch(`${viewer.url}/api/translations/generate`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "translation-generate" },
       body: JSON.stringify({ source_id: longMissingSource, target_language: "zh-CN", section: "tools" }),
     });
     assert.equal(longMissingTranslationSource.status, 404, "long unknown translation source is rejected before model calls");
@@ -285,7 +292,7 @@ try {
 
     const tooManyTranslationMaterials = await fetch(`${viewer.url}/api/translations/generate`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "translation-generate" },
       body: JSON.stringify({
         target_language: "zh-CN",
         materials: Array.from({ length: 1501 }, (_, index) => ({
@@ -298,7 +305,7 @@ try {
 
     const oversizedTranslationMaterial = await fetch(`${viewer.url}/api/translations/generate`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "translation-generate" },
       body: JSON.stringify({
         target_language: "zh-CN",
         materials: [{ kind: "manual_text", source_text: "x".repeat(200001) }],
@@ -308,7 +315,7 @@ try {
 
     const oversizedTranslationBatch = await fetch(`${viewer.url}/api/translations/generate`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "translation-generate" },
       body: JSON.stringify({
         target_language: "zh-CN",
         materials: Array.from({ length: 1001 }, (_, index) => ({

@@ -86,7 +86,7 @@ try {
   assert.equal(ingest.ok, true);
 
   const gen = await (await fetch(`${viewer.url}/api/translations/generate`, {
-    method: "POST", headers: { "content-type": "application/json" },
+    method: "POST", headers: { "content-type": "application/json", "x-peekmyagent-intent": "translation-generate" },
     body: JSON.stringify({ source_id: ingest.source_id, section: "harness", agent: "Claude Code", target_language: "zh-CN", concurrency: 10000 }),
   })).json();
 
@@ -118,7 +118,7 @@ try {
   let requestScopedGen;
   try {
     requestScopedGen = await (await fetch(`${viewer.url}/api/translations/generate`, {
-      method: "POST", headers: { "content-type": "application/json" },
+      method: "POST", headers: { "content-type": "application/json", "x-peekmyagent-intent": "translation-generate" },
       body: JSON.stringify({ source_id: ingest.source_id, request_id: requestId, section: "harness", agent: "Claude Code", target_language: "zh-CN" }),
     })).json();
   } finally {

@@ -34,6 +34,7 @@
   - 页面发送消息到 Agent 的高敏入口 `/api/agent/send` 必须带 `x-peekmyagent-intent: agent-send`，避免普通脚本或误调用触发外部 Agent 进程。
   - OTel raw-body dump 入库入口 `/api/capture/otel` 必须带 `x-peekmyagent-intent: otel-ingest`，避免普通脚本或误调用触发本机目录扫描与持久化写入。
   - Trace 导入入口 `/api/trace/import` 必须带 `x-peekmyagent-intent: trace-import`，避免普通脚本或误调用触发解压、解析和本地 imports 写入。
+  - 翻译生成入口 `/api/translations/generate` 必须带 `x-peekmyagent-intent: translation-generate`，避免普通脚本或误调用触发本地 Claude CLI / 模型服务请求。
   - API 拒绝 `no-cors` 资源加载和 `document` 导航等浏览器资源型请求，避免恶意页面用图片、脚本或跳转形态诱导本地服务执行重活。
   - 为 dashboard、JSON API 和 Trace 导出统一增加基础浏览器安全响应头：`nosniff`、`no-referrer`、`COOP`、`CORP`、禁用摄像头/麦克风/地理位置/USB/串口等浏览器能力的 `Permissions-Policy`，以及限制脚本/对象/嵌入的 CSP。
   - 限制普通 JSON body、Trace 导入体积、gzip 解压体积和导入 capture 数量。
@@ -99,7 +100,7 @@
 ## 新增/扩展的自动验证
 
 - `npm run smoke:security-boundary`
-  - 覆盖非 loopback 绑定拒绝、只读/状态修改 API 方法限制、Trace 导出/导入 intent 要求、Agent 发送 intent 要求、OTel ingest intent 要求、跨站 API/Trace 导出拒绝、浏览器资源/导航形态 API 拒绝、非 JSON 状态修改拒绝、daemon shutdown JSON content-type 要求、基础安全响应头和浏览器能力禁用策略、不安全语言路径拒绝、不安全 agent slug 归一化、翻译材料规模拒绝、超大 Trace capture 数拒绝。
+  - 覆盖非 loopback 绑定拒绝、只读/状态修改 API 方法限制、Trace 导出/导入 intent 要求、Agent 发送 intent 要求、OTel ingest intent 要求、翻译生成 intent 要求、跨站 API/Trace 导出拒绝、浏览器资源/导航形态 API 拒绝、非 JSON 状态修改拒绝、daemon shutdown JSON content-type 要求、基础安全响应头和浏览器能力禁用策略、不安全语言路径拒绝、不安全 agent slug 归一化、翻译材料规模拒绝、超大 Trace capture 数拒绝。
 - `npm run smoke:proxy-openai` / `npm run smoke:proxy-anthropic`
   - 覆盖 capture proxy 的请求/响应 header 过滤、敏感响应头脱敏、watch/conversation 归属、非允许 HTTP 方法拒绝、`CONNECT`/`Upgrade` 拒绝，以及跨站浏览器请求和资源加载形态不会被捕获或转发。
 - `npm run smoke:platform`

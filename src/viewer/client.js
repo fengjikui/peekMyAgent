@@ -1433,7 +1433,7 @@ async function generateTranslationsForActiveSource(section, { automatic = false,
   try {
     const result = await fetchJson("/api/translations/generate", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "translation-generate" },
       body: JSON.stringify({
         agent: selectedAgent,
         source_id: state.data?.source?.id || state.activeSourceId || "",
@@ -1551,7 +1551,7 @@ async function retranslateTranslationBlock(actionId) {
   try {
     const result = await fetchJson("/api/translations/generate", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-peekmyagent-intent": "translation-generate" },
       body: JSON.stringify({
         agent: selectedAgent,
         source_id: state.data?.source?.id || state.activeSourceId || "",
