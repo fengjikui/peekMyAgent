@@ -37,10 +37,17 @@ try {
     assert.equal(view.requests.length, requestCount);
     assert.equal(view.requests[0].detail_omitted, true);
     assert.equal(view.requests[0].raw.detail_omitted, true);
+    assert.equal(view.requests[0].raw.headers, undefined);
+    assert.equal(view.requests[0].raw.response.headers, undefined);
+    assert.equal(view.requests[0].summary.response.preview, undefined);
     assert.equal(view.requests[0].summary.response.complete_response, undefined);
     assert.equal(view.requests[0].summary.response.complete_response_omitted, true);
     assert.equal(view.requests[0].summary.history_stack.length, 0);
     assert.ok(view.requests[0].summary.history_stack_omitted.count > 0);
+    assert.ok(
+      JSON.stringify(view.requests[0].context_delta.previews || []).length < 1200,
+      "compact context delta previews should stay small",
+    );
 
     console.log(
       `compact-view-performance smoke passed (${requestCount} requests, ${byteLength} bytes, ${Math.round(elapsedMs)}ms)`,

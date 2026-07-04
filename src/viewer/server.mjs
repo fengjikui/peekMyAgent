@@ -23,18 +23,22 @@ const MAX_TRACE_IMPORT_BYTES = 64 * 1024 * 1024;
 const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
 const MAX_TRACE_IMPORT_CAPTURES = 5000;
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
-const TIMELINE_RESPONSE_TEXT_CHARS = 1200;
-const TIMELINE_RESPONSE_THINKING_CHARS = 800;
-const TIMELINE_TOOL_ARGUMENT_CHARS = 600;
-const TIMELINE_CURRENT_USER_CHARS = 600;
+const TIMELINE_RESPONSE_TEXT_CHARS = 700;
+const TIMELINE_RESPONSE_THINKING_CHARS = 360;
+const TIMELINE_TOOL_ARGUMENT_CHARS = 360;
+const TIMELINE_CURRENT_USER_CHARS = 520;
 const TIMELINE_SYSTEM_PREVIEW_CHARS = 320;
 const TIMELINE_ASSISTANT_PREVIEW_CHARS = 320;
 const TIMELINE_INTERNAL_PREVIEW_CHARS = 320;
-const TIMELINE_ENTRY_TEXT_CHARS = 420;
-const TIMELINE_SUBAGENT_RESULT_CHARS = 1200;
+const TIMELINE_ENTRY_TEXT_CHARS = 320;
+const TIMELINE_SUBAGENT_RESULT_CHARS = 700;
 const TIMELINE_RESPONSE_PREVIEW_CHARS = 240;
 const TIMELINE_THINKING_PREVIEW_CHARS = 160;
 const TIMELINE_COMPOSITION_SECTION_KEYS = ["current_user", "history_context", "system", "tools", "tool_result", "params"];
+const TIMELINE_ROLE_LIMIT = 48;
+const TIMELINE_TOOL_NAME_LIMIT = 24;
+const TIMELINE_CONTEXT_PREVIEW_LIMIT = 4;
+const TIMELINE_CONTEXT_PREVIEW_CHARS = 140;
 const SOURCE_META_FILE = "source-meta.json";
 const comparableMessageKeyCache = new WeakMap();
 
@@ -898,15 +902,20 @@ function compactViewerDataForTimeline(data) {
 function compactRequestForTimeline(request) {
   const summary = request.summary || {};
   const historyStack = Array.isArray(summary.history_stack) ? summary.history_stack : [];
-  const { history_stack, tool_calls, tool_results, ...summaryWithoutHeavyFields } = summary;
+  const { history_stack, tool_calls, tool_results, roles, tool_names, ...summaryWithoutHeavyFields } = summary;
   return {
     ...request,
+    context_delta: compactContextDeltaForTimeline(request.context_delta),
     summary: {
       ...summaryWithoutHeavyFields,
       history_stack: [],
       history_stack_omitted: {
         count: historyStack.length,
       },
+      roles: compactArrayForTimeline(roles, TIMELINE_ROLE_LIMIT),
+      roles_omitted: Array.isArray(roles) && roles.length > TIMELINE_ROLE_LIMIT ? { count: roles.length - TIMELINE_ROLE_LIMIT, total: roles.length } : undefined,
+      tool_names: compactArrayForTimeline(tool_names, TIMELINE_TOOL_NAME_LIMIT),
+      tool_names_omitted: Array.isArray(tool_names) && tool_names.length > TIMELINE_TOOL_NAME_LIMIT ? { count: tool_names.length - TIMELINE_TOOL_NAME_LIMIT, total: tool_names.length } : undefined,
       current_user: textPreview(summary.current_user || "", TIMELINE_CURRENT_USER_CHARS),
       system_preview: textPreview(summary.system_preview || "", TIMELINE_SYSTEM_PREVIEW_CHARS),
       assistant_preview: textPreview(summary.assistant_preview || "", TIMELINE_ASSISTANT_PREVIEW_CHARS),
@@ -921,6 +930,25 @@ function compactRequestForTimeline(request) {
     },
     raw: compactRawCaptureForTimeline(request.raw),
     detail_omitted: true,
+  };
+}
+
+function compactArrayForTimeline(value, limit) {
+  return Array.isArray(value) ? value.slice(0, limit) : [];
+}
+
+function compactContextDeltaForTimeline(delta) {
+  if (!delta || typeof delta !== "object") return delta || null;
+  return {
+    ...delta,
+    previews: (delta.previews || []).slice(0, TIMELINE_CONTEXT_PREVIEW_LIMIT).map((preview) => ({
+      role: preview?.role || "unknown",
+      kind: preview?.kind || "message",
+      text: textPreview(preview?.text || "", TIMELINE_CONTEXT_PREVIEW_CHARS),
+    })),
+    previews_omitted: Array.isArray(delta.previews) && delta.previews.length > TIMELINE_CONTEXT_PREVIEW_LIMIT
+      ? { count: delta.previews.length - TIMELINE_CONTEXT_PREVIEW_LIMIT, total: delta.previews.length }
+      : undefined,
   };
 }
 
@@ -957,10 +985,9 @@ function compactSubagentEntryForTimeline(subagent) {
 
 function compactResponseSummaryForTimeline(response) {
   if (!response || typeof response !== "object") return response || null;
-  const { complete_response, ...rest } = response;
+  const { complete_response, preview: _preview, ...rest } = response;
   return {
     ...rest,
-    preview: textPreview(response.preview || "", TIMELINE_RESPONSE_PREVIEW_CHARS),
     text: textPreview(response.text || "", TIMELINE_RESPONSE_TEXT_CHARS),
     thinking: textPreview(response.thinking || "", TIMELINE_RESPONSE_THINKING_CHARS),
     thinking_preview: textPreview(response.thinking_preview || "", TIMELINE_THINKING_PREVIEW_CHARS),
@@ -1001,9 +1028,8 @@ function compactRawCaptureForTimeline(raw) {
   if (!raw || typeof raw !== "object") return raw || null;
   const body = raw.body && typeof raw.body === "object" ? raw.body : null;
   const response = raw.response && typeof raw.response === "object" ? raw.response : null;
-  const { body: _body, response: _response, ...rest } = raw;
   return {
-    ...rest,
+    body_source: raw.body_source || "original",
     body: compactRawBodyMetadata(body),
     body_omitted: body
       ? {
@@ -1030,7 +1056,7 @@ function compactRawBodyMetadata(body) {
 function compactRawResponseMetadata(response) {
   if (!response || typeof response !== "object") return response || null;
   const output = {};
-  for (const key of ["status", "headers", "header_redactions", "received_at", "duration_ms", "raw_body_length", "captured_body_length", "truncated", "body_text_omitted"]) {
+  for (const key of ["status", "received_at", "duration_ms", "raw_body_length", "captured_body_length", "truncated", "body_text_omitted"]) {
     if (response[key] !== undefined) output[key] = response[key];
   }
   if (response.body_json !== undefined && response.body_json !== null) output.body_json_omitted = true;
