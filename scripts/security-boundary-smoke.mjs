@@ -177,7 +177,7 @@ try {
     assert.equal(unsafeAgentCache.status, 200, "translation cache lookup tolerates unsafe-looking agent labels");
     const unsafeAgentCacheJson = await unsafeAgentCache.json();
     assert.equal(unsafeAgentCacheJson.cache_slug, "agent", "unsafe-looking agent label is normalized to a safe slug");
-    assert.equal(/(?:^|[/\\])\.\.(?:[/\\]|$)/.test(unsafeAgentCacheJson.cache_path || ""), false, "translation cache path must not contain parent traversal segments");
+    assert.equal(Object.hasOwn(unsafeAgentCacheJson, "cache_path"), false, "translation cache lookup does not expose local cache paths");
 
     const tooManyTranslationMaterials = await fetch(`${viewer.url}/api/translations/generate`, {
       method: "POST",

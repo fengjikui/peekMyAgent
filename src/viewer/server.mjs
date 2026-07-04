@@ -246,7 +246,7 @@ async function handleRequest(req, res, options) {
   if (url.pathname === "/api/translations") {
     const agent = url.searchParams.get("agent") || "Claude Code";
     const targetLanguage = url.searchParams.get("target_language") || "zh-CN";
-    return writeJson(res, 200, loadTranslationCache({ agent, targetLanguage }));
+    return writeJson(res, 200, publicTranslationCache(loadTranslationCache({ agent, targetLanguage })));
   }
   if (url.pathname === "/api/translations/generate" && req.method === "POST") return writeJson(res, 200, await generateTranslations(req, options));
   if (url.pathname === "/api/watch/start" && req.method === "POST") return writeJson(res, 200, await startWatch(req, options));
@@ -309,22 +309,30 @@ async function generateTranslations(req, options) {
   ];
   if (force && extract?.material_hashes?.length) translateArgs.push("--force-hashes", extract.material_hashes.join(","));
   const translate = await runNodeScript("scripts/translate-materials-zh.mjs", translateArgs);
+  const translateResult = parseJsonCommandOutput(translate.stdout);
   const translations = loadTranslationCache({ agent, targetLanguage });
   return {
     ok: true,
     agent,
     target_language: targetLanguage,
-    extract,
-    translate: parseJsonCommandOutput(translate.stdout),
-    cache: {
-      available: translations.available,
-      cache_slug: translations.cache_slug,
-      cache_path: translations.cache_path,
-      entry_count: translations.entry_count,
-      generated_at: translations.generated_at,
-      manifest: translations.manifest,
-    },
+    extract: publicTranslationCommandResult(extract),
+    translate: publicTranslationCommandResult(translateResult),
+    cache: publicTranslationCache(translations, { includeEntries: false }),
   };
+}
+
+function publicTranslationCache(cache, { includeEntries = true } = {}) {
+  const { cache_path: _cachePath, entries, ...rest } = cache || {};
+  return {
+    ...rest,
+    ...(includeEntries ? { entries: entries || {} } : {}),
+  };
+}
+
+function publicTranslationCommandResult(result) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return result;
+  const { cache_path: _cachePath, materials_path: _materialsPath, manifest_path: _manifestPath, ...rest } = result;
+  return rest;
 }
 
 function writeTranslationMaterialsForViewerSource({ sourceId, agent, targetLanguage, options, section = "", requestId = "" }) {
