@@ -13,7 +13,14 @@ async function startUpstream() {
   const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     seen.push({ method: req.method, url: req.url, headers: req.headers, body });
-    res.writeHead(200, { "content-type": "application/json" });
+    res.writeHead(200, {
+      "content-type": "application/json",
+      connection: "keep-alive, x-hop-secret",
+      "x-hop-secret": "should-not-reach-agent",
+      "x-peek-debug": "internal-response-header",
+      "set-cookie": "provider_session=secret",
+      "x-api-key": "response-secret",
+    });
     if (mode === "anthropic") {
       res.end(JSON.stringify({ id: "msg_mock", type: "message", role: "assistant", content: [{ type: "text", text: "ok" }] }));
     } else {
@@ -52,7 +59,7 @@ async function postJson(url, payload, headers = {}) {
       },
       async (res) => {
         const text = await readBody(res);
-        resolve({ statusCode: res.statusCode, body: text });
+        resolve({ statusCode: res.statusCode, headers: res.headers, body: text });
       },
     );
     req.on("error", reject);
@@ -86,7 +93,7 @@ function samplePayload() {
   };
 }
 
-function evaluate(capture) {
+function evaluate(capture, upstream, response) {
   const body = capture.body || {};
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const anthropicSystem = typeof body.system === "string" || Array.isArray(body.system);
@@ -94,6 +101,9 @@ function evaluate(capture) {
   const hasTool =
     Array.isArray(body.tools) ||
     messages.some((message) => message.tool_calls || JSON.stringify(message).includes("tool_use") || JSON.stringify(message).includes("tool_result"));
+  const upstreamHeaders = upstream.seen[0]?.headers || {};
+  const downstreamHeaders = response.headers || {};
+  const capturedResponseHeaders = capture.response?.headers || {};
   return {
     hasRequestBody: Boolean(capture.body),
     hasModel: typeof body.model === "string",
@@ -103,6 +113,13 @@ function evaluate(capture) {
     hasAssistant: roles.has("assistant"),
     hasTool,
     headersRedacted: Object.values(capture.headers).some((value) => String(value).includes("[REDACTED")),
+    requestHopHeadersFiltered: !("x-extra-hop" in upstreamHeaders) && !("x-peek-internal" in upstreamHeaders),
+    responseHopHeadersFiltered: !("x-hop-secret" in downstreamHeaders) && !("x-peek-debug" in downstreamHeaders),
+    responseHeadersRedacted:
+      capturedResponseHeaders["set-cookie"] === "[REDACTED:header]" &&
+      capturedResponseHeaders["x-api-key"] === "[REDACTED:header]" &&
+      Array.isArray(capture.response?.header_redactions) &&
+      capture.response.header_redactions.length >= 2,
     hasWatchId: capture.watch_id === `${mode}-smoke`,
     hasCaptureId: typeof capture.capture_id === "string" && capture.capture_id.length > 0,
     hasConversationId: capture.conversation_id === "proxy-smoke",
@@ -142,8 +159,11 @@ async function main() {
   const response = await postJson(url, samplePayload(), {
     authorization: "Bearer should-not-be-written",
     "x-api-key": "secret-key",
+    connection: "keep-alive, x-extra-hop",
+    "x-extra-hop": "remove-me",
+    "x-peek-internal": "remove-me",
   });
-  const evaluation = evaluate(proxy.captures[0]);
+  const evaluation = evaluate(proxy.captures[0], upstream, response);
   const report = renderReport(proxy, upstream, response, evaluation);
   fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });
   fs.writeFileSync(REPORT_PATH, report);

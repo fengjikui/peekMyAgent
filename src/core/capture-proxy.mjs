@@ -6,6 +6,7 @@ import { redactHeaders } from "./redaction.mjs";
 export const DEFAULT_WATCH_ID = "default";
 const MAX_CAPTURED_REQUEST_BYTES = 64 * 1024 * 1024;
 const MAX_CAPTURED_RESPONSE_BYTES = 4 * 1024 * 1024;
+const HOP_BY_HOP_HEADERS = new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"]);
 
 export function listen(server, host = "127.0.0.1", port = 0) {
   return new Promise((resolve, reject) => {
@@ -344,7 +345,7 @@ function proxyUpstreamResponse({ upstreamRes, downstreamRes, capture, watch, onC
   let capturedBytes = 0;
   let rawBytes = 0;
   if (capture) capture.upstream_status = upstreamRes.statusCode || null;
-  downstreamRes.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
+  downstreamRes.writeHead(upstreamRes.statusCode || 502, downstreamResponseHeaders(upstreamRes.headers));
   upstreamRes.on("data", (chunk) => {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     if (capture) rawBytes += buffer.length;
@@ -380,9 +381,11 @@ function proxyUpstreamResponse({ upstreamRes, downstreamRes, capture, watch, onC
 }
 
 function buildResponseRecord({ upstreamRes, bodyText, rawBytes, capturedBytes, startedAt }) {
+  const { headers, redactions } = redactHeaders(downstreamResponseHeaders(upstreamRes.headers || {}));
   return {
     status: upstreamRes.statusCode || null,
-    headers: upstreamRes.headers || {},
+    headers,
+    header_redactions: redactions,
     received_at: new Date().toISOString(),
     duration_ms: Date.now() - startedAt,
     raw_body_length: rawBytes,
@@ -457,15 +460,35 @@ function safeDecode(value) {
 }
 
 function upstreamHeaders(headers, host) {
-  const output = {};
-  const hopByHop = new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"]);
-  for (const [key, value] of Object.entries(headers || {})) {
-    const lower = key.toLowerCase();
-    if (lower.startsWith("x-peek-") || hopByHop.has(lower)) continue;
-    output[key] = value;
-  }
+  const output = proxyForwardHeaders(headers, { stripInternal: true });
   output.host = host;
   return output;
+}
+
+function downstreamResponseHeaders(headers) {
+  return proxyForwardHeaders(headers, { stripInternal: true });
+}
+
+function proxyForwardHeaders(headers, { stripInternal = false } = {}) {
+  const output = {};
+  const connectionTokens = connectionHeaderTokens(headers);
+  for (const [key, value] of Object.entries(headers || {})) {
+    const lower = key.toLowerCase();
+    if ((stripInternal && lower.startsWith("x-peek-")) || HOP_BY_HOP_HEADERS.has(lower) || connectionTokens.has(lower)) continue;
+    output[key] = value;
+  }
+  return output;
+}
+
+function connectionHeaderTokens(headers = {}) {
+  const raw = headers.connection;
+  const values = Array.isArray(raw) ? raw : raw == null ? [] : [raw];
+  return new Set(
+    values
+      .flatMap((value) => String(value).split(","))
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
 }
 
 function formatBytes(bytes) {

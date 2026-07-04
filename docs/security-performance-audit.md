@@ -37,7 +37,7 @@
 - `src/core/capture-proxy.mjs`
   - 限制捕获请求体大小。
   - 校验上游 URL 协议，只允许 `http:` / `https:`。
-  - 过滤 hop-by-hop/proxy/internal headers。
+  - 过滤请求和响应里的 hop-by-hop/proxy/internal headers，包括 `Connection` 指定的额外逐跳头；捕获的响应头会脱敏后落盘。
 - `src/core/otel-capture.mjs`
   - 限制 OTel 目录扫描规模和单个 JSON 文件大小。
 - `bin/peekmyagent.mjs`
