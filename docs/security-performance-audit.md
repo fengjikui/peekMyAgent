@@ -21,6 +21,7 @@
 | 大请求/导入包 | 请求体、gzip Trace、导入 captures 过大导致内存或 CPU 放大 | JSON body、captured request、Trace 压缩/解压大小和 capture 数量都有上限 |
 | 文件路径 | 翻译语言、导入目录、OTel 扫描造成路径穿越或大目录扫描 | 语言名经过 path segment 归一化；OTel 读取限制文件数、目录数和单文件大小 |
 | 数据留存 | raw body 长期保存或导出泄露敏感内容 | README/隐私文档明确说明；Trace 导出默认脱敏常见 secret/token pattern 和敏感字段名，并要求 dashboard 显式 intent header 触发下载 |
+| 外部模型调用 | 翻译刷新误触发过高并发，放大用户 API 成本或触发限流 | Dashboard 翻译接口和翻译脚本都限制最大并发为 100 |
 | 同机恶意进程 | 本机其他进程直接访问本地端口 | 当前不把同机恶意进程视为完全可防边界；后续可考虑 session token/Unix socket |
 
 ## 已落地的安全修复
@@ -36,6 +37,9 @@
   - Trace 导出包默认递归脱敏常见 token/API key 字符串；对 `api_key`、`password`、`token`、`cookie`、`secret`、`session_id` 等敏感字段名整值脱敏，并在 manifest 标记脱敏策略与隐私提示。
   - Trace 导出脱敏增加最大递归深度和节点预算，异常嵌套或恶意构造的数据会被显式标记为 redacted，而不是拖垮导出流程。
   - Trace 导出不再接受普通导航式 GET，必须由 dashboard fetch 带 `x-peekmyagent-intent: trace-export` 触发，降低外部网页诱导下载敏感 Trace 的风险。
+  - 翻译生成接口限制最大并发为 100，避免误操作或恶意本地调用导致外部模型请求风暴。
+- `scripts/translate-materials-zh.mjs`
+  - 直接运行翻译脚本时同样限制最大并发为 100，避免绕过 dashboard API 的保护。
 - `src/core/capture-proxy.mjs`
   - 限制捕获请求体大小。
   - 校验上游 URL 协议，只允许 `http:` / `https:`。
@@ -77,7 +81,7 @@
 - `npm run smoke:source-meta`
   - 覆盖静态、live、OTel 和 stored source 标题持久化；额外覆盖先重命名、后由首个请求识别 conversation id 的真实使用边界。
 - `npm run smoke:harness-translation`
-  - 覆盖 Harness 提示词翻译、缓存命中，以及带 `request_id` 的请求级翻译刷新。
+  - 覆盖 Harness 提示词翻译、缓存命中、翻译并发上限，以及带 `request_id` 的请求级翻译刷新。
 - `npm run smoke:platform`
   - 覆盖跨平台 browser opener 命令。
 - `npm run smoke:package`

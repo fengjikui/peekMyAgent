@@ -24,6 +24,7 @@ const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
 const MAX_TRACE_IMPORT_CAPTURES = 5000;
 const MAX_TRACE_EXPORT_REDACTION_DEPTH = 64;
 const MAX_TRACE_EXPORT_REDACTION_NODES = 200000;
+const MAX_TRANSLATION_CONCURRENCY = 100;
 const TRACE_EXPORT_INTENT_HEADER = "x-peekmyagent-intent";
 const TRACE_EXPORT_INTENT = "trace-export";
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
@@ -276,7 +277,7 @@ async function generateTranslations(req, options) {
   const input = await readJsonBody(req);
   const agent = String(input.agent || "Claude Code").trim() || "Claude Code";
   const targetLanguage = normalizePathBackedLabel(input.target_language || "zh-CN", "target_language");
-  const concurrency = positiveInt(input.concurrency, 8);
+  const concurrency = boundedPositiveInt(input.concurrency, 8, MAX_TRANSLATION_CONCURRENCY);
   const sourceId = String(input.source_id || "").trim();
   const section = String(input.section || "").trim();
   const requestId = String(input.request_id || "").trim();
@@ -621,6 +622,10 @@ function parseJsonCommandOutput(stdout) {
 function positiveInt(value, fallback) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : fallback;
+}
+
+function boundedPositiveInt(value, fallback, max) {
+  return Math.min(positiveInt(value, fallback), max);
 }
 
 function loadTranslationCache({ agent, targetLanguage }) {

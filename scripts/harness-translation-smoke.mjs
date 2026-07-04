@@ -87,7 +87,7 @@ try {
 
   const gen = await (await fetch(`${viewer.url}/api/translations/generate`, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ source_id: ingest.source_id, section: "harness", agent: "Claude Code", target_language: "zh-CN" }),
+    body: JSON.stringify({ source_id: ingest.source_id, section: "harness", agent: "Claude Code", target_language: "zh-CN", concurrency: 10000 }),
   })).json();
 
   const kinds = gen.extract?.counts_by_kind || gen.counts_by_kind || {};
@@ -96,6 +96,7 @@ try {
   assert.ok(kinds.harness_command > 0, "extracts slash command body");
   assert.ok(kinds.harness_suggestion > 0, "extracts suggestion-mode text");
   assert.ok((gen.translate?.translated || 0) > 0, "translated at least one harness block");
+  assert.equal(gen.translate?.concurrency, 100, "dashboard translation concurrency is capped before invoking the worker");
 
   const cache = await (await fetch(`${viewer.url}/api/translations?agent=${encodeURIComponent("Claude Code")}&target_language=zh-CN`)).json();
   assert.equal(cache.available, true, "translation cache available after generate");

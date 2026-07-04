@@ -44,11 +44,11 @@ function listen(server) {
   return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(`http://127.0.0.1:${server.address().port}`)));
 }
 
-function runTranslate(baseUrl, { materialsPath, cachePath, retries }) {
+function runTranslate(baseUrl, { materialsPath, cachePath, retries, extraArgs = [] }) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      ["scripts/translate-materials-zh.mjs", "--materials", materialsPath, "--cache", cachePath, "--agent", "Mock", "--retries", String(retries)],
+      ["scripts/translate-materials-zh.mjs", "--materials", materialsPath, "--cache", cachePath, "--agent", "Mock", "--retries", String(retries), ...extraArgs],
       {
         cwd,
         env: {
@@ -141,7 +141,28 @@ try {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 
-  console.log("translation-tolerance smoke: OK (partial+empty tolerated & exit 0, garbage fails clean exit 1)");
+  // --- Scenario 4: command-line concurrency is capped before work starts ---
+  {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "translate-concurrency-"));
+    const materialsPath = writeMaterials(dir);
+    const cachePath = path.join(dir, "zh-CN.json");
+    const server = mockServer("partial");
+    const baseUrl = await listen(server);
+    const result = await runTranslate(baseUrl, {
+      materialsPath,
+      cachePath,
+      retries: 0,
+      extraArgs: ["--dry-run", "--concurrency", "10000"],
+    });
+    server.close();
+
+    assert.equal(result.code, 0, `dry-run should exit 0\n${result.stderr}`);
+    const out = JSON.parse(result.stdout);
+    assert.equal(out.concurrency, 100, "script clamps excessive translation concurrency");
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+
+  console.log("translation-tolerance smoke: OK (partial+empty tolerated & exit 0, garbage fails clean exit 1, concurrency capped)");
 } catch (error) {
   failed = true;
   console.error("translation-tolerance smoke FAILED:", error.message);

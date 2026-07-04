@@ -6,6 +6,7 @@ import { translationsDir } from "../src/core/app-paths.mjs";
 import { childProcessSpawnConfig } from "../src/core/platform.mjs";
 
 const args = process.argv.slice(2);
+const MAX_TRANSLATION_CONCURRENCY = 100;
 const targetLanguage = optionValue("--target-language") || "zh-CN";
 const agent = optionValue("--agent") || "Claude Code";
 const materialsPath =
@@ -20,7 +21,7 @@ const chunkChars = positiveNumber(optionValue("--chunk-chars"), 6000);
 const splitChars = positiveNumber(optionValue("--split-chars"), 12000);
 const maxTokens = positiveNumber(optionValue("--max-tokens"), 8192);
 const requestTimeoutMs = positiveNumber(optionValue("--request-timeout-ms"), 300000);
-const concurrency = positiveNumber(optionValue("--concurrency"), 8);
+const concurrency = boundedPositiveInteger(optionValue("--concurrency"), 8, MAX_TRANSLATION_CONCURRENCY);
 const retries = nonNegativeNumber(optionValue("--retries"), 2);
 const dryRun = hasFlag("--dry-run");
 const noSplit = hasFlag("--no-split");
@@ -67,7 +68,7 @@ if (dryRun) {
 }
 
 if (!pending.length) {
-  console.log(JSON.stringify({ materials_path: materialsPath, cache_path: cachePath, translated: 0, pending: 0 }, null, 2));
+  console.log(JSON.stringify({ materials_path: materialsPath, cache_path: cachePath, translated: 0, pending: 0, concurrency }, null, 2));
   process.exit(0);
 }
 
@@ -100,6 +101,7 @@ const output = {
   cached: Object.keys(cache.entries || {}).length,
   remaining,
   failed_jobs: failures.length,
+  concurrency,
 };
 console.log(JSON.stringify(output, null, 2));
 if (failures.length) {
@@ -621,6 +623,12 @@ function hasFlag(name) {
 function positiveNumber(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function boundedPositiveInteger(value, fallback, max) {
+  const number = Number(value);
+  const normalized = Number.isInteger(number) && number > 0 ? number : fallback;
+  return Math.min(normalized, max);
 }
 
 function nonNegativeNumber(value, fallback) {
