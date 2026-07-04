@@ -118,6 +118,33 @@ try {
     assert.equal(deletedImport.sources.some((source) => source.id === imported.source_id), false, "deleted imported trace leaves source list");
     assert.equal(fs.existsSync(importedSource.path), false, "delete removes imported trace directory");
 
+    const traversalImport = await postBuffer(
+      `${viewer.url}/api/trace/import`,
+      Buffer.from(
+        JSON.stringify({
+          format: "peekmyagent.trace.v1",
+          manifest: { trace_id: "..", title: "malicious traversal trace" },
+          captures: [
+            {
+              capture_id: "traversal-capture",
+              request_index: 1,
+              body: { messages: [{ role: "user", content: "should stay under imports" }] },
+            },
+          ],
+        }),
+      ),
+    );
+    assert.equal(traversalImport.ok, true, "trace import still accepts sanitized trace ids");
+    assert.ok(traversalImport.source?.path, "sanitized traversal import returns a source path");
+    assertPathWithin(traversalImport.source.path, path.join(tmpDir, "imports"), "sanitized imported trace stays under imports");
+    assert.notEqual(path.resolve(traversalImport.source.path), path.resolve(tmpDir), "malicious trace id must not resolve to state root");
+    assert.equal(fs.existsSync(path.join(tmpDir, "manifest.json")), false, "malicious trace id must not write manifest outside imports");
+    assert.equal(path.basename(traversalImport.source.path).startsWith("trace"), true, "dot-only trace id falls back to a safe name");
+    await postJson(`${viewer.url}/api/source/update`, {
+      id: traversalImport.source_id,
+      delete: true,
+    });
+
     await assertFileExportUsesRawCaptureFastPath(tmpDir);
 
     console.log("trace-bundle smoke passed");
@@ -183,6 +210,11 @@ function listen(server) {
 
 function closeServer(server) {
   return new Promise((resolve) => server.close(() => resolve()));
+}
+
+function assertPathWithin(childPath, parentPath, message) {
+  const relative = path.relative(path.resolve(parentPath), path.resolve(childPath));
+  assert.ok(relative && !relative.startsWith("..") && !path.isAbsolute(relative), message);
 }
 
 function deepObject(value, depth) {

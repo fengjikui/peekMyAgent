@@ -1693,13 +1693,24 @@ function traceIdForCaptures(captures) {
 }
 
 function uniqueImportDir(root, traceId) {
-  let candidate = path.join(root, traceId);
+  const resolvedRoot = path.resolve(root || "");
+  const safeTraceId = safeFileName(traceId);
+  let candidate = safeImportChildDir(resolvedRoot, safeTraceId);
   let suffix = 2;
   while (fs.existsSync(candidate)) {
-    candidate = path.join(root, `${traceId}-${suffix}`);
+    candidate = safeImportChildDir(resolvedRoot, `${safeTraceId}-${suffix}`);
     suffix += 1;
   }
   return candidate;
+}
+
+function safeImportChildDir(root, childName) {
+  const target = path.resolve(root, childName);
+  const relative = path.relative(root, target);
+  if (!root || !relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Refusing to create an imported trace outside the imports directory.");
+  }
+  return target;
 }
 
 function isGzipBuffer(buffer) {
@@ -1707,10 +1718,13 @@ function isGzipBuffer(buffer) {
 }
 
 function safeFileName(value) {
-  return String(value || "trace")
+  const text = String(value || "trace")
     .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/\.\.+/g, ".")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 120) || "trace";
+    .replace(/^\.+|\.+$/g, "")
+    .slice(0, 120);
+  return text || "trace";
 }
 
 async function stopWatch(req, { watches, sourceMeta, sourceMetaPath, store }) {
