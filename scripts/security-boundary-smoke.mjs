@@ -137,6 +137,9 @@ try {
     });
     assert.equal(simplePost.status, 415, "simple non-JSON state-changing POST is rejected");
 
+    const bodylessShutdown = await fetch(`${viewer.url}/api/daemon/shutdown`, { method: "POST" });
+    assert.equal(bodylessShutdown.status, 415, "daemon shutdown requires explicit JSON content type");
+
     const unsafeLanguage = await fetch(`${viewer.url}/api/translations/generate`, {
       method: "POST",
       headers: { "content-type": "application/json" },

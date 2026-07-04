@@ -4279,10 +4279,9 @@ function validateLocalHttpRequest(req, url, { unsafeAllowRemote = false } = {}) 
   }
   if (["POST", "PUT", "PATCH", "DELETE"].includes(String(req.method || "").toUpperCase())) {
     const contentType = headerValue(req.headers || {}, "content-type");
-    const acceptsBodylessJson = url.pathname === "/api/daemon/shutdown" && !contentType;
     const isJson = /^application\/(?:json|[^;]+\+json)\b/i.test(contentType);
     const isTraceImport = url.pathname === "/api/trace/import" && /^(application\/(?:octet-stream|gzip|json)|[^;]+\/[^;]+\+json)\b/i.test(contentType);
-    if (!acceptsBodylessJson && !isJson && !isTraceImport) {
+    if (!isJson && !isTraceImport) {
       return { status: 415, message: "State-changing API calls require application/json or an accepted trace import content type." };
     }
   }
