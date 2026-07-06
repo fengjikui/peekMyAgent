@@ -206,26 +206,26 @@ Remove stored captured sessions after stopping the local daemon:
 pma clear --all-sessions
 ```
 
-Remove peekMyAgent-installed Claude Code helpers and stop the daemon while keeping local capture data:
+Uninstall the `pma` / `peekmyagent` CLI, remove peekMyAgent-installed Claude Code helpers, and stop the daemon while keeping local capture data:
 
 ```bash
 pma uninstall --keep-data
 ```
 
-Remove helpers and delete peekMyAgent-owned local state:
+Uninstall the CLI, remove helpers, and delete peekMyAgent-owned local state:
 
 ```bash
 pma uninstall --remove-data
 ```
 
-If you installed from a cloned source tree and also want to remove the global CLI link in one step, run the source uninstaller from that clone:
+If you installed from a cloned source tree, you can run the source uninstaller from that clone. It performs the same cleanup and then removes the global npm link:
 
 ```bash
 node scripts/uninstall.mjs --keep-data
 node scripts/uninstall.mjs --remove-data
 ```
 
-`uninstall` only removes peekMyAgent-owned helpers and data. `--remove-data` deletes known peekMyAgent files such as the session store, viewer registry, IDE integration registry, and translation cache; it only removes the state directory when it becomes empty. It does not rewrite Agent provider configuration; future global proxy takeover adapters must provide their own explicit restore flow.
+`uninstall` removes the global CLI plus peekMyAgent-owned helpers and data. `--remove-data` deletes known peekMyAgent files such as the session store, viewer registry, IDE integration registry, and translation cache; it only removes the state directory when it becomes empty. It does not rewrite Agent provider configuration; future global proxy takeover adapters must provide their own explicit restore flow.
 
 ## Dashboard Layout
 

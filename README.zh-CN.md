@@ -121,7 +121,11 @@ pma uninstall --keep-data
 pma uninstall --remove-data
 ```
 
-如果你是从源码目录安装，并且希望同时移除全局 CLI 链接，可以在该源码目录运行：
+`pma uninstall --keep-data` 会卸载 `pma` / `peekmyagent` 命令、移除 peekMyAgent 安装的 helper，并停止 daemon，但保留本地捕获数据。
+
+`pma uninstall --remove-data` 会卸载 CLI、移除 helper，并删除 peekMyAgent 拥有的本地状态数据。
+
+如果你是从源码目录安装，也可以在该源码目录运行源码卸载脚本：
 
 ```bash
 node scripts/uninstall.mjs --keep-data

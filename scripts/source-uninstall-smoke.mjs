@@ -29,7 +29,7 @@ try {
   assert.equal(dryRunReport.ok, true);
   assert.equal(dryRunReport.dry_run, true);
   assert.equal(dryRunReport.install_prefix, prefix);
-  assert.match(dryRunReport.steps[0]?.command || "", /peekmyagent\.mjs"? uninstall --remove-data --json/i);
+  assert.match(dryRunReport.steps[0]?.command || "", /peekmyagent\.mjs"? uninstall --remove-data --keep-cli --json/i);
   assert.match(dryRunReport.steps[1]?.command || "", /npm uninstall -g peekmyagent --prefix /i);
 
   const missingPrefixValue = spawnSync(process.execPath, ["scripts/uninstall.mjs", "--dry-run", "--json", "--prefix", "--keep-data"], {
@@ -50,13 +50,38 @@ try {
   assert.equal(assignmentDryRunReport.install_prefix, prefix);
   assert.match(assignmentDryRunReport.steps[1]?.command || "", /npm uninstall -g peekmyagent --prefix /i);
 
-  const install = spawnSync(process.execPath, ["scripts/install.mjs", "--json", "--skip-deps", "--prefix", prefix], {
+  let install = spawnSync(process.execPath, ["scripts/install.mjs", "--json", "--skip-deps", "--prefix", prefix], {
     cwd: process.cwd(),
     env: isolatedEnv,
     encoding: "utf8",
   });
   assert.equal(install.status, 0, install.stderr || install.stdout);
   assert.equal(fs.existsSync(binPath), true, `expected installed CLI at ${binPath}`);
+  fs.mkdirSync(stateDir, { recursive: true });
+  fs.writeFileSync(path.join(stateDir, "store.sqlite"), "store");
+
+  const directUninstall = spawnSync(process.execPath, ["bin/peekmyagent.mjs", "uninstall", "--json", "--prefix", prefix, "--remove-data"], {
+    cwd: process.cwd(),
+    env: isolatedEnv,
+    encoding: "utf8",
+  });
+  assert.equal(directUninstall.status, 0, directUninstall.stderr || directUninstall.stdout);
+  const directReport = JSON.parse(directUninstall.stdout);
+  assert.equal(directReport.action, "uninstall");
+  assert.equal(directReport.data, "removed");
+  assert.equal(directReport.cli?.skipped, false);
+  assert.equal(directReport.cli?.exit_code, 0);
+  assert.match(directReport.cli?.command || "", /npm uninstall -g peekmyagent --prefix /i);
+  assert.equal(fs.existsSync(binPath), false, "pma uninstall should remove the global CLI by default");
+  assert.equal(fs.existsSync(stateDir), false, "direct pma uninstall --remove-data removes owned state data");
+
+  install = spawnSync(process.execPath, ["scripts/install.mjs", "--json", "--skip-deps", "--prefix", prefix], {
+    cwd: process.cwd(),
+    env: isolatedEnv,
+    encoding: "utf8",
+  });
+  assert.equal(install.status, 0, install.stderr || install.stdout);
+  assert.equal(fs.existsSync(binPath), true, `expected reinstalled CLI at ${binPath}`);
   fs.mkdirSync(stateDir, { recursive: true });
   fs.writeFileSync(path.join(stateDir, "store.sqlite"), "store");
 

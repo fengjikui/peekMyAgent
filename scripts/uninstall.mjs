@@ -19,7 +19,7 @@ try {
   assertNodeVersion();
   assertRepoRoot(repoRoot, "scripts/uninstall.mjs");
   if (removeData && hasFlag(args, "--keep-data")) throw new Error("Use only one of --keep-data or --remove-data.");
-  if (!skipData) addStep("Remove peekMyAgent helpers/data", process.execPath, [path.join(repoRoot, "bin", "peekmyagent.mjs"), "uninstall", removeData ? "--remove-data" : "--keep-data", "--json"]);
+  if (!skipData) addStep("Remove peekMyAgent helpers/data", process.execPath, [path.join(repoRoot, "bin", "peekmyagent.mjs"), "uninstall", removeData ? "--remove-data" : "--keep-data", "--keep-cli", "--json"]);
   if (!skipNpm) addStep("Uninstall peekmyagent CLI", "npm", ["uninstall", "-g", "peekmyagent", ...prefixArgs()]);
 
   const result = {

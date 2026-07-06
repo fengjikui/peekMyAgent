@@ -43,7 +43,7 @@ Usage:
   pma open [--source <id>] [--print] [--no-open]
   pma doctor [--json]
   pma clear --all-sessions [--json]
-  pma uninstall [--scope user|project|all] [--keep-data|--remove-data] [--json]
+  pma uninstall [--scope user|project|all] [--keep-data|--remove-data] [--keep-cli] [--prefix <npm-prefix>] [--json]
   pma shutdown [--viewer-url <url>] [--force] [--json]
   pma restart [--print] [--no-open] [--force] [--json]
   pma enable trae-cn [--json]
@@ -65,7 +65,7 @@ Notes:
   - output is normalized JSON and does not print raw secrets beyond adapter redaction.
   - run is the advanced compatibility path. Starting an Agent through peekMyAgent is the user's explicit consent to capture that process. For Claude --continue/--resume, peekMyAgent asks where to write capture by default when a matching watch exists; use --reuse to reuse automatically or --new to force a new watch.
   - daemon starts the stable local API/dashboard plus fixed capture proxy. open opens that shared dashboard and starts the daemon if needed. shutdown stops it, and restart reloads it on the fixed ports.
-  - doctor explains current paths, daemon status, installed helpers, and common cross-platform configuration issues. clear --all-sessions removes captured session storage after stopping the daemon. uninstall removes peekMyAgent helpers and optionally local data, but does not modify Agent provider configs unless a future restore adapter explicitly owns them.
+  - doctor explains current paths, daemon status, installed helpers, and common cross-platform configuration issues. clear --all-sessions removes captured session storage after stopping the daemon. uninstall removes the CLI, peekMyAgent helpers, and optionally local data, but does not modify Agent provider configs unless a future restore adapter explicitly owns them.
   - enable/disable/sync/status trae-cn manages Trae CN's selected custom OpenAI-compatible model URL through a reversible stable proxy route.
   - dev view starts a foreground viewer for development only. Demo/evidence sources load only when --demo or --evidence is provided. Use Ctrl-C to stop it.
   - watch-current is intended to run inside an Agent shell/tool call. It reads current session env and registers, reuses, pauses, resumes, stops, or clears a live watch with a running dashboard. Pause keeps forwarding requests but stops saving captures until resume. For OpenClaw, --patch-openclaw only modifies an isolated profile, never the original profile.
@@ -96,8 +96,8 @@ Maintenance:
   pma restart                      Restart the local dashboard daemon.
   pma shutdown                     Stop the local dashboard daemon.
   pma clear --all-sessions         Remove captured sessions after stopping the daemon.
-  pma uninstall --keep-data        Remove helpers but keep captured data.
-  pma uninstall --remove-data      Remove helpers and peekMyAgent-owned local data.
+  pma uninstall --keep-data        Uninstall pma/peekmyagent but keep captured data.
+  pma uninstall --remove-data      Uninstall pma/peekmyagent and peekMyAgent-owned local data.
 
 Notes:
   - Daily use is usually: "pma open", then "pma claude -c" in your project.
@@ -745,7 +745,9 @@ async function uninstallPeekMyAgent() {
   const scope = optionValue("--scope") || "user";
   if (!["user", "project", "all"].includes(scope)) throw new Error(`Invalid --scope: ${scope}`);
   if (hasFlag("--keep-data") && hasFlag("--remove-data")) throw new Error("Use only one of --keep-data or --remove-data.");
+  if (hasFlag("--keep-cli") && hasFlag("--remove-cli")) throw new Error("Use only one of --keep-cli or --remove-cli.");
   const removeData = hasFlag("--remove-data");
+  const keepCli = hasFlag("--keep-cli");
   const cwd = safeProcessCwd();
   const stopped = await shutdownDashboard().catch((error) => ({ action: "shutdown", status: "error", error: error.message }));
   const removed = [];
@@ -757,6 +759,8 @@ async function uninstallPeekMyAgent() {
   const stateDir = defaultStateDir();
   const dataRemoved = removeData ? await removePeekMyAgentData(stateDir) : [];
   if (!removeData) clearViewerRegistry();
+  const cli = keepCli ? skippedCliRemoval() : removeGlobalCli({ prefix: optionValue("--prefix") });
+  if (!cli.ok) throw new Error(`CLI uninstall failed with exit code ${cli.exit_code}: ${cli.stderr || cli.stdout || cli.command}`);
   return {
     action: "uninstall",
     scope,
@@ -766,8 +770,45 @@ async function uninstallPeekMyAgent() {
     removed_data: dataRemoved,
     state_dir: stateDir,
     state_dir_removed: !fs.existsSync(stateDir),
+    cli,
     note: "Provider configs are not modified by uninstall. Use adapter-specific restore commands for future global proxy takeover features.",
   };
+}
+
+function skippedCliRemoval() {
+  return {
+    ok: true,
+    skipped: true,
+    command: null,
+    exit_code: null,
+    note: "CLI kept because --keep-cli was set.",
+  };
+}
+
+function removeGlobalCli({ prefix = null } = {}) {
+  const args = ["uninstall", "-g", "peekmyagent", ...npmPrefixArgs(prefix)];
+  const command = formatCommand("npm", args);
+  const spawnConfig = childProcessSpawnConfig("npm", args);
+  const result = spawnSync(spawnConfig.command, spawnConfig.args, {
+    cwd: userHome(),
+    encoding: "utf8",
+    ...spawnConfig.options,
+  });
+  const exitCode = Number.isInteger(result.status) ? result.status : 1;
+  return {
+    ok: exitCode === 0 && !result.error,
+    skipped: false,
+    prefix: prefix || null,
+    command,
+    exit_code: exitCode,
+    stdout: result.stdout || "",
+    stderr: result.stderr || "",
+    error: result.error?.message || null,
+  };
+}
+
+function npmPrefixArgs(prefix) {
+  return prefix ? ["--prefix", prefix] : [];
 }
 
 function removeClaudeHelpers(claudeDir, scope) {
@@ -881,8 +922,19 @@ function printMaintenanceResult(result) {
   if (result.action === "uninstall") {
     console.log(`peekMyAgent uninstall complete: helpers removed ${result.removed_helpers.length}`);
     console.log(`data: ${result.data} (${result.state_dir})`);
+    if (result.cli?.skipped) console.log("cli: kept (--keep-cli)");
+    else console.log(`cli: removed (${result.cli?.command || "npm uninstall -g peekmyagent"})`);
     console.log(result.note);
   }
+}
+
+function formatCommand(command, commandArgs = []) {
+  return [command, ...commandArgs].map((part) => (needsShellQuoting(part) ? shellQuote(part) : String(part))).join(" ");
+}
+
+function needsShellQuoting(value) {
+  const text = String(value);
+  return text.length === 0 || /\s/.test(text);
 }
 
 function directorySize(dir, { maxEntries = 20_000 } = {}) {

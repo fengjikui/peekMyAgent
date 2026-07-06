@@ -54,7 +54,7 @@ try {
   assert.match(clearDirectoryStoreResult.stderr, /Refusing to remove directory as file-backed peekMyAgent data/);
   assert.equal(fs.existsSync(externalStoreDir), true, "clear must not recursively delete a directory-shaped store path");
 
-  const uninstallDirectoryStoreResult = runCli(["uninstall", "--scope", "user", "--remove-data", "--json"], directoryStoreEnv);
+  const uninstallDirectoryStoreResult = runCli(["uninstall", "--scope", "user", "--remove-data", "--keep-cli", "--json"], directoryStoreEnv);
   assert.equal(uninstallDirectoryStoreResult.status, 1);
   assert.match(uninstallDirectoryStoreResult.stderr, /Refusing to remove directory as file-backed peekMyAgent data/);
   assert.equal(fs.existsSync(externalStoreDir), true, "uninstall --remove-data must not recursively delete a directory-shaped store path");
@@ -80,7 +80,7 @@ try {
   assert.ok(installed.command_paths.every((filePath) => fs.existsSync(filePath)));
 
   fs.writeFileSync(path.join(stateDir, "marker.txt"), "keep");
-  const uninstallKeepResult = runCli(["uninstall", "--scope", "user", "--keep-data", "--json"], env);
+  const uninstallKeepResult = runCli(["uninstall", "--scope", "user", "--keep-data", "--keep-cli", "--json"], env);
   assert.equal(uninstallKeepResult.status, 0, uninstallKeepResult.stderr);
   const uninstallKeep = JSON.parse(uninstallKeepResult.stdout);
   assert.equal(uninstallKeep.action, "uninstall");
@@ -101,7 +101,7 @@ try {
   assert.ok(fs.existsSync(installedProject.skill_path));
   assert.ok(installedProject.command_paths.every((filePath) => fs.existsSync(filePath)));
 
-  const uninstallAllResult = runCli(["uninstall", "--scope", "all", "--keep-data", "--json"], env, projectDir);
+  const uninstallAllResult = runCli(["uninstall", "--scope", "all", "--keep-data", "--keep-cli", "--json"], env, projectDir);
   assert.equal(uninstallAllResult.status, 0, uninstallAllResult.stderr);
   const uninstallAll = JSON.parse(uninstallAllResult.stdout);
   assert.equal(uninstallAll.scope, "all");
@@ -112,14 +112,14 @@ try {
   assert.equal(fs.existsSync(installedProject.skill_path), false);
   assert.equal(fs.existsSync(path.join(stateDir, "marker.txt")), true);
 
-  const invalidScopeResult = runCli(["uninstall", "--scope", "workspace", "--keep-data", "--json"], env);
+  const invalidScopeResult = runCli(["uninstall", "--scope", "workspace", "--keep-data", "--keep-cli", "--json"], env);
   assert.equal(invalidScopeResult.status, 1);
   assert.match(invalidScopeResult.stderr, /Invalid --scope: workspace/);
 
   fs.writeFileSync(externalStorePath, "store");
   fs.writeFileSync(`${externalStorePath}-wal`, "wal");
   fs.writeFileSync(`${externalStorePath}-shm`, "shm");
-  const uninstallExternalResult = runCli(["uninstall", "--scope", "user", "--remove-data", "--json"], externalEnv);
+  const uninstallExternalResult = runCli(["uninstall", "--scope", "user", "--remove-data", "--keep-cli", "--json"], externalEnv);
   assert.equal(uninstallExternalResult.status, 0, uninstallExternalResult.stderr);
   const uninstallExternal = JSON.parse(uninstallExternalResult.stdout);
   assert.equal(uninstallExternal.data, "removed");
@@ -136,7 +136,7 @@ try {
   fs.writeFileSync(ideRegistryPath, "{}");
   fs.mkdirSync(translationsDir, { recursive: true });
   fs.writeFileSync(path.join(translationsDir, "material.jsonl"), "{}\n");
-  const uninstallRemoveResult = runCli(["uninstall", "--scope", "user", "--remove-data", "--json"], env);
+  const uninstallRemoveResult = runCli(["uninstall", "--scope", "user", "--remove-data", "--keep-cli", "--json"], env);
   assert.equal(uninstallRemoveResult.status, 0, uninstallRemoveResult.stderr);
   const uninstallRemove = JSON.parse(uninstallRemoveResult.stdout);
   assert.equal(uninstallRemove.data, "removed");
@@ -148,7 +148,7 @@ try {
   assert.equal(fs.existsSync(path.join(stateDir, "marker.txt")), true);
 
   fs.rmSync(path.join(stateDir, "marker.txt"));
-  const uninstallEmptyResult = runCli(["uninstall", "--scope", "user", "--remove-data", "--json"], env);
+  const uninstallEmptyResult = runCli(["uninstall", "--scope", "user", "--remove-data", "--keep-cli", "--json"], env);
   assert.equal(uninstallEmptyResult.status, 0, uninstallEmptyResult.stderr);
   const uninstallEmpty = JSON.parse(uninstallEmptyResult.stdout);
   assert.equal(uninstallEmpty.state_dir_removed, true);
