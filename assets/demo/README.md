@@ -7,6 +7,10 @@ Current files:
 - `dashboard-overview.png`: clean static screenshot for documentation.
 - `dashboard-overview-annotated.png`: annotated dashboard map used by the README and visual guide.
 - `dashboard-overview-tour.gif`: lightweight animated feature tour generated from the annotated screenshot.
+- `chat-upstream-context.gif`: wide-screen walkthrough of a normal chat request, upstream context, System, Tools, and Response slices.
+- `chat-upstream-context.png`: poster frame for the upstream-context walkthrough.
+- `tool-call-loop.gif`: wide-screen walkthrough of a basic `tool_use` -> `tool_result` -> final response loop.
+- `tool-call-loop.png`: poster frame for the tool-call-loop walkthrough.
 
 Recommended files:
 

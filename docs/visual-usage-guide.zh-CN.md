@@ -10,6 +10,16 @@
 
 ![peekMyAgent dashboard overview](../assets/demo/dashboard-overview-annotated.png)
 
+## 两段核心流程
+
+普通聊天的上行上下文拆解：
+
+![普通聊天也能追溯完整上行](../assets/demo/chat-upstream-context.gif)
+
+基础工具调用闭环：
+
+![工具调用从问题到 tool_result 再到最终回复](../assets/demo/tool-call-loop.gif)
+
 图中 5 个区域分别对应日常调试中最常用的动作：
 
 1. **Sessions / Projects**：左侧按项目和会话组织记录，方便在不同 Agent 会话之间切换。

@@ -12,7 +12,12 @@ peekMyAgent is not meant to "steal hidden prompts". It is an observability tool 
 
 ![peekMyAgent dashboard feature tour](assets/demo/dashboard-overview-tour.gif)
 
-See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated screenshot, feature walkthrough, and README recording plan.
+<p>
+  <img src="assets/demo/chat-upstream-context.gif" alt="Upstream context walkthrough" width="49%">
+  <img src="assets/demo/tool-call-loop.gif" alt="Tool call loop walkthrough" width="49%">
+</p>
+
+See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated screenshot, upstream-context walkthrough, tool-call loop walkthrough, and README recording plan.
 
 ## What You Can Do Today
 

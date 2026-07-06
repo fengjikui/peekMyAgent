@@ -8,7 +8,12 @@ peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 
 
 ![peekMyAgent dashboard feature tour](assets/demo/dashboard-overview-tour.gif)
 
-更多静态标注图、截图讲解和 README 录制脚本见：[图文使用说明](docs/visual-usage-guide.zh-CN.md)。
+<p>
+  <img src="assets/demo/chat-upstream-context.gif" alt="普通聊天上行上下文拆解" width="49%">
+  <img src="assets/demo/tool-call-loop.gif" alt="工具调用闭环拆解" width="49%">
+</p>
+
+更多静态标注图、普通聊天上行拆解、工具调用闭环和 README 录制脚本见：[图文使用说明](docs/visual-usage-guide.zh-CN.md)。
 
 ## 当前能力
 
