@@ -4,6 +4,12 @@ peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 
 
 它可以帮助你理解 Agent 如何组织 system prompt、用户消息、工具定义、工具调用、工具结果、历史上下文、模型参数和原始 JSON。peekMyAgent 不是用来“破解隐藏提示词”的工具，而是面向你自己授权的本地 Agent 会话的可观测性工具。
 
+## 一图看懂
+
+![peekMyAgent dashboard feature tour](assets/demo/dashboard-overview-tour.gif)
+
+更多静态标注图、截图讲解和 README 录制脚本见：[图文使用说明](docs/visual-usage-guide.zh-CN.md)。
+
 ## 当前能力
 
 - 打开本地 dashboard：`http://127.0.0.1:43110`。
@@ -186,6 +192,7 @@ npm run release:check
 ## 更多文档
 
 - [用户指南](docs/user-guide.md)
+- [图文使用说明](docs/visual-usage-guide.zh-CN.md)
 - [Roadmap / 待实现计划](docs/roadmap.md)
 - [隐私与保留策略](docs/privacy-retention-strategy.md)
 - [安全与性能审计纪要](docs/security-performance-audit.md)

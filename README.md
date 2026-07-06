@@ -8,6 +8,12 @@ It helps you understand how tools such as Claude Code and OpenClaw assemble syst
 
 peekMyAgent is not meant to "steal hidden prompts". It is an observability tool for your own local agent sessions, in environments where you explicitly choose to record and inspect the traffic.
 
+## Visual Overview
+
+![peekMyAgent dashboard feature tour](assets/demo/dashboard-overview-tour.gif)
+
+See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated screenshot, feature walkthrough, and README recording plan.
+
 ## What You Can Do Today
 
 - Open a local dashboard at `http://127.0.0.1:43110`.
@@ -428,6 +434,7 @@ node --check src/viewer/client.js
 ## More Documentation
 
 - [User guide](docs/user-guide.md)
+- [Visual usage guide](docs/visual-usage-guide.zh-CN.md)
 - [Roadmap](docs/roadmap.md)
 - [Privacy and retention strategy](docs/privacy-retention-strategy.md)
 - [Security and performance audit notes](docs/security-performance-audit.md)

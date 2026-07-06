@@ -2,6 +2,12 @@
 
 This directory stores public-facing README and launch media.
 
+Current files:
+
+- `dashboard-overview.png`: clean static screenshot for documentation.
+- `dashboard-overview-annotated.png`: annotated dashboard map used by the README and visual guide.
+- `dashboard-overview-tour.gif`: lightweight animated feature tour generated from the annotated screenshot.
+
 Recommended files:
 
 - `hero-agent-trace.gif`: short hero demo for the top of README.
@@ -18,4 +24,3 @@ Guidelines:
 - Prefer 8-15 seconds per GIF.
 - Prefer 960px width for README GIFs.
 - Try to keep each GIF under 8MB when practical.
-
