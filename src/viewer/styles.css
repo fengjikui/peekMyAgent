@@ -173,6 +173,7 @@ select {
   position: relative;
   min-width: 0;
   overflow: auto;
+  overflow-x: hidden;
   scrollbar-width: none;
   background: var(--panel);
 }
@@ -322,7 +323,10 @@ select {
 
 .agent-branch-map {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
   margin: 0 0 12px;
   padding: 10px;
   border: 1px solid #d7e2f4;
@@ -336,6 +340,7 @@ select {
   align-items: start;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
 }
 
 .agent-branch-head p {
@@ -366,6 +371,8 @@ select {
   display: grid;
   gap: 6px;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  min-width: 0;
+  max-width: 100%;
 }
 
 .agent-map-card {
@@ -567,7 +574,10 @@ select {
 
 .agent-branch-details {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .agent-branch-details > .block-title {
@@ -585,8 +595,10 @@ select {
 
 .agent-branch-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   min-width: 0;
+  max-width: 100%;
   padding: 8px;
   border: 1px solid #d8e2f3;
   border-radius: 7px;
@@ -724,7 +736,10 @@ select {
 
 .agent-branch-steps {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
+  min-width: 0;
+  max-width: 100%;
   padding-left: 10px;
   border-left: 1px solid #d8e5fb;
 }
@@ -1371,7 +1386,10 @@ select {
 
 .timeline {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
+  width: 100%;
+  min-width: 0;
   max-width: 980px;
   margin: 0 auto;
   padding: 22px 52px 128px 24px;
@@ -1550,7 +1568,9 @@ select {
 
 .turn-group {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+  min-width: 0;
   padding: 0 0 10px 14px;
   border-left: 2px solid #e1e7f7;
   scroll-margin-top: 90px;
@@ -1607,7 +1627,10 @@ select {
 
 .upstream-entry {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
@@ -1643,7 +1666,8 @@ select {
 }
 
 .upstream-entry-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) fit-content(520px);
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -1651,16 +1675,19 @@ select {
 
 .upstream-entry-title {
   display: inline-flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   align-items: center;
   gap: 6px;
   min-width: 0;
 }
 
 .upstream-label {
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted);
   font-size: 12px;
   font-weight: 750;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1671,7 +1698,7 @@ select {
   justify-content: flex-end;
   gap: 6px;
   min-width: 0;
-  margin-left: auto;
+  margin-left: 0;
   padding-right: 4px;
 }
 
@@ -1756,16 +1783,20 @@ select {
 
 .upstream-entry-actions {
   display: inline-flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 5px;
-  margin-left: auto;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  justify-self: end;
 }
 
 .upstream-entry.compact .upstream-entry-actions {
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .upstream-entry-preview {
@@ -1780,12 +1811,14 @@ select {
 }
 
 .upstream-entry.subagent-result .upstream-entry-preview {
-  display: block;
+  display: -webkit-box;
   max-height: 1.55em;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  overflow-wrap: normal;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
 }
 
 .upstream-entry-actions .inspect-button,
@@ -1936,7 +1969,10 @@ select {
 
 .request-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
   border-radius: 8px;
   background: transparent;
   scroll-margin-top: 90px;
@@ -1948,6 +1984,8 @@ select {
 }
 
 .request-upstream-details {
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
   background: #fff;
@@ -2393,7 +2431,10 @@ select {
 
 .request-body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
   padding: 12px;
 }
 
@@ -2482,7 +2523,10 @@ select {
 
 .summary-block {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .block-title {
@@ -2497,6 +2541,7 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
 }
 
 .response-heading {
@@ -2528,6 +2573,8 @@ select {
 }
 
 .assistant-response-block {
+  min-width: 0;
+  max-width: 100%;
   padding: 10px 12px;
   border: 1px solid #dbe7d3;
   border-radius: 8px;
@@ -2539,6 +2586,8 @@ select {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .response-meta {
@@ -2563,12 +2612,17 @@ select {
 }
 
 .assistant-response-text {
+  min-width: 0;
+  max-width: 100%;
   background: #fff;
 }
 
 .assistant-response-markdown {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
   color: var(--ink);
   font-family: var(--sans);
   font-size: 14px;
@@ -2623,6 +2677,8 @@ select {
 }
 
 .assistant-response-markdown .markdown-code {
+  min-width: 0;
+  max-width: 100%;
   max-height: none;
   padding: 9px 10px;
   border: 1px solid var(--line-soft);
@@ -2650,6 +2706,7 @@ select {
 .assistant-response-markdown .markdown-table-wrap,
 .translation-markdown .markdown-table-wrap,
 .raw-message-markdown .markdown-table-wrap {
+  min-width: 0;
   max-width: 100%;
   overflow-x: auto;
 }
@@ -2699,7 +2756,10 @@ select {
 
 .assistant-tool-calls {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 7px;
+  min-width: 0;
+  max-width: 100%;
   padding: 9px 10px;
   border: 1px solid #ccebdc;
   border-radius: 8px;
@@ -2708,14 +2768,21 @@ select {
 
 .assistant-tool-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .assistant-tool-list pre {
+  min-width: 0;
+  max-width: 100%;
   background: #fff;
   font-size: 12px;
   max-height: min(34vh, 320px);
   overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .assistant-response-block.expanded .assistant-response-text {
@@ -2764,12 +2831,16 @@ select {
 }
 
 .assistant-thinking summary small {
+  display: -webkit-box;
   min-width: 0;
   overflow: hidden;
   color: var(--muted);
   font-size: 11px;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
 }
 
 .assistant-thinking pre {
@@ -3085,14 +3156,21 @@ select {
 
 .history-tool-detail {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .history-tool-detail pre {
+  min-width: 0;
+  max-width: 100%;
   padding: 8px 9px;
   font-size: 11px;
   max-height: min(30vh, 280px);
   overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .composition-block {
@@ -3195,6 +3273,8 @@ select {
 .text-box,
 .empty-box,
 pre {
+  min-width: 0;
+  max-width: 100%;
   margin: 0;
   padding: 11px 12px;
   border: 1px solid var(--line-soft);
@@ -3212,6 +3292,8 @@ pre {
 }
 
 details {
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
   background: #fff;
@@ -3240,12 +3322,16 @@ summary.metric-summary > span:first-child {
 }
 
 details .details-body {
+  min-width: 0;
+  max-width: 100%;
   padding: 0 12px 12px;
 }
 
 .tool-list {
   display: flex;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
   gap: 6px;
 }
 
@@ -3263,12 +3349,18 @@ details .details-body {
 
 .tool-exchange-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tool-exchange {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 9px;
+  min-width: 0;
+  max-width: 100%;
   padding: 11px 12px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
@@ -3316,7 +3408,10 @@ details .details-body {
 
 .tool-event {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tool-event p {
