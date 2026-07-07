@@ -42,6 +42,7 @@ Usage:
   pma daemon [--host <host>] [--api-port <port>] [--capture-port <port>] [--open]
   pma open [--source <id>] [--print] [--no-open]
   pma doctor [--json]
+  pma compact [--watch <watch-id>] [--limit <n>] [--no-vacuum] [--json]
   pma clear --all-sessions [--json]
   pma uninstall [--scope user|project|all] [--keep-data|--remove-data] [--keep-cli] [--prefix <npm-prefix>] [--json]
   pma shutdown [--viewer-url <url>] [--force] [--json]
@@ -66,6 +67,7 @@ Notes:
   - run is the advanced compatibility path. Starting an Agent through peekMyAgent is the user's explicit consent to capture that process. For Claude --continue/--resume, peekMyAgent asks where to write capture by default when a matching watch exists; use --reuse to reuse automatically or --new to force a new watch.
   - daemon starts the stable local API/dashboard plus fixed capture proxy. open opens that shared dashboard and starts the daemon if needed. shutdown stops it, and restart reloads it on the fixed ports.
   - doctor explains current paths, daemon status, installed helpers, and common cross-platform configuration issues. clear --all-sessions removes captured session storage after stopping the daemon. uninstall removes the CLI, peekMyAgent helpers, and optionally local data, but does not modify Agent provider configs unless a future restore adapter explicitly owns them.
+  - compact stops the daemon, removes duplicated raw request bodies that can be rebuilt from content blocks, and VACUUMs the SQLite store unless --no-vacuum is set.
   - enable/disable/sync/status trae-cn manages Trae CN's selected custom OpenAI-compatible model URL through a reversible stable proxy route.
   - dev view starts a foreground viewer for development only. Demo/evidence sources load only when --demo or --evidence is provided. Use Ctrl-C to stop it.
   - watch-current is intended to run inside an Agent shell/tool call. It reads current session env and registers, reuses, pauses, resumes, stops, or clears a live watch with a running dashboard. Pause keeps forwarding requests but stops saving captures until resume. For OpenClaw, --patch-openclaw only modifies an isolated profile, never the original profile.
@@ -95,6 +97,7 @@ Common:
 Maintenance:
   pma restart                      Restart the local dashboard daemon.
   pma shutdown                     Stop the local dashboard daemon.
+  pma compact                      Shrink stored traces without deleting sessions.
   pma clear --all-sessions         Remove captured sessions after stopping the daemon.
   pma uninstall --keep-data        Uninstall pma/peekmyagent but keep captured data.
   pma uninstall --remove-data      Uninstall pma/peekmyagent and peekMyAgent-owned local data.
@@ -293,6 +296,9 @@ try {
   } else if (command === "doctor") {
     const result = await runDoctor();
     printDoctor(result);
+  } else if (command === "compact") {
+    const result = await compactStore();
+    printMaintenanceResult(result);
   } else if (command === "clear") {
     const result = await clearSessions();
     printMaintenanceResult(result);
@@ -614,11 +620,13 @@ function inspectStore(storePath) {
   try {
     store = openPersistenceStore(storePath);
     const sources = store.listSources();
+    const storage = store.storageStats();
     return {
       exists: true,
       source_count: sources.length,
       request_count: sources.reduce((sum, source) => sum + (Number(source.request_count) || 0), 0),
       bytes: fileSize(storePath),
+      storage,
       error: null,
     };
   } catch (error) {
@@ -739,6 +747,48 @@ async function clearSessions() {
     deleted,
     retained_state_dir: defaultStateDir(),
   };
+}
+
+async function compactStore() {
+  const stopped = await shutdownDashboard().catch((error) => ({ action: "shutdown", status: "error", error: error.message }));
+  const storePath = defaultStorePath();
+  if (!fs.existsSync(storePath)) {
+    return {
+      action: "compact",
+      stopped,
+      store_path: storePath,
+      exists: false,
+      compacted: 0,
+      cleared_raw_body_json_bytes: 0,
+      vacuumed: false,
+      before: null,
+      after: null,
+    };
+  }
+  const watchId = optionValue("--watch") || null;
+  const limit = Number(optionValue("--limit")) || 10000;
+  const vacuum = !hasFlag("--no-vacuum");
+  let store = null;
+  try {
+    store = openPersistenceStore(storePath);
+    const before = { ...store.storageStats(), file_bytes: fileSize(storePath) };
+    const compacted = store.compactRawBodies({ watchId, limit });
+    if (vacuum && compacted.compacted > 0) store.vacuum();
+    const after = { ...store.storageStats(), file_bytes: fileSize(storePath) };
+    return {
+      action: "compact",
+      stopped,
+      store_path: storePath,
+      exists: true,
+      watch_id: watchId,
+      vacuumed: vacuum && compacted.compacted > 0,
+      before,
+      after,
+      ...compacted,
+    };
+  } finally {
+    store?.close?.();
+  }
 }
 
 async function uninstallPeekMyAgent() {
@@ -916,6 +966,19 @@ function printMaintenanceResult(result) {
   }
   if (result.action === "clear") {
     console.log(`peekMyAgent cleared all stored sessions: ${result.deleted.length} file(s) removed`);
+    console.log(`store: ${result.store_path}`);
+    return;
+  }
+  if (result.action === "compact") {
+    if (!result.exists) {
+      console.log("peekMyAgent compact skipped: store does not exist");
+      console.log(`store: ${result.store_path}`);
+      return;
+    }
+    console.log(`peekMyAgent compact complete: ${result.compacted} request(s) compacted`);
+    console.log(`raw body duplicates removed: ${formatBytes(result.cleared_raw_body_json_bytes || 0)}`);
+    if (result.vacuumed) console.log(`store file: ${formatBytes(result.before?.file_bytes || 0)} -> ${formatBytes(result.after?.file_bytes || 0)}`);
+    else console.log("store vacuum: skipped");
     console.log(`store: ${result.store_path}`);
     return;
   }

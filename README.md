@@ -224,6 +224,14 @@ Important: slash commands cannot retroactively change the environment of an alre
 
 ## Clear Or Uninstall
 
+Shrink older stored traces without deleting sessions. This removes duplicate full raw request bodies when the same request can be reconstructed from block-cache blobs, then compacts the SQLite file:
+
+```bash
+pma compact
+```
+
+`pma compact` briefly stops the local dashboard daemon to avoid concurrent writes. The dashboard can be opened again with `pma open`.
+
 Remove stored captured sessions after stopping the local daemon:
 
 ```bash

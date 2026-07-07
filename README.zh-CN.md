@@ -140,10 +140,13 @@ pma openclaw chat
 pma open
 pma open --print
 pma doctor
+pma compact
 pma clear --all-sessions
 pma uninstall --keep-data
 pma uninstall --remove-data
 ```
+
+`pma compact` 会压缩旧版存储，不删除会话。它会清理可由分块缓存重建的重复完整 raw request body，并默认执行 SQLite `VACUUM` 回收文件空间。执行时会短暂停止本地 dashboard daemon，之后可用 `pma open` 重新打开。
 
 `pma uninstall --keep-data` 会卸载 `pma` / `peekmyagent` 命令、移除 peekMyAgent 安装的 helper，并停止 daemon，但保留本地捕获数据。
 

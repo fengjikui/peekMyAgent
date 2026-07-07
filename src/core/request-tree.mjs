@@ -131,9 +131,9 @@ function compareChildOrder(left, right) {
 }
 
 function blockKindForValue(value, path) {
-  if (path === "$.tools" && Array.isArray(value)) return "tools";
   if (path === "$.system" && !Array.isArray(value)) return "system_block";
   if (/^\$\.system\[\d+\]$/.test(path)) return "system_block";
+  if (/^\$\.tools\[\d+\]$/.test(path)) return "tool_schema";
   if (/^\$\.messages\[\d+\]$/.test(path)) return value?.role === "tool" ? "tool_result" : "message";
   return null;
 }

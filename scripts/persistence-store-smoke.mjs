@@ -96,7 +96,7 @@ try {
     assert.equal(persistedView.stats.request_count, 2);
     assert.equal(persistedView.requests[0].summary.current_user, "hello persisted store");
     assert.equal(persistedView.requests[1].changes.system_changed, true);
-    assert.equal(persistedView.requests[1].raw.body_source, "original");
+    assert.equal(persistedView.requests[1].raw.body_source, "reconstructed");
 
     const renamed = await postJson(`${secondViewer.url}/api/source/update`, {
       id: persisted.id,
@@ -127,7 +127,24 @@ try {
 
   const store = openPersistenceStore(storePath);
   try {
-    store.clearRawBody(secondRequestId);
+    const storageStats = store.storageStats();
+    assert.equal(storageStats.stored_raw_body_json_bytes, 0, "new captures should not duplicate raw_body_json in model_requests");
+    assert.ok(storageStats.content_blob_count > 0, "new captures should store reusable content blobs");
+    const toolStats = store.blobStats().find((item) => item.kind === "tool_schema");
+    assert.equal(toolStats.count, 1, "unchanged tool schema should be stored once");
+    assert.equal(toolStats.refs, 2, "unchanged tool schema should be referenced by both requests");
+    const legacyRawBody = {
+      model: "mock-claude",
+      messages: [{ role: "user", content: "legacy raw body duplicate" }],
+    };
+    store.db
+      .prepare("UPDATE model_requests SET raw_body_json = ?, body_source = 'original' WHERE request_id = ?")
+      .run(JSON.stringify(legacyRawBody), secondRequestId);
+    assert.ok(store.storageStats().stored_raw_body_json_bytes > 0, "legacy raw body fixture should add stored raw bytes");
+    const compacted = store.compactRawBodies();
+    assert.equal(compacted.compacted, 1, "compaction clears legacy raw_body_json rows");
+    assert.ok(compacted.cleared_raw_body_json_bytes > 0);
+    assert.equal(store.storageStats().stored_raw_body_json_bytes, 0);
     const stats = store.blobStats();
     const systemStats = stats.find((item) => item.kind === "system_block");
     assert.equal(systemStats.count, 3);

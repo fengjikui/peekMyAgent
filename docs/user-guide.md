@@ -259,6 +259,14 @@ pma doctor --json
 pma clear --all-sessions
 ```
 
+压缩旧版 store 中的重复完整 raw body，但保留会话和分块缓存：
+
+```bash
+pma compact
+```
+
+`pma compact` 会先停止本地 dashboard daemon，避免压缩时发生并发写入；完成后可以用 `pma open` 重新打开 dashboard。需要限制范围时可以使用 `pma compact --watch <watch-id>`。
+
 卸载 peekMyAgent 安装过的 Claude Code helper，但保留本地捕获数据：
 
 ```bash

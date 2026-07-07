@@ -11,6 +11,7 @@
 - **翻译与国际化**：支持界面中英文切换、翻译目标语言选择、System / Tools / Harness / thinking 等块级翻译、翻译缓存、手动刷新与块级重译。
 - **Trace 分享**：支持 Trace 导出、导入和静态查看，方便把一次 Agent 调试证据包分享给他人复盘。
 - **会话管理**：支持会话隐藏/归档、删除、清理、暂停、恢复、停止和 dashboard 侧发送消息。
+- **分块缓存存储**：新捕获的请求默认按 system / tool schema / message / tool result 分块入库，Raw 读取时可从 content blobs 无损重建，并支持 `pma compact` 压缩旧数据。
 
 ## 近期发布打磨
 
@@ -42,4 +43,3 @@
 - **Homebrew 或包管理器分发**：源码安装路径稳定后，再考虑 Homebrew 等分发方式。
 - **签名二进制或应用包**：当用户群超出 CLI-first 开发者后，再评估签名包、桌面应用和自动更新。
 - **卸载可信度**：让 `pma uninstall --remove-data` 和未来 UI 卸载路径可预测、可审计、足够保守。
-

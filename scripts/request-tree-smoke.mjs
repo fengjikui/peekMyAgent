@@ -51,8 +51,8 @@ const baseToolResults = blobsByKind(baseTree, "tool_result");
 const changedToolResults = blobsByKind(changedTree, "tool_result");
 assert.equal(baseToolResults[0].hash, changedToolResults[0].hash);
 
-const baseTools = blobsByKind(baseTree, "tools");
-const changedTools = blobsByKind(changedTree, "tools");
+const baseTools = blobsByKind(baseTree, "tool_schema");
+const changedTools = blobsByKind(changedTree, "tool_schema");
 assert.equal(baseTools[0].hash, changedTools[0].hash);
 
 const messagesNode = changedTree.nodes.find((node) => node.json_path === "$.messages");

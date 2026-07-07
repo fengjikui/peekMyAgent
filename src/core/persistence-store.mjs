@@ -6,6 +6,7 @@ import { buildOrderedRequestTree, reconstructFromRequestTree } from "./request-t
 
 const require = createRequire(import.meta.url);
 const PRIVATE_STORE_FILE_MODE = 0o600;
+const STORE_RAW_BODY_ENV = "PEEKMYAGENT_STORE_RAW_BODY_JSON";
 
 export function defaultStorePath() {
   return resolveDefaultStorePath();
@@ -118,6 +119,11 @@ export class PersistenceStore {
     this.db.close();
   }
 
+  vacuum() {
+    this.db.exec("VACUUM");
+    restrictStoreFilePermissions(this.path);
+  }
+
   upsertWatch(watch) {
     if (!watch?.watch_id) throw new Error("watch.watch_id is required for persistence");
     const now = new Date().toISOString();
@@ -166,7 +172,10 @@ export class PersistenceStore {
     const now = new Date().toISOString();
     const body = capture.body ?? null;
     const tree = buildOrderedRequestTree(body, { requestId: capture.capture_id });
-    const captureForStore = { ...capture, body: null };
+    const storeRawBodyJson = shouldStoreRawBodyJson();
+    const rawBodyJson = storeRawBodyJson ? JSON.stringify(body) : null;
+    const bodySource = storeRawBodyJson ? "original" : "reconstructed";
+    const captureForStore = { ...capture, body: null, response: null };
 
     const tx = this.db.prepare(`
       INSERT INTO watches (
@@ -212,7 +221,7 @@ export class PersistenceStore {
             request_id, watch_id, request_index, conversation_id, agent_profile, workspace,
             received_at, method, path, model, raw_body_length, raw_body_json, capture_json, body_source
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'original')
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
         .run(
           capture.capture_id,
@@ -226,8 +235,9 @@ export class PersistenceStore {
           capture.path || null,
           body?.model || null,
           Number(capture.raw_body_length) || byteLength(body),
-          JSON.stringify(body),
+          rawBodyJson,
           JSON.stringify(captureForStore),
+          bodySource,
         );
 
       const insertBlob = this.db.prepare(`
@@ -263,6 +273,12 @@ export class PersistenceStore {
           node.json_path,
           node.scalar_json,
         );
+      }
+      if (capture.response) {
+        const responseForStore = this.storeResponseBlob(capture.capture_id, capture.response);
+        this.db
+          .prepare("UPDATE model_requests SET capture_json = ? WHERE request_id = ?")
+          .run(JSON.stringify({ ...captureForStore, response: responseForStore }), capture.capture_id);
       }
       this.db.exec("COMMIT");
       return { inserted: true, request_id: capture.capture_id, blob_count: tree.blobs.length, node_count: tree.nodes.length };
@@ -472,7 +488,7 @@ export class PersistenceStore {
     const capture = JSON.parse(row.capture_json);
     capture.body = row.raw_body_json ? JSON.parse(row.raw_body_json) : this.reconstructBody(row.request_id);
     capture.response = this.hydrateResponse(row.request_id, capture.response);
-    capture.body_source = row.raw_body_json ? "original" : "reconstructed";
+    capture.body_source = row.raw_body_json ? row.body_source || "original" : row.body_source || "reconstructed";
     capture.capture_id = row.request_id;
     capture.watch_id = row.watch_id;
     capture.request_index = row.request_index;
@@ -512,6 +528,76 @@ export class PersistenceStore {
 
   clearRawBody(requestId) {
     this.db.prepare("UPDATE model_requests SET raw_body_json = NULL, body_source = 'reconstructed' WHERE request_id = ?").run(requestId);
+  }
+
+  compactRawBodies({ watchId = null, limit = 10000 } = {}) {
+    const safeLimit = Math.max(1, Math.min(100000, Number(limit) || 10000));
+    const rows = watchId
+      ? this.db
+          .prepare(
+            `
+              SELECT request_id, LENGTH(raw_body_json) AS raw_body_json_bytes
+              FROM model_requests
+              WHERE watch_id = ?
+                AND raw_body_json IS NOT NULL
+                AND EXISTS (SELECT 1 FROM request_tree_nodes WHERE request_tree_nodes.request_id = model_requests.request_id)
+              ORDER BY request_index, received_at
+              LIMIT ?
+            `,
+          )
+          .all(watchId, safeLimit)
+      : this.db
+          .prepare(
+            `
+              SELECT request_id, LENGTH(raw_body_json) AS raw_body_json_bytes
+              FROM model_requests
+              WHERE raw_body_json IS NOT NULL
+                AND EXISTS (SELECT 1 FROM request_tree_nodes WHERE request_tree_nodes.request_id = model_requests.request_id)
+              ORDER BY received_at
+              LIMIT ?
+            `,
+          )
+          .all(safeLimit);
+    const clear = this.db.prepare("UPDATE model_requests SET raw_body_json = NULL, body_source = 'reconstructed' WHERE request_id = ?");
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const row of rows) clear.run(row.request_id);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    return {
+      compacted: rows.length,
+      cleared_raw_body_json_bytes: rows.reduce((sum, row) => sum + (Number(row.raw_body_json_bytes) || 0), 0),
+      limit: safeLimit,
+      watch_id: watchId || null,
+    };
+  }
+
+  storageStats() {
+    const model = this.db
+      .prepare(
+        `
+          SELECT
+            COUNT(*) AS request_count,
+            SUM(COALESCE(raw_body_length, 0)) AS logical_raw_body_bytes,
+            SUM(COALESCE(LENGTH(raw_body_json), 0)) AS stored_raw_body_json_bytes,
+            SUM(COALESCE(LENGTH(capture_json), 0)) AS stored_capture_json_bytes
+          FROM model_requests
+        `,
+      )
+      .get();
+    const blobs = this.db.prepare("SELECT COUNT(*) AS count, SUM(byte_size) AS bytes, SUM(ref_count) AS refs FROM content_blobs").get();
+    return {
+      request_count: Number(model?.request_count) || 0,
+      logical_raw_body_bytes: Number(model?.logical_raw_body_bytes) || 0,
+      stored_raw_body_json_bytes: Number(model?.stored_raw_body_json_bytes) || 0,
+      stored_capture_json_bytes: Number(model?.stored_capture_json_bytes) || 0,
+      content_blob_count: Number(blobs?.count) || 0,
+      content_blob_bytes: Number(blobs?.bytes) || 0,
+      content_blob_refs: Number(blobs?.refs) || 0,
+    };
   }
 
   blobStats() {
@@ -614,6 +700,10 @@ function byteLength(value) {
 function hashPayload(kind, value) {
   const crypto = require("node:crypto");
   return crypto.createHash("sha256").update(`${kind}\0${JSON.stringify(value ?? null)}`).digest("hex");
+}
+
+function shouldStoreRawBodyJson(env = process.env) {
+  return /^(1|true|yes|on)$/i.test(String(env[STORE_RAW_BODY_ENV] || ""));
 }
 
 function headerValue(headers, name) {

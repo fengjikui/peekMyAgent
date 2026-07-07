@@ -99,6 +99,8 @@
 - 请求级翻译刷新带 `request_id` 时复用单条详情快路径，只抽取目标请求的翻译材料；只有整段刷新才加载完整 source。
 - 长 Trace 主时间线超过阈值后只渲染当前 active turn 附近的窗口，Turn rail 仍保留全局跳转；1000 轮合成 Trace 的主时间线 DOM 从约 36k 节点降到约 2.8k 节点，总 DOM 约 4k。
 - Raw Messages 的“整理”视图对单个文本块设置 Markdown 渲染上限，长文本只展示预览并提示切换原文查看完整 JSON，避免压缩摘要或长工具结果造成右侧面板卡顿。
+- SQLite capture 默认使用分块缓存存储：新请求不再重复保存完整 `raw_body_json`，而是通过 ordered request tree + content blobs 重建 Raw；system、单个 tool schema、单条 message/tool_result 都可按 hash 复用。
+- `pma compact` 可清理旧 store 中已经有 request tree 的重复 `raw_body_json`，并默认执行 SQLite `VACUUM` 回收文件空间。
 
 ## 新增/扩展的自动验证
 
@@ -113,7 +115,9 @@
 - `npm run smoke:maintenance`
   - 覆盖 `clear --all-sessions`、`uninstall --remove-data` 和 helper 清理路径；额外覆盖目录形态 `PEEKMYAGENT_STORE_PATH` 必须被拒绝，防止误配置导致递归删除。
 - `npm run smoke:persistence-store`
-  - 覆盖会话重命名跨 viewer restart 持久化、SQLite store 文件私有权限，以及 `/api/request` 不走全量 persisted source 加载。
+  - 覆盖会话重命名跨 viewer restart 持久化、SQLite store 文件私有权限、`/api/request` 不走全量 persisted source 加载、新 capture 不再写入重复 `raw_body_json`、tool schema 按块复用，以及旧 raw body compaction 后仍可重建。
+- `npm run smoke:request-tree`
+  - 覆盖 system、单个 tool schema、message 和 tool_result 的分块粒度，以及 tree + blobs 对原始请求的无损重建。
 - `npm run smoke:source-meta`
   - 覆盖静态、live、OTel 和 stored source 标题持久化；额外覆盖先重命名、后由首个请求识别 conversation id 的真实使用边界。
 - `npm run smoke:harness-translation`

@@ -4,6 +4,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { openPersistenceStore } from "../src/core/persistence-store.mjs";
 
 const cwd = process.cwd();
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peek-maintenance-"));
@@ -58,6 +59,26 @@ try {
   assert.equal(uninstallDirectoryStoreResult.status, 1);
   assert.match(uninstallDirectoryStoreResult.stderr, /Refusing to remove directory as file-backed peekMyAgent data/);
   assert.equal(fs.existsSync(externalStoreDir), true, "uninstall --remove-data must not recursively delete a directory-shaped store path");
+
+  const compactStorePath = path.join(externalStoreDir, "compact.sqlite");
+  const compactEnv = {
+    ...env,
+    PEEKMYAGENT_STORE_PATH: compactStorePath,
+  };
+  seedCompactableStore(compactStorePath);
+  const compactResult = runCli(["compact", "--no-vacuum", "--json"], compactEnv);
+  assert.equal(compactResult.status, 0, compactResult.stderr);
+  const compact = JSON.parse(compactResult.stdout);
+  assert.equal(compact.action, "compact");
+  assert.equal(compact.compacted, 1);
+  assert.ok(compact.cleared_raw_body_json_bytes > 0);
+  const compactedStore = openPersistenceStore(compactStorePath);
+  try {
+    assert.equal(compactedStore.storageStats().stored_raw_body_json_bytes, 0, "compact CLI removes duplicate raw_body_json");
+    assert.equal(compactedStore.reconstructBody("compact-capture").messages[0].content, "compact me");
+  } finally {
+    compactedStore.close();
+  }
 
   fs.writeFileSync(externalStorePath, "store");
   fs.writeFileSync(`${externalStorePath}-wal`, "wal");
@@ -184,4 +205,34 @@ function samePathText(left, right) {
 
 function normalizePathText(value) {
   return path.resolve(String(value)).replace(/^\/private\/var\//, "/var/");
+}
+
+function seedCompactableStore(storePath) {
+  const store = openPersistenceStore(storePath);
+  const body = {
+    model: "mock",
+    messages: [{ role: "user", content: "compact me" }],
+    tools: [{ name: "Read", description: "Read a file", input_schema: { type: "object" } }],
+  };
+  try {
+    store.upsertCapture({
+      watch: { watch_id: "compact-watch", label: "Compact smoke", agent: "Claude Code", status: "stored" },
+      capture: {
+        capture_id: "compact-capture",
+        watch_id: "compact-watch",
+        request_index: 1,
+        received_at: "2026-07-07T00:00:00.000Z",
+        method: "POST",
+        path: "/v1/messages",
+        body,
+        raw_body_length: Buffer.byteLength(JSON.stringify(body)),
+      },
+    });
+    store.db
+      .prepare("UPDATE model_requests SET raw_body_json = ?, body_source = 'original' WHERE request_id = ?")
+      .run(JSON.stringify(body), "compact-capture");
+    assert.ok(store.storageStats().stored_raw_body_json_bytes > 0, "seed store should contain duplicate raw_body_json");
+  } finally {
+    store.close();
+  }
 }
