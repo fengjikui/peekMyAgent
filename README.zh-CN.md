@@ -8,17 +8,23 @@ peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 
 
 ![peekMyAgent dashboard feature tour](assets/demo/dashboard-overview-tour.gif)
 
-**普通聊天上行上下文拆解**
+<p>
+  <strong>普通聊天上行上下文拆解</strong><br>
+  查看一次普通聊天请求里真正发送给模型的 System、Tools、Messages 和 Response 切片。
+</p>
 
-查看一次普通聊天请求里真正发送给模型的 System、Tools、Messages 和 Response 切片。
+<p>
+  <img src="assets/demo/chat-upstream-context.gif" alt="普通聊天上行上下文拆解" width="960">
+</p>
 
-![普通聊天上行上下文拆解](assets/demo/chat-upstream-context.gif)
+<p>
+  <strong>工具调用闭环拆解</strong><br>
+  从时间线里追踪一次基础 <code>tool_use</code> -> <code>tool_result</code> -> 最终回答的完整链路。
+</p>
 
-**工具调用闭环拆解**
-
-从时间线里追踪一次基础 `tool_use` -> `tool_result` -> 最终回答的完整链路。
-
-![工具调用闭环拆解](assets/demo/tool-call-loop.gif)
+<p>
+  <img src="assets/demo/tool-call-loop.gif" alt="工具调用闭环拆解" width="960">
+</p>
 
 更多静态标注图、普通聊天上行拆解、工具调用闭环和 README 录制脚本见：[图文使用说明](docs/visual-usage-guide.zh-CN.md)。
 

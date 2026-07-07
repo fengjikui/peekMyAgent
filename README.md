@@ -12,17 +12,23 @@ peekMyAgent is not meant to "steal hidden prompts". It is an observability tool 
 
 ![peekMyAgent dashboard feature tour](assets/demo/dashboard-overview-tour.gif)
 
-**Upstream Context Walkthrough**
+<p>
+  <strong>Upstream Context Walkthrough</strong><br>
+  Inspect the exact System, Tools, Messages, and Response slices sent around a normal chat request.
+</p>
 
-Inspect the exact System, Tools, Messages, and Response slices sent around a normal chat request.
+<p>
+  <img src="assets/demo/chat-upstream-context.gif" alt="Upstream context walkthrough" width="960">
+</p>
 
-![Upstream context walkthrough](assets/demo/chat-upstream-context.gif)
+<p>
+  <strong>Tool Call Loop Walkthrough</strong><br>
+  Follow a basic <code>tool_use</code> -> <code>tool_result</code> -> final answer loop from the model request timeline.
+</p>
 
-**Tool Call Loop Walkthrough**
-
-Follow a basic `tool_use` -> `tool_result` -> final answer loop from the model request timeline.
-
-![Tool call loop walkthrough](assets/demo/tool-call-loop.gif)
+<p>
+  <img src="assets/demo/tool-call-loop.gif" alt="Tool call loop walkthrough" width="960">
+</p>
 
 See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated screenshot, upstream-context walkthrough, tool-call loop walkthrough, and README recording plan.
 
