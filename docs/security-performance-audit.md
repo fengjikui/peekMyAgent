@@ -101,6 +101,7 @@
 - Raw Messages 的“整理”视图对单个文本块设置 Markdown 渲染上限，长文本只展示预览并提示切换原文查看完整 JSON，避免压缩摘要或长工具结果造成右侧面板卡顿。
 - SQLite capture 默认使用分块缓存存储：新请求不再重复保存完整 `raw_body_json`，而是通过 ordered request tree + content blobs 重建 Raw；system、单个 tool schema、单条 message/tool_result 都可按 hash 复用。
 - `pma compact` 可清理旧 store 中已经有 request tree 的重复 `raw_body_json`，并默认执行 SQLite `VACUUM` 回收文件空间。
+- 大 Trace 会话切换采用渐进加载：前端先请求 `/api/view?compact=1&initial=1&limit=32` 渲染首屏，再后台拉完整 compact view 补齐剩余 turns，避免用户点击左侧会话后长时间空白。
 
 ## 新增/扩展的自动验证
 
@@ -131,7 +132,7 @@
 - `npm run smoke:markdown-safety`
   - 直接调用真实 Markdown 渲染模块，覆盖段落、加粗、代码块和表格中的 HTML/脚本样本，确保只输出受控标签和安全属性。
 - `npm run smoke:compact-view-performance`
-  - 构造 420 条包含大 system/tools/history/response 的合成 Trace，约束 `/api/view?compact=1` 首屏 payload、耗时和大字段省略行为，防止切会话路径回退到全量 Raw。
+  - 构造 420 条包含大 system/tools/history/response 的合成 Trace，约束 `/api/view?compact=1` 首屏 payload、耗时和大字段省略行为，并验证 `initial=1&limit=24` 只返回首批请求且保留总请求数，防止切会话路径回退到全量 Raw。
 - `npm run smoke:trace-bundle`
   - 覆盖 Trace 导出默认脱敏、敏感字段名脱敏、导出脱敏深度保护、带 dashboard intent 的导入后只读查看、导入 Trace 的 `trace_id` 路径穿越防护、导入 Trace 的 `/api/request` 单请求窗口详情、删除导入 Trace 会移除对应本地导入目录，以及导出不读取完整 timeline companion 文件。
 

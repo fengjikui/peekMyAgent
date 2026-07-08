@@ -6,6 +6,8 @@ const state = {
   activeId: null,
   activeRequestId: null,
   activeSourceId: null,
+  sourceLoadSeq: 0,
+  progressiveLoadError: "",
   activeRawMode: "request",
   rawOpen: true,
   activeRawSection: "full",
@@ -52,6 +54,8 @@ const DEFAULT_UI_LANGUAGE = "zh-CN";
 const DEFAULT_TRANSLATION_LANGUAGE = "zh-CN";
 const TIMELINE_WINDOW_THRESHOLD = 180;
 const TIMELINE_WINDOW_SIZE = 120;
+const INITIAL_SOURCE_REQUEST_LIMIT = 32;
+const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
 const RAW_MESSAGE_MARKDOWN_INLINE_CHARS = 5000;
 const SUPPORTED_UI_LANGUAGES = [
   { value: "zh-CN", label: "中文" },
@@ -248,6 +252,8 @@ const I18N = {
     showAllTurns: "显示全部轮次",
     latestOnly: "只看最新轮次",
     sessionInfo: "会话信息",
+    traceInitialLoading: "先显示前 {loaded}/{total} 条请求，完整 Trace 正在后台载入…",
+    traceFullLoadFailed: "完整 Trace 后台加载失败：{message}",
     emptyTimelineTitle: "等待 Agent 发出下一次模型请求",
     emptyTimelineBody: "这个 watch 已经创建。把 Agent 的 provider/base URL 指向本地代理后，请求会出现在这里。",
     emptyStatus: "状态",
@@ -573,6 +579,8 @@ const I18N = {
     showAllTurns: "Show all turns",
     latestOnly: "Latest turn only",
     sessionInfo: "Session Info",
+    traceInitialLoading: "Showing the first {loaded}/{total} requests while the full Trace loads in the background...",
+    traceFullLoadFailed: "Background full Trace load failed: {message}",
     emptyTimelineTitle: "Waiting for the next model request",
     emptyTimelineBody: "This watch has been created. Requests will appear here once the Agent provider/base URL points to the local proxy.",
     emptyStatus: "Status",
@@ -1191,24 +1199,20 @@ async function init() {
 
 async function loadSource(sourceId, { preserveScroll = false } = {}) {
   const scrollTop = els.mainPanel.scrollTop;
+  const loadSeq = (state.sourceLoadSeq += 1);
+  const progressive = shouldUseProgressiveSourceLoad(sourceId, { preserveScroll });
   if (state.activeSourceId && state.activeSourceId !== sourceId) clearRequestDetailCache();
-  state.data = mergeCachedRequestDetails(await fetchViewerData(sourceId));
-  await loadTranslationsForActiveSource();
-  const turnIds = activeTurnIds();
-  if (!preserveScroll || !turnIds.includes(state.activeId)) {
-    state.activeId = turnIds[0] || null;
+  state.progressiveLoadError = "";
+  const initialData = mergeCachedRequestDetails(
+    await fetchViewerData(sourceId, progressive ? { initial: true, limit: INITIAL_SOURCE_REQUEST_LIMIT } : {}),
+  );
+  if (loadSeq !== state.sourceLoadSeq) return;
+  applyLoadedSourceData(initialData, { preserveScroll, scrollTop });
+  if (progressive && initialData.partial?.has_more) {
+    loadFullSourceInBackground(sourceId, { loadSeq });
+    return;
   }
-  if (!preserveScroll || !state.data.requests.some((request) => request.id === state.activeRequestId)) {
-    state.activeRequestId = state.data.requests[0]?.id || null;
-  }
-  state.activeSourceId = state.data.source.id;
-  const url = new URL(window.location.href);
-  url.searchParams.set("source", state.activeSourceId);
-  window.history.replaceState(null, "", url);
-  renderAll();
-  if (preserveScroll) els.mainPanel.scrollTop = scrollTop;
-  else els.mainPanel.scrollTop = 0;
-  scheduleActiveSync();
+  loadTranslationsForSourceLoad(loadSeq);
 }
 
 async function refreshSources() {
@@ -1281,8 +1285,69 @@ async function refreshActiveSource(activeSource) {
   scheduleActiveSync();
 }
 
-function fetchViewerData(sourceId) {
-  return fetchJson(`/api/view?source=${encodeURIComponent(sourceId)}&compact=1`);
+function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } = {}) {
+  state.data = data;
+  const turnIds = activeTurnIds(data);
+  if (!preserveScroll || !turnIds.includes(state.activeId)) {
+    state.activeId = turnIds[0] || null;
+  }
+  if (!preserveScroll || !data.requests.some((request) => request.id === state.activeRequestId)) {
+    state.activeRequestId = data.requests[0]?.id || null;
+  }
+  state.activeSourceId = data.source.id;
+  const url = new URL(window.location.href);
+  url.searchParams.set("source", state.activeSourceId);
+  window.history.replaceState(null, "", url);
+  renderAll();
+  if (preserveScroll) els.mainPanel.scrollTop = scrollTop;
+  else els.mainPanel.scrollTop = 0;
+  scheduleActiveSync();
+}
+
+async function loadFullSourceInBackground(sourceId, { loadSeq } = {}) {
+  window.setTimeout(async () => {
+    try {
+      const fullData = mergeCachedRequestDetails(await fetchViewerData(sourceId));
+      if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== fullData.source.id) return;
+      const scrollTop = els.mainPanel.scrollTop;
+      applyLoadedSourceData(fullData, { preserveScroll: true, scrollTop });
+      loadTranslationsForSourceLoad(loadSeq);
+    } catch (error) {
+      if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== sourceId) return;
+      state.progressiveLoadError = error.message;
+      renderAll();
+      console.warn("peekMyAgent full trace background load failed", error);
+    }
+  }, 40);
+}
+
+async function loadTranslationsForSourceLoad(loadSeq) {
+  try {
+    await loadTranslationsForActiveSource();
+    if (loadSeq !== state.sourceLoadSeq) return;
+    if (state.activeRequestId && !els.rawTree.classList.contains("empty")) {
+      showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
+    }
+  } catch (error) {
+    console.warn("peekMyAgent translation load failed", error);
+  }
+}
+
+function shouldUseProgressiveSourceLoad(sourceId, { preserveScroll = false } = {}) {
+  if (preserveScroll) return false;
+  const source = state.sources.find((item) => item.id === sourceId);
+  return Number(source?.request_count || 0) >= PROGRESSIVE_SOURCE_MIN_REQUESTS;
+}
+
+function fetchViewerData(sourceId, { initial = false, limit = INITIAL_SOURCE_REQUEST_LIMIT } = {}) {
+  const url = new URL("/api/view", window.location.origin);
+  url.searchParams.set("source", sourceId);
+  url.searchParams.set("compact", "1");
+  if (initial) {
+    url.searchParams.set("initial", "1");
+    url.searchParams.set("limit", String(limit));
+  }
+  return fetchJson(`${url.pathname}${url.search}`);
 }
 
 function clearRequestDetailCache() {
@@ -2059,7 +2124,7 @@ function renderAll() {
   els.viewControls.innerHTML =
     `<button class="stat stat-button ${state.latestOnly ? "active" : ""}" type="button" data-latest-only>${state.latestOnly ? t("showAllTurns") : t("latestOnly")}</button>` +
     `<button class="stat stat-button session-info-trigger" type="button" data-session-info>${t("sessionInfo")}</button>`;
-  els.watchSummary.innerHTML = "";
+  els.watchSummary.innerHTML = renderProgressiveLoadNotice(state.data?.partial);
   els.sessionInfoBody.innerHTML = renderSessionInfo(source, stats, requests);
   renderSessionNav();
   const turnWindow = timelineWindowInfo(turns, requests);
@@ -2072,6 +2137,21 @@ function renderAll() {
   bindRequestEvents();
   if (state.activeId) markActiveTurn(state.activeId, false);
   if (state.activeRequestId) markActiveRequest(state.activeRequestId, false);
+}
+
+function renderProgressiveLoadNotice(partial) {
+  if (!partial?.has_more && !state.progressiveLoadError) return "";
+  const loaded = partial?.loaded_request_count || state.data?.requests?.length || 0;
+  const total = partial?.total_request_count || state.data?.stats?.request_count || loaded;
+  const message = state.progressiveLoadError
+    ? t("traceFullLoadFailed", { message: state.progressiveLoadError })
+    : t("traceInitialLoading", { loaded, total });
+  return `
+    <div class="progressive-load-notice ${state.progressiveLoadError ? "error" : ""}">
+      <span class="progressive-load-dot" aria-hidden="true"></span>
+      <span>${escapeHtml(message)}</span>
+    </div>
+  `;
 }
 
 function baseTurnList(turns, requests) {

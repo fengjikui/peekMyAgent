@@ -49,8 +49,23 @@ try {
       "compact context delta previews should stay small",
     );
 
+    const initialStarted = performance.now();
+    const initialResponse = await fetch(`${viewer.url}/api/view?source=custom&compact=1&initial=1&limit=24`);
+    const initialText = await initialResponse.text();
+    const initialElapsedMs = performance.now() - initialStarted;
+    const initialByteLength = Buffer.byteLength(initialText);
+    const initialView = JSON.parse(initialText);
+    assert.equal(initialResponse.ok, true, initialText);
+    assert.equal(initialView.requests.length, 24, "initial view only returns the first requested window");
+    assert.equal(initialView.partial.has_more, true);
+    assert.equal(initialView.partial.loaded_request_count, 24);
+    assert.equal(initialView.partial.total_request_count, requestCount);
+    assert.equal(initialView.stats.request_count, requestCount, "initial view keeps total request count for the topbar");
+    assert.ok(initialByteLength < byteLength / 4, "initial view payload should be materially smaller than full compact view");
+    assert.ok(initialElapsedMs < maxElapsedMs, `initial view should return within ${maxElapsedMs}ms; got ${Math.round(initialElapsedMs)}ms`);
+
     console.log(
-      `compact-view-performance smoke passed (${requestCount} requests, ${byteLength} bytes, ${Math.round(elapsedMs)}ms)`,
+      `compact-view-performance smoke passed (${requestCount} requests, full ${byteLength} bytes/${Math.round(elapsedMs)}ms, initial ${initialByteLength} bytes/${Math.round(initialElapsedMs)}ms)`,
     );
   } finally {
     await viewer.close();

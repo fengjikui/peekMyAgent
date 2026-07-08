@@ -1277,6 +1277,53 @@ select {
   display: none;
 }
 
+.progressive-load-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #c7dbff;
+  border-radius: 999px;
+  background: #f6f9ff;
+  color: #2858b8;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.progressive-load-notice.error {
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: #b42318;
+}
+
+.progressive-load-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.72;
+}
+
+.progressive-load-notice:not(.error) .progressive-load-dot {
+  animation: progressive-load-pulse 1s ease-in-out infinite;
+}
+
+@keyframes progressive-load-pulse {
+  0%,
+  100% {
+    opacity: 0.36;
+    transform: scale(0.86);
+  }
+
+  50% {
+    opacity: 0.86;
+    transform: scale(1);
+  }
+}
+
 .summary-hero {
   display: grid;
   gap: 16px;

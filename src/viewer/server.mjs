@@ -68,6 +68,8 @@ const TIMELINE_ROLE_LIMIT = 48;
 const TIMELINE_TOOL_NAME_LIMIT = 24;
 const TIMELINE_CONTEXT_PREVIEW_LIMIT = 4;
 const TIMELINE_CONTEXT_PREVIEW_CHARS = 140;
+const INITIAL_VIEW_REQUEST_LIMIT = 32;
+const INITIAL_VIEW_REQUEST_LIMIT_MAX = 120;
 const SOURCE_META_FILE = "source-meta.json";
 const comparableMessageKeyCache = new WeakMap();
 
@@ -346,7 +348,10 @@ async function handleRequest(req, res, options) {
     if (rejectWrongMethod(req, res, "GET")) return;
     const requestedSource = sanitizeApiLookupId(url.searchParams.get("source"), { limit: MAX_API_SOURCE_ID_CHARS });
     const sourceId = requestedSource || options.demo || null;
-    const data = loadViewerData(sourceId, options, { requireSource: Boolean(requestedSource) });
+    const data = loadViewerData(sourceId, options, {
+      requireSource: Boolean(requestedSource),
+      initialLimit: initialViewLimit(url.searchParams),
+    });
     return writeJson(res, 200, url.searchParams.get("compact") === "1" ? compactViewerDataForTimeline(data) : data);
   }
   if (url.pathname === "/api/request") {
@@ -946,30 +951,29 @@ function boundedManifestCount(value) {
   return Math.min(Math.floor(number), Number.MAX_SAFE_INTEGER);
 }
 
-function loadViewerData(sourceId, options, { requireSource = false } = {}) {
+function initialViewLimit(searchParams) {
+  if (searchParams.get("initial") !== "1" && !searchParams.has("limit")) return 0;
+  return boundedPositiveInt(searchParams.get("limit"), INITIAL_VIEW_REQUEST_LIMIT, INITIAL_VIEW_REQUEST_LIMIT_MAX);
+}
+
+function loadViewerData(sourceId, options, { requireSource = false, initialLimit = 0 } = {}) {
   const sources = listSources(options);
   const source = resolveViewerSource(sources, sourceId, { requireSource });
   if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
-  if (source.live_watch_id) return loadLiveWatchData(source, options);
-  if (source.kind === "persisted_capture") return loadPersistedData(source, options);
+  if (source.live_watch_id) return loadLiveWatchData(source, options, { initialLimit });
+  if (source.kind === "persisted_capture") return loadPersistedData(source, options, { initialLimit });
 
-  const captures = readJson(path.join(source.path, "proxy-captures.json"));
-  const debugSources = readOptionalJson(path.join(source.path, "debug-api-sources.json")) || [];
+  const allCaptures = readJson(path.join(source.path, "proxy-captures.json"));
+  const captures = initialLimit ? allCaptures.slice(0, initialLimit) : allCaptures;
+  const debugSources = (readOptionalJson(path.join(source.path, "debug-api-sources.json")) || []).slice(0, captures.length);
   const command = readOptionalJson(path.join(source.path, "command.json"));
-  const requests = captures.map((capture, index) => summarizeCapture(capture, source, index, debugSources[index]));
-  annotateRequestChanges(requests);
-  annotateSubagentLineage(requests);
-  const turns = buildTurnTimeline(requests);
-  const agentTrace = buildAgentTrace(requests);
-  attachAgentTraceToTurns(turns, agentTrace);
-  return {
-    generated_at: new Date().toISOString(),
-    source: { ...source, command, workbench: buildWorkbenchSummary(source, requests, command) },
-    stats: buildStats(requests, agentTrace),
-    requests,
-    turns,
-    agent_trace: agentTrace,
-  };
+  return buildViewerDataFromCaptures({
+    source,
+    captures,
+    debugSources,
+    command,
+    partial: initialPartialInfo({ requestedLimit: initialLimit, loadedCount: captures.length, totalCount: allCaptures.length }),
+  });
 }
 
 function loadViewerRequestDetail(sourceId, requestId, options, { requireSource = false } = {}) {
@@ -2246,23 +2250,17 @@ function findWatch(watches, input) {
   return null;
 }
 
-function loadLiveWatchData(source, { watches }) {
+function loadLiveWatchData(source, { watches }, { initialLimit = 0 } = {}) {
   const watch = watches.get(source.id);
   if (!watch) throw new Error(`Live watch not found: ${source.id}`);
-  const requests = capturesForWatch(watch).map((capture, index) => summarizeCapture(capture, source, index, null));
-  annotateRequestChanges(requests);
-  annotateSubagentLineage(requests);
-  const turns = buildTurnTimeline(requests);
-  const agentTrace = buildAgentTrace(requests);
-  attachAgentTraceToTurns(turns, agentTrace);
-  return {
-    generated_at: new Date().toISOString(),
-    source: { ...source, command: liveWatchCommand(watch), workbench: buildWorkbenchSummary(source, requests, liveWatchCommand(watch)) },
-    stats: buildStats(requests, agentTrace),
-    requests,
-    turns,
-    agent_trace: agentTrace,
-  };
+  const allCaptures = capturesForWatch(watch);
+  const captures = initialLimit ? allCaptures.slice(0, initialLimit) : allCaptures;
+  return buildViewerDataFromCaptures({
+    source,
+    captures,
+    command: liveWatchCommand(watch),
+    partial: initialPartialInfo({ requestedLimit: initialLimit, loadedCount: captures.length, totalCount: allCaptures.length }),
+  });
 }
 
 function daemonPing({ sharedCaptureProxy }) {
@@ -2320,23 +2318,60 @@ function capturesForWatch(watch) {
   return (watch.proxy?.captures || []).filter((capture) => capture.watch_id === watch.watch_id);
 }
 
-function loadPersistedData(source, { store }) {
+function loadPersistedData(source, { store }, { initialLimit = 0 } = {}) {
   const watchId = source.store_watch_id || watchIdFromSourceId(source.id);
   if (!watchId) throw new Error(`Invalid persisted source id: ${source.id}`);
-  const captures = store.loadCaptures(watchId);
-  const requests = captures.map((capture, index) => summarizeCapture(capture, source, index, null));
+  const totalCount = Number(source.request_count) || 0;
+  const captures = initialLimit ? store.loadInitialCaptures(watchId, { limit: initialLimit }) : store.loadCaptures(watchId);
+  return buildViewerDataFromCaptures({
+    source,
+    captures,
+    command: null,
+    partial: initialPartialInfo({ requestedLimit: initialLimit, loadedCount: captures.length, totalCount }),
+  });
+}
+
+function buildViewerDataFromCaptures({ source, captures, debugSources = [], command = null, partial = null }) {
+  const requests = captures.map((capture, index) => summarizeCapture(capture, source, index, debugSources[index] || null));
   annotateRequestChanges(requests);
   annotateSubagentLineage(requests);
   const turns = buildTurnTimeline(requests);
   const agentTrace = buildAgentTrace(requests);
   attachAgentTraceToTurns(turns, agentTrace);
+  const stats = viewerStatsWithSourceTotals(buildStats(requests, agentTrace), source, partial);
   return {
     generated_at: new Date().toISOString(),
-    source: { ...source, command: null, workbench: buildWorkbenchSummary(source, requests, null) },
-    stats: buildStats(requests, agentTrace),
+    source: { ...source, command, workbench: buildWorkbenchSummary(source, requests, command) },
+    stats,
     requests,
     turns,
     agent_trace: agentTrace,
+    ...(partial?.has_more ? { partial } : {}),
+  };
+}
+
+function initialPartialInfo({ requestedLimit, loadedCount, totalCount }) {
+  const limit = Number(requestedLimit) || 0;
+  if (!limit) return null;
+  const loaded = Number(loadedCount) || 0;
+  const total = Math.max(Number(totalCount) || 0, loaded);
+  return {
+    mode: "initial",
+    request_limit: limit,
+    loaded_request_count: loaded,
+    total_request_count: total,
+    has_more: total > loaded,
+  };
+}
+
+function viewerStatsWithSourceTotals(stats, source, partial) {
+  if (!partial?.has_more) return stats;
+  return {
+    ...stats,
+    request_count: Number(source.request_count) || partial.total_request_count || stats.request_count,
+    response_count: Number(source.response_count) || stats.response_count,
+    raw_body_bytes: Number(source.raw_body_bytes) || stats.raw_body_bytes,
+    partial_loaded_request_count: partial.loaded_request_count,
   };
 }
 
