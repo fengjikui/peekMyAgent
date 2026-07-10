@@ -370,7 +370,14 @@ export class PersistenceStore {
           w.last_seen,
           w.title,
           COUNT(r.request_id) AS request_count,
-          SUM(CASE WHEN instr(r.capture_json, '"response"') > 0 THEN 1 ELSE 0 END) AS response_count,
+          SUM(
+            CASE
+              WHEN json_type(r.capture_json, '$.response') IS NOT NULL
+                AND json_type(r.capture_json, '$.response') != 'null'
+              THEN 1
+              ELSE 0
+            END
+          ) AS response_count,
           SUM(COALESCE(r.raw_body_length, 0)) AS raw_body_bytes
         FROM watches w
         LEFT JOIN model_requests r ON r.watch_id = w.watch_id
