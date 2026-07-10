@@ -19,7 +19,7 @@ export function readTrackedSnapshot({ cwd = process.cwd(), allowTrackedChanges =
 export function trackedSnapshotChanged(before, after, { allowTrackedChanges = false } = {}) {
   if (allowTrackedChanges) return false;
   if (before == null || after == null) return false;
-  return JSON.stringify(before) !== JSON.stringify(after);
+  return before.worktree_diff_hash !== after.worktree_diff_hash || before.index_diff_hash !== after.index_diff_hash;
 }
 
 export function formatTrackedSnapshot(snapshot) {

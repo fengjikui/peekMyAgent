@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { normalizeClaudeOtelRequestBody } from "../src/adapters/claude-otel.mjs";
 import { startCaptureProxy } from "../src/core/capture-proxy.mjs";
+import { childProcessSpawnConfig } from "../src/core/platform.mjs";
 
 const originalBaseUrl = process.env.ANTHROPIC_BASE_URL;
 const originalAuthToken = process.env.ANTHROPIC_AUTH_TOKEN;
@@ -22,23 +23,31 @@ if (!originalBaseUrl || !originalAuthToken) {
 
 function runClaude({ env, bodyDir, label }) {
   return new Promise((resolve) => {
-    const child = spawn("claude", ["-p", "--output-format", "json", "--tools", "", "--max-budget-usd", "0.05", prompt], {
+    const childArgs = ["-p", "--output-format", "json", "--tools", "", "--max-budget-usd", "0.05", prompt];
+    const childEnv = {
+      ...process.env,
+      ...env,
+      CLAUDE_CODE_ENABLE_TELEMETRY: "1",
+      OTEL_LOGS_EXPORTER: "console",
+      OTEL_LOG_RAW_API_BODIES: `file:${bodyDir}`,
+      OTEL_LOGS_EXPORT_INTERVAL: "1000",
+    };
+    const spawnConfig = childProcessSpawnConfig("claude", childArgs, { env: childEnv });
+    const child = spawn(spawnConfig.command, spawnConfig.args, {
       cwd: process.cwd(),
-      env: {
-        ...process.env,
-        ...env,
-        CLAUDE_CODE_ENABLE_TELEMETRY: "1",
-        OTEL_LOGS_EXPORTER: "console",
-        OTEL_LOG_RAW_API_BODIES: `file:${bodyDir}`,
-        OTEL_LOGS_EXPORT_INTERVAL: "1000",
-      },
+      env: childEnv,
       stdio: ["ignore", "pipe", "pipe"],
+      ...spawnConfig.options,
     });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => child.kill("SIGTERM"), 180_000);
     child.stdout.on("data", (chunk) => (stdout += chunk.toString()));
     child.stderr.on("data", (chunk) => (stderr += chunk.toString()));
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      resolve({ label, code: 1, signal: null, stdout, stderr: `${stderr}${error.message}\n` });
+    });
     child.on("close", (code, signal) => {
       clearTimeout(timer);
       resolve({ label, code, signal: signal || null, stdout, stderr });

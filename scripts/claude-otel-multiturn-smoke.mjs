@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { normalizeClaudeOtelRequestFile } from "../src/adapters/claude-otel.mjs";
+import { childProcessSpawnConfig } from "../src/core/platform.mjs";
 
 const sessionId = crypto.randomUUID();
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "peek-claude-multiturn-"));
@@ -55,22 +56,29 @@ function runClaude(prompt, index) {
             "0.10",
             prompt,
           ];
-    const child = spawn("claude", args, {
+    const childEnv = {
+      ...process.env,
+      CLAUDE_CODE_ENABLE_TELEMETRY: "1",
+      OTEL_LOGS_EXPORTER: "console",
+      OTEL_LOG_RAW_API_BODIES: `file:${bodyDir}`,
+      OTEL_LOGS_EXPORT_INTERVAL: "1000",
+    };
+    const spawnConfig = childProcessSpawnConfig("claude", args, { env: childEnv });
+    const child = spawn(spawnConfig.command, spawnConfig.args, {
       cwd: process.cwd(),
-      env: {
-        ...process.env,
-        CLAUDE_CODE_ENABLE_TELEMETRY: "1",
-        OTEL_LOGS_EXPORTER: "console",
-        OTEL_LOG_RAW_API_BODIES: `file:${bodyDir}`,
-        OTEL_LOGS_EXPORT_INTERVAL: "1000",
-      },
+      env: childEnv,
       stdio: ["ignore", "pipe", "pipe"],
+      ...spawnConfig.options,
     });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => child.kill("SIGTERM"), 180_000);
     child.stdout.on("data", (chunk) => (stdout += chunk.toString()));
     child.stderr.on("data", (chunk) => (stderr += chunk.toString()));
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      resolve({ turn_index: index + 1, prompt, args, code: 1, signal: null, stdout, stderr: `${stderr}${error.message}\n` });
+    });
     child.on("close", (code, signal) => {
       clearTimeout(timer);
       resolve({ turn_index: index + 1, prompt, args, code, signal: signal || null, stdout, stderr });

@@ -78,6 +78,14 @@ try {
   assert.equal(before.status, after.status, "status-only guard would miss this change");
   assert.equal(trackedSnapshotChanged(before, after), true, "diff hash guard should detect same-status tracked changes");
   assert.equal(trackedSnapshotChanged(before, after, { allowTrackedChanges: true }), false);
+
+  const statOnlyBefore = { ...before, status: "" };
+  const statOnlyAfter = { ...before, status: " M tracked.txt" };
+  assert.equal(
+    trackedSnapshotChanged(statOnlyBefore, statOnlyAfter),
+    false,
+    "status-only changes with identical Git diffs should not fail the release gate",
+  );
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }

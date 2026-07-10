@@ -399,7 +399,7 @@ try {
   }
 } catch (error) {
   console.error(`peekmyagent error: ${error.message}`);
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 async function runDoctor() {
