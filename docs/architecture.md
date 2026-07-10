@@ -73,6 +73,8 @@ Claude Code 的订阅/OAuth 请求可能拒绝经过改写代理。此时 CLI：
 
 OTel 的 body 来源是 Agent 官方遥测输出，但 request/response 目前按文件时间和顺序配对。展示层应把它视作“高可信原始内容 + 启发式关联”，而不是与代理抓包完全等价。
 
+当 `-c/--continue` 或 `-r/--resume` 选择复用已有监听时，OTel wrapper 会继续使用同一 `watch_id`；新一轮 dump 的 request index 从该 watch 当前最大值继续递增，从而与 proxy capture 保持一致的会话归属语义。
+
 ## OpenClaw 与其他来源
 
 OpenClaw wrapper 会复制/补丁 profile，把选定 provider 的 base URL 临时指向 watch proxy，并在子进程退出后恢复配置。Trae CN 集成通过本机 `workspaceStorage`/`state.vscdb` 查找模型配置并提供可逆 patch。

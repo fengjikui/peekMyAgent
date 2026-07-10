@@ -1114,15 +1114,15 @@ async function runClaudeAgent(parsed, viewerUrl) {
   const workspace = safeProcessCwd();
   const targetBaseUrl = resolveClaudeCodeTargetBaseUrl({ cwd: workspace, env: process.env });
   const captureMode = resolveClaudeCaptureMode(parsed.wrapperArgs, { targetBaseUrl });
+  if (captureMode.mode !== "otel" && !targetBaseUrl) throw new Error("Missing ANTHROPIC_BASE_URL or PEEK_CLAUDE_TARGET_BASE_URL for Claude Code upstream.");
+  const conversationId = inferClaudeConversationId(parsed.childArgs);
+  const reuseWatchId = await resolveClaudeRunWatchChoice({ parsed, viewerUrl, conversationId });
   if (captureMode.mode === "otel") {
     if (captureMode.explicit) console.error("peekMyAgent capture: OTel raw body (forced)");
     else console.error("peekMyAgent capture: OTel raw body (auto fallback; no Claude Code upstream base URL found)");
-    return runClaudeOtelAgent(parsed, viewerUrl);
+    return runClaudeOtelAgent(parsed, viewerUrl, { conversationId, reuseWatchId });
   }
-  if (!targetBaseUrl) throw new Error("Missing ANTHROPIC_BASE_URL or PEEK_CLAUDE_TARGET_BASE_URL for Claude Code upstream.");
   console.error(captureMode.explicit ? "peekMyAgent capture: proxy (forced)" : "peekMyAgent capture: proxy (auto; Claude Code upstream base URL found)");
-  const conversationId = inferClaudeConversationId(parsed.childArgs);
-  const reuseWatchId = await resolveClaudeRunWatchChoice({ parsed, viewerUrl, conversationId });
   const watch = await postJson(`${trimSlash(viewerUrl)}/api/watch/start`, {
     agent: "Claude Code",
     mode: optionValueIn(parsed.wrapperArgs, "--mode") || "single_session",
@@ -1179,13 +1179,20 @@ function claudeDefaultCaptureMode(targetBaseUrl) {
 // let Claude Code connect directly and dump raw request/response bodies via
 // OTEL_LOG_RAW_API_BODIES. The wrapper tails that dir into the daemon, which
 // persists the captures like any other source. No proxy, no 403.
-async function runClaudeOtelAgent(parsed, viewerUrl) {
+async function runClaudeOtelAgent(parsed, viewerUrl, { conversationId, reuseWatchId } = {}) {
   const workspace = safeProcessCwd();
-  const conversationId = inferClaudeConversationId(parsed.childArgs);
-  const watchId = `claude-code-otel-${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
+  const watchId = reuseWatchId || `claude-code-otel-${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
+  const reused = Boolean(reuseWatchId);
   const dumpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-otel-"));
   const env = mergeClaudeCodeProcessEnv({ cwd: workspace, env: process.env, overrides: otelTelemetryEnv(dumpDir) });
-  const ingestPayload = { dir: dumpDir, watch_id: watchId, agent: "Claude Code", workspace, conversation_id: conversationId };
+  const ingestPayload = {
+    dir: dumpDir,
+    watch_id: watchId,
+    agent: "Claude Code",
+    workspace,
+    conversation_id: conversationId,
+    mode: optionValueIn(parsed.wrapperArgs, "--mode") || "single_session",
+  };
   const ingest = async () => {
     try {
       return await postJson(`${trimSlash(viewerUrl)}/api/capture/otel`, ingestPayload, { headers: { "x-peekmyagent-intent": "otel-ingest" } });
@@ -1195,7 +1202,7 @@ async function runClaudeOtelAgent(parsed, viewerUrl) {
   };
 
   console.error(`peekMyAgent dashboard: ${trimSlash(viewerUrl)}?source=${encodeURIComponent(`stored-${watchId}`)}`);
-  console.error(`peekMyAgent watch (OTel raw body, subscription-safe): ${watchId}`);
+  console.error(`peekMyAgent watch (OTel raw body, subscription-safe): ${watchId} (${reused ? "reused" : "new"})`);
   console.error(`running: claude ${parsed.childArgs.join(" ")}`);
 
   const timer = setInterval(() => {
@@ -1298,7 +1305,7 @@ async function resolveClaudeRunWatchChoice({ parsed, viewerUrl, conversationId }
   const best = candidates[0] || null;
   if (watchPolicy === "reuse") {
     if (!best) console.error("peekMyAgent: 没有找到可复用的 Claude Code 监听，本次将新建监听。");
-    return best?.id || null;
+    return watchCandidateId(best);
   }
 
   if (!best) return null;
@@ -1306,7 +1313,11 @@ async function resolveClaudeRunWatchChoice({ parsed, viewerUrl, conversationId }
     console.error("peekMyAgent: 检测到 Claude Code continue/resume，但当前不是交互式终端；本次将新建监听。可用 --watch reuse 显式复用。");
     return null;
   }
-  return (await askClaudeWatchReuse({ conversationId, candidate: best })) ? best.id : null;
+  return (await askClaudeWatchReuse({ conversationId, candidate: best })) ? watchCandidateId(best) : null;
+}
+
+function watchCandidateId(candidate) {
+  return candidate?.watch_id || candidate?.id || null;
 }
 
 function normalizeWatchPolicy(value, { allowAsk = false } = {}) {
@@ -1782,7 +1793,7 @@ function isFlagLike(value) {
 
 function printRunStarted({ viewerUrl, watch, command, args }) {
   console.error(`peekMyAgent dashboard: ${trimSlash(viewerUrl)}?source=${encodeURIComponent(watch.id)}`);
-  console.error(`peekMyAgent watch: ${watch.watch_id}`);
+  console.error(`peekMyAgent watch: ${watch.watch_id} (${watch.reused ? "reused" : "new"})`);
   console.error(`running: ${[command, ...args].join(" ")}`);
 }
 

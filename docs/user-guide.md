@@ -155,7 +155,9 @@ pma --ask claude -r <session-id>
 默认规则：
 
 - 普通 `pma claude`：直接新建监听。
-- `claude -c/--continue` / `claude -r/--resume`：交互式终端询问复用还是新建。
+- `claude -c/--continue` / `claude -r/--resume`：交互式终端询问复用还是新建，直接按回车接受默认选项 1，继续写入同一条监听。
+- 上述复用规则同时适用于 proxy capture 和 OTel raw-body capture；两种模式都会在启动输出中明确标记 `(reused)` 或 `(new)`。
+- 如果明确选择了复用，但目标监听已不存在，命令会报错而不是静默新建一条监听。
 - 非交互环境：默认新建监听，避免脚本卡住；需要复用时使用 `--reuse`。
 
 启动 OpenClaw：

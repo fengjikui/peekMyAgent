@@ -1270,7 +1270,12 @@ async function ingestOtelCaptures(req, options) {
   };
   let ingested = 0;
   let responses = 0;
+  let nextRequestIndex = store?.nextRequestIndex(watchId) || 1;
   for (const capture of captures) {
+    if (!store?.hasRequest(capture.capture_id)) {
+      capture.request_index = nextRequestIndex;
+      nextRequestIndex += 1;
+    }
     const result = store?.upsertCapture({ watch, capture });
     if (result?.inserted) ingested += 1;
     // Always attempt the response update: on incremental re-ingest the request
@@ -1298,6 +1303,7 @@ async function startWatch(req, { cwd, watches, store, sourceMeta, sourceMetaPath
     if (explicitReusable) return reuseWatch(explicitReusable, input, { store, sourceMeta, sourceMetaPath, sharedCaptureProxy });
     const persistedReusable = findPersistedWatchSource(store, { watch_id: input.reuse_watch_id });
     if (persistedReusable) return restorePersistedWatch(persistedReusable, input, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy });
+    throw httpError(409, `Requested watch is no longer available for reuse: ${input.reuse_watch_id}`);
   }
   if (input.reuse !== false) {
     const existing = findReusableWatch(watches, { agent, mode, workspace, conversationId });

@@ -13,8 +13,8 @@ const dumpDir = path.join(tmp, "dump");
 fs.mkdirSync(dumpDir, { recursive: true });
 const storePath = path.join(tmp, "store.sqlite");
 
-function dump(name, t, payload) {
-  const f = path.join(dumpDir, name);
+function dump(name, t, payload, root = dumpDir) {
+  const f = path.join(root, name);
   fs.writeFileSync(f, JSON.stringify(payload));
   fs.utimesSync(f, t, t);
 }
@@ -97,6 +97,54 @@ try {
   assert.equal(re.ingested, 0, "re-ingest inserts nothing new");
   assert.equal(re.total, 2, "still sees both captures");
 
+  // --- a later OTel wrapper can append to the same watch ---
+  const continuedDumpDir = path.join(tmp, "continued-dump");
+  fs.mkdirSync(continuedDumpDir, { recursive: true });
+  dump(
+    "c3.request.json",
+    3000,
+    {
+      model: "claude-opus-4-8",
+      system: [{ type: "text", text: "S1" }, { type: "text", text: "S2" }],
+      messages: [{ role: "user", content: "continued" }],
+      tools: [{ name: "Bash" }, { name: "Read" }],
+      metadata: meta,
+    },
+    continuedDumpDir,
+  );
+  dump(
+    "req_3.response.json",
+    3001,
+    {
+      id: "req_3",
+      content: [{ type: "text", text: "continued response" }],
+      stop_reason: "end_turn",
+      usage: { input_tokens: 4200, output_tokens: 8 },
+    },
+    continuedDumpDir,
+  );
+  const continuedRes = await fetch(`${viewer.url}/api/capture/otel`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-peekmyagent-intent": "otel-ingest" },
+    body: JSON.stringify({ dir: continuedDumpDir, watch_id: watchId, agent: "Claude Code", workspace: "/tmp/ws" }),
+  });
+  const continued = await continuedRes.json();
+  assert.equal(continued.source_id, ingest.source_id, "continued OTel run keeps the same source");
+  assert.equal(continued.ingested, 1, "continued OTel run appends one request");
+
+  const continuedView = await (await fetch(`${viewer.url}/api/view?source=${encodeURIComponent(ingest.source_id)}`)).json();
+  assert.equal(continuedView.requests.length, 3, "continued source contains all requests");
+  assert.deepEqual(
+    continuedView.requests.map((request) => request.request_index),
+    [1, 2, 3],
+    "continued OTel request indexes remain monotonic",
+  );
+
+  const continuedSources = await (await fetch(`${viewer.url}/api/sources`)).json();
+  const continuedSource = (Array.isArray(continuedSources) ? continuedSources : continuedSources.sources || []).find((source) => source.id === ingest.source_id);
+  assert.equal(continuedSource.request_count, 3);
+  assert.equal(continuedSource.response_count, 2);
+
   // --- bad input rejected ---
   const badRes = await fetch(`${viewer.url}/api/capture/otel`, {
     method: "POST",
@@ -106,7 +154,7 @@ try {
   const bad = await badRes.json();
   assert.ok(bad.error && /dump dir/.test(bad.error), "missing dir rejected");
 
-  console.log("otel-ingest smoke: OK (ingest 2, response 1, view+sources surfaced, dedup re-ingest, bad input rejected)");
+  console.log("otel-ingest smoke: OK (ingest, response pairing, dedup, same-watch continuation, monotonic indexes, bad input)");
 } catch (error) {
   failed = true;
   console.error("otel-ingest smoke FAILED:", error.message);
