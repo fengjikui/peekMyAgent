@@ -144,8 +144,9 @@ async function main() {
   assert.equal(proxy.captures.length, 5);
   assert.equal(upstream.seen.length, 5);
   assert.deepEqual(
-    upstream.seen.map((request) => request.url),
-    ["/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/messages"],
+    upstream.seen.map((request) => request.url).sort(),
+    ["/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/messages"].sort(),
+    "concurrent forwarding should preserve the expected path multiset without requiring arrival order",
   );
   assert.equal(resolveUpstreamUrl("https://api.example.com/anthropic", "/v1/messages", true).toString(), "https://api.example.com/anthropic/v1/messages");
   assert.equal(
