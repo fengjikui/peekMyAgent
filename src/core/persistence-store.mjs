@@ -292,6 +292,12 @@ export class PersistenceStore {
     return Boolean(this.db.prepare("SELECT 1 FROM model_requests WHERE request_id = ?").get(requestId));
   }
 
+  nextRequestIndex(watchId) {
+    if (!watchId) return 1;
+    const row = this.db.prepare("SELECT COALESCE(MAX(request_index), 0) + 1 AS next_index FROM model_requests WHERE watch_id = ?").get(watchId);
+    return Math.max(1, Number(row?.next_index) || 1);
+  }
+
   updateCaptureResponse(capture) {
     if (!capture?.capture_id || !this.hasRequest(capture.capture_id)) return { updated: false };
     const row = this.db.prepare("SELECT capture_json FROM model_requests WHERE request_id = ?").get(capture.capture_id);

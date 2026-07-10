@@ -16,6 +16,7 @@ const runId = `run-smoke-${Date.now()}-${process.pid}`;
 const resumeSession = `${runId}-resume`;
 const continueSession = `${runId}-continue`;
 const shortcutSession = `${runId}-shortcut`;
+const otelSession = `${runId}-otel`;
 const failSession = `${runId}-fail`;
 const missingWatchCleanupSession = `${runId}-missing-watch-cleanup`;
 const argsPath = path.join(tmpDir, "claude-args.json");
@@ -51,32 +52,52 @@ if (process.env.PEEK_FAKE_CLAUDE_FAIL === '1') {
   console.error('fake claude fail');
   process.exit(7);
 }
-const url = process.env.ANTHROPIC_BASE_URL + '/v1/messages';
-const response = await fetch(url, {
-  method: 'POST',
-  headers: {
-    'content-type': 'application/json',
-    'x-claude-code-session-id': sessionId,
-    authorization: 'Bearer smoke'
-  },
-  body: JSON.stringify({
+const otelTarget = process.env.OTEL_LOG_RAW_API_BODIES || '';
+if (otelTarget.startsWith('file:')) {
+  const bodyDir = otelTarget.slice('file:'.length);
+  const captureId = process.env.PEEK_FAKE_OTEL_CAPTURE_ID || 'fake-otel-capture';
+  fs.mkdirSync(bodyDir, { recursive: true });
+  fs.writeFileSync(bodyDir + '/' + captureId + '.request.json', JSON.stringify({
     model: 'mock-claude',
     system: 'run wrapper smoke',
-    messages: [{ role: 'user', content: 'hello from run wrapper' }]
-  })
-});
-if (!response.ok) process.exit(2);
-console.log('fake claude ok');
-if (process.env.PEEK_FAKE_CLEAR_WATCH === '1') {
-  const baseUrl = new URL(process.env.ANTHROPIC_BASE_URL);
-  const watchId = baseUrl.pathname.split('/').filter(Boolean)[1];
-  if (!watchId) process.exit(3);
-  const stopResponse = await fetch(process.env.PEEK_FAKE_VIEWER_URL + '/api/watch/stop', {
+    messages: [{ role: 'user', content: 'hello from OTel wrapper' }],
+    metadata: { user_id: JSON.stringify({ session_id: sessionId }) }
+  }));
+  fs.writeFileSync(bodyDir + '/' + captureId + '.response.json', JSON.stringify({
+    id: captureId,
+    content: [{ type: 'text', text: 'fake OTel response' }],
+    stop_reason: 'end_turn',
+    usage: { input_tokens: 20, output_tokens: 5 }
+  }));
+  console.log('fake claude OTel ok');
+} else {
+  const url = process.env.ANTHROPIC_BASE_URL + '/v1/messages';
+  const response = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-peekmyagent-intent': 'watch-stop' },
-    body: JSON.stringify({ id: 'live-' + watchId, clear: true })
+    headers: {
+      'content-type': 'application/json',
+      'x-claude-code-session-id': sessionId,
+      authorization: 'Bearer smoke'
+    },
+    body: JSON.stringify({
+      model: 'mock-claude',
+      system: 'run wrapper smoke',
+      messages: [{ role: 'user', content: 'hello from run wrapper' }]
+    })
   });
-  if (!stopResponse.ok) process.exit(4);
+  if (!response.ok) process.exit(2);
+  console.log('fake claude ok');
+  if (process.env.PEEK_FAKE_CLEAR_WATCH === '1') {
+    const baseUrl = new URL(process.env.ANTHROPIC_BASE_URL);
+    const watchId = baseUrl.pathname.split('/').filter(Boolean)[1];
+    if (!watchId) process.exit(3);
+    const stopResponse = await fetch(process.env.PEEK_FAKE_VIEWER_URL + '/api/watch/stop', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-peekmyagent-intent': 'watch-stop' },
+      body: JSON.stringify({ id: 'live-' + watchId, clear: true })
+    });
+    if (!stopResponse.ok) process.exit(4);
+  }
 }
 	`,
   );
@@ -102,6 +123,13 @@ if (process.env.PEEK_FAKE_CLEAR_WATCH === '1') {
   assert.equal(data.stats.request_count, 1);
   assert.equal(data.requests[0].conversation_id, resumeSession);
   assert.equal(data.requests[0].request_index, 1);
+
+  const missingReuseResponse = await fetch(`${viewer.url}/api/watch/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-peekmyagent-intent": "watch-start" },
+    body: JSON.stringify({ agent: "Claude Code", reuse: true, reuse_watch_id: "missing-watch" }),
+  });
+  assert.equal(missingReuseResponse.status, 409, "an explicit missing reuse target must not silently create a watch");
 
   const reuseResult = await runCli(["run", "claude", "--viewer-url", viewer.url, "--watch", "reuse", "--mode=single_session", "--", "--resume", resumeSession], {
     ...process.env,
@@ -161,6 +189,49 @@ if (process.env.PEEK_FAKE_CLEAR_WATCH === '1') {
   const shortcutLive = sourcesAfterShortcut.filter((source) => source.agent === "Claude Code" && source.conversation_id === shortcutSession);
   assert.equal(shortcutLive.length, 1);
   assert.equal(shortcutLive[0].request_count, 2);
+
+  const firstOtelResult = await runCli(
+    ["run", "claude", "--viewer-url", viewer.url, "--capture", "otel", "--watch", "new", "--", "--resume", otelSession],
+    {
+      ...process.env,
+      PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+      PEEK_FAKE_OTEL_CAPTURE_ID: `${runId}-otel-1`,
+    },
+  );
+  assert.equal(firstOtelResult.code, 0, firstOtelResult.stderr);
+  assert.match(firstOtelResult.stderr, /OTel raw body/);
+  assert.match(firstOtelResult.stderr, /\(new\)/);
+  assert.match(firstOtelResult.stdout, /fake claude OTel ok/);
+
+  const otelSourcesAfterFirstRun = await getJson(`${viewer.url}/api/sources`);
+  const firstOtelSource = otelSourcesAfterFirstRun.find((source) => source.agent === "Claude Code" && source.conversation_id === otelSession);
+  assert.ok(firstOtelSource, "first OTel wrapper run creates a source");
+  assert.equal(firstOtelSource.request_count, 1);
+
+  const reusedOtelResult = await runCli(
+    ["run", "claude", "--viewer-url", viewer.url, "--capture", "otel", "--watch", "reuse", "--", "--resume", otelSession],
+    {
+      ...process.env,
+      PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+      PEEK_FAKE_OTEL_CAPTURE_ID: `${runId}-otel-2`,
+    },
+  );
+  assert.equal(reusedOtelResult.code, 0, reusedOtelResult.stderr);
+  assert.match(reusedOtelResult.stderr, /\(reused\)/);
+  assert.match(reusedOtelResult.stdout, /fake claude OTel ok/);
+
+  const otelSourcesAfterReuse = await getJson(`${viewer.url}/api/sources`);
+  const reusedOtelSources = otelSourcesAfterReuse.filter((source) => source.agent === "Claude Code" && source.conversation_id === otelSession);
+  assert.equal(reusedOtelSources.length, 1, "OTel continuation reuses one source");
+  assert.equal(reusedOtelSources[0].id, firstOtelSource.id);
+  assert.equal(reusedOtelSources[0].request_count, 2);
+
+  const reusedOtelData = await getJson(`${viewer.url}/api/view?source=${encodeURIComponent(firstOtelSource.id)}`);
+  assert.deepEqual(
+    reusedOtelData.requests.map((request) => request.request_index),
+    [1, 2],
+    "OTel wrapper continuation appends monotonic request indexes",
+  );
 
   const failResult = await runCli(["run", "claude", "--viewer-url", viewer.url, "--", "--resume", failSession], {
     ...process.env,
