@@ -461,6 +461,8 @@ node --check src/viewer/client.js
 
 - [User guide](docs/user-guide.md)
 - [Visual usage guide](docs/visual-usage-guide.zh-CN.md)
+- [Current architecture](docs/architecture.md)
+- [Refactoring roadmap](docs/refactoring-roadmap.md)
 - [Roadmap](docs/roadmap.md)
 - [Privacy and retention strategy](docs/privacy-retention-strategy.md)
 - [Security and performance audit notes](docs/security-performance-audit.md)

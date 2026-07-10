@@ -214,6 +214,8 @@ npm run release:check
 
 - [用户指南](docs/user-guide.md)
 - [图文使用说明](docs/visual-usage-guide.zh-CN.md)
+- [当前架构](docs/architecture.md)
+- [重构路线图](docs/refactoring-roadmap.md)
 - [Roadmap / 待实现计划](docs/roadmap.md)
 - [隐私与保留策略](docs/privacy-retention-strategy.md)
 - [安全与性能审计纪要](docs/security-performance-audit.md)
