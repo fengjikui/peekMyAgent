@@ -2,6 +2,8 @@
 
 Thanks for helping make agent traces easier to inspect. This project is local-first and often handles sensitive prompts, source paths, tool output, and model traffic, so useful contributions should preserve user control and reproducibility.
 
+Coding agents and maintainers working across multiple machines must also follow the [Coding Agent Collaboration Covenant](AGENTS.md). It defines synchronization cadence, platform validation ownership, branch rules, handoff reports, and real-machine safety.
+
 ## Development Setup
 
 Requirements:
