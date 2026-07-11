@@ -2193,6 +2193,26 @@ select {
   color: var(--accent);
 }
 
+.upstream-entry-actions .quick-action-divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 1px;
+  background: var(--line);
+}
+
+.upstream-entry-actions .raw-section-button.downstream {
+  border-color: #c9e8da;
+  background: #f6fcf9;
+  color: #147a58;
+}
+
+.upstream-entry-actions .raw-section-button.downstream:hover,
+.upstream-entry-actions .raw-section-button.downstream:focus-visible {
+  border-color: #9ed7bd;
+  background: #eefaf4;
+  color: #087451;
+}
+
 .upstream-detail-meta {
   display: grid;
   gap: 7px;
@@ -3795,9 +3815,32 @@ details .details-body {
 .raw-section-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  align-items: center;
+  gap: 5px 10px;
   margin: 0;
   padding: 0;
+}
+
+.raw-section-nav-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.raw-section-nav-group + .raw-section-nav-group {
+  padding-left: 9px;
+  border-left: 1px solid var(--line-soft);
+}
+
+.raw-section-nav-label {
+  color: var(--faint);
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .raw-section-nav button {

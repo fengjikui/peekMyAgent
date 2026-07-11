@@ -341,6 +341,12 @@ const I18N = {
     description: "说明",
     responseOnlyToolsNoticeTitle: "Tools schema",
     responseOnlyToolsNotice: "这些工具描述与 schema 来自本次请求上行中 Harness/Agent 注入的 tools，用于帮助理解 response 里的 tool_use；它们不是 response body 返回的字段。",
+    rawNavUpstream: "上行请求",
+    rawNavDownstream: "模型下行",
+    rawNavCapture: "捕获信息",
+    rawNavReference: "上行参考",
+    modelResponse: "模型回复",
+    fullCaptureTitle: "查看包含上行请求和下行响应的完整捕获",
     rawFullCapture: "完整捕获",
     rawFull: "完整",
     rawHarness: "Harness 提示词",
@@ -695,6 +701,12 @@ const I18N = {
     description: "Description",
     responseOnlyToolsNoticeTitle: "Tools schema",
     responseOnlyToolsNotice: "These tool descriptions and schemas come from the Harness/Agent-injected tools in the upstream request. They help explain tool_use in the response; they are not fields returned by the response body.",
+    rawNavUpstream: "Upstream request",
+    rawNavDownstream: "Model response",
+    rawNavCapture: "Capture",
+    rawNavReference: "Upstream reference",
+    modelResponse: "Model response",
+    fullCaptureTitle: "View the full capture containing both the upstream request and downstream response",
     rawFullCapture: "Full capture",
     rawFull: "Full",
     rawHarness: "Harness prompts",
@@ -3404,27 +3416,28 @@ function renderUpstreamEntry(request) {
 }
 
 function renderUpstreamQuickActions(request, expanded) {
-  const hasToolCalls = (request.summary?.current_tool_calls || []).length > 0;
+  const hasUpstreamToolCalls = (request.summary?.current_tool_calls || []).length > 0;
   const hasToolResults = (request.summary?.current_tool_results || []).length > 0;
-  const rawSections = [
+  const upstreamSections = [
     ["system", "System"],
     ["tools", "Tools"],
-    ...(hasToolCalls ? [["tool_calls", "Tool use"]] : []),
-    ...(hasToolResults ? [["tool_results", "Tool result"]] : []),
-    ["response", "Response"],
+    ...(hasUpstreamToolCalls ? [["upstream_tool_calls", "tool_use"]] : []),
+    ...(hasToolResults ? [["tool_results", "tool_result"]] : []),
   ];
   return `
     <button class="inspect-button upstream-toggle-button" type="button" data-upstream-toggle="${escapeHtml(request.id)}" aria-expanded="${expanded ? "true" : "false"}">
       <span class="toggle-label">${escapeHtml(expanded ? t("collapseUpstream") : t("expandUpstream"))}</span>
     </button>
-    ${rawSections
+    ${upstreamSections
       .map(
         ([section, label]) => `
           <button class="raw-section-button" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="${escapeHtml(section)}">${escapeHtml(label)}</button>
         `,
       )
       .join("")}
-    <button class="raw-button compact" type="button" data-raw="${escapeHtml(request.id)}">Raw</button>
+    <span class="quick-action-divider" aria-hidden="true"></span>
+    <button class="raw-section-button downstream" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="response" data-raw-mode="response">${escapeHtml(t("modelResponse"))}</button>
+    <button class="raw-button compact" type="button" data-raw="${escapeHtml(request.id)}" title="${escapeHtml(t("fullCaptureTitle"))}">Raw</button>
   `;
 }
 
@@ -4131,25 +4144,45 @@ function renderToolExchangeItem({ call, result, confidence }) {
 }
 
 function renderRawSectionNav(request, activeSection) {
-  const sections = [
-    ["full", t("rawFull")],
+  const hasResponseToolUse = (request.summary?.response?.tool_calls || []).length > 0;
+  const hasUpstreamToolUse = (request.summary?.current_tool_calls || []).length > 0;
+  const hasUpstreamToolResult = (request.summary?.current_tool_results || []).length > 0;
+  const upstreamSections = [
     ["system", "System"],
     ...(previousRequest(request) ? [["system_diff", "System diff"]] : []),
     ["tools", "Tools"],
     ["harness", t("rawHarness")],
     ["messages", "Messages"],
-    ["tool_calls", "Tool use"],
-    ["tool_results", "Tool result"],
+    ...(hasUpstreamToolUse ? [["upstream_tool_calls", "tool_use"]] : []),
+    ...(hasUpstreamToolResult ? [["tool_results", "tool_result"]] : []),
+  ];
+  const downstreamSections = [
     ["response", "Response"],
+    ...(hasResponseToolUse ? [["tool_calls", "tool_use"]] : []),
+  ];
+  const captureSections = [
+    ["full", t("rawFull")],
     ["metadata", "Metadata"],
   ];
   return `
     <div class="raw-section-nav">
+      ${renderRawSectionNavGroup(t("rawNavUpstream"), upstreamSections, request, activeSection)}
+      ${renderRawSectionNavGroup(t("rawNavDownstream"), downstreamSections, request, activeSection)}
+      ${renderRawSectionNavGroup(t("rawNavCapture"), captureSections, request, activeSection)}
+    </div>
+  `;
+}
+
+function renderRawSectionNavGroup(label, sections, request, activeSection, mode = "request") {
+  if (!sections.length) return "";
+  return `
+    <div class="raw-section-nav-group">
+      <span class="raw-section-nav-label">${escapeHtml(label)}</span>
       ${sections
         .map(
-          ([section, label]) => `
-            <button class="${section === activeSection ? "active" : ""}" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="${escapeHtml(section)}">
-              ${escapeHtml(label)}
+          ([section, sectionLabel]) => `
+            <button class="${section === activeSection ? "active" : ""}" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="${escapeHtml(section)}" ${mode === "response" ? 'data-raw-mode="response"' : ""}>
+              ${escapeHtml(sectionLabel)}
             </button>
           `,
         )
@@ -4175,14 +4208,20 @@ function rawSectionData(request, section) {
     return { title: t("rawHarnessTitle"), value: collectHarnessTranslationMaterials(request).map((item) => ({ kind: item.kind, label: item.metadata?.label, path: item.metadata?.path, text: item.source_text })) };
   }
   if (section === "messages") return { title: "messages / history", value: messages };
+  if (section === "upstream_tool_calls") {
+    return {
+      title: "upstream tool_use",
+      value: {
+        [t("currentUpstreamToolUse")]: request.summary.current_tool_calls || [],
+      },
+    };
+  }
   if (section === "tool_calls") {
     const responseToolUse = request.summary.response?.tool_calls || [];
-    const upstreamToolUse = request.summary.current_tool_calls || [];
-    const label = responseToolUse.length ? t("currentResponseToolUse") : t("currentUpstreamToolUse");
     return {
       title: "tool_use",
       value: {
-        [label]: responseToolUse.length ? responseToolUse : upstreamToolUse,
+        [t("currentResponseToolUse")]: responseToolUse,
       },
     };
   }
@@ -4892,7 +4931,7 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
     ${renderRawDetail("system", body.system ?? null)}
     ${renderRawDetail("tools", body.tools ?? null)}
     ${renderRawDetail("messages / history", body.messages ?? null)}
-    ${renderRawDetail("upstream response", rawSectionData(request, "response").value)}
+    ${renderRawDetail("downstream response", rawSectionData(request, "response").value)}
     ${renderRawDetail("headers / metadata", rawSectionData(request, "metadata").value)}
     `}
   `;
@@ -4933,22 +4972,14 @@ function renderRawStickyControls(request, section, mode = "request") {
 }
 
 function renderResponseOnlyRawNav(request, activeSection) {
-  const sections = [
+  const downstreamSections = [
     ["response", "Response"],
-    ["tool_calls", "Tool use"],
-    ["tools", "Tools schema"],
+    ["tool_calls", "tool_use"],
   ];
   return `
     <div class="raw-section-nav">
-      ${sections
-        .map(
-          ([section, label]) => `
-            <button class="${section === activeSection ? "active" : ""}" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="${escapeHtml(section)}" data-raw-mode="response">
-              ${escapeHtml(label)}
-            </button>
-          `,
-        )
-        .join("")}
+      ${renderRawSectionNavGroup(t("rawNavDownstream"), downstreamSections, request, activeSection, "response")}
+      ${renderRawSectionNavGroup(t("rawNavReference"), [["tools", "Tools schema"]], request, activeSection, "response")}
     </div>
   `;
 }
@@ -5598,6 +5629,7 @@ function rawSectionLabel(section) {
     tools: "Tools",
     harness: t("rawHarness"),
     messages: "Messages",
+    upstream_tool_calls: "Upstream tool_use",
     tool_calls: "Tool use",
     tool_results: "Tool result",
     response: "Response",

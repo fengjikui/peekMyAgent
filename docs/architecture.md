@@ -129,6 +129,8 @@ sequenceDiagram
 
 Raw Inspector 的分类标签与当前区块搜索组成同一个粘性控制区。原文模式搜索原始 JSON 路径和值；整理/翻译模式搜索结构化的 system、harness 或工具材料，并直接筛选原有块和工具组。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属。
 
+Raw Inspector 按数据方向组织证据：System、Tools、Harness、Messages 和回传的 `tool_result` 属于“上行请求”；完整 Response 与本次响应的 `tool_use` 属于“模型下行”；完整 Raw 与 Metadata 属于“捕获信息”。请求卡保留跨方向跳转入口，但使用独立的“模型回复”文案和视觉，并直接打开下行专属视图，避免将 Response 误解为上行组成。
+
 这改善了首屏和 DOM 成本，但不等于真正分页：后台仍会读取、传输和解释完整 Trace，并触发第二次整体渲染。大 Trace 的下一阶段优化应围绕 turn/cursor API、增量客户端 store 和 Raw DOM 懒展开。
 
 ## Trace 解释模型
