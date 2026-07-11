@@ -3801,6 +3801,16 @@ details .details-body {
   padding: 0;
 }
 
+.raw-section-nav.request-sections {
+  gap: 3px;
+}
+
+.raw-section-nav.request-sections button {
+  min-height: 21px;
+  padding: 3px 4px;
+  font-size: 10px;
+}
+
 .raw-section-nav-group {
   display: inline-flex;
   flex-wrap: wrap;

@@ -341,13 +341,11 @@ const I18N = {
     description: "说明",
     responseOnlyToolsNoticeTitle: "Tools schema",
     responseOnlyToolsNotice: "这些工具描述与 schema 来自本次请求上行中 Harness/Agent 注入的 tools，用于帮助理解 response 里的 tool_use；它们不是 response body 返回的字段。",
-    rawNavUpstream: "上行请求",
     rawNavDownstream: "模型下行",
-    rawNavCapture: "捕获信息",
     rawNavReference: "上行参考",
-    fullCaptureTitle: "查看捕获到的原始上行请求",
-    rawFullCapture: "原始请求",
-    rawFull: "原始请求",
+    fullCaptureTitle: "查看捕获到的完整上行请求",
+    rawFullCapture: "完整请求",
+    rawFull: "完整请求",
     rawRequestMetadata: "请求 Metadata",
     rawHarness: "Harness 提示词",
     rawHarnessTitle: "harness 注入提示词",
@@ -701,13 +699,11 @@ const I18N = {
     description: "Description",
     responseOnlyToolsNoticeTitle: "Tools schema",
     responseOnlyToolsNotice: "These tool descriptions and schemas come from the Harness/Agent-injected tools in the upstream request. They help explain tool_use in the response; they are not fields returned by the response body.",
-    rawNavUpstream: "Upstream request",
     rawNavDownstream: "Model response",
-    rawNavCapture: "Capture",
     rawNavReference: "Upstream reference",
-    fullCaptureTitle: "View the captured raw upstream request",
-    rawFullCapture: "Raw request",
-    rawFull: "Raw request",
+    fullCaptureTitle: "View the complete captured upstream request",
+    rawFullCapture: "Full request",
+    rawFull: "Full request",
     rawRequestMetadata: "Request metadata",
     rawHarness: "Harness prompts",
     rawHarnessTitle: "harness injected prompts",
@@ -4143,23 +4139,28 @@ function renderToolExchangeItem({ call, result, confidence }) {
 function renderRawSectionNav(request, activeSection) {
   const hasUpstreamToolUse = (request.summary?.current_tool_calls || []).length > 0;
   const hasUpstreamToolResult = (request.summary?.current_tool_results || []).length > 0;
-  const upstreamSections = [
+  const sections = [
+    ["full", t("rawFull")],
     ["system", "System"],
     ...(previousRequest(request) ? [["system_diff", "System diff"]] : []),
     ["tools", "Tools"],
-    ["harness", t("rawHarness")],
+    ["harness", "Harness"],
     ["messages", "Messages"],
     ...(hasUpstreamToolUse ? [["upstream_tool_calls", "tool_use"]] : []),
     ...(hasUpstreamToolResult ? [["tool_results", "tool_result"]] : []),
-  ];
-  const captureSections = [
-    ["full", t("rawFull")],
-    ["metadata", t("rawRequestMetadata")],
+    ["metadata", "Metadata"],
   ];
   return `
-    <div class="raw-section-nav">
-      ${renderRawSectionNavGroup(t("rawNavUpstream"), upstreamSections, request, activeSection)}
-      ${renderRawSectionNavGroup(t("rawNavCapture"), captureSections, request, activeSection)}
+    <div class="raw-section-nav request-sections">
+      ${sections
+        .map(
+          ([section, label]) => `
+            <button class="${section === activeSection ? "active" : ""}" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="${escapeHtml(section)}">
+              ${escapeHtml(label)}
+            </button>
+          `,
+        )
+        .join("")}
     </div>
   `;
 }
