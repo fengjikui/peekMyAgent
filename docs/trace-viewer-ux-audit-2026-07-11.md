@@ -85,8 +85,8 @@ cursor/turn 分页和增量客户端 store 仍属于后续阶段。
 - `Raw reconstructed` 明确说明原始 body 已不可用、当前内容由 blob 和 request tree 重建。
 - Assistant 的 Raw 视图优先展示 Response，并保留 `tool_use` 和注入的 Tools schema。
 - Tools schema 明确说明它来自上行 harness 注入，而不是 response 返回。
-- 区块级搜索、翻译、缓存状态、复制和重译已经形成完整闭环；搜索随分类标签固定，并根据原文/整理视图分别检索原始 JSON 或结构化翻译块。Tools 批量复制保留工具与参数归属。
-- Raw 标签按“上行请求 / 模型下行 / 捕获信息”分组；请求卡中的跨方向入口明确标为“模型回复”，不再与 System、Tools 等上行入口混为同一语义。
+- 区块级搜索、翻译、缓存状态、复制和重译已经形成完整闭环；搜索与原文/翻译操作随分类标签固定，并根据原文/整理视图分别检索原始 JSON 或结构化翻译块。Tools 批量复制保留工具与参数归属。
+- 请求卡和上行视图不再混入 Response 或本次响应 `tool_use`；下行信息统一从 Assistant 回复进入。完整 Raw 作为中立捕获证据保留，Assistant 的 Tools schema 继续明确标为“上行参考”。
 
 这部分体现了产品对“原始事实”和“派生解释”的尊重，应继续保持。
 

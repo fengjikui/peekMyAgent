@@ -345,7 +345,6 @@ const I18N = {
     rawNavDownstream: "模型下行",
     rawNavCapture: "捕获信息",
     rawNavReference: "上行参考",
-    modelResponse: "模型回复",
     fullCaptureTitle: "查看包含上行请求和下行响应的完整捕获",
     rawFullCapture: "完整捕获",
     rawFull: "完整",
@@ -705,7 +704,6 @@ const I18N = {
     rawNavDownstream: "Model response",
     rawNavCapture: "Capture",
     rawNavReference: "Upstream reference",
-    modelResponse: "Model response",
     fullCaptureTitle: "View the full capture containing both the upstream request and downstream response",
     rawFullCapture: "Full capture",
     rawFull: "Full",
@@ -3435,8 +3433,6 @@ function renderUpstreamQuickActions(request, expanded) {
         `,
       )
       .join("")}
-    <span class="quick-action-divider" aria-hidden="true"></span>
-    <button class="raw-section-button downstream" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="response" data-raw-mode="response">${escapeHtml(t("modelResponse"))}</button>
     <button class="raw-button compact" type="button" data-raw="${escapeHtml(request.id)}" title="${escapeHtml(t("fullCaptureTitle"))}">Raw</button>
   `;
 }
@@ -3950,9 +3946,8 @@ function renderStructureStrip(request) {
     ["Messages", request.counts.messages, signedDelta(request.changes.messages_delta), "messages"],
     ["System", request.counts.system, request.changes.system_changed ? "changed" : "", "system"],
     ["Tools", request.counts.tools, signedDelta(request.changes.tools_delta), "tools"],
-    ["Tool use", currentToolCalls, currentToolCalls === request.counts.tool_calls ? "" : t("cumulative", { count: request.counts.tool_calls }), "tool_calls"],
+    ["Tool use", currentToolCalls, currentToolCalls === request.counts.tool_calls ? "" : t("cumulative", { count: request.counts.tool_calls }), "upstream_tool_calls"],
     ["Tool result", currentToolResults, currentToolResults === request.counts.tool_results ? "" : t("cumulative", { count: request.counts.tool_results }), "tool_results"],
-    ["Response", request.summary.response?.captured ? formatBytes(request.counts.response_body_bytes || 0) : t("notCaptured"), "", "response"],
     ["Raw", formatBytes(request.counts.raw_body_bytes), signedBytes(request.changes.raw_bytes_delta), "full"],
   ];
   return `
@@ -4144,7 +4139,6 @@ function renderToolExchangeItem({ call, result, confidence }) {
 }
 
 function renderRawSectionNav(request, activeSection) {
-  const hasResponseToolUse = (request.summary?.response?.tool_calls || []).length > 0;
   const hasUpstreamToolUse = (request.summary?.current_tool_calls || []).length > 0;
   const hasUpstreamToolResult = (request.summary?.current_tool_results || []).length > 0;
   const upstreamSections = [
@@ -4156,10 +4150,6 @@ function renderRawSectionNav(request, activeSection) {
     ...(hasUpstreamToolUse ? [["upstream_tool_calls", "tool_use"]] : []),
     ...(hasUpstreamToolResult ? [["tool_results", "tool_result"]] : []),
   ];
-  const downstreamSections = [
-    ["response", "Response"],
-    ...(hasResponseToolUse ? [["tool_calls", "tool_use"]] : []),
-  ];
   const captureSections = [
     ["full", t("rawFull")],
     ["metadata", "Metadata"],
@@ -4167,7 +4157,6 @@ function renderRawSectionNav(request, activeSection) {
   return `
     <div class="raw-section-nav">
       ${renderRawSectionNavGroup(t("rawNavUpstream"), upstreamSections, request, activeSection)}
-      ${renderRawSectionNavGroup(t("rawNavDownstream"), downstreamSections, request, activeSection)}
       ${renderRawSectionNavGroup(t("rawNavCapture"), captureSections, request, activeSection)}
     </div>
   `;
@@ -4918,7 +4907,6 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
     return `
       ${renderRawSourceNotice(request)}
       ${renderRawStickyControls(request, activeSection, mode)}
-      ${renderTranslationControls(request, activeSection)}
       ${renderMessagesControls(activeSection)}
       ${renderRawSectionContent(request, activeSection, sectionData)}
     `;
@@ -4967,6 +4955,7 @@ function renderRawStickyControls(request, section, mode = "request") {
     <div class="raw-sticky-controls">
       ${navigation}
       ${renderRawSearchControls(request, section, mode)}
+      ${renderTranslationControls(request, section)}
     </div>
   `;
 }
@@ -4991,7 +4980,6 @@ function renderResponseOnlyToolsSchemaSection(request) {
       <strong>${escapeHtml(t("responseOnlyToolsNoticeTitle"))}</strong>
       <span>${escapeHtml(t("responseOnlyToolsNotice"))}</span>
     </div>
-    ${renderTranslationControls(request, "tools")}
     ${renderRawSectionContent(request, "tools", sectionData)}
   `;
 }

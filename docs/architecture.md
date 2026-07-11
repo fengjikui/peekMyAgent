@@ -127,9 +127,9 @@ sequenceDiagram
 
 多 Agent 看板可按运行中、已完成未回流、已回流筛选；筛选后只生成当前状态的分支和事件。Trace 顶层搜索索引派生摘要而不是 Raw body，可按异常、慢请求、工具和子 Agent 定位请求。结果以 Turn 为归属、以命中请求为证据，每次最多追加 24 条，避免搜索本身重新制造超大 DOM。主栏使用容器条件适配真实栏宽，三栏拖拽或折叠不会再把标题挤成竖排。
 
-Raw Inspector 的分类标签与当前区块搜索组成同一个粘性控制区。原文模式搜索原始 JSON 路径和值；整理/翻译模式搜索结构化的 system、harness 或工具材料，并直接筛选原有块和工具组。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属。
+Raw Inspector 的分类标签、当前区块搜索和原文/翻译操作组成同一个粘性控制区。原文模式搜索原始 JSON 路径和值；整理/翻译模式搜索结构化的 system、harness 或工具材料，并直接筛选原有块和工具组。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属。
 
-Raw Inspector 按数据方向组织证据：System、Tools、Harness、Messages 和回传的 `tool_result` 属于“上行请求”；完整 Response 与本次响应的 `tool_use` 属于“模型下行”；完整 Raw 与 Metadata 属于“捕获信息”。请求卡保留跨方向跳转入口，但使用独立的“模型回复”文案和视觉，并直接打开下行专属视图，避免将 Response 误解为上行组成。
+Raw Inspector 按数据方向组织证据：请求卡和上行视图只展示 System、Tools、Harness、Messages、历史 `tool_use` 与回传的 `tool_result`；完整 Response 与本次响应的 `tool_use` 只从 Assistant 回复进入“模型下行”视图；完整 Raw 与 Metadata 属于中立的“捕获信息”。Assistant 视图保留独立的“上行参考”Tools schema，并明确它不是 response body 返回内容。
 
 这改善了首屏和 DOM 成本，但不等于真正分页：后台仍会读取、传输和解释完整 Trace，并触发第二次整体渲染。大 Trace 的下一阶段优化应围绕 turn/cursor API、增量客户端 store 和 Raw DOM 懒展开。
 
