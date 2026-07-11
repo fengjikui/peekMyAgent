@@ -86,7 +86,7 @@ cursor/turn 分页和增量客户端 store 仍属于后续阶段。
 - Assistant 的 Raw 视图优先展示 Response，并保留 `tool_use` 和注入的 Tools schema。
 - Tools schema 明确说明它来自上行 harness 注入，而不是 response 返回。
 - 区块级搜索、翻译、缓存状态、复制和重译已经形成完整闭环；搜索与原文/翻译操作随分类标签固定，并根据原文/整理视图分别检索原始 JSON 或结构化翻译块。Tools 批量复制保留工具与参数归属。
-- 请求卡和上行视图不再混入 Response 或本次响应 `tool_use`；下行信息统一从 Assistant 回复进入。完整 Raw 作为中立捕获证据保留，Assistant 的 Tools schema 继续明确标为“上行参考”。
+- 请求卡和上行视图不再混入 Response 或本次响应 `tool_use`；“原始请求”和“请求 Metadata”同样排除 response、响应状态及其派生统计。下行信息统一从 Assistant 回复进入，Assistant 的 Tools schema 继续明确标为“上行参考”。
 
 这部分体现了产品对“原始事实”和“派生解释”的尊重，应继续保持。
 

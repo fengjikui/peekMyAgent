@@ -345,9 +345,10 @@ const I18N = {
     rawNavDownstream: "模型下行",
     rawNavCapture: "捕获信息",
     rawNavReference: "上行参考",
-    fullCaptureTitle: "查看包含上行请求和下行响应的完整捕获",
-    rawFullCapture: "完整捕获",
-    rawFull: "完整",
+    fullCaptureTitle: "查看捕获到的原始上行请求",
+    rawFullCapture: "原始请求",
+    rawFull: "原始请求",
+    rawRequestMetadata: "请求 Metadata",
     rawHarness: "Harness 提示词",
     rawHarnessTitle: "harness 注入提示词",
     currentResponseToolUse: "本次响应 tool_use",
@@ -704,9 +705,10 @@ const I18N = {
     rawNavDownstream: "Model response",
     rawNavCapture: "Capture",
     rawNavReference: "Upstream reference",
-    fullCaptureTitle: "View the full capture containing both the upstream request and downstream response",
-    rawFullCapture: "Full capture",
-    rawFull: "Full",
+    fullCaptureTitle: "View the captured raw upstream request",
+    rawFullCapture: "Raw request",
+    rawFull: "Raw request",
+    rawRequestMetadata: "Request metadata",
     rawHarness: "Harness prompts",
     rawHarnessTitle: "harness injected prompts",
     currentResponseToolUse: "Current response tool_use",
@@ -4152,7 +4154,7 @@ function renderRawSectionNav(request, activeSection) {
   ];
   const captureSections = [
     ["full", t("rawFull")],
-    ["metadata", "Metadata"],
+    ["metadata", t("rawRequestMetadata")],
   ];
   return `
     <div class="raw-section-nav">
@@ -4230,23 +4232,60 @@ function rawSectionData(request, section) {
   }
   if (section === "metadata") {
     return {
-      title: "headers / metadata",
-      value: {
-        headers: request.raw?.headers,
-        header_redactions: request.raw?.header_redactions,
-        capture_id: request.raw?.capture_id,
-        watch_id: request.raw?.watch_id,
-        conversation_id: request.raw?.conversation_id,
-        workspace: request.raw?.workspace,
-        path: request.raw?.path,
-        upstream_status: request.raw?.upstream_status,
-        context_delta: request.context_delta,
-        composition: request.summary.composition,
-        response: request.summary.response,
-      },
+      title: t("rawRequestMetadata"),
+      value: rawUpstreamRequestMetadata(request),
     };
   }
-  return { title: t("rawFullCapture"), value: request.raw };
+  return { title: t("rawFullCapture"), value: rawUpstreamRequestValue(request) };
+}
+
+function rawUpstreamRequestValue(request) {
+  const raw = request.raw && typeof request.raw === "object" ? request.raw : {};
+  const upstreamRequest = { ...raw };
+  delete upstreamRequest.response;
+  delete upstreamRequest.upstream_status;
+  delete upstreamRequest.upstream_error;
+  return upstreamRequest;
+}
+
+function rawUpstreamRequestMetadata(request) {
+  const raw = rawUpstreamRequestValue(request);
+  return {
+    capture_id: raw.capture_id,
+    watch_id: raw.watch_id,
+    request_index: raw.request_index,
+    agent_profile: raw.agent_profile,
+    workspace: raw.workspace,
+    conversation_id: raw.conversation_id,
+    received_at: raw.received_at,
+    method: raw.method,
+    path: raw.path,
+    original_url: raw.original_url,
+    raw_body_length: raw.raw_body_length,
+    body_source: raw.body_source,
+    headers: raw.headers,
+    header_redactions: raw.header_redactions,
+    context_delta: request.context_delta,
+    composition: rawUpstreamComposition(request),
+  };
+}
+
+function rawUpstreamComposition(request) {
+  const composition = request.summary?.composition;
+  if (!composition || typeof composition !== "object") return composition;
+  const upstream = {
+    ...composition,
+    sections: composition.sections ? { ...composition.sections } : composition.sections,
+    ratios: composition.ratios ? { ...composition.ratios } : composition.ratios,
+  };
+  delete upstream.response_text_chars;
+  delete upstream.response_thinking_chars;
+  if (upstream.sections) {
+    delete upstream.sections.response_text;
+    delete upstream.sections.response_thinking;
+  }
+  if (upstream.ratios) delete upstream.ratios.output_to_input;
+  return upstream;
 }
 
 function rawResponseSectionValue(request) {
@@ -4915,12 +4954,11 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
     ${renderRawSourceNotice(request)}
     ${renderRawStickyControls(request, activeSection, mode)}
     ${normalizedRawSearchQuery() ? renderRawSearchResults(request, activeSection, mode) : `
-    ${renderRawDetail(t("rawFullCapture"), request.raw)}
+    ${renderRawDetail(t("rawFullCapture"), rawUpstreamRequestValue(request))}
     ${renderRawDetail("system", body.system ?? null)}
     ${renderRawDetail("tools", body.tools ?? null)}
     ${renderRawDetail("messages / history", body.messages ?? null)}
-    ${renderRawDetail("downstream response", rawSectionData(request, "response").value)}
-    ${renderRawDetail("headers / metadata", rawSectionData(request, "metadata").value)}
+    ${renderRawDetail(t("rawRequestMetadata"), rawSectionData(request, "metadata").value)}
     `}
   `;
 }
@@ -5621,7 +5659,7 @@ function rawSectionLabel(section) {
     tool_calls: "Tool use",
     tool_results: "Tool result",
     response: "Response",
-    metadata: "Metadata",
+    metadata: t("rawRequestMetadata"),
   };
   return labels[section] || "Raw";
 }
