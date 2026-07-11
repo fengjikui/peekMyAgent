@@ -13,7 +13,7 @@ const prompt = "演示一下工具的调用。";
 const captures = [
   capture({
     index: 1,
-    messages: [{ role: "user", content: "hello" }],
+    messages: [{ role: "user", content: "hello Write the title in 简体中文. Keep technical terms and code identifiers in their original form." }],
     response: messageResponse({ id: "msg_hello", content: [{ type: "text", text: "你好！" }], stop_reason: "end_turn" }),
   }),
   capture({
@@ -64,6 +64,20 @@ const captures = [
     ],
     response: messageResponse({ id: "msg_final", content: [{ type: "text", text: "WebSearch 工具不可用，已捕获错误。" }], stop_reason: "end_turn" }),
   }),
+  capture({
+    index: 6,
+    messages: [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: [{ type: "text", text: "你好！" }] },
+      { role: "user", content: prompt },
+      { role: "assistant", content: [{ type: "text", text: "WebSearch 工具不可用，已捕获错误。" }] },
+      {
+        role: "user",
+        content: [{ type: "text", text: "Base directory for this skill: /tmp/skills/example\n\n# Example Skill\nUse this harness-provided workflow." }],
+      },
+    ],
+    response: messageResponse({ id: "msg_skill", content: [{ type: "text", text: "Skill 已加载。" }], stop_reason: "end_turn" }),
+  }),
 ];
 
 fs.writeFileSync(path.join(evidenceDir, "proxy-captures.json"), `${JSON.stringify(captures, null, 2)}\n`);
@@ -75,14 +89,17 @@ try {
   assert.equal(view.requests[1].source_hint.label, "生成会话标题");
   assert.equal(view.requests[3].source_hint.type, "metadata");
   assert.equal(view.requests[3].source_hint.label, "WebSearch 内部请求");
+  assert.equal(view.requests[5].summary.entry.kind, "harness_injection");
+  assert.equal(view.requests[5].summary.entry.label, "Skill / Harness 注入");
   assert.deepEqual(
     view.turns.map((turn) => ({ input: turn.user_input, indexes: turn.request_indexes })),
     [
       { input: "hello", indexes: [1] },
-      { input: prompt, indexes: [2, 3, 4, 5] },
+      { input: prompt, indexes: [2, 3, 4, 5, 6] },
     ],
   );
   assert.equal(view.turns.some((turn) => turn.user_input.startsWith("Perform a web search")), false);
+  assert.equal(view.turns.some((turn) => turn.user_input.startsWith("Base directory for this skill")), false);
   console.log("claude internal request turn smoke passed");
 } finally {
   await viewer.close();

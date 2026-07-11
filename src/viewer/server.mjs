@@ -3205,7 +3205,7 @@ function isInternalRequest(request) {
 }
 
 function isTimelineInternalRequest(request) {
-  return isInternalRequest(request) || request.source_hint?.type === "subagent";
+  return isInternalRequest(request) || request.source_hint?.type === "subagent" || request.summary?.entry?.kind === "harness_injection";
 }
 
 function analyzeContextDelta(request, previous, contextKey = "") {
@@ -3264,6 +3264,7 @@ function messageDeltaKind(message) {
   if (isFrameworkReminderMessage(message)) return "framework_reminder";
   if (isSuggestionModeMessage(message)) return "agent_internal";
   if (isCompactInjectionMessage(message)) return "compact";
+  if (isSkillInjectionMessage(message)) return "harness_injection";
   if (message?.role === "user" && realUserVisibleText(message)) return "message";
   if (parseCommandMessage(message)) return "command_message";
   if (isToolResultMessage(message)) return "tool_result";
@@ -3303,6 +3304,7 @@ function historyMessageLabel(message, kind) {
   const commandMessage = parseCommandMessage(message);
   if (commandMessage) return `Command ${commandMessage.command}`;
   if (kind === "compact") return "上下文压缩 (/compact)";
+  if (kind === "harness_injection") return "Skill / Harness 注入";
   if (kind === "task_notification") return "任务通知";
   if (kind === "framework_reminder") return "框架提醒";
   if (kind === "agent_internal") return "Agent 内部请求";
@@ -3851,6 +3853,27 @@ function isCompactInjectionMessage(message) {
   return Boolean(compactInjectionText(message));
 }
 
+function isSkillInjectionText(text) {
+  const value = String(text || "").trim();
+  return /^Base directory for this skill:\s*\S+/i.test(value) || /^Skill base directory:\s*\S+/i.test(value);
+}
+
+function skillInjectionText(message) {
+  if (!message) return "";
+  const parts = Array.isArray(message.content)
+    ? message.content
+    : [{ type: "text", text: extractContentText(message?.content) }];
+  for (const part of parts) {
+    const text = typeof part === "string" ? part : part?.type === "text" ? part.text || "" : "";
+    if (isSkillInjectionText(text)) return text;
+  }
+  return "";
+}
+
+function isSkillInjectionMessage(message) {
+  return Boolean(skillInjectionText(message));
+}
+
 // Classify the most recent salient message of a request so the card header can
 // say what this upstream turn actually is — real user input, a task
 // notification, a tool-result return, etc. — instead of always "User input".
@@ -3878,6 +3901,9 @@ function classifyCurrentEntry(messages) {
     }
     if (isCompactInjectionMessage(message)) {
       return { kind: "compact", label: "上下文压缩 (/compact)", text: "请求模型把前文压缩成 <analysis> + <summary> 结构化总结（注入提示词，非用户真话）" };
+    }
+    if (isSkillInjectionMessage(message)) {
+      return { kind: "harness_injection", label: "Skill / Harness 注入", text: textPreview(skillInjectionText(message), 1200) };
     }
     if (message.role === "user") {
       const real = realUserVisibleText(message);
@@ -3954,6 +3980,7 @@ function textPreview(text, limit) {
 function displayMessageText(message) {
   const text = extractContentText(message?.content);
   if (isCompactInjectionMessage(message)) return "上下文压缩指令：请求模型把前文压缩成 <analysis> + <summary> 总结（harness 注入）";
+  if (isSkillInjectionMessage(message)) return `Skill / Harness 注入\n${skillInjectionText(message)}`;
   if (isFrameworkReminderMessage(message)) return "Claude Code 框架自动补充提醒";
   if (isTaskNotificationMessage(message)) {
     const { taskId, preview, subagent } = taskNotificationSummary(message);
@@ -4005,6 +4032,7 @@ function cleanRealUserTextPart(text) {
   else value = stripDisplayWrapperTags(value);
   if (!value) return "";
   if (isCompactInjectionText(value)) return "";
+  if (isSkillInjectionText(value)) return "";
   if (isLocalCommandOnlyText(value)) return "";
   if (/^Tool loaded\.\s*$/i.test(value)) return "";
   return value;
@@ -4013,7 +4041,7 @@ function cleanRealUserTextPart(text) {
 function inferCaptureTitle(capture) {
   const body = capture?.body || {};
   const messages = Array.isArray(body.messages) ? body.messages : [];
-  const user = messages.find((message) => message?.role === "user" && !isToolResultMessage(message) && !isSuggestionModeMessage(message) && !isFrameworkReminderMessage(message) && !isTaskNotificationMessage(message) && !isCompactInjectionMessage(message));
+  const user = messages.find((message) => message?.role === "user" && !isToolResultMessage(message) && !isSuggestionModeMessage(message) && !isFrameworkReminderMessage(message) && !isTaskNotificationMessage(message) && !isCompactInjectionMessage(message) && !isSkillInjectionMessage(message));
   const title = textPreview(cleanTitleText(userVisibleText(user)), 48);
   return title || null;
 }
@@ -4025,6 +4053,7 @@ function cleanTitleText(text) {
     .replace(commandMessageRegex(), "$1")
     .replace(commandNameRegex(), "$1")
     .replace(frameworkReminderRegex(), "")
+    .replace(/\s*Write the title in [\s\S]*?Keep technical terms and code identifiers in their original form\.?\s*$/i, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

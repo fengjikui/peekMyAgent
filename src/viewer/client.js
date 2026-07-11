@@ -36,6 +36,8 @@ const state = {
   collapsedAgentBranches: new Set(),
   expandedAgentBranches: new Set(),
   openAgentDashboards: new Set(),
+  openSupportingTimelines: new Set(),
+  agentBranchLimits: new Map(),
   agentSend: { loading: false, error: "", message: "", result: null },
   openSourceMenuId: null,
   openProjectMenuKey: null,
@@ -56,6 +58,9 @@ const TIMELINE_WINDOW_THRESHOLD = 180;
 const TIMELINE_WINDOW_SIZE = 120;
 const INITIAL_SOURCE_REQUEST_LIMIT = 32;
 const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
+const AGENT_BRANCH_PAGE_SIZE = 24;
+const AGENT_EVENT_LIMIT = 80;
+const AGENT_SUMMARY_DOT_LIMIT = 8;
 const RAW_MESSAGE_MARKDOWN_INLINE_CHARS = 5000;
 const SUPPORTED_UI_LANGUAGES = [
   { value: "zh-CN", label: "中文" },
@@ -246,7 +251,7 @@ const I18N = {
     closeSessionInfoAria: "关闭会话信息",
     statRequests: "请求",
     statResponses: "回复",
-    statSubagents: "子代理",
+    statSubagents: "子 Agent 实例",
     statToolUse: "工具调用",
     statToolResult: "工具结果",
     showAllTurns: "显示全部轮次",
@@ -369,7 +374,8 @@ const I18N = {
     noHeaderRedaction: "未发现 header 脱敏",
     sessionSummaryAria: "当前会话统计信息",
     transparencyWorkbench: "本地 Agent 透明度工作台",
-    subagentCount: "子代理 {count}",
+    subagentInstanceCount: "子 Agent 实例 {count}",
+    subagentRequestCount: "子 Agent 请求 {count}",
     project: "项目",
     session: "会话",
     defaultRequestInfo: "请求默认信息",
@@ -418,6 +424,9 @@ const I18N = {
     multiAgentSummary: "multi-agent · {count} 个子 Agent",
     subagentDetails: "子 Agent 详情",
     branchSummary: "{branches} 条分支 · {requests} 个请求 · {returned} 条回流 · 工具 {calls}/{results} · {signal}",
+    branchStatusSummary: "已回流 {returned} · 已完成未回流 {completed} · 运行中 {running}",
+    agentShowingCount: "当前显示 {shown}/{total} 个子 Agent",
+    showMoreAgents: "再显示 {count} 个",
     subagentFallback: "子 Agent {index}",
     childSeq: "子{index}",
     parentCall: "父级调用",
@@ -425,6 +434,7 @@ const I18N = {
     jumpToAgentBranch: "跳到这个子 Agent 的详情。",
     noRecordedRequests: "未记录请求",
     eventOrder: "事件顺序",
+    eventOrderCount: "事件顺序 · 显示 {shown}/{total}",
     requestTools: "请求工具 {tools}",
     subagentReply: "子 Agent 回复",
     modelRequest: "模型请求",
@@ -573,7 +583,7 @@ const I18N = {
     closeSessionInfoAria: "Close session info",
     statRequests: "Requests",
     statResponses: "Responses",
-    statSubagents: "Subagents",
+    statSubagents: "Subagent instances",
     statToolUse: "Tool use",
     statToolResult: "Tool result",
     showAllTurns: "Show all turns",
@@ -696,7 +706,8 @@ const I18N = {
     noHeaderRedaction: "No header redaction",
     sessionSummaryAria: "Current session statistics",
     transparencyWorkbench: "Local Agent transparency workbench",
-    subagentCount: "Subagents {count}",
+    subagentInstanceCount: "Subagent instances {count}",
+    subagentRequestCount: "Subagent requests {count}",
     project: "Project",
     session: "Session",
     defaultRequestInfo: "Default Request Info",
@@ -745,6 +756,9 @@ const I18N = {
     multiAgentSummary: "multi-agent · {count} subagents",
     subagentDetails: "Subagent details",
     branchSummary: "{branches} branches · {requests} requests · {returned} returned · tools {calls}/{results} · {signal}",
+    branchStatusSummary: "{returned} returned · {completed} completed, not returned · {running} running",
+    agentShowingCount: "Showing {shown}/{total} subagents",
+    showMoreAgents: "Show {count} more",
     subagentFallback: "Subagent {index}",
     childSeq: "sub{index}",
     parentCall: "Parent call",
@@ -752,6 +766,7 @@ const I18N = {
     jumpToAgentBranch: "Jump to this subagent's detail.",
     noRecordedRequests: "No recorded requests",
     eventOrder: "Event order",
+    eventOrderCount: "Event order · showing {shown}/{total}",
     requestTools: "Request tools {tools}",
     subagentReply: "Subagent reply",
     modelRequest: "Model request",
@@ -1201,7 +1216,13 @@ async function loadSource(sourceId, { preserveScroll = false } = {}) {
   const scrollTop = els.mainPanel.scrollTop;
   const loadSeq = (state.sourceLoadSeq += 1);
   const progressive = shouldUseProgressiveSourceLoad(sourceId, { preserveScroll });
-  if (state.activeSourceId && state.activeSourceId !== sourceId) clearRequestDetailCache();
+  if (state.activeSourceId && state.activeSourceId !== sourceId) {
+    clearRequestDetailCache();
+    state.openSupportingTimelines.clear();
+    state.openAgentDashboards.clear();
+    state.expandedAgentBranches.clear();
+    state.agentBranchLimits.clear();
+  }
   state.progressiveLoadError = "";
   const initialData = mergeCachedRequestDetails(
     await fetchViewerData(sourceId, progressive ? { initial: true, limit: INITIAL_SOURCE_REQUEST_LIMIT } : {}),
@@ -2222,7 +2243,8 @@ function renderSessionInfo(source, stats, requests) {
         </div>
         <div class="summary-badges">
           <span class="badge ${summary.capture_label === "exact proxy capture" ? "exact" : "partial"}" title="${escapeHtml(captureLabelHelp(summary.capture_label))}">${escapeHtml(captureLabelText(summary.capture_label))}</span>
-          ${summary.subagent_count ? `<span class="badge subagent">${escapeHtml(t("subagentCount", { count: summary.subagent_count }))}</span>` : ""}
+          ${stats.subagent_instance_count ? `<span class="badge subagent">${escapeHtml(t("subagentInstanceCount", { count: stats.subagent_instance_count }))}</span>` : ""}
+          ${stats.subagent_count ? `<span class="badge subagent muted">${escapeHtml(t("subagentRequestCount", { count: stats.subagent_count }))}</span>` : ""}
           <span class="badge ${summary.redaction_count ? "risk" : "muted"}">${escapeHtml(redactionText)}</span>
         </div>
       </div>
@@ -2720,7 +2742,7 @@ function renderTurnGroup(turn, requestMap) {
       }
       ${renderAgentBranchesForTurn(turn, requestMap)}
       ${responseRequests.length ? `<div class="turn-request-list response-requests">${responseRequests.map(renderTurnRequest).join("")}</div>` : ""}
-      ${renderSupportingRequests(supportingRequests)}
+      ${renderSupportingRequests(supportingRequests, turn.id)}
     </section>
   `;
 }
@@ -2742,14 +2764,19 @@ function isTurnResponseRequest(request) {
   return shouldShowTimelineAssistantResponse(request);
 }
 
-function renderSupportingRequests(requests) {
+function renderSupportingRequests(requests, turnId) {
   if (!requests.length) return "";
+  const open = state.openSupportingTimelines.has(turnId);
   return `
-    <details class="turn-supporting-requests">
-      <summary>${escapeHtml(t("supportingTimeline", { count: requests.length }))}</summary>
-      <div class="turn-request-list supporting-requests">
-        ${requests.map(renderTurnRequest).join("")}
-      </div>
+    <details class="turn-supporting-requests" ${open ? "open" : ""}>
+      <summary data-supporting-timeline-toggle="${escapeHtml(turnId)}">${escapeHtml(t("supportingTimeline", { count: requests.length }))}</summary>
+      ${
+        open
+          ? `<div class="turn-request-list supporting-requests">
+              ${requests.map(renderTurnRequest).join("")}
+            </div>`
+          : ""
+      }
     </details>
   `;
 }
@@ -2763,21 +2790,22 @@ function renderAgentBranchesForTurn(turn, requestMap) {
   const returnIndexes = [...new Set(branches.map((branch) => branch.return?.parent_request_index).filter(Boolean))];
   const typeNames = [...new Set(sortedBranches.map((branch, index) => agentBranchName(branch, index)))];
   const summaryDots = sortedBranches
+    .slice(0, AGENT_SUMMARY_DOT_LIMIT)
     .map((branch, index) => `<span class="agent-summary-dot" style="--branch-color:${escapeHtml(agentBranchColor(index))}" aria-hidden="true"></span>`)
     .join("");
-  // The whole multi-agent dashboard defaults to collapsed — it's a heavy
-  // overview; one click expands the flow map, event strip, and per-branch detail.
   const dashboardOpen = state.openAgentDashboards.has(turn.id);
-  return `
-    <details class="agent-branch-map" aria-label="${escapeHtml(t("multiAgentAria"))}" data-agent-dashboard="${escapeHtml(turn.id)}" ${dashboardOpen ? "open" : ""}>
-      <summary class="agent-branch-summary" data-agent-dashboard-toggle="${escapeHtml(turn.id)}">
-        ${summaryDots}
-        <strong>${escapeHtml(t("multiAgentSummary", { count: branches.length }))}</strong>
-        <span class="agent-branch-summary-types">${escapeHtml(typeNames.join(" / "))}</span>
-      </summary>
+  const branchLimit = Math.max(AGENT_BRANCH_PAGE_SIZE, state.agentBranchLimits.get(turn.id) || AGENT_BRANCH_PAGE_SIZE);
+  const visibleBranches = sortedBranches.slice(0, branchLimit);
+  const hiddenBranchCount = Math.max(0, sortedBranches.length - visibleBranches.length);
+  const returned = sortedBranches.filter((branch) => branch.status === "returned").length;
+  const completed = sortedBranches.filter((branch) => branch.status === "completed").length;
+  const running = sortedBranches.filter((branch) => branch.status === "running").length;
+  const dashboardBody = dashboardOpen
+    ? `
       <div class="agent-branch-head">
         <div>
           <p>${escapeHtml(agentTraceSummary(trace, branches))}</p>
+          <p class="agent-branch-status-line">${escapeHtml(t("branchStatusSummary", { returned, completed, running }))}</p>
         </div>
         <div class="agent-branch-head-meta">
           ${spawnIndexes.length ? `<span>spawn #${escapeHtml(spawnIndexes.join(", #"))}</span>` : ""}
@@ -2786,15 +2814,30 @@ function renderAgentBranchesForTurn(turn, requestMap) {
         </div>
       </div>
       <div class="agent-flow-map">
-        ${sortedBranches.map((branch, index) => renderAgentMapCard(branch, index)).join("")}
+        ${visibleBranches.map((branch, index) => renderAgentMapCard(branch, index)).join("")}
       </div>
       ${renderAgentEventStrip(sortedBranches)}
       <div class="agent-branch-details" aria-label="${escapeHtml(t("subagentDetails"))}">
-        <p class="block-title">${escapeHtml(t("subagentDetails"))}</p>
+        <p class="block-title">${escapeHtml(t("subagentDetails"))} · ${escapeHtml(t("agentShowingCount", { shown: visibleBranches.length, total: sortedBranches.length }))}</p>
         <div class="agent-branch-grid">
-          ${sortedBranches.map((branch, index) => renderAgentBranch(branch, index, requestMap)).join("")}
+          ${visibleBranches.map((branch, index) => renderAgentBranch(branch, index, requestMap)).join("")}
         </div>
-      </div>
+        ${
+          hiddenBranchCount
+            ? `<button class="agent-branch-load-more" type="button" data-agent-branch-more="${escapeHtml(turn.id)}">${escapeHtml(t("showMoreAgents", { count: Math.min(AGENT_BRANCH_PAGE_SIZE, hiddenBranchCount) }))}</button>`
+            : ""
+        }
+      </div>`
+    : "";
+  return `
+    <details class="agent-branch-map" aria-label="${escapeHtml(t("multiAgentAria"))}" data-agent-dashboard="${escapeHtml(turn.id)}" ${dashboardOpen ? "open" : ""}>
+      <summary class="agent-branch-summary" data-agent-dashboard-toggle="${escapeHtml(turn.id)}">
+        ${summaryDots}
+        ${sortedBranches.length > AGENT_SUMMARY_DOT_LIMIT ? `<span class="agent-summary-more">+${escapeHtml(String(sortedBranches.length - AGENT_SUMMARY_DOT_LIMIT))}</span>` : ""}
+        <strong>${escapeHtml(t("multiAgentSummary", { count: branches.length }))}</strong>
+        <span class="agent-branch-summary-types">${escapeHtml(typeNames.join(" / "))}</span>
+      </summary>
+      ${dashboardBody}
     </details>
   `;
 }
@@ -2834,14 +2877,18 @@ function renderAgentBranch(branch, index, requestMap) {
         </div>
         <span class="agent-branch-status ${escapeHtml(branch.status || "unknown")}">${escapeHtml(branchStatusLabel(branch.status))}</span>
       </button>
-      <div class="agent-branch-body">
-        ${branch.spawn ? renderBranchEdge(t("parentCall"), branch.spawn.parent_request_id, `#${branch.spawn.parent_request_index} · ${branch.spawn.label || branch.spawn.id}`) : ""}
-        <div class="agent-branch-steps">
-          ${(branch.steps || []).map((step) => renderAgentBranchStep(step)).join("")}
-        </div>
-        ${branch.return ? renderBranchEdge(t("resultReturn"), branch.return.parent_request_id, `#${branch.return.parent_request_index} · ${shortPreview(branch.return.result_preview, 90)}`) : ""}
-        <p class="agent-branch-note">${escapeHtml(branch.linkage_note || "")}</p>
-      </div>
+      ${
+        collapsed
+          ? ""
+          : `<div class="agent-branch-body">
+              ${branch.spawn ? renderBranchEdge(t("parentCall"), branch.spawn.parent_request_id, `#${branch.spawn.parent_request_index} · ${branch.spawn.label || branch.spawn.id}`) : ""}
+              <div class="agent-branch-steps">
+                ${(branch.steps || []).map((step) => renderAgentBranchStep(step)).join("")}
+              </div>
+              ${branch.return ? renderBranchEdge(t("resultReturn"), branch.return.parent_request_id, `#${branch.return.parent_request_index} · ${shortPreview(branch.return.result_preview, 90)}`) : ""}
+              <p class="agent-branch-note">${escapeHtml(branch.linkage_note || "")}</p>
+            </div>`
+      }
     </article>
   `;
 }
@@ -2881,11 +2928,12 @@ function agentBranchCompactSummary(branch) {
 function renderAgentEventStrip(branches) {
   const events = agentFlowEvents(branches);
   if (!events.length) return "";
+  const visibleEvents = events.slice(0, AGENT_EVENT_LIMIT);
   return `
     <div class="agent-event-strip" aria-label="${escapeHtml(t("eventOrder"))}">
-      <span class="agent-event-label">${escapeHtml(t("eventOrder"))}</span>
+      <span class="agent-event-label">${escapeHtml(t("eventOrderCount", { shown: visibleEvents.length, total: events.length }))}</span>
       <div class="agent-event-list">
-        ${events.map(renderAgentEvent).join("")}
+        ${visibleEvents.map(renderAgentEvent).join("")}
       </div>
     </div>
   `;
@@ -3997,6 +4045,15 @@ function bindRequestEvents() {
       toggleAgentBranch(button.dataset.agentBranchToggle);
     });
   });
+  document.querySelectorAll("[data-supporting-timeline-toggle]").forEach((summary) => {
+    summary.addEventListener("click", (event) => {
+      event.preventDefault();
+      const turnId = summary.dataset.supportingTimelineToggle;
+      if (state.openSupportingTimelines.has(turnId)) state.openSupportingTimelines.delete(turnId);
+      else state.openSupportingTimelines.add(turnId);
+      renderAll();
+    });
+  });
   // Control the multi-agent dashboard open state ourselves (persist across
   // renderAll) so toggling an inner branch card no longer snaps the whole panel
   // shut.
@@ -4006,6 +4063,16 @@ function bindRequestEvents() {
       const turnId = summary.dataset.agentDashboardToggle;
       if (state.openAgentDashboards.has(turnId)) state.openAgentDashboards.delete(turnId);
       else state.openAgentDashboards.add(turnId);
+      renderAll();
+    });
+  });
+  document.querySelectorAll("[data-agent-branch-more]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const turnId = button.dataset.agentBranchMore;
+      const current = state.agentBranchLimits.get(turnId) || AGENT_BRANCH_PAGE_SIZE;
+      state.agentBranchLimits.set(turnId, current + AGENT_BRANCH_PAGE_SIZE);
       renderAll();
     });
   });
@@ -4031,14 +4098,27 @@ function jumpToRequest(requestId) {
 
 function jumpToAgentBranch(branchId) {
   if (!branchId) return;
+  const turn = state.data?.turns?.find((item) => (item.agent_branches || []).includes(branchId));
+  if (turn) {
+    state.activeId = turn.id;
+    state.openAgentDashboards.add(turn.id);
+    const sortedBranchIds = (state.data?.agent_trace?.branches || [])
+      .filter((item) => (turn.agent_branches || []).includes(item.id))
+      .sort((left, right) => Number(left.first_request_index || 0) - Number(right.first_request_index || 0))
+      .map((item) => item.id);
+    const branchIndex = sortedBranchIds.indexOf(branchId);
+    if (branchIndex >= 0) {
+      state.agentBranchLimits.set(turn.id, Math.max(AGENT_BRANCH_PAGE_SIZE, Math.ceil((branchIndex + 1) / AGENT_BRANCH_PAGE_SIZE) * AGENT_BRANCH_PAGE_SIZE));
+    }
+  }
   if (!state.expandedAgentBranches.has(branchId)) {
     state.expandedAgentBranches.add(branchId);
-    renderAll();
   }
+  renderAll();
   const target = document.querySelector(`[data-branch="${cssEscape(branchId)}"]`);
   if (!target) return;
-  const turn = target.closest("[data-turn-group]");
-  if (turn?.dataset.turnGroup && turn.dataset.turnGroup !== state.activeId) markActiveTurn(turn.dataset.turnGroup, false);
+  const turnElement = target.closest("[data-turn-group]");
+  if (turnElement?.dataset.turnGroup && turnElement.dataset.turnGroup !== state.activeId) markActiveTurn(turnElement.dataset.turnGroup, false);
   scrollElementIntoView(target, { blockOffset: 90 });
   target.classList.add("focus");
   setTimeout(() => target.classList.remove("focus"), 1800);
@@ -5566,7 +5646,7 @@ function escapeHtml(value) {
 }
 
 function displaySourceLabel(label) {
-  return cleanDisplayText(label) || t("unnamedSession");
+  return cleanDisplayText(label).replace(/\s*Write the title in [\s\S]*$/i, "").trim() || t("unnamedSession");
 }
 
 function projectNameFromWorkspace(workspace) {
@@ -5585,6 +5665,7 @@ function cleanDisplayText(value) {
     .replace(/<\/?user_input>/gi, "")
     .replace(/<command-message\b[^>]*>([\s\S]*?)<\/command-message>/gi, "$1")
     .replace(/<command-name\b[^>]*>([\s\S]*?)<\/command-name>/gi, "$1")
+    .replace(/\s*Write the title in [\s\S]*?Keep technical terms and code identifiers in their original form\.?\s*$/i, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
