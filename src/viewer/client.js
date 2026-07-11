@@ -38,6 +38,11 @@ const state = {
   openAgentDashboards: new Set(),
   openSupportingTimelines: new Set(),
   agentBranchLimits: new Map(),
+  agentBranchFilters: new Map(),
+  traceQuery: "",
+  traceFilter: "all",
+  traceQueryTimer: 0,
+  traceResultLimit: 24,
   agentSend: { loading: false, error: "", message: "", result: null },
   openSourceMenuId: null,
   openProjectMenuKey: null,
@@ -61,6 +66,8 @@ const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
 const AGENT_BRANCH_PAGE_SIZE = 24;
 const AGENT_EVENT_LIMIT = 80;
 const AGENT_SUMMARY_DOT_LIMIT = 8;
+const TRACE_RESULT_PAGE_SIZE = 24;
+const traceSearchTextCache = new WeakMap();
 const RAW_MESSAGE_MARKDOWN_INLINE_CHARS = 5000;
 const SUPPORTED_UI_LANGUAGES = [
   { value: "zh-CN", label: "中文" },
@@ -256,9 +263,23 @@ const I18N = {
     statToolResult: "工具结果",
     showAllTurns: "显示全部轮次",
     latestOnly: "只看最新轮次",
+    latestDisabledBySearch: "搜索与筛选始终覆盖全部轮次",
     sessionInfo: "会话信息",
     traceInitialLoading: "先显示前 {loaded}/{total} 条请求，完整 Trace 正在后台载入…",
     traceFullLoadFailed: "完整 Trace 后台加载失败：{message}",
+    traceSearchPlaceholder: "搜索用户输入、回复、工具或请求编号",
+    traceSearchAria: "搜索当前 Trace",
+    traceFilterAria: "按 Trace 事件类型筛选",
+    traceFilterAll: "全部 {count}",
+    traceFilterIssues: "异常 {count}",
+    traceFilterSlow: "慢请求 {count}",
+    traceFilterTools: "工具 {count}",
+    traceFilterSubagents: "子 Agent {count}",
+    traceNoResultsTitle: "没有匹配的执行链路",
+    traceNoResultsBody: "调整搜索词或筛选条件后重试。原始 Trace 数据没有被删除。",
+    traceMatchCount: "显示 {shown}/{total} 条匹配请求",
+    traceShowMore: "再显示 {count} 条",
+    traceTurnMatches: "Turn {index} · {count} 条匹配",
     emptyTimelineTitle: "等待 Agent 发出下一次模型请求",
     emptyTimelineBody: "这个 watch 已经创建。把 Agent 的 provider/base URL 指向本地代理后，请求会出现在这里。",
     emptyStatus: "状态",
@@ -427,6 +448,12 @@ const I18N = {
     branchStatusSummary: "已回流 {returned} · 已完成未回流 {completed} · 运行中 {running}",
     agentShowingCount: "当前显示 {shown}/{total} 个子 Agent",
     showMoreAgents: "再显示 {count} 个",
+    agentStatusFilterAria: "按子 Agent 状态筛选",
+    agentFilterAll: "全部 {count}",
+    agentFilterReturned: "已回流 {count}",
+    agentFilterCompleted: "未回流 {count}",
+    agentFilterRunning: "运行中 {count}",
+    noAgentsForFilter: "当前状态下没有子 Agent。",
     subagentFallback: "子 Agent {index}",
     childSeq: "子{index}",
     parentCall: "父级调用",
@@ -588,9 +615,23 @@ const I18N = {
     statToolResult: "Tool result",
     showAllTurns: "Show all turns",
     latestOnly: "Latest turn only",
+    latestDisabledBySearch: "Search and filters always cover all turns",
     sessionInfo: "Session Info",
     traceInitialLoading: "Showing the first {loaded}/{total} requests while the full Trace loads in the background...",
     traceFullLoadFailed: "Background full Trace load failed: {message}",
+    traceSearchPlaceholder: "Search user input, responses, tools, or request number",
+    traceSearchAria: "Search this Trace",
+    traceFilterAria: "Filter Trace event types",
+    traceFilterAll: "All {count}",
+    traceFilterIssues: "Issues {count}",
+    traceFilterSlow: "Slow {count}",
+    traceFilterTools: "Tools {count}",
+    traceFilterSubagents: "Subagents {count}",
+    traceNoResultsTitle: "No matching execution path",
+    traceNoResultsBody: "Try another query or filter. The original Trace data has not been removed.",
+    traceMatchCount: "Showing {shown}/{total} matching requests",
+    traceShowMore: "Show {count} more",
+    traceTurnMatches: "Turn {index} · {count} matches",
     emptyTimelineTitle: "Waiting for the next model request",
     emptyTimelineBody: "This watch has been created. Requests will appear here once the Agent provider/base URL points to the local proxy.",
     emptyStatus: "Status",
@@ -759,6 +800,12 @@ const I18N = {
     branchStatusSummary: "{returned} returned · {completed} completed, not returned · {running} running",
     agentShowingCount: "Showing {shown}/{total} subagents",
     showMoreAgents: "Show {count} more",
+    agentStatusFilterAria: "Filter by subagent status",
+    agentFilterAll: "All {count}",
+    agentFilterReturned: "Returned {count}",
+    agentFilterCompleted: "Not returned {count}",
+    agentFilterRunning: "Running {count}",
+    noAgentsForFilter: "No subagents match this status.",
     subagentFallback: "Subagent {index}",
     childSeq: "sub{index}",
     parentCall: "Parent call",
@@ -913,6 +960,7 @@ const els = {
   mainPanel: document.querySelector(".main-panel"),
   sidebarResizer: document.querySelector("#sidebarResizer"),
   watchSummary: document.querySelector("#watchSummary"),
+  traceQueryBar: document.querySelector("#traceQuery"),
   timeline: document.querySelector("#timeline"),
   agentComposer: document.querySelector("#agentComposer"),
   turnRail: document.querySelector("#turnRail"),
@@ -1222,6 +1270,10 @@ async function loadSource(sourceId, { preserveScroll = false } = {}) {
     state.openAgentDashboards.clear();
     state.expandedAgentBranches.clear();
     state.agentBranchLimits.clear();
+    state.agentBranchFilters.clear();
+    state.traceQuery = "";
+    state.traceFilter = "all";
+    state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
   }
   state.progressiveLoadError = "";
   const initialData = mergeCachedRequestDetails(
@@ -2143,18 +2195,21 @@ function renderAll() {
     .map(([label, value]) => `<span class="stat">${label}: ${escapeHtml(String(value))}</span>`)
     .join("");
   els.viewControls.innerHTML =
-    `<button class="stat stat-button ${state.latestOnly ? "active" : ""}" type="button" data-latest-only>${state.latestOnly ? t("showAllTurns") : t("latestOnly")}</button>` +
+    `<button class="stat stat-button ${state.latestOnly && !traceQueryActive() ? "active" : ""}" type="button" data-latest-only ${traceQueryActive() ? `disabled title="${escapeHtml(t("latestDisabledBySearch"))}"` : ""}>${state.latestOnly && !traceQueryActive() ? t("showAllTurns") : t("latestOnly")}</button>` +
     `<button class="stat stat-button session-info-trigger" type="button" data-session-info>${t("sessionInfo")}</button>`;
   els.watchSummary.innerHTML = renderProgressiveLoadNotice(state.data?.partial);
   els.sessionInfoBody.innerHTML = renderSessionInfo(source, stats, requests);
   renderSessionNav();
-  const turnWindow = timelineWindowInfo(turns, requests);
-  els.timeline.innerHTML = requests.length ? renderTurnTimeline(turnWindow, requests) : renderEmptyTimeline(source.workbench);
+  els.traceQueryBar.innerHTML = renderTraceQueryBar(requests);
+  const filteredTurns = traceFilteredTurns(turns, requests);
+  const turnWindow = timelineWindowInfo(filteredTurns, requests);
+  els.timeline.innerHTML = requests.length ? (filteredTurns.length ? renderTurnTimeline(turnWindow, requests) : renderTraceNoResults()) : renderEmptyTimeline(source.workbench);
   els.agentComposer.innerHTML = renderAgentComposer(source);
   renderTurnRail();
   bindSessionInfoControls();
   bindWatchControls();
   bindAgentComposer();
+  bindTraceQueryEvents();
   bindRequestEvents();
   if (state.activeId) markActiveTurn(state.activeId, false);
   if (state.activeRequestId) markActiveRequest(state.activeRequestId, false);
@@ -2175,9 +2230,194 @@ function renderProgressiveLoadNotice(partial) {
   `;
 }
 
+function renderTraceQueryBar(requests) {
+  const counts = traceFilterCounts(requests);
+  const matchCount = traceQueryActive() ? traceMatchingRequestCount(state.data?.turns || [], requests) : counts.all;
+  const shownCount = Math.min(matchCount, state.traceResultLimit);
+  const filters = [
+    ["all", t("traceFilterAll", { count: counts.all })],
+    ["issues", t("traceFilterIssues", { count: counts.issues })],
+    ["slow", t("traceFilterSlow", { count: counts.slow })],
+    ["tools", t("traceFilterTools", { count: counts.tools })],
+    ["subagents", t("traceFilterSubagents", { count: counts.subagents })],
+  ];
+  return `
+    <label class="trace-search-field">
+      <input type="search" value="${escapeHtml(state.traceQuery)}" placeholder="${escapeHtml(t("traceSearchPlaceholder"))}" aria-label="${escapeHtml(t("traceSearchAria"))}" data-trace-search>
+    </label>
+    <div class="trace-filter-group" role="group" aria-label="${escapeHtml(t("traceFilterAria"))}">
+      ${filters.map(([filter, label]) => `<button class="trace-filter ${state.traceFilter === filter ? "active" : ""}" type="button" data-trace-filter="${escapeHtml(filter)}" aria-pressed="${escapeHtml(String(state.traceFilter === filter))}">${escapeHtml(label)}</button>`).join("")}
+    </div>
+    ${
+      traceQueryActive()
+        ? `<div class="trace-match-status">
+            <span>${escapeHtml(t("traceMatchCount", { shown: shownCount, total: matchCount }))}</span>
+            ${matchCount > shownCount ? `<button type="button" data-trace-more>${escapeHtml(t("traceShowMore", { count: Math.min(TRACE_RESULT_PAGE_SIZE, matchCount - shownCount) }))}</button>` : ""}
+          </div>`
+        : ""
+    }
+  `;
+}
+
+function bindTraceQueryEvents() {
+  const input = els.traceQueryBar?.querySelector("[data-trace-search]");
+  input?.addEventListener("input", () => {
+    state.traceQuery = input.value || "";
+    state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
+    window.clearTimeout(state.traceQueryTimer);
+    state.traceQueryTimer = window.setTimeout(() => {
+      renderAll();
+      requestAnimationFrame(() => {
+        const nextInput = els.traceQueryBar?.querySelector("[data-trace-search]");
+        if (!nextInput) return;
+        nextInput.focus();
+        const cursor = nextInput.value.length;
+        nextInput.setSelectionRange(cursor, cursor);
+      });
+    }, 160);
+  });
+  els.traceQueryBar?.querySelectorAll("[data-trace-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.traceFilter = button.dataset.traceFilter || "all";
+      state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
+      const filteredTurns = traceFilteredTurns(state.data?.turns || [], state.data?.requests || []);
+      if (!filteredTurns.some((turn) => turn.id === state.activeId)) state.activeId = filteredTurns[0]?.id || null;
+      renderAll();
+    });
+  });
+  const moreButton = els.traceQueryBar?.querySelector("[data-trace-more]");
+  moreButton?.addEventListener("click", () => {
+    state.traceResultLimit += TRACE_RESULT_PAGE_SIZE;
+    renderAll();
+  });
+}
+
+function traceQueryActive() {
+  return state.traceFilter !== "all" || Boolean(String(state.traceQuery || "").trim());
+}
+
+function traceFilterCounts(requests) {
+  const list = Array.isArray(requests) ? requests : [];
+  return {
+    all: list.length,
+    issues: list.filter(traceRequestHasIssue).length,
+    slow: list.filter(traceRequestIsSlow).length,
+    tools: list.filter(traceRequestHasTools).length,
+    subagents: list.filter((request) => request.is_subagent).length,
+  };
+}
+
+function traceFilteredTurns(turns, requests) {
+  const normalizedTurns = Array.isArray(turns) && turns.length ? turns : fallbackTurns(requests);
+  const filter = state.traceFilter || "all";
+  const query = String(state.traceQuery || "").trim().toLocaleLowerCase();
+  if (filter === "all" && !query) return normalizedTurns;
+  const requestMap = new Map((requests || []).map((request) => [request.id, request]));
+  let remaining = state.traceResultLimit;
+  const matchedTurns = [];
+  for (const turn of normalizedTurns) {
+    const turnRequests = (turn.request_ids || []).map((id) => requestMap.get(id)).filter(Boolean);
+    const matchedRequestIds = traceMatchingRequestIdsForTurn(turn, turnRequests, filter, query);
+    if (!matchedRequestIds.length || remaining <= 0) continue;
+    const visibleRequestIds = matchedRequestIds.slice(0, remaining);
+    remaining -= visibleRequestIds.length;
+    matchedTurns.push({
+      ...turn,
+      request_ids: visibleRequestIds,
+      request_count: visibleRequestIds.length,
+      trace_filter_active: true,
+      trace_match_count: matchedRequestIds.length,
+    });
+  }
+  return matchedTurns;
+}
+
+function traceMatchingRequestCount(turns, requests) {
+  const normalizedTurns = Array.isArray(turns) && turns.length ? turns : fallbackTurns(requests);
+  const requestMap = new Map((requests || []).map((request) => [request.id, request]));
+  const filter = state.traceFilter || "all";
+  const query = String(state.traceQuery || "").trim().toLocaleLowerCase();
+  let count = 0;
+  for (const turn of normalizedTurns) {
+    const turnRequests = (turn.request_ids || []).map((id) => requestMap.get(id)).filter(Boolean);
+    count += traceMatchingRequestIdsForTurn(turn, turnRequests, filter, query).length;
+  }
+  return count;
+}
+
+function traceMatchingRequestIdsForTurn(turn, turnRequests, filter, query) {
+  const directMatches = turnRequests.filter((request) => traceRequestMatchesFilter(request, filter) && (!query || traceSearchTextForRequest(request).includes(query)));
+  if (directMatches.length || !query || filter !== "all" || !traceSearchTextForTurn(turn).includes(query)) return directMatches.map((request) => request.id);
+  const lead = turnLeadRequest(turnRequests, turn) || turnRequests[0];
+  return lead ? [lead.id] : [];
+}
+
+function traceRequestMatchesFilter(request, filter) {
+  if (filter === "issues") return traceRequestHasIssue(request);
+  if (filter === "slow") return traceRequestIsSlow(request);
+  if (filter === "tools") return traceRequestHasTools(request);
+  if (filter === "subagents") return Boolean(request.is_subagent);
+  return true;
+}
+
+function traceRequestHasIssue(request) {
+  const status = Number(request.upstream_status ?? request.summary?.response?.status ?? 0);
+  if (status >= 400) return true;
+  const evidence = [
+    request.summary?.entry?.text,
+    request.summary?.response?.preview,
+    ...(request.summary?.current_tool_results || []).map((result) => result.content),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return /(?:api error|\berror\b|exception|permission denied|timed? out|timeout|失败|报错|不可用)/i.test(evidence);
+}
+
+function traceRequestIsSlow(request) {
+  return Number(request.summary?.response?.latency_ms || 0) >= 5000;
+}
+
+function traceRequestHasTools(request) {
+  return Boolean((request.summary?.response?.tool_calls?.length || 0) + (request.summary?.current_tool_results?.length || 0));
+}
+
+function traceSearchTextForTurn(turn) {
+  return [turn.index, turn.title, turn.user_input, turn.command_message?.command, turn.command_message?.body].filter(Boolean).join(" ").toLocaleLowerCase();
+}
+
+function traceSearchTextForRequest(request) {
+  const cached = traceSearchTextCache.get(request);
+  if (cached) return cached;
+  const text = [
+    request.request_index,
+    request.summary?.entry?.label,
+    request.summary?.entry?.text,
+    request.summary?.assistant_preview,
+    request.summary?.response?.text,
+    request.summary?.response?.thinking_preview,
+    ...(request.summary?.tool_names || []),
+    ...(request.summary?.response?.tool_calls || []).flatMap((call) => [call.name, shortPreview(stableJson(call.arguments), 1000)]),
+    ...(request.summary?.current_tool_results || []).map((result) => result.content),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLocaleLowerCase();
+  traceSearchTextCache.set(request, text);
+  return text;
+}
+
+function renderTraceNoResults() {
+  return `
+    <section class="trace-no-results">
+      <h3>${escapeHtml(t("traceNoResultsTitle"))}</h3>
+      <p>${escapeHtml(t("traceNoResultsBody"))}</p>
+    </section>
+  `;
+}
+
 function baseTurnList(turns, requests) {
   const normalizedTurns = Array.isArray(turns) && turns.length ? turns : fallbackTurns(requests);
-  if (!state.latestOnly || normalizedTurns.length <= 1) return normalizedTurns;
+  if (traceQueryActive() || !state.latestOnly || normalizedTurns.length <= 1) return normalizedTurns;
   return [normalizedTurns.at(-1)];
 }
 
@@ -2609,7 +2849,9 @@ function clearTurnRailHover() {
 function railTurnUniverse(data = state.data) {
   const requests = data?.requests || [];
   const turns = data?.turns || [];
-  return baseTurnList(turns, requests);
+  const filtered = traceFilteredTurns(turns, requests);
+  if (traceQueryActive() || !state.latestOnly || filtered.length <= 1) return filtered;
+  return [filtered.at(-1)];
 }
 
 function activeTurnIds(data = state.data) {
@@ -2719,6 +2961,19 @@ function turnLeadRequest(requests, turn) {
 
 function renderTurnGroup(turn, requestMap) {
   const requests = turn.request_ids.map((id) => requestMap.get(id)).filter(Boolean);
+  if (turn.trace_filter_active) {
+    return `
+      <section class="turn-group trace-match-turn" id="${escapeHtml(turn.id)}" data-turn-group="${escapeHtml(turn.id)}">
+        <header class="turn-header">
+          <div class="turn-heading">
+            <span class="turn-number">${escapeHtml(t("traceTurnMatches", { index: turn.index, count: turn.trace_match_count || requests.length }))}</span>
+            <span class="trace-match-turn-title">${escapeHtml(turnTitleText(turn))}</span>
+          </div>
+        </header>
+        <div class="turn-request-list trace-match-requests">${requests.map(renderTurnRequest).join("")}</div>
+      </section>
+    `;
+  }
   const lead = turnLeadRequest(requests, turn);
   let primaryRequests = requests.filter(isPrimaryTurnRequest);
   // Always pin the turn's defining user input to the top — even when it was
@@ -2794,9 +3049,12 @@ function renderAgentBranchesForTurn(turn, requestMap) {
     .map((branch, index) => `<span class="agent-summary-dot" style="--branch-color:${escapeHtml(agentBranchColor(index))}" aria-hidden="true"></span>`)
     .join("");
   const dashboardOpen = state.openAgentDashboards.has(turn.id);
+  const activeFilter = state.agentBranchFilters.get(turn.id) || "all";
+  const branchEntries = sortedBranches.map((branch, index) => ({ branch, index }));
+  const filteredEntries = activeFilter === "all" ? branchEntries : branchEntries.filter(({ branch }) => branch.status === activeFilter);
   const branchLimit = Math.max(AGENT_BRANCH_PAGE_SIZE, state.agentBranchLimits.get(turn.id) || AGENT_BRANCH_PAGE_SIZE);
-  const visibleBranches = sortedBranches.slice(0, branchLimit);
-  const hiddenBranchCount = Math.max(0, sortedBranches.length - visibleBranches.length);
+  const visibleEntries = filteredEntries.slice(0, branchLimit);
+  const hiddenBranchCount = Math.max(0, filteredEntries.length - visibleEntries.length);
   const returned = sortedBranches.filter((branch) => branch.status === "returned").length;
   const completed = sortedBranches.filter((branch) => branch.status === "completed").length;
   const running = sortedBranches.filter((branch) => branch.status === "running").length;
@@ -2813,14 +3071,22 @@ function renderAgentBranchesForTurn(turn, requestMap) {
           <span>${escapeHtml(branchConfidenceLabel(trace?.confidence))}</span>
         </div>
       </div>
-      <div class="agent-flow-map">
-        ${visibleBranches.map((branch, index) => renderAgentMapCard(branch, index)).join("")}
+      <div class="agent-branch-toolbar">
+        <div class="agent-status-filters" role="group" aria-label="${escapeHtml(t("agentStatusFilterAria"))}">
+          ${renderAgentFilterButton(turn.id, "all", t("agentFilterAll", { count: sortedBranches.length }), activeFilter)}
+          ${renderAgentFilterButton(turn.id, "running", t("agentFilterRunning", { count: running }), activeFilter)}
+          ${renderAgentFilterButton(turn.id, "completed", t("agentFilterCompleted", { count: completed }), activeFilter)}
+          ${renderAgentFilterButton(turn.id, "returned", t("agentFilterReturned", { count: returned }), activeFilter)}
+        </div>
+        <span>${escapeHtml(t("agentShowingCount", { shown: visibleEntries.length, total: filteredEntries.length }))}</span>
       </div>
-      ${renderAgentEventStrip(sortedBranches)}
+      <div class="agent-flow-map">
+        ${visibleEntries.map(({ branch, index }) => renderAgentMapCard(branch, index)).join("")}
+      </div>
+      ${renderAgentEventStrip(filteredEntries)}
       <div class="agent-branch-details" aria-label="${escapeHtml(t("subagentDetails"))}">
-        <p class="block-title">${escapeHtml(t("subagentDetails"))} · ${escapeHtml(t("agentShowingCount", { shown: visibleBranches.length, total: sortedBranches.length }))}</p>
         <div class="agent-branch-grid">
-          ${visibleBranches.map((branch, index) => renderAgentBranch(branch, index, requestMap)).join("")}
+          ${visibleEntries.length ? visibleEntries.map(({ branch, index }) => renderAgentBranch(branch, index, requestMap)).join("") : `<p class="agent-filter-empty">${escapeHtml(t("noAgentsForFilter"))}</p>`}
         </div>
         ${
           hiddenBranchCount
@@ -2840,6 +3106,10 @@ function renderAgentBranchesForTurn(turn, requestMap) {
       ${dashboardBody}
     </details>
   `;
+}
+
+function renderAgentFilterButton(turnId, filter, label, activeFilter) {
+  return `<button class="agent-status-filter ${filter === activeFilter ? "active" : ""}" type="button" data-agent-status-filter="${escapeHtml(turnId)}" data-agent-filter-value="${escapeHtml(filter)}" aria-pressed="${escapeHtml(String(filter === activeFilter))}">${escapeHtml(label)}</button>`;
 }
 
 function agentTraceSummary(trace, branches) {
@@ -2925,8 +3195,8 @@ function agentBranchCompactSummary(branch) {
   return [t("turnRequests", { count: requestCount }), toolUse || toolResult ? t("turnTools", { calls: toolUse, results: toolResult }) : "", edges].filter(Boolean).join(" · ");
 }
 
-function renderAgentEventStrip(branches) {
-  const events = agentFlowEvents(branches);
+function renderAgentEventStrip(branchEntries) {
+  const events = agentFlowEvents(branchEntries);
   if (!events.length) return "";
   const visibleEvents = events.slice(0, AGENT_EVENT_LIMIT);
   return `
@@ -2939,9 +3209,11 @@ function renderAgentEventStrip(branches) {
   `;
 }
 
-function agentFlowEvents(branches) {
+function agentFlowEvents(branchEntries) {
   const events = [];
-  for (const [index, branch] of branches.entries()) {
+  for (const [displayIndex, entry] of branchEntries.entries()) {
+    const branch = entry?.branch || entry;
+    const index = Number.isInteger(entry?.index) ? entry.index : displayIndex;
     const agentLabel = t("childSeq", { index: index + 1 });
     if (branch.spawn?.parent_request_index) {
       events.push({
@@ -4076,6 +4348,17 @@ function bindRequestEvents() {
       renderAll();
     });
   });
+  document.querySelectorAll("[data-agent-status-filter]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const turnId = button.dataset.agentStatusFilter;
+      const filter = button.dataset.agentFilterValue || "all";
+      state.agentBranchFilters.set(turnId, filter);
+      state.agentBranchLimits.set(turnId, AGENT_BRANCH_PAGE_SIZE);
+      renderAll();
+    });
+  });
   document.querySelectorAll("[data-system-diff]").forEach((button) => {
     button.addEventListener("click", () => showSystemDiff(button.dataset.systemDiff));
   });
@@ -4102,6 +4385,7 @@ function jumpToAgentBranch(branchId) {
   if (turn) {
     state.activeId = turn.id;
     state.openAgentDashboards.add(turn.id);
+    state.agentBranchFilters.set(turn.id, "all");
     const sortedBranchIds = (state.data?.agent_trace?.branches || [])
       .filter((item) => (turn.agent_branches || []).includes(item.id))
       .sort((left, right) => Number(left.first_request_index || 0) - Number(right.first_request_index || 0))

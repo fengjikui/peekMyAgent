@@ -10,8 +10,8 @@ assert.match(clientSource, /const TIMELINE_WINDOW_SIZE = 120;/, "timeline window
 assert.match(clientSource, /const AGENT_BRANCH_PAGE_SIZE = 24;/, "large multi-agent views should page branches");
 assert.match(clientSource, /const AGENT_EVENT_LIMIT = 80;/, "large multi-agent views should cap the initial event strip");
 assert.match(clientSource, /function timelineWindowInfo\(turns, requests\)/, "timelineWindowInfo should exist");
-assert.match(clientSource, /els\.timeline\.innerHTML = requests\.length \? renderTurnTimeline\(turnWindow, requests\)/, "main timeline should render the computed window");
-assert.match(clientSource, /return baseTurnList\(turns, requests\);/, "turn rail universe should keep the full turn list");
+assert.match(clientSource, /filteredTurns\.length \? renderTurnTimeline\(turnWindow, requests\)/, "main timeline should render the computed filtered window");
+assert.match(clientSource, /const filtered = traceFilteredTurns\(turns, requests\);/, "turn rail universe should follow the active Trace query");
 assert.match(clientSource, /data-turn-window-jump/, "window edge jump controls should be wired");
 assert.match(clientSource, /function jumpToTurn\(turnId, scroll = true\)/, "turn rail jumps should re-render the active window");
 assert.match(clientSource, /const RAW_MESSAGE_MARKDOWN_INLINE_CHARS = 5000;/, "organized Messages view should cap markdown rendering");
@@ -24,7 +24,16 @@ assert.match(clientSource, /state\.openSupportingTimelines\.has\(turnId\)/, "sup
 assert.match(clientSource, /const dashboardBody = dashboardOpen/, "multi-agent dashboard details should only render after opening");
 assert.match(clientSource, /collapsed\s*\?\s*""\s*:\s*`<div class="agent-branch-body">/, "collapsed subagent branches should not render hidden detail DOM");
 assert.match(clientSource, /events\.slice\(0, AGENT_EVENT_LIMIT\)/, "agent event rendering should obey the explicit cap");
+assert.match(clientSource, /data-agent-status-filter/, "large multi-agent views should support status-first filtering");
+assert.match(clientSource, /state\.agentBranchFilters\.set\(turnId, filter\)/, "agent status filters should update explicit viewer state");
+assert.match(clientSource, /function traceFilteredTurns\(turns, requests\)/, "Trace search should filter at the turn-story level");
+assert.match(clientSource, /function traceRequestHasIssue\(request\)/, "Trace search should expose an issue entry point");
+assert.match(clientSource, /const traceSearchTextCache = new WeakMap\(\);/, "Trace search text should be cached across keystrokes");
+assert.match(clientSource, /const TRACE_RESULT_PAGE_SIZE = 24;/, "Trace query results should be progressively disclosed");
+assert.match(clientSource, /trace_filter_active:\s*true/, "Trace filters should render matching request evidence instead of whole turns");
 assert.match(stylesSource, /\.timeline-window-edge-card/, "window edge UI should be styled");
 assert.match(stylesSource, /\.raw-message-truncation/, "organized Messages truncation notice should be styled");
+assert.match(stylesSource, /container-name:\s*trace-main/, "the main pane should expose its own responsive container");
+assert.match(stylesSource, /@container trace-main \(max-width: 720px\)/, "the topbar should adapt to the actual main-pane width");
 
 console.log("timeline window smoke passed");
