@@ -3779,18 +3779,25 @@ details .details-body {
   font-family: var(--sans);
 }
 
-.raw-section-nav {
+.raw-sticky-controls {
   position: sticky;
   top: 0;
   z-index: 4;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
+  display: grid;
+  gap: 6px;
   margin: -2px -2px 10px;
   padding: 4px 2px 8px;
   border-bottom: 1px solid rgba(229, 231, 235, 0.88);
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
+}
+
+.raw-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
 }
 
 .raw-section-nav button {
@@ -3972,7 +3979,7 @@ details .details-body {
   flex-wrap: wrap;
   align-items: center;
   gap: 7px;
-  margin: -2px 0 10px;
+  margin: 0;
   font-family: var(--sans);
 }
 

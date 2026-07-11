@@ -289,6 +289,8 @@ const I18N = {
     emptyCapture: "捕获",
     source: "原文",
     copyAll: "复制全部",
+    toolClipboardHeading: "工具",
+    parameterClipboardHeading: "参数：{name}",
     updateCurrentSection: "刷新当前区块",
     updating: "更新中...",
     translationModeAria: "语言切换",
@@ -641,6 +643,8 @@ const I18N = {
     emptyCapture: "Capture",
     source: "Source",
     copyAll: "Copy all",
+    toolClipboardHeading: "Tool",
+    parameterClipboardHeading: "Parameter: {name}",
     updateCurrentSection: "Refresh section",
     updating: "Updating...",
     translationModeAria: "Language switcher",
@@ -1679,8 +1683,30 @@ function copyAllTranslations(section, button) {
   const materials = sectionTranslationMaterials(request, section);
   if (!materials.length) return;
   const header = `# ${rawSectionLabel(section)} · ${t("requestClipboardTitle", { index: request.request_index })}`;
-  const body = materials.map((material) => translationBlockClipboardText(material)).join("\n\n---\n\n");
+  const body = section === "tools" ? toolsTranslationClipboardText(materials) : materials.map((material) => translationBlockClipboardText(material)).join("\n\n---\n\n");
   writeClipboard(`${header}\n\n${body}\n`, button);
+}
+
+function toolsTranslationClipboardText(materials) {
+  return groupToolTranslationMaterials(materials)
+    .map((group) => {
+      const parts = [`## ${t("toolClipboardHeading")}: ${group.toolName}`];
+      if (group.description) parts.push("", translationMaterialClipboardSection(group.description, t("toolDescription")));
+      for (const parameter of group.parameters) {
+        const parameterName = parameter.metadata?.field_name || parameter.metadata?.path || "parameter";
+        parts.push("", translationMaterialClipboardSection(parameter, t("parameterClipboardHeading", { name: parameterName })));
+      }
+      return parts.join("\n");
+    })
+    .join("\n\n---\n\n");
+}
+
+function translationMaterialClipboardSection(material, label) {
+  const sourceText = material.source_text || "";
+  const translation = translatedTextFor(material.kind, sourceText);
+  const parts = [`### ${label}`, "", `${t("sourceLabel")}:`, sourceText];
+  if (translation) parts.push("", `${t("translationLabel")}:`, translation);
+  return parts.join("\n");
 }
 
 async function retranslateTranslationBlock(actionId) {
@@ -4844,8 +4870,7 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
   if (activeSection === "system_diff") {
     return `
       ${renderRawSourceNotice(request)}
-      ${renderRawSectionNav(request, activeSection)}
-      ${renderRawSearchControls(request, activeSection, mode)}
+      ${renderRawStickyControls(request, activeSection, mode)}
       ${renderSystemDiff(request)}
     `;
   }
@@ -4853,8 +4878,7 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
   if (activeSection !== "full") {
     return `
       ${renderRawSourceNotice(request)}
-      ${renderRawSectionNav(request, activeSection)}
-      ${renderRawSearchControls(request, activeSection, mode)}
+      ${renderRawStickyControls(request, activeSection, mode)}
       ${renderTranslationControls(request, activeSection)}
       ${renderMessagesControls(activeSection)}
       ${renderRawSectionContent(request, activeSection, sectionData)}
@@ -4862,8 +4886,7 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
   }
   return `
     ${renderRawSourceNotice(request)}
-    ${renderRawSectionNav(request, activeSection)}
-    ${renderRawSearchControls(request, activeSection, mode)}
+    ${renderRawStickyControls(request, activeSection, mode)}
     ${normalizedRawSearchQuery() ? renderRawSearchResults(request, activeSection, mode) : `
     ${renderRawDetail(t("rawFullCapture"), request.raw)}
     ${renderRawDetail("system", body.system ?? null)}
@@ -4886,17 +4909,26 @@ function renderRequestDetailError(error) {
 function renderResponseOnlyRawSection(request, activeSection) {
   const section = ["response", "tool_calls", "tools"].includes(activeSection) ? activeSection : "response";
   const detail =
-    normalizedRawSearchQuery()
-      ? renderRawSearchResults(request, section, "response")
-      : section === "tool_calls"
+    section === "tools"
+      ? renderResponseOnlyToolsSchemaSection(request)
+      : normalizedRawSearchQuery()
+        ? renderRawSearchResults(request, section, "response")
+        : section === "tool_calls"
         ? renderRawDetail("response tool_use", { [t("currentResponseToolUse")]: request.summary?.response?.tool_calls || [] })
-        : section === "tools"
-          ? renderResponseOnlyToolsSchemaSection(request)
-          : renderRawDetail("response", rawResponseSectionValue(request));
+        : renderRawDetail("response", rawResponseSectionValue(request));
   return `
-    ${renderResponseOnlyRawNav(request, section)}
-    ${renderRawSearchControls(request, section, "response")}
+    ${renderRawStickyControls(request, section, "response")}
     ${detail}
+  `;
+}
+
+function renderRawStickyControls(request, section, mode = "request") {
+  const navigation = mode === "response" ? renderResponseOnlyRawNav(request, section) : renderRawSectionNav(request, section);
+  return `
+    <div class="raw-sticky-controls">
+      ${navigation}
+      ${renderRawSearchControls(request, section, mode)}
+    </div>
   `;
 }
 
@@ -4936,7 +4968,7 @@ function renderResponseOnlyToolsSchemaSection(request) {
 function renderRawSearchControls(request, section, mode = "request") {
   const query = state.rawSearchQuery || "";
   const scope = rawSearchScopeLabel(section, mode);
-  const matches = normalizedRawSearchQuery() ? rawSearchEntriesForSection(request, section, mode).length : 0;
+  const matches = normalizedRawSearchQuery() ? rawSearchMatchCount(request, section, mode) : 0;
   return `
     <div class="raw-search-bar">
       <label class="raw-search-input-wrap">
@@ -4957,6 +4989,14 @@ function renderRawSearchControls(request, section, mode = "request") {
       }
     </div>
   `;
+}
+
+function rawSearchMatchCount(request, section, mode = "request") {
+  if (usesTranslatedStructuredSearch(section, mode)) {
+    if (section === "tools") return matchingToolTranslationGroups(request).length;
+    return matchingTranslationMaterials(request, section).length;
+  }
+  return rawSearchEntriesForSection(request, section, mode).length;
 }
 
 function renderRawSearchResults(request, section, mode = "request") {
@@ -5104,14 +5144,57 @@ function escapeRegExp(value) {
 }
 
 function renderRawSectionContent(request, section, sectionData) {
-  if (normalizedRawSearchQuery()) return renderRawSearchResults(request, section, state.activeRawMode || "request");
   if (section === "messages") return renderMessagesSection(sectionData.value);
   if (state.translationMode === currentTargetLanguage() && state.translations?.available) {
     if (section === "system") return renderTranslatedSystemSection(request);
     if (section === "tools") return renderTranslatedToolsSection(request);
     if (section === "harness") return renderTranslatedHarnessSection(request);
   }
+  if (normalizedRawSearchQuery()) return renderRawSearchResults(request, section, state.activeRawMode || "request");
   return renderRawDetail(sectionData.title, sectionData.value);
+}
+
+function usesTranslatedStructuredSearch(section, mode = state.activeRawMode || "request") {
+  return (
+    (mode === "request" || (mode === "response" && section === "tools")) &&
+    ["system", "tools", "harness"].includes(section) &&
+    state.translationMode === currentTargetLanguage() &&
+    Boolean(state.translations?.available)
+  );
+}
+
+function translationMaterialMatchesQuery(item, extraText = "") {
+  const query = normalizedRawSearchQuery().toLowerCase();
+  if (!query) return true;
+  const translated = translatedTextFor(item.kind, item.source_text);
+  const metadata = item.metadata || {};
+  return [extraText, metadata.tool_name, metadata.field_name, metadata.path, metadata.label, item.source_text, translated]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase()
+    .includes(query);
+}
+
+function matchingTranslationMaterials(request, section) {
+  return sectionTranslationMaterials(request, section).filter((item) => translationMaterialMatchesQuery(item));
+}
+
+function matchingToolTranslationGroups(request) {
+  const groups = groupToolTranslationMaterials(collectToolTranslationMaterials(request));
+  const query = normalizedRawSearchQuery();
+  if (!query) return groups;
+  const lowerQuery = query.toLowerCase();
+  return groups
+    .map((group, index) => {
+      const lowerName = group.toolName.toLowerCase();
+      const nameMatch = lowerName.includes(lowerQuery);
+      const contentMatch = [group.description, ...group.parameters].filter(Boolean).some((item) => translationMaterialMatchesQuery(item, group.toolName));
+      const rank = lowerName === lowerQuery ? 0 : nameMatch ? 1 : 2;
+      return { group, index, rank, matches: nameMatch || contentMatch };
+    })
+    .filter((entry) => entry.matches)
+    .sort((left, right) => left.rank - right.rank || left.index - right.index)
+    .map((entry) => entry.group);
 }
 
 function renderMessagesControls(section) {
@@ -5261,14 +5344,14 @@ function renderTranslationControls(request, section) {
 }
 
 function renderTranslatedSystemSection(request) {
-  const materials = collectSystemTranslationMaterials(request);
-  if (!materials.length) return `<div class="empty-box">${escapeHtml(t("noSystemPrompt"))}</div>`;
+  const materials = normalizedRawSearchQuery() ? matchingTranslationMaterials(request, "system") : collectSystemTranslationMaterials(request);
+  if (!materials.length) return renderStructuredTranslationEmpty("system", t("noSystemPrompt"));
   return `
     <section class="translation-list">
       ${materials
         .map((item, index) =>
           renderTranslationBlock({
-            label: `${item.metadata.source || "system"} #${index + 1}`,
+            label: `${item.metadata.source || "system"} #${Number.isInteger(item.metadata?.index) ? item.metadata.index + 1 : index + 1}`,
             kind: item.kind,
             sourceText: item.source_text,
           }),
@@ -5281,7 +5364,8 @@ function renderTranslatedSystemSection(request) {
 function renderTranslatedToolsSection(request) {
   const materials = collectToolTranslationMaterials(request);
   if (!materials.length) return `<div class="empty-box">${escapeHtml(t("noToolDescriptions"))}</div>`;
-  const groups = groupToolTranslationMaterials(materials);
+  const groups = normalizedRawSearchQuery() ? matchingToolTranslationGroups(request) : groupToolTranslationMaterials(materials);
+  if (!groups.length) return renderStructuredTranslationEmpty("tools", t("noToolDescriptions"));
   return `
     <section class="tool-translation-list">
       ${groups.map(renderToolTranslationGroup).join("")}
@@ -5372,8 +5456,8 @@ function renderToolParameterSummaryBlock(parameters) {
 }
 
 function renderTranslatedHarnessSection(request) {
-  const materials = collectHarnessTranslationMaterials(request);
-  if (!materials.length) return `<div class="empty-box">${escapeHtml(t("noHarnessPrompts"))}</div>`;
+  const materials = normalizedRawSearchQuery() ? matchingTranslationMaterials(request, "harness") : collectHarnessTranslationMaterials(request);
+  if (!materials.length) return renderStructuredTranslationEmpty("harness", t("noHarnessPrompts"));
   return `
     <section class="translation-list">
       ${materials
@@ -5387,6 +5471,14 @@ function renderTranslatedHarnessSection(request) {
         .join("")}
     </section>
   `;
+}
+
+function renderStructuredTranslationEmpty(section, fallback) {
+  const query = normalizedRawSearchQuery();
+  const message = query
+    ? t("rawSearchNoResults", { section: rawSearchScopeLabel(section, state.activeRawMode || "request"), query })
+    : fallback;
+  return `<div class="empty-box">${escapeHtml(message)}</div>`;
 }
 
 function renderTranslationBlock({ label, kind, sourceText, compact = false }) {
@@ -5516,6 +5608,7 @@ function rawSectionLabel(section) {
 
 function responseRawSectionLabel(section) {
   if (section === "tool_calls") return "Response tool_use";
+  if (section === "tools") return "Tools schema";
   return "Response raw";
 }
 
@@ -5634,7 +5727,7 @@ function collectToolTranslationMaterials(request) {
       });
     }
   });
-  return dedupeTranslationMaterials(materials);
+  return dedupeToolTranslationMaterials(materials);
 }
 
 function isCompactPromptText(text) {
@@ -5724,6 +5817,19 @@ function dedupeTranslationMaterials(materials) {
   return [...new Map(materials.map((item) => [translationLookupKey(item.kind, normalizeTranslationText(item.source_text)), { ...item, source_text: normalizeTranslationText(item.source_text) }])).values()].filter(
     (item) => item.source_text,
   );
+}
+
+function dedupeToolTranslationMaterials(materials) {
+  return [
+    ...new Map(
+      materials.map((item) => {
+        const sourceText = normalizeTranslationText(item.source_text);
+        const metadata = item.metadata || {};
+        const key = [translationLookupKey(item.kind, sourceText), metadata.tool_name || "unknown", metadata.field_name || metadata.path || ""].join("\0");
+        return [key, { ...item, source_text: sourceText }];
+      }),
+    ).values(),
+  ].filter((item) => item.source_text);
 }
 
 function toolNameOf(tool) {
