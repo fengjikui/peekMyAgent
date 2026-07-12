@@ -28,6 +28,7 @@ const coreCommands = [
   ["npm", "run", "smoke:source-capture-reader"],
   ["npm", "run", "smoke:message-equivalence-contract"],
   ["npm", "run", "smoke:context-delta-contract"],
+  ["npm", "run", "smoke:turn-timeline-contract"],
   ["npm", "run", "smoke:source-meta"],
   ["npm", "run", "smoke:doctor"],
   ["npm", "run", "smoke:source-install"],

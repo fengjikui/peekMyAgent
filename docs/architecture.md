@@ -50,7 +50,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/server/source-metadata.mjs` | Source 稳定别名、title/pin/hidden 元数据、原子 sidecar 持久化与统一展示装饰 |
 | `src/server/source-lifecycle-service.mjs` | 单 source/项目级 rename、pin、archive、delete 编排及 imported Trace 目录边界 |
 | `src/server/source-capture-reader.mjs` | live/SQLite/file 的首屏、请求窗口与导出 captures 统一读取协议 |
-| `src/trace/message-equivalence.mjs`、`context-delta.mjs` | 消息等价、context chain、历史复用与本轮工具事件协议 |
+| `src/trace/message-equivalence.mjs`、`context-delta.mjs`、`turn-timeline.mjs` | 消息等价、context chain、历史复用、本轮工具事件与 Turn 编组协议 |
 | `src/translation/blocks.mjs`、`hash.mjs` | 跨 Server/Client/脚本共享的翻译块规范化、key、marker、schema 遍历和 Node hash |
 | `src/adapters/claude-code-otel.mjs` | Claude Code OTel 数据归一化 |
 | `src/adapters/openclaw-config.mjs`、`openclaw-normalize.mjs` | OpenClaw profile 配置和协议归一化 |
