@@ -15,6 +15,7 @@ const state = {
   rawSearchTimer: 0,
   rawSearchComposing: false,
   rawSearchActiveIndex: 0,
+  rawSearchRevealPending: false,
   rawMessagesMode: "organized",
   requestDetails: new Map(),
   requestDetailPromises: new Map(),
@@ -1185,6 +1186,7 @@ async function init() {
     if (clearSearchButton && els.rawTree.contains(clearSearchButton)) {
       state.rawSearchQuery = "";
       state.rawSearchActiveIndex = 0;
+      state.rawSearchRevealPending = false;
       if (state.activeRequestId) showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
       return;
     }
@@ -1234,6 +1236,7 @@ async function init() {
     state.rawSearchQuery = input.value || "";
     if (event.isComposing || state.rawSearchComposing) return;
     state.rawSearchActiveIndex = 0;
+    state.rawSearchRevealPending = true;
     scheduleRawSearchRender();
   });
   els.rawTree.addEventListener("compositionstart", (event) => {
@@ -1248,6 +1251,7 @@ async function init() {
     state.rawSearchComposing = false;
     state.rawSearchQuery = input.value || "";
     state.rawSearchActiveIndex = 0;
+    state.rawSearchRevealPending = true;
     scheduleRawSearchRender();
   });
   els.rawTree.addEventListener("keydown", (event) => {
@@ -1863,6 +1867,7 @@ function setTranslationMode(mode, section) {
   const targetLanguage = currentTargetLanguage();
   state.translationMode = mode === targetLanguage ? targetLanguage : "source";
   state.rawSearchActiveIndex = 0;
+  state.rawSearchRevealPending = Boolean(normalizedRawSearchQuery());
   localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
   if (state.activeRequestId) showRaw(state.activeRequestId, section || state.activeRawSection || "full", { mode: state.activeRawMode || "request" });
 }
@@ -4957,7 +4962,10 @@ async function showRaw(id, section = "full", { mode = "request" } = {}) {
   const request = state.data.requests.find((item) => item.id === id);
   if (!request) return;
   const contextChanged = state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode;
-  if (contextChanged) state.rawSearchActiveIndex = 0;
+  if (contextChanged) {
+    state.rawSearchActiveIndex = 0;
+    state.rawSearchRevealPending = Boolean(normalizedRawSearchQuery());
+  }
   clearTranslationActions("raw");
   markActiveRequest(id, false);
   state.activeRawSection = section;
@@ -5113,10 +5121,11 @@ function decorateRawSearchResults() {
   const query = normalizedRawSearchQuery();
   if (!query) return;
   const targets = [...els.rawTree.querySelectorAll("[data-raw-search-target]")];
-  if (!targets.length) return;
   targets.forEach((target) => highlightRawSearchText(target, query));
-  state.rawSearchActiveIndex = Math.min(state.rawSearchActiveIndex, targets.length - 1);
-  syncRawSearchActiveTarget(targets, false);
+  const matches = visibleRawSearchMarks();
+  state.rawSearchActiveIndex = matches.length ? Math.min(state.rawSearchActiveIndex, matches.length - 1) : 0;
+  syncRawSearchActiveMatch(matches, state.rawSearchRevealPending);
+  state.rawSearchRevealPending = false;
 }
 
 function highlightRawSearchText(root, query) {
@@ -5129,7 +5138,7 @@ function highlightRawSearchText(root, query) {
         return NodeFilter.FILTER_REJECT;
       }
       matcher.lastIndex = 0;
-      if (parent.closest("button, input, textarea, script, style, mark, .raw-sticky-controls")) return NodeFilter.FILTER_REJECT;
+      if (parent.closest("button, input, textarea, script, style, mark, details:not([open]), .raw-sticky-controls")) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     },
   });
@@ -5154,17 +5163,35 @@ function highlightRawSearchText(root, query) {
 }
 
 function navigateRawSearch(delta) {
-  const targets = [...els.rawTree.querySelectorAll("[data-raw-search-target]")];
-  if (!targets.length) return;
-  state.rawSearchActiveIndex = (state.rawSearchActiveIndex + delta + targets.length) % targets.length;
-  syncRawSearchActiveTarget(targets, true);
+  const matches = visibleRawSearchMarks();
+  if (!matches.length) return;
+  state.rawSearchActiveIndex = (state.rawSearchActiveIndex + delta + matches.length) % matches.length;
+  syncRawSearchActiveMatch(matches, true);
 }
 
-function syncRawSearchActiveTarget(targets, scroll) {
-  targets.forEach((target, index) => target.classList.toggle("raw-search-target-active", index === state.rawSearchActiveIndex));
+function visibleRawSearchMarks() {
+  const matches = [...els.rawTree.querySelectorAll("mark")].filter((mark) => mark.getClientRects().length > 0);
+  matches.forEach((mark) => mark.classList.add("raw-search-highlight"));
+  return matches;
+}
+
+function syncRawSearchActiveMatch(matches, scroll) {
+  els.rawTree.querySelectorAll(".raw-search-highlight-active").forEach((mark) => mark.classList.remove("raw-search-highlight-active"));
+  els.rawTree.querySelectorAll(".raw-search-target-active").forEach((target) => target.classList.remove("raw-search-target-active"));
+  const active = matches[state.rawSearchActiveIndex];
+  active?.classList.add("raw-search-highlight-active");
+  active?.closest("[data-raw-search-target]")?.classList.add("raw-search-target-active");
   const position = els.rawTree.querySelector("[data-raw-search-position]");
-  if (position) position.textContent = `${state.rawSearchActiveIndex + 1}/${targets.length}`;
-  if (scroll) targets[state.rawSearchActiveIndex]?.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (position) {
+    position.textContent = matches.length ? `${state.rawSearchActiveIndex + 1}/${matches.length}` : "0/0";
+    position.title = t("rawSearchResultCount", { count: matches.length });
+  }
+  const navigation = els.rawTree.querySelector(".raw-search-navigation");
+  if (navigation) navigation.setAttribute("aria-label", t("rawSearchResultCount", { count: matches.length }));
+  els.rawTree.querySelectorAll("[data-raw-search-nav]").forEach((button) => {
+    button.disabled = !matches.length;
+  });
+  if (scroll && active) active.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
 }
 
 function renderRawSearchResults(request, section, mode = "request") {
@@ -5308,7 +5335,8 @@ function translationMaterialMatchesQuery(item, extraText = "") {
   if (!query) return true;
   const translated = translatedTextFor(item.kind, item.source_text);
   const metadata = item.metadata || {};
-  return [extraText, metadata.tool_name, metadata.field_name, metadata.path, metadata.label, item.source_text, translated]
+  const displayedText = translated || item.source_text;
+  return [extraText, metadata.tool_name, metadata.field_name, metadata.label, displayedText]
     .filter(Boolean)
     .join("\n")
     .toLowerCase()

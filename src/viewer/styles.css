@@ -4172,6 +4172,13 @@ details .details-body {
   border-radius: 3px;
   background: #fde68a;
   color: #78350f;
+  scroll-margin-top: 150px;
+}
+
+.raw-search-highlight-active {
+  background: #f59e0b;
+  color: #451a03;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.24);
 }
 
 [data-raw-search-target] {
