@@ -85,6 +85,7 @@
     "smoke:security-boundary": "node scripts/security-boundary-smoke.mjs",
     "smoke:viewer-http-contract": "node scripts/viewer-http-contract-smoke.mjs",
     "smoke:source-list-performance": "node scripts/source-list-performance-smoke.mjs",
+    "smoke:source-repository-contract": "node scripts/source-repository-contract-smoke.mjs",
     "smoke:source-meta": "node scripts/source-meta-persistence-smoke.mjs",
     "smoke:project-source-actions": "node scripts/project-source-actions-smoke.mjs",
     "smoke:large-response-compact": "node scripts/large-response-compact-smoke.mjs",

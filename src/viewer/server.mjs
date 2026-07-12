@@ -39,6 +39,7 @@ import {
   viewerSecurityHeaders,
   writeJson,
 } from "../server/http.mjs";
+import { SourceRepository } from "../server/source-repository.mjs";
 import {
   extractTranslationSchemaDescriptions,
   isSkippableTranslationMaterial,
@@ -840,7 +841,18 @@ function baseSources({ cwd, demo, evidencePath, watches }, { includeStats = true
 }
 
 function listSources(options) {
-  return decorateSources([...baseSources(options), ...persistedSources(options), ...importedTraceSources(options)], options.sourceMeta);
+  return viewerSourceRepository(options).list();
+}
+
+function viewerSourceRepository(options) {
+  return new SourceRepository({
+    listBase: ({ includeStats }) => baseSources(options, { includeStats }),
+    listPersisted: () => persistedSources(options),
+    listImported: () => importedTraceSources(options),
+    decorate: (sources) => decorateSources(sources, options.sourceMeta),
+    sanitizeId: (sourceId) => sanitizeApiLookupId(sourceId, { limit: MAX_API_SOURCE_ID_CHARS }),
+    notFoundError: (sourceId) => httpError(404, `Source not found: ${sourceId}`),
+  });
 }
 
 function persistedSources({ store, watches, sourceMeta }) {
@@ -944,8 +956,8 @@ function initialViewLimit(searchParams) {
 }
 
 function loadViewerData(sourceId, options, { requireSource = false, initialLimit = 0 } = {}) {
-  const sources = listSources(options);
-  const source = resolveViewerSource(sources, sourceId, { requireSource });
+  const repository = viewerSourceRepository(options);
+  const source = repository.resolve(sourceId, { requireSource });
   if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
   if (source.live_watch_id) return loadLiveWatchData(source, options, { initialLimit });
   if (source.kind === "persisted_capture") return loadPersistedData(source, options, { initialLimit });
@@ -966,22 +978,12 @@ function loadViewerData(sourceId, options, { requireSource = false, initialLimit
 function loadViewerRequestDetail(sourceId, requestId, options, { requireSource = false } = {}) {
   requestId = sanitizeApiLookupId(requestId, { limit: MAX_API_REQUEST_ID_CHARS });
   if (!requestId) throw httpError(400, "Missing request id");
-  const sources = listSources(options);
-  const source = resolveViewerSource(sources, sourceId, { requireSource });
+  const repository = viewerSourceRepository(options);
+  const source = repository.resolve(sourceId, { requireSource });
   if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
   if (source.live_watch_id) return loadLiveWatchRequestDetail(source, requestId, options);
   if (source.kind === "persisted_capture") return loadPersistedRequestDetail(source, requestId, options);
   return loadFileRequestDetail(source, requestId);
-}
-
-function resolveViewerSource(sources, sourceId, { requireSource = false } = {}) {
-  const requested = sanitizeApiLookupId(sourceId, { limit: MAX_API_SOURCE_ID_CHARS });
-  const source = requested ? sources.find((item) => item.id === requested) : null;
-  if (source) return source;
-  if (requireSource || requested) throw httpError(404, `Source not found: ${requested || "missing"}`);
-  const fallback = sources[0];
-  if (!fallback) throw new Error("No viewer sources configured");
-  return fallback;
 }
 
 function loadLiveWatchRequestDetail(source, requestId, { watches }) {
@@ -1761,7 +1763,7 @@ function exportTraceBundle(res, sourceId, options) {
 
 function loadTraceExportData(sourceId, options) {
   sourceId = sanitizeApiLookupId(sourceId, { limit: MAX_API_SOURCE_ID_CHARS });
-  const sources = decorateSources([...baseSources(options, { includeStats: false }), ...persistedSources(options), ...importedTraceSources(options)], options.sourceMeta);
+  const sources = viewerSourceRepository(options).list({ includeStats: false });
   if (!sources.length) throw new Error("No viewer sources configured");
   if (!sourceId) throw httpError(400, "Trace export requires a source id.");
   const source = sources.find((item) => item.id === sourceId);

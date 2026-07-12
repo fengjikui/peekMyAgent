@@ -43,6 +43,7 @@ daemon、Viewer HTTP API 和静态资源服务由同一个 `startViewerServer()`
 | `src/core/platform.mjs`、`paths.mjs`、`processes.mjs` | 跨平台路径、命令、进程和本机运行环境 |
 | `src/core/redaction.mjs` | Trace 导出等路径使用的敏感内容脱敏 |
 | `src/server/http.mjs` | Viewer method/intent/body/loopback 安全边界与统一 HTTP 响应 |
+| `src/server/source-repository.mjs` | live、SQLite、file/demo、import source 的汇聚、校验与解析门面 |
 | `src/translation/blocks.mjs`、`hash.mjs` | 跨 Server/Client/脚本共享的翻译块规范化、key、marker、schema 遍历和 Node hash |
 | `src/adapters/claude-code-otel.mjs` | Claude Code OTel 数据归一化 |
 | `src/adapters/openclaw-config.mjs`、`openclaw-normalize.mjs` | OpenClaw profile 配置和协议归一化 |

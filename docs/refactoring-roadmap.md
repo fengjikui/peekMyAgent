@@ -138,7 +138,8 @@ src/
 
 - 已抽出 `src/server/http.mjs`，集中管理 method 表、loopback/Origin/Fetch Metadata 防护、Content-Type、intent、body parser、CSP 和 JSON/静态响应。
 - 已增加不启动 daemon 的 HTTP contract smoke，并继续以真实 Viewer security smoke 锁定校验顺序和响应行为。
-- 下一步抽出 source repository，统一 live、SQLite、file/demo 与 imported Trace 的 source 读取接口。
+- 已建立 SourceRepository 最小契约，统一 live、SQLite、file/demo 与 imported Trace 的 provider 汇聚、DTO 校验和显式 source 解析；现有标题/统计 provider 尚未迁出单体。
+- 下一步先迁移 imported/file provider，再处理依赖 store 和 watch runtime 的 persisted/live provider。
 
 ## 阶段 3：拆分 Viewer Client
 
