@@ -60,6 +60,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/viewer/server.mjs` | Viewer HTTP/control plane、source/watch、Trace 解释、翻译路由和 Agent send 适配 |
 | `src/viewer/client.js` | 浏览器应用装配、共享状态、数据加载和尚未迁出的 feature renderer |
 | `src/viewer/api-client.js` | 浏览器 `/api/*` URL、method、intent header、body 与错误协议门面 |
+| `src/viewer/raw-view-model.js` | Raw Inspector 上行、下行、Harness、Metadata 的纯 section 数据与方向约束 |
 | `src/viewer/request-detail-cache.js` | compact request 的完整详情按需加载、并发去重、错误和 source 生命周期缓存 |
 | `src/viewer/turn-rail.js` | Turn Rail 可见窗口、悬停层级、跳转和滚动激活控制器 |
 | `src/viewer/markdown.js` | 受限、安全的 Markdown 渲染 |
@@ -162,6 +163,8 @@ Turn Rail 已作为首个 Viewer Client feature 从全局脚本迁出。`client.
 Viewer 的浏览器请求统一通过 `ViewerApiClient`。它集中定义 source/view/request/translation/import/export/send/watch API 的 URL 编码、method、Content-Type、intent 和错误传播；它不持有界面状态，也不操作 DOM。Server 继续承担最终的 loopback 与请求意图校验。
 
 compact 首屏后的完整 request 由 `RequestDetailCache` 按需读取。同一 request 的并发展开共享 Promise，失败可重试，source 切换统一清空；首次加载和缓存命中的应用副作用通过回调注入，缓存层不反向依赖 DOM、全局 state 或翻译模块。
+
+Raw Inspector 的请求/响应方向由 `raw-view-model.js` 统一。它从完整上行和 Metadata 移除 response 派生字段，单独组织完整 Response 与 capture facts，并通过调用方注入 Harness 材料，避免 renderer 各自重新解释同一份 DTO。
 
 Raw Inspector 按数据方向组织证据：请求卡和上行视图只展示 System、Tools、Harness、Messages、历史 `tool_use` 与回传的 `tool_result`；“完整请求”和“请求 Metadata”会从 capture 中剔除 response、响应状态以及 response 派生统计。请求侧标签保持单层排列，完整请求在首位、Metadata 在末位。完整 Response 与本次响应的 `tool_use` 只从 Assistant 回复进入“模型下行”视图。Assistant 视图保留独立的“上行参考”Tools schema，并明确它不是 response body 返回内容。
 

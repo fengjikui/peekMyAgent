@@ -1,6 +1,11 @@
 import { renderMarkdownPreview, renderSafeMarkdown } from "./markdown.js";
 import { ViewerApiClient } from "./api-client.js";
 import { RequestDetailCache, requestNeedsDetail } from "./request-detail-cache.js";
+import {
+  rawResponseSectionValue,
+  rawSectionData as buildRawSectionData,
+  rawUpstreamRequestValue,
+} from "./raw-view-model.js";
 import { TurnRailController } from "./turn-rail.js";
 import {
   extractTranslationSchemaDescriptions as extractSchemaDescriptionsForTranslation,
@@ -4083,162 +4088,10 @@ function renderRawSectionNavGroup(label, sections, request, activeSection, mode 
 }
 
 function rawSectionData(request, section) {
-  const body = request.raw?.body || {};
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  if (section === "system") {
-    return {
-      title: "system",
-      value: {
-        body_system: body.system ?? null,
-        message_system: messages.filter((message) => message.role === "system"),
-      },
-    };
-  }
-  if (section === "tools") return { title: "tools", value: body.tools ?? null };
-  if (section === "harness") {
-    return { title: t("rawHarnessTitle"), value: collectHarnessTranslationMaterials(request).map((item) => ({ kind: item.kind, label: item.metadata?.label, path: item.metadata?.path, text: item.source_text })) };
-  }
-  if (section === "messages") return { title: "messages / history", value: messages };
-  if (section === "upstream_tool_calls") {
-    return {
-      title: "upstream tool_use",
-      value: {
-        [t("currentUpstreamToolUse")]: request.summary.current_tool_calls || [],
-      },
-    };
-  }
-  if (section === "tool_calls") {
-    const responseToolUse = request.summary.response?.tool_calls || [];
-    return {
-      title: "tool_use",
-      value: {
-        [t("currentResponseToolUse")]: responseToolUse,
-      },
-    };
-  }
-  if (section === "tool_results") {
-    return {
-      title: "tool_result",
-      value: {
-        [t("currentUpstreamToolResult")]: request.summary.current_tool_results || [],
-      },
-    };
-  }
-  if (section === "response") {
-    return {
-      title: "response",
-      value: rawResponseSectionValue(request),
-    };
-  }
-  if (section === "metadata") {
-    return {
-      title: t("rawRequestMetadata"),
-      value: rawUpstreamRequestMetadata(request),
-    };
-  }
-  return { title: t("rawFullCapture"), value: rawUpstreamRequestValue(request) };
-}
-
-function rawUpstreamRequestValue(request) {
-  const raw = request.raw && typeof request.raw === "object" ? request.raw : {};
-  const upstreamRequest = { ...raw };
-  delete upstreamRequest.response;
-  delete upstreamRequest.upstream_status;
-  delete upstreamRequest.upstream_error;
-  return upstreamRequest;
-}
-
-function rawUpstreamRequestMetadata(request) {
-  const raw = rawUpstreamRequestValue(request);
-  return {
-    capture_id: raw.capture_id,
-    watch_id: raw.watch_id,
-    request_index: raw.request_index,
-    agent_profile: raw.agent_profile,
-    workspace: raw.workspace,
-    conversation_id: raw.conversation_id,
-    received_at: raw.received_at,
-    method: raw.method,
-    path: raw.path,
-    original_url: raw.original_url,
-    raw_body_length: raw.raw_body_length,
-    body_source: raw.body_source,
-    headers: raw.headers,
-    header_redactions: raw.header_redactions,
-    context_delta: request.context_delta,
-    composition: rawUpstreamComposition(request),
-  };
-}
-
-function rawUpstreamComposition(request) {
-  const composition = request.summary?.composition;
-  if (!composition || typeof composition !== "object") return composition;
-  const upstream = {
-    ...composition,
-    sections: composition.sections ? { ...composition.sections } : composition.sections,
-    ratios: composition.ratios ? { ...composition.ratios } : composition.ratios,
-  };
-  delete upstream.response_text_chars;
-  delete upstream.response_thinking_chars;
-  if (upstream.sections) {
-    delete upstream.sections.response_text;
-    delete upstream.sections.response_thinking;
-  }
-  if (upstream.ratios) delete upstream.ratios.output_to_input;
-  return upstream;
-}
-
-function rawResponseSectionValue(request) {
-  const response = request.summary?.response || {};
-  const rawResponse = request.raw?.response || null;
-  return {
-    complete_response: response.captured
-      ? response.complete_response || {
-          id: response.message_id || null,
-          role: "assistant",
-          content: [
-            ...(response.thinking ? [{ type: "thinking", thinking: response.thinking }] : []),
-            ...(response.text ? [{ type: "text", text: response.text }] : []),
-            ...(response.tool_calls || []).map((call) => ({ type: "tool_use", id: call.id || null, name: call.name || "unknown", input: call.arguments ?? null })),
-          ],
-          text: response.text || "",
-          thinking: response.thinking || "",
-          tool_use: response.tool_calls || [],
-          stop_reason: response.finish_reason || null,
-          finish_reason: response.finish_reason || null,
-          usage: response.usage || null,
-          stream: Boolean(response.stream),
-          event_count: response.event_count || 0,
-          truncated: Boolean(response.truncated),
-        }
-      : null,
-    parsed_from_response: response.captured
-      ? {
-          message_id: response.message_id || null,
-          text: response.text || "",
-          thinking: response.thinking || "",
-          tool_use: response.tool_calls || [],
-          usage: response.usage || null,
-          finish_reason: response.finish_reason || null,
-          stream: Boolean(response.stream),
-          event_count: response.event_count || 0,
-          truncated: Boolean(response.truncated),
-        }
-      : null,
-    response_capture: rawResponse
-      ? {
-          status: rawResponse.status ?? response.status ?? null,
-          content_type: rawResponse.headers?.["content-type"] || rawResponse.headers?.["Content-Type"] || null,
-          raw_body_bytes: rawResponse.raw_body_length ?? response.raw_body_bytes ?? null,
-          captured_body_bytes: rawResponse.captured_body_length ?? response.captured_body_bytes ?? null,
-          received_at: rawResponse.received_at || response.received_at || null,
-          body_json_available: rawResponse.body_json !== undefined && rawResponse.body_json !== null,
-          body_text_omitted: rawResponse.body_text_omitted || null,
-          stream: Boolean(response.stream),
-          event_count: response.event_count || 0,
-        }
-      : null,
-  };
+  return buildRawSectionData(request, section, {
+    translate: t,
+    harnessMaterials: section === "harness" ? collectHarnessTranslationMaterials(request) : [],
+  });
 }
 
 function renderRawDetail(title, value) {

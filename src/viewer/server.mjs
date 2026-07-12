@@ -223,6 +223,7 @@ async function handleRequest(req, res, options) {
   if (url.pathname === "/api-client.js") return serveFile(res, path.join(viewerDir, "api-client.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/client.js") return serveFile(res, path.join(viewerDir, "client.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/markdown.js") return serveFile(res, path.join(viewerDir, "markdown.js"), "text/javascript; charset=utf-8");
+  if (url.pathname === "/raw-view-model.js") return serveFile(res, path.join(viewerDir, "raw-view-model.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/request-detail-cache.js") return serveFile(res, path.join(viewerDir, "request-detail-cache.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/turn-rail.js") return serveFile(res, path.join(viewerDir, "turn-rail.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/translation-blocks.js") {

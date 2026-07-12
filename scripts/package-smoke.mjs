@@ -36,6 +36,7 @@ for (const required of [
   "src/viewer/api-client.js",
   "src/viewer/client.js",
   "src/viewer/markdown.js",
+  "src/viewer/raw-view-model.js",
   "src/viewer/request-detail-cache.js",
   "src/viewer/turn-rail.js",
   "src/core/platform.mjs",
@@ -103,6 +104,6 @@ const deniedPatterns = [
 const deniedFiles = packageFiles.filter((file) => deniedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(deniedFiles, [], `npm package includes release-unsafe files: ${deniedFiles.join(", ")}`);
 
-assert.ok(packs[0].entryCount <= 67, `expected a compact package, got ${packs[0].entryCount} files`);
+assert.ok(packs[0].entryCount <= 68, `expected a compact package, got ${packs[0].entryCount} files`);
 
 console.log("package smoke passed");

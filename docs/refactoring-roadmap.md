@@ -154,7 +154,8 @@ src/
 - 已迁移首个 Viewer Client feature：Turn Rail 的窗口策略、悬停、点击跳转和滚动激活由独立控制器管理，并有直接契约测试。
 - 已建立 Viewer API Client：source/view/request/translation/import/export/send/watch 的浏览器协议与错误处理不再散落在全局脚本。
 - 已迁移 request-detail cache：compact request 的详情判定、并发去重、错误重试和 source 生命周期由独立对象管理。
-- 下一步选择 Raw Inspector 作为第二个 renderer 边界；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
+- 已建立 Raw Inspector View Model：上行请求、下行 Response、Harness 和 Metadata 的方向约束由纯模块统一。
+- 下一步迁移 Raw Inspector 搜索与 renderer/controller；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
 
 ## 阶段 3：拆分 Viewer Client
 
