@@ -156,7 +156,8 @@ src/
 - 已迁移 request-detail cache：compact request 的详情判定、并发去重、错误重试和 source 生命周期由独立对象管理。
 - 已建立 Raw Inspector View Model：上行请求、下行 Response、Harness 和 Metadata 的方向约束由纯模块统一。
 - 已迁移 Raw Search Model：递归条目、过滤、摘要命中分段和循环导航索引不再依赖 DOM 或全局状态。
-- 下一步迁移 Raw Inspector renderer/controller；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
+- 已迁移 Raw Search Controller：查询、IME 组合态、延迟重绘、清空、当前命中和滚动高亮不再由全局 client state 所有。
+- 下一步迁移 Raw Inspector renderer；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
 
 ## 阶段 3：拆分 Viewer Client
 

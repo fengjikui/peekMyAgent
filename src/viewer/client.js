@@ -7,14 +7,11 @@ import {
   rawUpstreamRequestValue,
 } from "./raw-view-model.js";
 import {
-  clampRawSearchIndex,
   collectRawSearchEntries,
-  escapeRawSearchRegExp,
   filterRawSearchEntries,
-  nextRawSearchIndex,
-  normalizeRawSearchQuery,
   rawSearchSnippetSegments,
 } from "./raw-search-model.js";
+import { RawSearchController } from "./raw-search-controller.js";
 import { TurnRailController } from "./turn-rail.js";
 import {
   extractTranslationSchemaDescriptions as extractSchemaDescriptionsForTranslation,
@@ -38,11 +35,6 @@ const state = {
   activeRawMode: "request",
   rawOpen: true,
   activeRawSection: "full",
-  rawSearchQuery: "",
-  rawSearchTimer: 0,
-  rawSearchComposing: false,
-  rawSearchActiveIndex: 0,
-  rawSearchRevealPending: false,
   rawMessagesMode: "organized",
   rawWidth: 0,
   sidebarOpen: true,
@@ -1031,6 +1023,18 @@ const requestDetailCache = new RequestDetailCache({
   },
   onCached: mergeRequestDetail,
 });
+const rawSearchController = new RawSearchController({
+  root: els.rawTree,
+  translate: t,
+  getContext: () => ({
+    requestId: state.activeRequestId,
+    section: state.activeRawSection,
+    mode: state.activeRawMode || "request",
+  }),
+  render: ({ requestId, section, mode }) => {
+    showRaw(requestId, section, { mode });
+  },
+});
 
 init();
 
@@ -1218,20 +1222,8 @@ async function init() {
   els.translationLanguageSelect?.addEventListener("change", () => {
     setTargetTranslationLanguageFromSelect();
   });
+  rawSearchController.bind();
   els.rawTree.addEventListener("click", (event) => {
-    const searchNavigationButton = event.target.closest("[data-raw-search-nav]");
-    if (searchNavigationButton && els.rawTree.contains(searchNavigationButton)) {
-      navigateRawSearch(searchNavigationButton.dataset.rawSearchNav === "previous" ? -1 : 1);
-      return;
-    }
-    const clearSearchButton = event.target.closest("[data-raw-search-clear]");
-    if (clearSearchButton && els.rawTree.contains(clearSearchButton)) {
-      state.rawSearchQuery = "";
-      state.rawSearchActiveIndex = 0;
-      state.rawSearchRevealPending = false;
-      if (state.activeRequestId) showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
-      return;
-    }
     const retranslateButton = event.target.closest("[data-translation-retranslate]");
     if (retranslateButton && els.rawTree.contains(retranslateButton)) {
       event.preventDefault();
@@ -1272,35 +1264,6 @@ async function init() {
     if (!button || !els.rawTree.contains(button)) return;
     showRaw(button.dataset.raw, button.dataset.rawSection || "full", { mode: button.dataset.rawMode || "request" });
   });
-  els.rawTree.addEventListener("input", (event) => {
-    const input = event.target.closest("[data-raw-search]");
-    if (!input || !els.rawTree.contains(input)) return;
-    state.rawSearchQuery = input.value || "";
-    if (event.isComposing || state.rawSearchComposing) return;
-    state.rawSearchActiveIndex = 0;
-    state.rawSearchRevealPending = true;
-    scheduleRawSearchRender();
-  });
-  els.rawTree.addEventListener("compositionstart", (event) => {
-    const input = event.target.closest("[data-raw-search]");
-    if (!input || !els.rawTree.contains(input)) return;
-    state.rawSearchComposing = true;
-    window.clearTimeout(state.rawSearchTimer);
-  });
-  els.rawTree.addEventListener("compositionend", (event) => {
-    const input = event.target.closest("[data-raw-search]");
-    if (!input || !els.rawTree.contains(input)) return;
-    state.rawSearchComposing = false;
-    state.rawSearchQuery = input.value || "";
-    state.rawSearchActiveIndex = 0;
-    state.rawSearchRevealPending = true;
-    scheduleRawSearchRender();
-  });
-  els.rawTree.addEventListener("keydown", (event) => {
-    const input = event.target.closest("[data-raw-search]");
-    if (!input || !els.rawTree.contains(input)) return;
-    if (event.key === "Enter" && !event.isComposing && !state.rawSearchComposing) event.preventDefault();
-  });
   document.addEventListener("click", (event) => {
     const retranslateButton = event.target.closest("[data-translation-retranslate]");
     if (!retranslateButton || els.rawTree.contains(retranslateButton)) return;
@@ -1321,22 +1284,6 @@ async function init() {
     if (!document.hidden) refreshLiveData({ force: true });
   });
   startAutoRefresh();
-}
-
-function scheduleRawSearchRender() {
-  if (!state.activeRequestId) return;
-  window.clearTimeout(state.rawSearchTimer);
-  state.rawSearchTimer = window.setTimeout(() => {
-    showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
-    requestAnimationFrame(() => restoreSearchInputFocus(els.rawTree.querySelector("[data-raw-search]")));
-  }, 120);
-}
-
-function restoreSearchInputFocus(input) {
-  if (!input) return;
-  input.focus();
-  const cursor = input.value.length;
-  input.setSelectionRange(cursor, cursor);
 }
 
 async function loadSource(sourceId, { preserveScroll = false } = {}) {
@@ -1827,8 +1774,7 @@ async function buildTranslationLookup(requests, translations) {
 function setTranslationMode(mode, section) {
   const targetLanguage = currentTargetLanguage();
   state.translationMode = mode === targetLanguage ? targetLanguage : "source";
-  state.rawSearchActiveIndex = 0;
-  state.rawSearchRevealPending = Boolean(normalizedRawSearchQuery());
+  rawSearchController.modeChanged();
   localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
   if (state.activeRequestId) showRaw(state.activeRequestId, section || state.activeRawSection || "full", { mode: state.activeRawMode || "request" });
 }
@@ -2318,6 +2264,13 @@ function scheduleTraceSearchRender() {
     renderAll();
     requestAnimationFrame(() => restoreSearchInputFocus(els.traceQueryBar?.querySelector("[data-trace-search]")));
   }, 160);
+}
+
+function restoreSearchInputFocus(input) {
+  if (!input) return;
+  input.focus();
+  const cursor = input.value.length;
+  input.setSelectionRange(cursor, cursor);
 }
 
 function traceQueryActive() {
@@ -4632,10 +4585,7 @@ async function showRaw(id, section = "full", { mode = "request" } = {}) {
   const request = state.data.requests.find((item) => item.id === id);
   if (!request) return;
   const contextChanged = state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode;
-  if (contextChanged) {
-    state.rawSearchActiveIndex = 0;
-    state.rawSearchRevealPending = Boolean(normalizedRawSearchQuery());
-  }
+  if (contextChanged) rawSearchController.contextChanged();
   clearTranslationActions("raw");
   markActiveRequest(id, false);
   state.activeRawSection = section;
@@ -4650,7 +4600,7 @@ async function showRaw(id, section = "full", { mode = "request" } = {}) {
     const hydrated = await ensureDetailsForRawSection(request, section);
     if (state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode) return;
     els.rawTree.innerHTML = renderRawSections(hydrated, section, mode);
-    decorateRawSearchResults();
+    rawSearchController.decorate();
   } catch (error) {
     if (state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode) return;
     els.rawTree.innerHTML = renderRequestDetailError(error);
@@ -4750,7 +4700,7 @@ function renderResponseOnlyToolsSchemaSection(request) {
 }
 
 function renderRawSearchControls(request, section, mode = "request") {
-  const query = state.rawSearchQuery || "";
+  const query = rawSearchController.query;
   const scope = rawSearchScopeLabel(section, mode);
   const matches = normalizedRawSearchQuery() ? rawSearchMatchCount(request, section, mode) : 0;
   return `
@@ -4767,7 +4717,7 @@ function renderRawSearchControls(request, section, mode = "request") {
       </label>
       ${
         query
-          ? `<span class="raw-search-count" data-raw-search-position title="${escapeHtml(t("rawSearchResultCount", { count: matches }))}">${escapeHtml(matches ? `${Math.min(state.rawSearchActiveIndex + 1, matches)}/${matches}` : "0/0")}</span>
+          ? `<span class="raw-search-count" data-raw-search-position title="${escapeHtml(t("rawSearchResultCount", { count: matches }))}">${escapeHtml(rawSearchController.position(matches))}</span>
              <span class="raw-search-navigation" role="group" aria-label="${escapeHtml(t("rawSearchResultCount", { count: matches }))}">
                <button type="button" data-raw-search-nav="previous" title="${escapeHtml(t("rawSearchPrevious"))}" aria-label="${escapeHtml(t("rawSearchPrevious"))}" ${matches ? "" : "disabled"}>↑</button>
                <button type="button" data-raw-search-nav="next" title="${escapeHtml(t("rawSearchNext"))}" aria-label="${escapeHtml(t("rawSearchNext"))}" ${matches ? "" : "disabled"}>↓</button>
@@ -4785,83 +4735,6 @@ function rawSearchMatchCount(request, section, mode = "request") {
     return matchingTranslationMaterials(request, section).length;
   }
   return rawSearchEntriesForSection(request, section, mode).length;
-}
-
-function decorateRawSearchResults() {
-  const query = normalizedRawSearchQuery();
-  if (!query) return;
-  const targets = [...els.rawTree.querySelectorAll("[data-raw-search-target]")];
-  targets.forEach((target) => highlightRawSearchText(target, query));
-  const matches = visibleRawSearchMarks();
-  state.rawSearchActiveIndex = clampRawSearchIndex(state.rawSearchActiveIndex, matches.length);
-  syncRawSearchActiveMatch(matches, state.rawSearchRevealPending);
-  state.rawSearchRevealPending = false;
-}
-
-function highlightRawSearchText(root, query) {
-  const matcher = new RegExp(escapeRawSearchRegExp(query), "gi");
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      const parent = node.parentElement;
-      if (!parent || !node.nodeValue || !matcher.test(node.nodeValue)) {
-        matcher.lastIndex = 0;
-        return NodeFilter.FILTER_REJECT;
-      }
-      matcher.lastIndex = 0;
-      if (parent.closest("button, input, textarea, script, style, mark, details:not([open]), .raw-sticky-controls")) return NodeFilter.FILTER_REJECT;
-      return NodeFilter.FILTER_ACCEPT;
-    },
-  });
-  const textNodes = [];
-  while (walker.nextNode()) textNodes.push(walker.currentNode);
-  for (const node of textNodes) {
-    const text = node.nodeValue || "";
-    const fragment = document.createDocumentFragment();
-    let cursor = 0;
-    for (const match of text.matchAll(new RegExp(escapeRawSearchRegExp(query), "gi"))) {
-      const index = match.index || 0;
-      if (index > cursor) fragment.append(document.createTextNode(text.slice(cursor, index)));
-      const mark = document.createElement("mark");
-      mark.className = "raw-search-highlight";
-      mark.textContent = match[0];
-      fragment.append(mark);
-      cursor = index + match[0].length;
-    }
-    if (cursor < text.length) fragment.append(document.createTextNode(text.slice(cursor)));
-    node.replaceWith(fragment);
-  }
-}
-
-function navigateRawSearch(delta) {
-  const matches = visibleRawSearchMarks();
-  if (!matches.length) return;
-  state.rawSearchActiveIndex = nextRawSearchIndex(state.rawSearchActiveIndex, delta, matches.length);
-  syncRawSearchActiveMatch(matches, true);
-}
-
-function visibleRawSearchMarks() {
-  const matches = [...els.rawTree.querySelectorAll("mark")].filter((mark) => mark.getClientRects().length > 0);
-  matches.forEach((mark) => mark.classList.add("raw-search-highlight"));
-  return matches;
-}
-
-function syncRawSearchActiveMatch(matches, scroll) {
-  els.rawTree.querySelectorAll(".raw-search-highlight-active").forEach((mark) => mark.classList.remove("raw-search-highlight-active"));
-  els.rawTree.querySelectorAll(".raw-search-target-active").forEach((target) => target.classList.remove("raw-search-target-active"));
-  const active = matches[state.rawSearchActiveIndex];
-  active?.classList.add("raw-search-highlight-active");
-  active?.closest("[data-raw-search-target]")?.classList.add("raw-search-target-active");
-  const position = els.rawTree.querySelector("[data-raw-search-position]");
-  if (position) {
-    position.textContent = matches.length ? `${state.rawSearchActiveIndex + 1}/${matches.length}` : "0/0";
-    position.title = t("rawSearchResultCount", { count: matches.length });
-  }
-  const navigation = els.rawTree.querySelector(".raw-search-navigation");
-  if (navigation) navigation.setAttribute("aria-label", t("rawSearchResultCount", { count: matches.length }));
-  els.rawTree.querySelectorAll("[data-raw-search-nav]").forEach((button) => {
-    button.disabled = !matches.length;
-  });
-  if (scroll && active) active.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
 }
 
 function renderRawSearchResults(request, section, mode = "request") {
@@ -4926,7 +4799,7 @@ function rawSearchEntries(value, rootPath) {
 }
 
 function normalizedRawSearchQuery() {
-  return normalizeRawSearchQuery(state.rawSearchQuery);
+  return rawSearchController.normalizedQuery();
 }
 
 function rawSearchScopeLabel(section, mode = "request") {

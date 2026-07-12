@@ -90,6 +90,7 @@
     "smoke:request-detail-cache-contract": "node scripts/request-detail-cache-contract-smoke.mjs",
     "smoke:raw-view-model-contract": "node scripts/raw-view-model-contract-smoke.mjs",
     "smoke:raw-search-model-contract": "node scripts/raw-search-model-contract-smoke.mjs",
+    "smoke:raw-search-controller-contract": "node scripts/raw-search-controller-contract-smoke.mjs",
     "smoke:viewer-static-assets-contract": "node scripts/viewer-static-assets-contract-smoke.mjs",
     "smoke:source-list-performance": "node scripts/source-list-performance-smoke.mjs",
     "smoke:source-repository-contract": "node scripts/source-repository-contract-smoke.mjs",
