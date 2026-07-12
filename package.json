@@ -87,6 +87,7 @@
     "smoke:security-boundary": "node scripts/security-boundary-smoke.mjs",
     "smoke:viewer-http-contract": "node scripts/viewer-http-contract-smoke.mjs",
     "smoke:viewer-api-client-contract": "node scripts/viewer-api-client-contract-smoke.mjs",
+    "smoke:request-detail-cache-contract": "node scripts/request-detail-cache-contract-smoke.mjs",
     "smoke:source-list-performance": "node scripts/source-list-performance-smoke.mjs",
     "smoke:source-repository-contract": "node scripts/source-repository-contract-smoke.mjs",
     "smoke:imported-source-provider": "node scripts/imported-source-provider-smoke.mjs",

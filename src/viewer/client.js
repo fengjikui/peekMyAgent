@@ -1,5 +1,6 @@
 import { renderMarkdownPreview, renderSafeMarkdown } from "./markdown.js";
 import { ViewerApiClient } from "./api-client.js";
+import { RequestDetailCache, requestNeedsDetail } from "./request-detail-cache.js";
 import { TurnRailController } from "./turn-rail.js";
 import {
   extractTranslationSchemaDescriptions as extractSchemaDescriptionsForTranslation,
@@ -29,9 +30,6 @@ const state = {
   rawSearchActiveIndex: 0,
   rawSearchRevealPending: false,
   rawMessagesMode: "organized",
-  requestDetails: new Map(),
-  requestDetailPromises: new Map(),
-  requestDetailErrors: new Map(),
   rawWidth: 0,
   sidebarOpen: true,
   sidebarWidth: 0,
@@ -1010,6 +1008,15 @@ const turnRailController = new TurnRailController({
   onJump: jumpToTurn,
   onActiveChange: markActiveTurn,
 });
+const requestDetailCache = new RequestDetailCache({
+  loadDetail: async (sourceId, requestId) => (await api.requestDetail(sourceId, requestId)).request,
+  onLoaded: async (fullRequest) => {
+    const merged = mergeRequestDetail(fullRequest);
+    await rebuildTranslationLookupForCurrentData();
+    return merged;
+  },
+  onCached: mergeRequestDetail,
+});
 
 init();
 
@@ -1323,7 +1330,7 @@ async function loadSource(sourceId, { preserveScroll = false } = {}) {
   const loadSeq = (state.sourceLoadSeq += 1);
   const progressive = shouldUseProgressiveSourceLoad(sourceId, { preserveScroll });
   if (state.activeSourceId && state.activeSourceId !== sourceId) {
-    clearRequestDetailCache();
+    requestDetailCache.clear();
     state.openSupportingTimelines.clear();
     state.openAgentDashboards.clear();
     state.expandedAgentBranches.clear();
@@ -1334,7 +1341,7 @@ async function loadSource(sourceId, { preserveScroll = false } = {}) {
     state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
   }
   state.progressiveLoadError = "";
-  const initialData = mergeCachedRequestDetails(
+  const initialData = requestDetailCache.mergeIntoData(
     await fetchViewerData(sourceId, progressive ? { initial: true, limit: INITIAL_SOURCE_REQUEST_LIMIT } : {}),
   );
   if (loadSeq !== state.sourceLoadSeq) return;
@@ -1392,7 +1399,7 @@ async function refreshLiveData({ force = false } = {}) {
 
 async function refreshActiveSource(activeSource) {
   const previousData = state.data;
-  const nextData = mergeCachedRequestDetails(await fetchViewerData(activeSource.id));
+  const nextData = requestDetailCache.mergeIntoData(await fetchViewerData(activeSource.id));
   if (!shouldRenderRefreshedData(previousData, nextData)) return;
 
   const wasNearBottom = isMainPanelNearBottom();
@@ -1438,7 +1445,7 @@ function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } =
 async function loadFullSourceInBackground(sourceId, { loadSeq } = {}) {
   window.setTimeout(async () => {
     try {
-      const fullData = mergeCachedRequestDetails(await fetchViewerData(sourceId));
+      const fullData = requestDetailCache.mergeIntoData(await fetchViewerData(sourceId));
       if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== fullData.source.id) return;
       const scrollTop = els.mainPanel.scrollTop;
       applyLoadedSourceData(fullData, { preserveScroll: true, scrollTop });
@@ -1474,24 +1481,6 @@ function fetchViewerData(sourceId, { initial = false, limit = INITIAL_SOURCE_REQ
   return api.viewSource(sourceId, { initial, limit });
 }
 
-function clearRequestDetailCache() {
-  state.requestDetails.clear();
-  state.requestDetailPromises.clear();
-  state.requestDetailErrors.clear();
-}
-
-function mergeCachedRequestDetails(data) {
-  if (!data?.requests?.length || !state.requestDetails.size) return data;
-  return {
-    ...data,
-    requests: data.requests.map((request) => state.requestDetails.get(request.id) || request),
-  };
-}
-
-function requestNeedsDetail(request) {
-  return Boolean(request?.detail_omitted || request?.raw?.detail_omitted || request?.summary?.history_stack_omitted);
-}
-
 function currentRequestById(requestId) {
   return (state.data?.requests || []).find((item) => item.id === requestId) || null;
 }
@@ -1499,29 +1488,8 @@ function currentRequestById(requestId) {
 async function ensureRequestDetailLoaded(requestId) {
   const request = currentRequestById(requestId);
   if (!request) return null;
-  if (!requestNeedsDetail(request)) return request;
-  if (state.requestDetails.has(requestId)) return mergeRequestDetail(state.requestDetails.get(requestId));
-  if (state.requestDetailPromises.has(requestId)) return state.requestDetailPromises.get(requestId);
-
   const sourceId = state.data?.source?.id || state.activeSourceId || "";
-  const promise = api.requestDetail(sourceId, requestId)
-    .then(async (payload) => {
-      const fullRequest = normalizeRequestDetail(payload.request);
-      state.requestDetails.set(requestId, fullRequest);
-      state.requestDetailErrors.delete(requestId);
-      const merged = mergeRequestDetail(fullRequest);
-      await rebuildTranslationLookupForCurrentData();
-      return merged;
-    })
-    .catch((error) => {
-      state.requestDetailErrors.set(requestId, error);
-      throw error;
-    })
-    .finally(() => {
-      state.requestDetailPromises.delete(requestId);
-    });
-  state.requestDetailPromises.set(requestId, promise);
-  return promise;
+  return requestDetailCache.ensure(sourceId, request);
 }
 
 async function ensureDetailsForRawSection(request, section) {
@@ -1531,19 +1499,6 @@ async function ensureDetailsForRawSection(request, section) {
     if (previous) await ensureRequestDetailLoaded(previous.id);
   }
   return currentRequestById(request.id) || request;
-}
-
-function normalizeRequestDetail(request) {
-  const normalized = { ...(request || {}), detail_omitted: false };
-  if (normalized.raw && typeof normalized.raw === "object") {
-    normalized.raw = { ...normalized.raw, detail_omitted: false };
-    delete normalized.raw.body_omitted;
-  }
-  if (normalized.summary && typeof normalized.summary === "object") {
-    normalized.summary = { ...normalized.summary };
-    delete normalized.summary.history_stack_omitted;
-  }
-  return normalized;
 }
 
 function mergeRequestDetail(fullRequest) {
@@ -3506,7 +3461,7 @@ function renderRequestCard(request, options = {}) {
 
 function renderUpstreamDetailsBody(request, toolNames, moreTools) {
   if (requestNeedsDetail(request)) {
-    const error = state.requestDetailErrors.get(request.id);
+    const error = requestDetailCache.errorFor(request.id);
     return `
       <div class="request-body">
         ${error ? renderRequestDetailError(error) : renderRequestDetailLoading()}

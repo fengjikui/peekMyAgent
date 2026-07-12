@@ -59,6 +59,7 @@ const coreCommands = [
 ];
 const viewerCommands = [
   ["npm", "run", "smoke:viewer-api-client-contract"],
+  ["npm", "run", "smoke:request-detail-cache-contract"],
   ["npm", "run", "smoke:response-capture"],
   ["npm", "run", "smoke:large-response-compact"],
   ["npm", "run", "smoke:compact-view-performance"],
