@@ -42,6 +42,7 @@ daemon、Viewer HTTP API 和静态资源服务由同一个 `startViewerServer()`
 | `src/core/normalize.mjs` | 归一化 capture 的基础结构，目前主要由 CLI/实验脚本使用 |
 | `src/core/platform.mjs`、`paths.mjs`、`processes.mjs` | 跨平台路径、命令、进程和本机运行环境 |
 | `src/core/redaction.mjs` | Trace 导出等路径使用的敏感内容脱敏 |
+| `src/translation/blocks.mjs`、`hash.mjs` | 跨 Server/Client/脚本共享的翻译块规范化、key、marker、schema 遍历和 Node hash |
 | `src/adapters/claude-code-otel.mjs` | Claude Code OTel 数据归一化 |
 | `src/adapters/openclaw-config.mjs`、`openclaw-normalize.mjs` | OpenClaw profile 配置和协议归一化 |
 | `src/adapters/trae-cn-integration.mjs` | Trae CN 配置发现、启停、漂移检查和稳定路由 |
@@ -161,9 +162,9 @@ Viewer 会从 capture 中派生：
 
 ## 翻译缓存
 
-翻译对象被提取为语义块，规范化后以 `kind + source_text` 计算 hash。并发翻译返回通过 `@@PEEK_TRANSLATION <hash>` marker 与原块重新对齐，从而不依赖响应顺序。
+翻译对象被提取为语义块，规范化后以 `kind + "\0" + source_text` 作为 lookup key，并计算 SHA-256。Server、浏览器 Client、离线提取脚本和翻译 worker 共用 `src/translation/blocks.mjs`；Node 路径共用 `hash.mjs`，浏览器对同一 key 使用 Web Crypto，因此已有缓存 key 保持兼容。并发翻译返回通过共享 parser 解析 `@@PEEK_TRANSLATION <hash>` marker，与原块重新对齐，不依赖响应顺序。
 
-系统支持 Markdown 感知的长块拆分、部分成功和块级重译。翻译可使用兼容 API，也可回退到本机 `claude -p`。目前 Server、Client 和独立翻译脚本仍有多份提取/规范化/key 逻辑；它们应收敛为同一共享模块。
+系统支持 Markdown 感知的长块拆分、部分成功和块级重译。翻译可使用兼容 API，也可回退到本机 `claude -p`。system/harness 消息的上层语义提取仍分别依赖 Server 和 Client 的请求解释函数；后续协议 normalizer 应继续收敛这一层，但 block identity 不再重复实现。维护契约见 [翻译块协议](translation-block-contract.md)。
 
 ## Trace 分享
 

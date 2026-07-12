@@ -107,6 +107,7 @@
     "smoke:otel-ingest": "node scripts/otel-ingest-smoke.mjs",
     "smoke:otel-e2e": "node scripts/otel-capture-e2e-smoke.mjs",
     "smoke:translation-tolerance": "node scripts/translation-tolerance-smoke.mjs",
+    "smoke:translation-contract": "node scripts/translation-contract-smoke.mjs",
     "smoke:translation-claude-cli": "node scripts/translation-claude-cli-smoke.mjs",
     "release:check": "node scripts/release-check.mjs --profile current",
     "release:check:linux": "node scripts/release-check.mjs --profile linux",

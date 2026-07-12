@@ -112,7 +112,8 @@ src/
 - 已建立 provenance v1 最小运行时契约，先用于 OTel raw-body request/response，分离正文 fidelity 与关联 confidence。
 - 已接入 Claude Code OTel body events，通过 `traceId + spanId` 精确关联 response，并保留旧版本顺序回退。
 - 已建立 SQLite migration baseline：`PRAGMA user_version=1`、顺序事务 runner、旧库认领、未来版本保护和 schema shape 校验。
-- 尚未完成 Proxy、OpenClaw、file/import source 的统一 provenance，以及共享 translation block key；阶段 1 仍未完成。
+- 已建立共享 translation block contract：Server、Client、提取脚本和 worker 统一规范化、lookup key、schema description 和 marker 解析，缓存 hash 保持兼容。
+- 尚未完成 Proxy、OpenClaw、file/import source 的统一 provenance；阶段 1 仍未完成。
 
 ## 阶段 2：拆分 Viewer Server
 
@@ -205,9 +206,9 @@ src/
 
 ### PR 2：共享 translation block key
 
-- 抽出纯函数：提取、规范化、hash、marker 校验。
-- 让 Server、Client 和翻译脚本使用同一 fixture。
-- 范围小，能验证“共享契约优先”的重构方法。
+- **已完成（2026-07-12）。**
+- 抽出跨浏览器/Node 的规范化、lookup key、schema description、marker，以及 Node SHA-256 纯函数。
+- Server、Client、提取脚本和翻译 worker 使用同一 contract fixture，旧缓存无需迁移。
 
 ### PR 3：扩展 Trace provenance DTO
 

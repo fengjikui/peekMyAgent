@@ -1,9 +1,14 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { translationsDir } from "../src/core/app-paths.mjs";
 import { childProcessSpawnConfig } from "../src/core/platform.mjs";
+import {
+  formatTranslationSourceBlock,
+  parseTranslationMarkerBlocks as parseMarkerTranslations,
+  translationResponseFormatInstruction,
+} from "../src/translation/blocks.mjs";
+import { sha256Text } from "../src/translation/hash.mjs";
 
 const args = process.argv.slice(2);
 const MAX_TRANSLATION_CONCURRENCY = 100;
@@ -165,17 +170,15 @@ Requirements:
 - Do not summarize or omit constraints.
 - If the material is a chunk, translate only that chunk and do not add continuity notes.
 - Return one translated block for each input item, using exactly this format:
-@@PEEK_TRANSLATION <hash>
-<translated text>
-@@PEEK_END_TRANSLATION
+${translationResponseFormatInstruction()}
 - Do not include markdown fences, comments, JSON, or extra prose outside those blocks.
 
 Materials:
-${requestItems.map((item) => `@@PEEK_SOURCE ${item.hash}\nkind: ${item.kind}\nmetadata: ${JSON.stringify(item.metadata)}\n${item.source_text}\n@@PEEK_END_SOURCE`).join("\n\n")}`;
+${requestItems.map(formatTranslationSourceBlock).join("\n\n")}`;
 
   const data = await client.request({ prompt, maxTokens });
   const contentText = extractText(data);
-  const translations = parseMarkerTranslations(contentText);
+  const translations = parseMarkerTranslations(contentText, { required: true });
   return reconcileBatchTranslations(batch, translations);
 }
 
@@ -242,7 +245,7 @@ function splitMaterialIntoChunks(item, maxChars) {
   return chunks.map((sourceText, index) => ({
     ...item,
     id: `${item.id || item.hash}:chunk:${index + 1}`,
-    hash: materialHash(`${item.hash}\0chunk\0${index + 1}\0${sourceText}`),
+    hash: sha256Text(`${item.hash}\0chunk\0${index + 1}\0${sourceText}`),
     source_text: sourceText,
     text_chars: sourceText.length,
     metadata: {
@@ -476,20 +479,6 @@ function extractText(data) {
   throw new Error("Could not find text content in translation response.");
 }
 
-function parseMarkerTranslations(text) {
-  const output = [];
-  const pattern = /@@PEEK_TRANSLATION\s+([a-f0-9]{64})\s*\n([\s\S]*?)\n@@PEEK_END_TRANSLATION/g;
-  let match;
-  while ((match = pattern.exec(text))) {
-    output.push({
-      hash: match[1],
-      translated_text: match[2].trim(),
-    });
-  }
-  if (!output.length) throw new Error(`Translation response did not contain marker blocks: ${text.slice(0, 500)}`);
-  return output;
-}
-
 // Tolerant reconciliation: keep every block the model translated cleanly and
 // drop the ones it missed or left empty, instead of throwing away the whole
 // batch. Dropped blocks stay untranslated (the display layer falls back to the
@@ -591,10 +580,6 @@ function jobLabel(job) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function materialHash(value) {
-  return crypto.createHash("sha256").update(value).digest("hex");
 }
 
 function readJsonl(filePath) {

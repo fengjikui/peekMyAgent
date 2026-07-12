@@ -1,4 +1,13 @@
 import { renderMarkdownPreview, renderSafeMarkdown } from "./markdown.js";
+import {
+  extractTranslationSchemaDescriptions as extractSchemaDescriptionsForTranslation,
+  isSkippableTranslationMaterial,
+  normalizeTranslationSourceText as normalizeTranslationText,
+  systemTranslationKind,
+  translationLookupKey,
+  translationToolDescription as toolDescriptionOf,
+  translationToolName as toolNameOf,
+} from "./translation-blocks.js";
 
 const state = {
   sources: [],
@@ -5944,29 +5953,6 @@ function extractSystemPartsForTranslation(body, messages) {
   return output.filter((part) => normalizeTranslationText(part.text));
 }
 
-function extractSchemaDescriptionsForTranslation(schema, { rootPath }) {
-  const output = [];
-  visit(schema, rootPath, "");
-  return output;
-
-  function visit(value, currentPath, fieldName) {
-    if (!value || typeof value !== "object") return;
-    if (typeof value.description === "string" && value.description.trim()) {
-      output.push({
-        field_name: fieldName || null,
-        path: `${currentPath}.description`,
-        description: value.description,
-      });
-    }
-    const properties = value.properties && typeof value.properties === "object" ? value.properties : {};
-    for (const [key, child] of Object.entries(properties)) visit(child, `${currentPath}.properties.${key}`, key);
-    if (value.items) visit(value.items, `${currentPath}.items`, fieldName);
-    for (const key of ["oneOf", "anyOf", "allOf"]) {
-      if (Array.isArray(value[key])) value[key].forEach((child, index) => visit(child, `${currentPath}.${key}[${index}]`, fieldName));
-    }
-  }
-}
-
 function dedupeTranslationMaterials(materials) {
   return [...new Map(materials.map((item) => [translationLookupKey(item.kind, normalizeTranslationText(item.source_text)), { ...item, source_text: normalizeTranslationText(item.source_text) }])).values()].filter(
     (item) => item.source_text,
@@ -5984,48 +5970,6 @@ function dedupeToolTranslationMaterials(materials) {
       }),
     ).values(),
   ].filter((item) => item.source_text);
-}
-
-function toolNameOf(tool) {
-  return tool?.name || tool?.function?.name || tool?.type || "unknown";
-}
-
-function toolDescriptionOf(tool) {
-  return normalizeTranslationText(tool?.description || tool?.function?.description || "");
-}
-
-function normalizeTranslationText(value) {
-  return normalizeVolatileSystemLines(stripVolatileSystemPreamble(String(value || "").replace(/\r\n/g, "\n").trim())).trim();
-}
-
-function stripVolatileSystemPreamble(text) {
-  return String(text || "")
-    .replace(/^The date has changed\. Today's date is now \d{4}-\d{2}-\d{2}\. DO NOT mention this to the user explicitly because they are already aware\.\n\n/, "")
-    .replace(/^Today's date is now \d{4}-\d{2}-\d{2}\. DO NOT mention this to the user explicitly because they are already aware\.\n\n/, "");
-}
-
-function isSkippableTranslationMaterial(kind, sourceText) {
-  if (kind !== "system_prompt") return false;
-  return /^x-anthropic-billing-header:\s*/i.test(sourceText);
-}
-
-function normalizeVolatileSystemLines(text) {
-  return String(text || "")
-    .replace(/^(\s*-\s*You are powered by the model\s+).+?(\.?)$/gm, "$1<model>$2")
-    .replace(/^(\s*-\s*Primary working directory:\s+).+$/gm, "$1<workspace>")
-    .replace(/(You have a persistent file-based memory at\s+)`[^`]+`/g, "$1`<project-memory>`");
-}
-
-function systemTranslationKind(text) {
-  const value = String(text || "").trim();
-  if (/^Called the .+ tool with the following input/i.test(value) && /Result of calling the .+ tool/i.test(value)) {
-    return "system_injected_context";
-  }
-  return "system_prompt";
-}
-
-function translationLookupKey(kind, sourceText) {
-  return `${kind}\0${sourceText}`;
 }
 
 async function materialHash(kind, sourceText) {

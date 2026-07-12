@@ -41,6 +41,7 @@ for (const [profile, description] of profiles) {
   assert.match(result.stdout, /npm run smoke:claude-internal-turn/);
   assert.match(result.stdout, /npm run smoke:suggestion-mode/);
   assert.match(result.stdout, /npm run smoke:agent-trace-view/);
+  assert.match(result.stdout, /npm run smoke:translation-contract/);
   assert.match(result.stdout, /npm run smoke:persistence-migrations/);
   assert.match(result.stdout, /npm run smoke:persistence-store/);
   assert.match(result.stdout, /npm run smoke:project-source-actions/);

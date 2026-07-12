@@ -1,8 +1,16 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { translationsDir } from "../src/core/app-paths.mjs";
 import { openPersistenceStore, defaultStorePath } from "../src/core/persistence-store.mjs";
+import {
+  extractTranslationSchemaDescriptions as extractSchemaDescriptions,
+  isSkippableTranslationMaterial,
+  normalizeTranslationSourceText as normalizeText,
+  systemTranslationKind,
+  translationToolDescription as toolDescriptionOf,
+  translationToolName as toolNameOf,
+} from "../src/translation/blocks.mjs";
+import { translationMaterialHash as materialHash } from "../src/translation/hash.mjs";
 
 const args = process.argv.slice(2);
 const targetLanguage = optionValue("--target-language") || "zh-CN";
@@ -146,30 +154,6 @@ function extractSystemParts(body, messages) {
   return output.filter((part) => part.text);
 }
 
-function extractSchemaDescriptions(schema, { toolName, rootPath }) {
-  const output = [];
-  visit(schema, rootPath, "");
-  return output;
-
-  function visit(value, currentPath, fieldName) {
-    if (!value || typeof value !== "object") return;
-    if (typeof value.description === "string" && value.description.trim()) {
-      output.push({
-        tool_name: toolName,
-        field_name: fieldName || null,
-        path: `${currentPath}.description`,
-        description: value.description,
-      });
-    }
-    const properties = value.properties && typeof value.properties === "object" ? value.properties : {};
-    for (const [key, child] of Object.entries(properties)) visit(child, `${currentPath}.properties.${key}`, key);
-    if (value.items) visit(value.items, `${currentPath}.items`, fieldName);
-    for (const key of ["oneOf", "anyOf", "allOf"]) {
-      if (Array.isArray(value[key])) value[key].forEach((child, index) => visit(child, `${currentPath}.${key}[${index}]`, fieldName));
-    }
-  }
-}
-
 function extractContentText(content) {
   if (content == null) return "";
   if (typeof content === "string") return content;
@@ -191,48 +175,6 @@ function extractContentText(content) {
   if (content.text) return content.text;
   if (content.content) return extractContentText(content.content);
   return JSON.stringify(content);
-}
-
-function toolNameOf(tool) {
-  return tool?.name || tool?.function?.name || tool?.type || "unknown";
-}
-
-function toolDescriptionOf(tool) {
-  return normalizeText(tool?.description || tool?.function?.description || "");
-}
-
-function normalizeText(value) {
-  return normalizeVolatileSystemLines(stripVolatileSystemPreamble(String(value || "").replace(/\r\n/g, "\n").trim())).trim();
-}
-
-function stripVolatileSystemPreamble(text) {
-  return String(text || "")
-    .replace(/^The date has changed\. Today's date is now \d{4}-\d{2}-\d{2}\. DO NOT mention this to the user explicitly because they are already aware\.\n\n/, "")
-    .replace(/^Today's date is now \d{4}-\d{2}-\d{2}\. DO NOT mention this to the user explicitly because they are already aware\.\n\n/, "");
-}
-
-function isSkippableTranslationMaterial(kind, sourceText) {
-  if (kind !== "system_prompt") return false;
-  return /^x-anthropic-billing-header:\s*/i.test(sourceText);
-}
-
-function normalizeVolatileSystemLines(text) {
-  return String(text || "")
-    .replace(/^(\s*-\s*You are powered by the model\s+).+?(\.?)$/gm, "$1<model>$2")
-    .replace(/^(\s*-\s*Primary working directory:\s+).+$/gm, "$1<workspace>")
-    .replace(/(You have a persistent file-based memory at\s+)`[^`]+`/g, "$1`<project-memory>`");
-}
-
-function systemTranslationKind(text) {
-  const value = String(text || "").trim();
-  if (/^Called the .+ tool with the following input/i.test(value) && /Result of calling the .+ tool/i.test(value)) {
-    return "system_injected_context";
-  }
-  return "system_prompt";
-}
-
-function materialHash(kind, sourceText) {
-  return crypto.createHash("sha256").update(`${kind}\0${sourceText}`).digest("hex");
 }
 
 function compareMaterial(left, right) {

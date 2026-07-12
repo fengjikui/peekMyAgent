@@ -56,6 +56,7 @@ const viewerCommands = [
   ["npm", "run", "smoke:harness-translation"],
   ["npm", "run", "smoke:subagent-otel"],
   ["npm", "run", "smoke:agent-trace-view"],
+  ["npm", "run", "smoke:translation-contract"],
   ["npm", "run", "smoke:translation-tolerance"],
   ["npm", "run", "smoke:translation-claude-cli"],
 ];

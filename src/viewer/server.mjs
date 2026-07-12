@@ -16,6 +16,15 @@ import { clearViewerRegistry, writeViewerRegistry } from "../core/viewer-registr
 import { resolveTraeCnDynamicRoute } from "../adapters/trae-cn-integration.mjs";
 import { OTEL_WATCH_KIND, otelDirToCaptures } from "../core/otel-capture.mjs";
 import { extractOtelBodyEvents, mergeOtelBodyEvents } from "../core/otel-events.mjs";
+import {
+  extractTranslationSchemaDescriptions,
+  isSkippableTranslationMaterial,
+  normalizeTranslationSourceText,
+  systemTranslationKind,
+  translationToolDescription,
+  translationToolName,
+} from "../translation/blocks.mjs";
+import { translationMaterialHash } from "../translation/hash.mjs";
 
 const viewerDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(viewerDir, "../..");
@@ -267,6 +276,9 @@ async function handleRequest(req, res, options) {
   if (url.pathname === "/styles.css") return serveFile(res, path.join(viewerDir, "styles.css"), "text/css; charset=utf-8");
   if (url.pathname === "/client.js") return serveFile(res, path.join(viewerDir, "client.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/markdown.js") return serveFile(res, path.join(viewerDir, "markdown.js"), "text/javascript; charset=utf-8");
+  if (url.pathname === "/translation-blocks.js") {
+    return serveFile(res, path.join(projectRoot, "src", "translation", "blocks.mjs"), "text/javascript; charset=utf-8");
+  }
   if (url.pathname === "/api/sources") {
     if (rejectWrongMethod(req, res, "GET")) return;
     return writeJson(res, 200, listSources(options));
@@ -559,7 +571,7 @@ function collectViewerRequestTranslationMaterials(byHash, request, source, targe
     const tools = Array.isArray(body.tools) ? body.tools : [];
     tools.forEach((tool, toolIndex) => {
       const toolName = translationToolName(tool);
-      const description = normalizeTranslationSourceText(tool?.description || tool?.function?.description || "");
+      const description = translationToolDescription(tool);
       if (description) {
         addTranslationMaterial(byHash, {
           kind: "tool_description",
@@ -678,61 +690,6 @@ function extractHarnessTranslationParts(messages) {
     }
   });
   return output.filter((part) => part.text);
-}
-
-function extractTranslationSchemaDescriptions(schema, { rootPath }) {
-  const output = [];
-  visit(schema, rootPath, "");
-  return output;
-
-  function visit(value, currentPath, fieldName) {
-    if (!value || typeof value !== "object") return;
-    if (typeof value.description === "string" && value.description.trim()) {
-      output.push({ field_name: fieldName || null, path: `${currentPath}.description`, description: value.description });
-    }
-    const properties = value.properties && typeof value.properties === "object" ? value.properties : {};
-    for (const [key, child] of Object.entries(properties)) visit(child, `${currentPath}.properties.${key}`, key);
-    if (value.items) visit(value.items, `${currentPath}.items`, fieldName);
-    for (const key of ["oneOf", "anyOf", "allOf"]) {
-      if (Array.isArray(value[key])) value[key].forEach((child, index) => visit(child, `${currentPath}.${key}[${index}]`, fieldName));
-    }
-  }
-}
-
-function translationToolName(tool) {
-  return tool?.name || tool?.function?.name || tool?.type || "unknown";
-}
-
-function normalizeTranslationSourceText(value) {
-  return normalizeVolatileSystemLines(stripVolatileSystemPreamble(String(value || "").replace(/\r\n/g, "\n").trim())).trim();
-}
-
-function stripVolatileSystemPreamble(text) {
-  return String(text || "")
-    .replace(/^The date has changed\. Today's date is now \d{4}-\d{2}-\d{2}\. DO NOT mention this to the user explicitly because they are already aware\.\n\n/, "")
-    .replace(/^Today's date is now \d{4}-\d{2}-\d{2}\. DO NOT mention this to the user explicitly because they are already aware\.\n\n/, "");
-}
-
-function normalizeVolatileSystemLines(text) {
-  return String(text || "")
-    .replace(/^(\s*-\s*You are powered by the model\s+).+?(\.?)$/gm, "$1<model>$2")
-    .replace(/^(\s*-\s*Primary working directory:\s+).+$/gm, "$1<workspace>")
-    .replace(/(You have a persistent file-based memory at\s+)`[^`]+`/g, "$1`<project-memory>`");
-}
-
-function isSkippableTranslationMaterial(kind, sourceText) {
-  if (kind !== "system_prompt") return false;
-  return /^x-anthropic-billing-header:\s*/i.test(sourceText);
-}
-
-function systemTranslationKind(text) {
-  const value = String(text || "").trim();
-  if (/^Called the .+ tool with the following input/i.test(value) && /Result of calling the .+ tool/i.test(value)) return "system_injected_context";
-  return "system_prompt";
-}
-
-function translationMaterialHash(kind, sourceText) {
-  return crypto.createHash("sha256").update(`${kind}\0${sourceText}`).digest("hex");
 }
 
 function compareTranslationMaterial(left, right) {
