@@ -140,7 +140,8 @@ src/
 - 已增加不启动 daemon 的 HTTP contract smoke，并继续以真实 Viewer security smoke 锁定校验顺序和响应行为。
 - 已建立 SourceRepository 最小契约，统一 live、SQLite、file/demo 与 imported Trace 的 provider 汇聚、DTO 校验和显式 source 解析；现有标题/统计 provider 尚未迁出单体。
 - 已迁移 imported Trace provider：manifest 快速统计、旧 bundle fallback、目录发现与 DTO 构造不再由 Viewer Server 所有；共享 Source 文本约束保持标题清洗兼容。
-- 下一步迁移 file/demo provider，再处理依赖 store 和 watch runtime 的 persisted/live provider。
+- 已迁移 file/demo provider：custom evidence 与显式 demo 的定义、路径解析、可用性和统计开关不再由 Viewer Server 所有；默认仍不加载 demo。
+- 下一步处理依赖 store 和 watch runtime 的 persisted/live provider。
 
 ## 阶段 3：拆分 Viewer Client
 

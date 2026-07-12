@@ -41,6 +41,7 @@ import {
 } from "../server/http.mjs";
 import { SourceRepository } from "../server/source-repository.mjs";
 import { importedTraceSourceFromDir as sourceFromImportedTraceDir, listImportedTraceSources } from "../server/imported-trace-source-provider.mjs";
+import { listFileSources } from "../server/file-source-provider.mjs";
 import { SOURCE_TEXT_LIMITS, sanitizeSourceText } from "../server/source-text.mjs";
 import {
   extractTranslationSchemaDescriptions,
@@ -99,45 +100,6 @@ const INITIAL_VIEW_REQUEST_LIMIT = 32;
 const INITIAL_VIEW_REQUEST_LIMIT_MAX = 120;
 const SOURCE_META_FILE = "source-meta.json";
 const comparableMessageKeyCache = new WeakMap();
-
-const DEFAULT_SOURCES = [
-  {
-    id: "openclaw-subagent",
-    label: "OpenClaw 子代理",
-    agent: "OpenClaw",
-    confidence: "exact",
-    kind: "proxy_capture",
-    path: "tmp/smoke-evidence/openclaw-subagent/latest",
-    note: "provider baseUrl proxy 捕获；包含主代理与子代理请求。",
-  },
-  {
-    id: "openclaw-multiturn",
-    label: "OpenClaw 多轮会话",
-    agent: "OpenClaw",
-    confidence: "exact",
-    kind: "proxy_capture",
-    path: "tmp/smoke-evidence/openclaw-multiturn/latest",
-    note: "同一个 session-key 的多轮请求与工具结果回传。",
-  },
-  {
-    id: "claude-subagent",
-    label: "Claude Code 子代理",
-    agent: "Claude Code",
-    confidence: "exact",
-    kind: "proxy_capture",
-    path: "tmp/smoke-evidence/claude-subagent-proxy/latest",
-    note: "ANTHROPIC_BASE_URL proxy 捕获；含主 Agent 与 Explore 子代理请求。",
-  },
-  {
-    id: "claude-proxy-resume",
-    label: "Claude Code proxy resume",
-    agent: "Claude Code",
-    confidence: "exact",
-    kind: "proxy_capture",
-    path: "tmp/smoke-evidence/claude-proxy-resume/latest",
-    note: "ANTHROPIC_BASE_URL proxy 捕获；同一 session-id/resume 会话，含 Explore 子代理请求。",
-  },
-];
 
 function readSourceMeta(filePath) {
   try {
@@ -817,29 +779,9 @@ function translationAliasSlugs(agent) {
 }
 
 function baseSources({ cwd, demo, evidencePath, watches }, { includeStats = true } = {}) {
-  if (evidencePath) {
-    const absPath = path.resolve(cwd, evidencePath);
-    return [
-      {
-        id: "custom",
-        label: path.basename(absPath),
-        agent: "Custom",
-        confidence: "unknown",
-        kind: "proxy_capture",
-        path: absPath,
-        available: hasCaptureFile(absPath),
-        note: "用户指定的证据目录。",
-        ...(includeStats ? sourceListStats(absPath) : {}),
-      },
-    ];
-  }
-  const defaultSources = demo
-    ? DEFAULT_SOURCES.map((source) => {
-        const absPath = path.resolve(cwd, source.path);
-        return { ...source, path: absPath, available: hasCaptureFile(absPath), ...(includeStats ? sourceListStats(absPath) : {}) };
-      })
-    : [];
-  return [...activeWatchSources(watches), ...defaultSources];
+  const fileSources = listFileSources({ cwd, demo, evidencePath, includeStats, summarizeDirectory: sourceListStats });
+  if (evidencePath) return fileSources;
+  return [...activeWatchSources(watches), ...fileSources];
 }
 
 function listSources(options) {
