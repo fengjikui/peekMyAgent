@@ -69,6 +69,7 @@ import {
   translationToolName,
 } from "../translation/blocks.mjs";
 import { translationMaterialHash } from "../translation/hash.mjs";
+import { annotateRequestContextChanges } from "../trace/context-delta.mjs";
 
 const viewerDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(viewerDir, "../..");
@@ -115,7 +116,6 @@ const TIMELINE_CONTEXT_PREVIEW_LIMIT = 4;
 const TIMELINE_CONTEXT_PREVIEW_CHARS = 140;
 const INITIAL_VIEW_REQUEST_LIMIT = 32;
 const INITIAL_VIEW_REQUEST_LIMIT_MAX = 120;
-const comparableMessageKeyCache = new WeakMap();
 
 export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.0.1", port = 0, demo, evidencePath, storePath, persistenceStore, capturePort = null, captureHost = host, exitOnShutdown = false, unsafeAllowRemote = false } = {}) {
   assertSafeBindHost(host, { unsafeAllowRemote });
@@ -2446,50 +2446,21 @@ function headerValue(headers, name) {
 }
 
 function annotateRequestChanges(requests) {
-  const previousByContextKey = new Map();
-  for (const request of requests) {
-    const contextKey = requestContextChainKey(request);
-    const previous = previousByContextKey.get(contextKey) || null;
-    const currentToolMessages = isInternalRequest(request) ? [] : currentToolEventMessages(request, previous);
-    request.summary.current_tool_calls = currentToolMessages ? extractToolCalls(currentToolMessages) : request.summary.tool_calls;
-    request.summary.current_tool_results = currentToolMessages
-      ? extractToolResults(currentToolMessages).map((result) => ({ ...result, content: textPreview(result.content, 800) }))
-      : request.summary.tool_results;
-    request.trace.context_chain_key = contextKey;
-    request.trace.previous_context_request_index = previous?.request_index || null;
-    annotateHistoryStackDelta(request, previous);
-    request.changes = {
-      system_changed: previous ? request.fingerprints.system !== previous.fingerprints.system : false,
-      tools_changed: previous ? request.fingerprints.tools !== previous.fingerprints.tools : false,
-      params_changed: previous ? request.fingerprints.params !== previous.fingerprints.params : false,
-      messages_delta: previous ? request.counts.messages - previous.counts.messages : request.counts.messages,
-      tools_delta: previous ? request.counts.tools - previous.counts.tools : request.counts.tools,
-      raw_bytes_delta: previous ? request.counts.raw_body_bytes - previous.counts.raw_body_bytes : request.counts.raw_body_bytes,
-    };
-    request.context_delta = analyzeContextDelta(request, previous, contextKey);
-    previousByContextKey.set(contextKey, request);
-  }
+  return annotateRequestContextChanges(requests, contextDeltaSemantics());
 }
 
-function requestContextChainKey(request) {
-  const sessionKey = request.conversation_id || request.watch_id || request.trace?.claude_session_id_prefix || request.agent_profile || "session";
-  const agentId = request.trace?.claude_agent_id || "";
-  if (agentId) return `agent:${sessionKey}:${agentId}`;
-  const actorType = request.trace?.actor_type || request.source_hint?.type || "main";
-  if (actorType === "main") return `main:${sessionKey}`;
-  const sideKey = request.trace?.debug_source || request.source_hint?.type || "side";
-  return `${actorType}:${sessionKey}:${sideKey}`;
-}
-
-function annotateHistoryStackDelta(request, previous) {
-  const stack = request.summary?.history_stack || [];
-  const messages = Array.isArray(request.raw?.body?.messages) ? request.raw.body.messages : [];
-  const previousMessages = Array.isArray(previous?.raw?.body?.messages) ? previous.raw.body.messages : [];
-  const reusedCount = previous ? commonMessagePrefixLength(previousMessages, messages) : 0;
-  for (const item of stack) {
-    const index = Math.max(0, Number(item.index || 0) - 1);
-    item.context_status = previous ? (index < reusedCount ? "reused" : "new") : "baseline";
-  }
+function contextDeltaSemantics() {
+  return {
+    extractToolCalls,
+    extractToolResults,
+    classifyMessage: messageDeltaKind,
+    previewMessage: messageDeltaPreview,
+    previewText: textPreview,
+    isInternalRequest,
+    isRealUserMessage(message) {
+      return message?.role === "user" && !isToolResultMessage(message) && !isSuggestionModeMessage(message) && !isFrameworkReminderMessage(message);
+    },
+  };
 }
 
 function buildTurnTimeline(requests) {
@@ -2897,47 +2868,6 @@ function isTimelineInternalRequest(request) {
   return isInternalRequest(request) || request.source_hint?.type === "subagent" || request.summary?.entry?.kind === "harness_injection";
 }
 
-function analyzeContextDelta(request, previous, contextKey = "") {
-  const messages = Array.isArray(request.raw?.body?.messages) ? request.raw.body.messages : [];
-  const previousMessages = Array.isArray(previous?.raw?.body?.messages) ? previous.raw.body.messages : [];
-  const commonPrefixMessages = previous ? commonMessagePrefixLength(previousMessages, messages) : 0;
-  const newMessages = messages.slice(commonPrefixMessages);
-  const roleCounts = countMessageRoles(newMessages);
-  const toolCalls = extractToolCalls(newMessages);
-  const toolResults = extractToolResults(newMessages);
-  const fixedContext = {
-    system: previous ? (request.changes.system_changed ? "changed" : "reused") : "baseline",
-    tools: previous ? (request.changes.tools_changed ? "changed" : "reused") : "baseline",
-    params: previous ? (request.changes.params_changed ? "changed" : "reused") : "baseline",
-  };
-  return {
-    baseline: !previous,
-    comparison_key: contextKey || null,
-    previous_request_index: previous?.request_index || null,
-    previous_messages: previousMessages.length,
-    total_messages: messages.length,
-    reused_messages: commonPrefixMessages,
-    reused_ratio: messages.length ? Number((commonPrefixMessages / messages.length).toFixed(3)) : 0,
-    new_messages: newMessages.length,
-    new_roles: roleCounts,
-    new_tool_calls: toolCalls.length,
-    new_tool_results: toolResults.length,
-    fixed_context: fixedContext,
-    previews: newMessages.slice(0, 8).map(messageDeltaPreview),
-  };
-}
-
-function countMessageRoles(messages) {
-  const counts = {};
-  for (const message of messages) {
-    const role = message?.role || "unknown";
-    const kind = messageDeltaKind(message);
-    const key = kind === "message" ? role : kind;
-    counts[key] = (counts[key] || 0) + 1;
-  }
-  return counts;
-}
-
 function messageDeltaPreview(message) {
   const commandMessage = parseCommandMessage(message);
   return {
@@ -3006,27 +2936,6 @@ function historyMessageLabel(message, kind) {
   return message?.role || "Message";
 }
 
-function currentToolEventMessages(request, previous) {
-  const messages = Array.isArray(request.raw?.body?.messages) ? request.raw.body.messages : null;
-  if (!messages) return null;
-  const latestTurnMessages = messagesAfterLatestRealUserInput(messages);
-  const previousMessages = Array.isArray(previous?.raw?.body?.messages) ? previous.raw.body.messages : null;
-  if (!previousMessages) return latestTurnMessages;
-
-  const prefixLength = commonMessagePrefixLength(previousMessages, messages);
-  const suffix = messages.slice(prefixLength);
-  if (suffix.length) return suffix;
-  return latestTurnMessages;
-}
-
-function messagesAfterLatestRealUserInput(messages) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message?.role === "user" && !isToolResultMessage(message) && !isSuggestionModeMessage(message) && !isFrameworkReminderMessage(message)) return messages.slice(index + 1);
-  }
-  return messages;
-}
-
 function isToolResultMessage(message) {
   if (message?.role === "tool") return true;
   const content = message?.content;
@@ -3040,49 +2949,6 @@ function isToolResultMessage(message) {
     return content.some((part) => part?.type === "tool_result");
   }
   return content?.type === "tool_result";
-}
-
-function commonMessagePrefixLength(previousMessages, currentMessages) {
-  const limit = Math.min(previousMessages.length, currentMessages.length);
-  let index = 0;
-  while (index < limit && comparableMessageKey(previousMessages[index]) === comparableMessageKey(currentMessages[index])) index += 1;
-  return index;
-}
-
-function comparableMessageKey(message) {
-  if (message && typeof message === "object") {
-    const cached = comparableMessageKeyCache.get(message);
-    if (cached) return cached;
-  }
-  const normalized = normalizeComparableValue(message);
-  if (normalized && typeof normalized === "object" && !Array.isArray(normalized)) normalized.content = normalizeComparableContent(message?.content);
-  const key = stableJson(normalized);
-  if (message && typeof message === "object") comparableMessageKeyCache.set(message, key);
-  return key;
-}
-
-function normalizeComparableContent(content) {
-  if (typeof content === "string") return [{ type: "text", text: content }];
-  if (Array.isArray(content)) return content.map(normalizeComparableContentPart);
-  if (content && typeof content === "object") return [normalizeComparableContentPart(content)];
-  return content ?? null;
-}
-
-function normalizeComparableContentPart(part) {
-  if (typeof part === "string") return { type: "text", text: part };
-  return normalizeComparableValue(part);
-}
-
-function normalizeComparableValue(value) {
-  if (value === undefined) return undefined;
-  if (value === null || typeof value !== "object") return value;
-  if (Array.isArray(value)) return value.map(normalizeComparableValue).filter((item) => item !== undefined);
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([key]) => key !== "cache_control")
-      .map(([key, item]) => [key, normalizeComparableValue(item)])
-      .filter(([, item]) => item !== undefined),
-  );
 }
 
 function buildWorkbenchSummary(source, requests, command) {
