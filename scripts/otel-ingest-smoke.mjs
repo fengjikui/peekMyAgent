@@ -55,11 +55,33 @@ try {
   });
   assert.equal(noIntentRes.status, 403, "OTel ingest requires explicit local wrapper intent");
 
+  const noEventIntentRes = await fetch(`${viewer.url}/api/capture/otel/events?watch_id=${watchId}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(otelPayload([])),
+  });
+  assert.equal(noEventIntentRes.status, 403, "OTel events require explicit telemetry intent");
+
+  const eventRes = await fetch(`${viewer.url}/api/capture/otel/events?watch_id=${watchId}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-peekmyagent-intent": "otel-event-ingest" },
+    body: JSON.stringify(
+      otelPayload([
+        logRecord("api_request_body", "c1.request.json", "trace-1", "span-1", 1),
+        logRecord("api_response_body", "req_1.response.json", "trace-1", "span-1", 2),
+        logRecord("api_request_body", "c2.request.json", "trace-2", "span-2", 3),
+      ]),
+    ),
+  });
+  assert.equal(eventRes.status, 200);
+  const eventResult = await eventRes.json();
+  assert.equal(eventResult.accepted, 3);
+
   // --- ingest ---
   const ingestRes = await fetch(`${viewer.url}/api/capture/otel`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-peekmyagent-intent": "otel-ingest" },
-    body: JSON.stringify({ dir: dumpDir, watch_id: watchId, agent: "Claude Code", workspace: "/tmp/ws" }),
+    body: JSON.stringify({ dir: dumpDir, watch_id: watchId, agent: "Claude Code", workspace: "/tmp/ws", event_correlation_enabled: true }),
   });
   const ingest = await ingestRes.json();
   assert.equal(ingest.ok, true);
@@ -76,6 +98,8 @@ try {
   assert.equal(view.requests[0].request_index, 1);
   assert.equal(view.requests[0].conversation_id, sessionId, "conversation_id from metadata reaches the view");
   assert.equal(view.requests[0].upstream_status, 200, "paired response gives upstream_status 200");
+  assert.equal(view.requests[0].raw.provenance.association.method, "otel_trace_span");
+  assert.equal(view.requests[0].raw.provenance.association.confidence, "exact");
   assert.equal(view.requests[1].request_index, 2);
 
   // --- /api/sources lists it ---
@@ -163,3 +187,26 @@ try {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 process.exitCode = failed ? 1 : 0;
+
+function otelPayload(logRecords) {
+  return { resourceLogs: [{ scopeLogs: [{ logRecords }] }] };
+}
+
+function logRecord(eventName, bodyRef, traceId, spanId, sequence) {
+  return {
+    traceId,
+    spanId,
+    body: { stringValue: eventName },
+    attributes: [
+      attribute("event.name", eventName),
+      attribute("event.sequence", String(sequence), "intValue"),
+      attribute("prompt.id", "prompt-1"),
+      attribute("query_source", "sdk"),
+      attribute("body_ref", bodyRef),
+    ],
+  };
+}
+
+function attribute(key, value, type = "stringValue") {
+  return { key, value: { [type]: value } };
+}

@@ -36,6 +36,8 @@ for (const required of [
   "src/viewer/client.js",
   "src/viewer/markdown.js",
   "src/core/platform.mjs",
+  "src/core/otel-events.mjs",
+  "src/core/provenance.mjs",
   "integrations/claude-code/commands/peekmyagent.md",
   "integrations/openclaw/skills/peek-watch/SKILL.md",
   "scripts/install.mjs",
@@ -76,6 +78,6 @@ const deniedPatterns = [
 const deniedFiles = packageFiles.filter((file) => deniedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(deniedFiles, [], `npm package includes release-unsafe files: ${deniedFiles.join(", ")}`);
 
-assert.ok(packs[0].entryCount <= 40, `expected a compact package, got ${packs[0].entryCount} files`);
+assert.ok(packs[0].entryCount <= 42, `expected a compact package, got ${packs[0].entryCount} files`);
 
 console.log("package smoke passed");

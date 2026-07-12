@@ -15,6 +15,7 @@ import { redactText } from "../core/redaction.mjs";
 import { clearViewerRegistry, writeViewerRegistry } from "../core/viewer-registry.mjs";
 import { resolveTraeCnDynamicRoute } from "../adapters/trae-cn-integration.mjs";
 import { OTEL_WATCH_KIND, otelDirToCaptures } from "../core/otel-capture.mjs";
+import { extractOtelBodyEvents, mergeOtelBodyEvents } from "../core/otel-events.mjs";
 
 const viewerDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(viewerDir, "../..");
@@ -34,6 +35,8 @@ const MAX_TRANSLATION_METADATA_KEYS = 32;
 const MAX_TRANSLATION_METADATA_STRING_CHARS = 512;
 const MAX_API_SOURCE_ID_CHARS = 512;
 const MAX_API_REQUEST_ID_CHARS = 256;
+const MAX_OTEL_EVENT_WATCHES = 32;
+const MAX_OTEL_EVENTS_PER_WATCH = 2400;
 const MAX_TRACE_EXPORT_REDACTION_DEPTH = 64;
 const MAX_TRACE_EXPORT_REDACTION_NODES = 200000;
 const MAX_TRANSLATION_CONCURRENCY = 100;
@@ -45,6 +48,7 @@ const TRACE_EXPORT_INTENT = "trace-export";
 const TRACE_IMPORT_INTENT = "trace-import";
 const AGENT_SEND_INTENT = "agent-send";
 const OTEL_INGEST_INTENT = "otel-ingest";
+const OTEL_EVENT_INGEST_INTENT = "otel-event-ingest";
 const TRANSLATION_GENERATE_INTENT = "translation-generate";
 const SOURCE_UPDATE_INTENT = "source-update";
 const DAEMON_SHUTDOWN_INTENT = "daemon-shutdown";
@@ -150,6 +154,7 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
   assertSafeBindHost(host, { unsafeAllowRemote });
   assertSafeBindHost(captureHost, { unsafeAllowRemote });
   const watches = new Map();
+  const otelBodyEvents = new Map();
   const store = persistenceStore || openPersistenceStore(storePath);
   const sourceMetaPath = path.join(path.dirname(store.path), SOURCE_META_FILE);
   const sourceMeta = readSourceMeta(sourceMetaPath);
@@ -194,6 +199,7 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
         demo,
         evidencePath,
         watches,
+        otelBodyEvents,
         sourceMeta,
         sourceMetaPath,
         store,
@@ -323,6 +329,19 @@ async function handleRequest(req, res, options) {
     const intentGuard = validateOtelIngestIntent(req);
     if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
     return writeJson(res, 200, await ingestOtelCaptures(req, options));
+  }
+  if (url.pathname === "/api/capture/otel/events") {
+    if (rejectWrongMethod(req, res, "POST")) return;
+    const intentGuard = validateOtelEventIngestIntent(req);
+    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
+    return writeJson(res, 200, await ingestOtelEvents(req, url, options));
+  }
+  if (url.pathname === "/api/capture/otel/traces") {
+    if (rejectWrongMethod(req, res, "POST")) return;
+    const intentGuard = validateOtelEventIngestIntent(req);
+    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
+    await readJsonBody(req);
+    return writeJson(res, 200, {});
   }
   if (url.pathname === "/api/watch/status") {
     if (rejectWrongMethod(req, res, "GET")) return;
@@ -1247,7 +1266,7 @@ function compactRawResponseMetadata(response) {
 // path, so listSources/loadViewerData surface it as a normal persisted source.
 async function ingestOtelCaptures(req, options) {
   const input = await readJsonBody(req);
-  const { store, cwd } = options;
+  const { store, cwd, otelBodyEvents } = options;
   const dir = String(input.dir || "").trim();
   if (!dir) throw new Error("ingestOtelCaptures requires a dump dir");
   const watchId = String(input.watch_id || "").trim();
@@ -1255,7 +1274,17 @@ async function ingestOtelCaptures(req, options) {
   const agent = input.agent || "Claude Code";
   const workspace = input.workspace || cwd;
   const conversationId = input.conversation_id || null;
-  const captures = otelDirToCaptures(dir, { watchId, workspace, agent, conversationId });
+  const events = otelBodyEvents?.get(watchId) || [];
+  const eventCorrelationEnabled = input.event_correlation_enabled === true;
+  const finalIngest = input.final === true;
+  const captures = otelDirToCaptures(
+    dir,
+    { watchId, workspace, agent, conversationId },
+    {
+      events,
+      allowHeuristicPairing: !eventCorrelationEnabled || finalIngest,
+    },
+  );
   const watch = {
     watch_id: watchId,
     label: input.label || `${agent} · OTel`,
@@ -1282,14 +1311,35 @@ async function ingestOtelCaptures(req, options) {
     // may already exist while its response was dumped only afterwards.
     if (capture.response && store?.updateCaptureResponse(capture)?.updated) responses += 1;
   }
-  return {
+  const result = {
     ok: true,
     watch_id: watchId,
     source_id: sourceIdForWatch(watchId),
     total: captures.length,
     ingested,
     responses,
+    event_correlations: events.length,
   };
+  if (finalIngest) otelBodyEvents?.delete(watchId);
+  return result;
+}
+
+async function ingestOtelEvents(req, url, { otelBodyEvents }) {
+  const watchId = sanitizeApiLookupId(url.searchParams.get("watch_id"), { limit: MAX_API_REQUEST_ID_CHARS });
+  if (!watchId) throw httpError(400, "OTel event ingest requires watch_id");
+  const payload = await readJsonBody(req);
+  const incoming = extractOtelBodyEvents(payload, { maxEvents: MAX_OTEL_EVENTS_PER_WATCH });
+  const merged = mergeOtelBodyEvents(otelBodyEvents?.get(watchId) || [], incoming, { maxEvents: MAX_OTEL_EVENTS_PER_WATCH });
+  if (otelBodyEvents) {
+    otelBodyEvents.delete(watchId);
+    while (otelBodyEvents.size >= MAX_OTEL_EVENT_WATCHES) {
+      const oldestWatchId = otelBodyEvents.keys().next().value;
+      if (!oldestWatchId) break;
+      otelBodyEvents.delete(oldestWatchId);
+    }
+    otelBodyEvents.set(watchId, merged);
+  }
+  return { accepted: incoming.length, indexed: merged.length };
 }
 
 async function startWatch(req, { cwd, watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {
@@ -4660,6 +4710,8 @@ function expectedApiMethod(pathname) {
     case "/api/source/update":
     case "/api/trace/import":
     case "/api/capture/otel":
+    case "/api/capture/otel/events":
+    case "/api/capture/otel/traces":
     case "/api/daemon/shutdown":
       return "POST";
     default:
@@ -4700,6 +4752,15 @@ function validateOtelIngestIntent(req) {
   return {
     status: 403,
     message: "OTel ingest requires an explicit local wrapper ingest intent.",
+  };
+}
+
+function validateOtelEventIngestIntent(req) {
+  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
+  if (intent === OTEL_EVENT_INGEST_INTENT) return null;
+  return {
+    status: 403,
+    message: "OTel event ingest requires an explicit local telemetry intent.",
   };
 }
 

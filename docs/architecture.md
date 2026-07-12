@@ -1,6 +1,6 @@
 # peekMyAgent 当前架构
 
-更新时间：2026-07-11
+更新时间：2026-07-12
 
 本文描述当前代码真实运行方式。它是维护者和贡献者理解仓库的入口，不是未来架构愿景；演进计划见 [重构路线图](refactoring-roadmap.md)。
 
@@ -34,7 +34,9 @@ daemon、Viewer HTTP API 和静态资源服务由同一个 `startViewerServer()`
 | --- | --- |
 | `bin/peekmyagent.mjs` | CLI 命令路由、daemon 生命周期、Claude/OpenClaw wrapper、doctor、维护和卸载编排 |
 | `src/core/capture-proxy.mjs` | HTTP 转发、请求/响应截获、大小和请求边界 |
-| `src/core/otel-capture.mjs` | 扫描 Claude Code OTel raw-body dump 并生成 capture |
+| `src/core/otel-capture.mjs` | 扫描 Claude Code OTel raw-body dump、关联 request/response 并生成 capture |
+| `src/core/otel-events.mjs` | 提取 OTel raw-body log events 和 trace/span 关联字段 |
+| `src/core/provenance.mjs` | Capture 内容来源与关联置信度运行时契约 |
 | `src/core/persistence-store.mjs` | SQLite schema、watch/capture、内容 blob 和 request tree 持久化 |
 | `src/core/normalize.mjs` | 归一化 capture 的基础结构，目前主要由 CLI/实验脚本使用 |
 | `src/core/platform.mjs`、`paths.mjs`、`processes.mjs` | 跨平台路径、命令、进程和本机运行环境 |
@@ -71,7 +73,14 @@ Claude Code 的订阅/OAuth 请求可能拒绝经过改写代理。此时 CLI：
 3. 通过 `/api/capture/otel` 将新增请求和回复写入同一 SQLite store。
 4. Agent 退出后完成最后一次 ingest，并删除临时目录。
 
-OTel 的 body 来源是 Agent 官方遥测输出，但 request/response 目前按文件时间和顺序配对。展示层应把它视作“高可信原始内容 + 启发式关联”，而不是与代理抓包完全等价。
+OTel 的 body 来源是 Agent 官方遥测输出。wrapper 同时启用增强 OTel tracing，并把 raw-body log events 发送到 daemon 的本地专用入口。`api_request_body` 与 `api_response_body` 若携带相同的 `traceId + spanId`，会以该关联键精确配对；同一 span 内存在多个 request attempt 时，成功 response 归属事件序号最靠后的 attempt，并标为 `high`，较早 attempt 保持无 response。旧 Claude Code、事件丢失或 exporter 不可用时，仅在进程退出的最终 ingest 中按文件写入顺序兼容回退，并明确标为 `heuristic`。
+
+Capture 内的 `provenance` 将两个概念分开：
+
+- request/response artifact 的 `fidelity` 表示 JSON 正文是否来自 Agent 原始遥测文件；
+- `association.confidence` 表示 request 与 response 的配对证据强度。
+
+因此，OTel request body 可以是 `exact`，但其 response 关联仍可能是 `heuristic`。不能再用一个笼统的 `capture_confidence` 同时表达这两件事。
 
 当 `-c/--continue` 或 `-r/--resume` 选择复用已有监听时，OTel wrapper 会继续使用同一 `watch_id`；新一轮 dump 的 request index 从该 watch 当前最大值继续递增，从而与 proxy capture 保持一致的会话归属语义。
 

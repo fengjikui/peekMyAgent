@@ -33,6 +33,7 @@
   - 本地 API 显式限制 HTTP 方法：source/view/request/status/export/translation cache 等只读接口只接受 `GET`，watch/source update/import/send/shutdown/translation generate 等状态修改接口只接受 `POST`。
   - 页面发送消息到 Agent 的高敏入口 `/api/agent/send` 必须带 `x-peekmyagent-intent: agent-send`，避免普通脚本或误调用触发外部 Agent 进程。
   - OTel raw-body dump 入库入口 `/api/capture/otel` 必须带 `x-peekmyagent-intent: otel-ingest`，避免普通脚本或误调用触发本机目录扫描与持久化写入。
+  - OTel correlation 入口 `/api/capture/otel/events` 与 trace sink `/api/capture/otel/traces` 必须带 `x-peekmyagent-intent: otel-event-ingest`。daemon 只保留带 `body_ref` 的最小关联字段，完整 trace payload 读取后立即丢弃；事件索引限制为 32 个 watch、每个 2400 条，并在最终 ingest 后清理。
   - Trace 导入入口 `/api/trace/import` 必须带 `x-peekmyagent-intent: trace-import`，避免普通脚本或误调用触发解压、解析和本地 imports 写入。
   - 翻译生成入口 `/api/translations/generate` 必须带 `x-peekmyagent-intent: translation-generate`，避免普通脚本或误调用触发本地 Claude CLI / 模型服务请求。
   - 会话元数据入口 `/api/source/update` 必须带 `x-peekmyagent-intent: source-update`，避免普通脚本或误调用改名、归档或删除本地捕获数据。

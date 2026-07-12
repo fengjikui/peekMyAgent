@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
+import path from "node:path";
 import { baseNormalizedRequest, collectMessageRedactions, normalizeMessage, requestParams } from "../core/normalize.mjs";
 import { safeJsonShape } from "../core/redaction.mjs";
+import { createCaptureProvenance } from "../core/provenance.mjs";
 
 export function normalizeClaudeOtelRequestFile(filePath, options = {}) {
   const raw = fs.readFileSync(filePath, "utf8");
@@ -48,6 +50,12 @@ export function normalizeClaudeOtelRequestBody(body, options = {}) {
       raw_sha256: options.rawSha256 || null,
       delete_raw_after_read: Boolean(options.deleteRaw),
     },
+    provenance: createCaptureProvenance({
+      transport: "otel_raw_body_file",
+      request: { origin: "agent_telemetry", fidelity: "exact", artifact: options.sourcePath ? path.basename(options.sourcePath) : null },
+      response: { origin: null, fidelity: "missing", artifact: null },
+      association: { method: "none", confidence: "none" },
+    }),
     rawBodyShape: safeJsonShape(body),
   });
 }

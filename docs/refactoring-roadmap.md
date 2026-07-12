@@ -1,6 +1,6 @@
 # peekMyAgent 重构路线图
 
-更新时间：2026-07-10
+更新时间：2026-07-12
 
 这份路线图的目标不是“大改得更漂亮”，而是在不破坏现有用户闭环的前提下，让 peekMyAgent 能长期演进、方便外部贡献，并为更多 Agent 适配建立稳定边界。当前系统事实见 [架构文档](architecture.md)。
 
@@ -107,6 +107,12 @@ src/
 - 老数据库自动打开，新数据库记录明确 schema version。
 - 同一翻译块在脚本、Server 和 Client 中得到相同 key。
 
+当前进展（2026-07-12）：
+
+- 已建立 provenance v1 最小运行时契约，先用于 OTel raw-body request/response，分离正文 fidelity 与关联 confidence。
+- 已接入 Claude Code OTel body events，通过 `traceId + spanId` 精确关联 response，并保留旧版本顺序回退。
+- 尚未完成 Proxy、OpenClaw、file/import source 的统一 provenance，也尚未建立数据库 migration runner；阶段 1 仍未完成。
+
 ## 阶段 2：拆分 Viewer Server
 
 **目标：** 将 HTTP 门面与业务领域分开，不改变 API 行为。
@@ -202,9 +208,9 @@ src/
 - 让 Server、Client 和翻译脚本使用同一 fixture。
 - 范围小，能验证“共享契约优先”的重构方法。
 
-### PR 3：Trace provenance DTO
+### PR 3：扩展 Trace provenance DTO
 
-- 给 proxy、OTel、file、debug/event 和 heuristic association 建立统一来源字段。
+- 将已经用于 OTel 的 provenance v1 扩展到 proxy、file、debug/event 和其他 heuristic association。
 - 先在 detail/API 中暴露，不立刻重做 UI。
 - 为后续协议 normalizer 和多 Agent 展示打基础。
 

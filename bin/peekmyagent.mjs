@@ -1184,7 +1184,16 @@ async function runClaudeOtelAgent(parsed, viewerUrl, { conversationId, reuseWatc
   const watchId = reuseWatchId || `claude-code-otel-${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
   const reused = Boolean(reuseWatchId);
   const dumpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-otel-"));
-  const env = mergeClaudeCodeProcessEnv({ cwd: workspace, env: process.env, overrides: otelTelemetryEnv(dumpDir) });
+  const eventQuery = `watch_id=${encodeURIComponent(watchId)}`;
+  const env = mergeClaudeCodeProcessEnv({
+    cwd: workspace,
+    env: process.env,
+    overrides: otelTelemetryEnv(dumpDir, {
+      logsEndpoint: `${trimSlash(viewerUrl)}/api/capture/otel/events?${eventQuery}`,
+      tracesEndpoint: `${trimSlash(viewerUrl)}/api/capture/otel/traces?${eventQuery}`,
+      headers: "x-peekmyagent-intent=otel-event-ingest",
+    }),
+  });
   const ingestPayload = {
     dir: dumpDir,
     watch_id: watchId,
@@ -1192,10 +1201,15 @@ async function runClaudeOtelAgent(parsed, viewerUrl, { conversationId, reuseWatc
     workspace,
     conversation_id: conversationId,
     mode: optionValueIn(parsed.wrapperArgs, "--mode") || "single_session",
+    event_correlation_enabled: true,
   };
-  const ingest = async () => {
+  const ingest = async ({ final = false } = {}) => {
     try {
-      return await postJson(`${trimSlash(viewerUrl)}/api/capture/otel`, ingestPayload, { headers: { "x-peekmyagent-intent": "otel-ingest" } });
+      return await postJson(
+        `${trimSlash(viewerUrl)}/api/capture/otel`,
+        { ...ingestPayload, final },
+        { headers: { "x-peekmyagent-intent": "otel-ingest" } },
+      );
     } catch {
       return null;
     }
@@ -1217,7 +1231,7 @@ async function runClaudeOtelAgent(parsed, viewerUrl, { conversationId, reuseWatc
     childError = error;
   }
   clearInterval(timer);
-  const flushed = await ingest();
+  const flushed = await ingest({ final: true });
   fs.rmSync(dumpDir, { recursive: true, force: true });
   if (flushed) {
     console.error(`peekMyAgent captured ${flushed.total ?? 0} OTel request(s), ${flushed.responses ?? 0} response(s).`);

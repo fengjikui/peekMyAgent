@@ -42,6 +42,9 @@ assert.equal(claude.model, "claude-smoke-test");
 assert.equal(claude.system[0].role, "system");
 assert.equal(claude.messages[0].role, "user");
 assert.equal(claude.tools.length, 1);
+assert.equal(claude.provenance.request.fidelity, "exact");
+assert.equal(claude.provenance.response.fidelity, "missing");
+assert.equal(claude.provenance.association.confidence, "none");
 
 const claudeSystemBlocks = normalizeClaudeOtelRequestBody({
   model: "claude-smoke-test",

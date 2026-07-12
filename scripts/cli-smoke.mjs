@@ -45,6 +45,7 @@ assert.equal(openclaw.source.headers.authorization, "[REDACTED:header]");
 assert.equal(claude.adapter_name, "claude-code-otel-raw-body");
 assert.equal(claude.capture_confidence, "exact");
 assert.equal(claude.system[0].role, "system");
+assert.equal(claude.provenance.transport, "otel_raw_body_file");
 
 const devViewerStateDir = fs.mkdtempSync(path.join(os.tmpdir(), "peek-cli-dev-view-"));
 const devViewer = await startDevViewer(["dev", "view", "--port", "0"], {
