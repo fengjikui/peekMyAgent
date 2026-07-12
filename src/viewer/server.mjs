@@ -42,6 +42,7 @@ import {
 import { SourceRepository } from "../server/source-repository.mjs";
 import { importedTraceSourceFromDir as sourceFromImportedTraceDir, listImportedTraceSources } from "../server/imported-trace-source-provider.mjs";
 import { listFileSources } from "../server/file-source-provider.mjs";
+import { listPersistedSources } from "../server/persisted-source-provider.mjs";
 import { SOURCE_TEXT_LIMITS, sanitizeSourceText } from "../server/source-text.mjs";
 import {
   extractTranslationSchemaDescriptions,
@@ -800,44 +801,18 @@ function viewerSourceRepository(options) {
 }
 
 function persistedSources({ store, watches, sourceMeta }) {
-  if (!store) return [];
-  const activeWatchIds = new Set([...watches.values()].map((watch) => watch.watch_id));
-  return store
-    .listSources()
-    .filter((source) => !activeWatchIds.has(source.store_watch_id))
-    .map((source) => decoratePersistedSourceTitle(source, { store, sourceMeta }));
-}
-
-function decoratePersistedSourceTitle(source, { store, sourceMeta } = {}) {
-  const manualTitle = manualConversationTitle(sourceMeta, source);
-  if (manualTitle) return { ...source, label: cleanStoredSourceLabel(manualTitle) || manualTitle, user_title: manualTitle };
-  const storedTitle = sanitizeSourceTitle(source.user_title);
-  if (storedTitle) return { ...source, label: cleanStoredSourceLabel(storedTitle) || storedTitle, user_title: storedTitle };
-  const conversationTitle = conversationTitleForSource(store, source);
-  if (conversationTitle) return { ...source, label: cleanStoredSourceLabel(conversationTitle) || conversationTitle, user_title: conversationTitle };
-  const cleaned = cleanStoredSourceLabel(source.label);
-  if (cleaned && !isGenericPersistedSourceLabel(cleaned, source)) return { ...source, label: cleaned };
-  const captures = store?.loadInitialCaptures?.(source.store_watch_id, { limit: 5 }) || [];
-  const inferred = captures.map(inferCaptureTitle).find(Boolean);
-  if (inferred) return { ...source, label: inferred };
-  return cleaned ? { ...source, label: cleaned } : source;
-}
-
-function isGenericPersistedSourceLabel(label, source = {}) {
-  const value = String(label || "").trim();
-  if (!value) return true;
-  const agent = String(source.agent || "").trim();
-  const mode = source.mode ? modeLabel(source.mode) : "";
-  const genericLabels = new Set(
-    [
-      agent && mode ? `${agent} · ${mode}` : "",
-      agent && source.kind === "otel_raw_body" ? `${agent} · OTel` : "",
-      "Claude Code · 监控一个会话",
-      "Claude Code · OTel",
-      "OpenClaw · 监控一个会话",
-    ].filter(Boolean),
-  );
-  return genericLabels.has(value);
+  return listPersistedSources({
+    store,
+    watches,
+    titlePolicy: {
+      manualTitle: (source) => manualConversationTitle(sourceMeta, source),
+      conversationTitle: (source) => conversationTitleForSource(store, source),
+      sanitizeTitle: sanitizeSourceTitle,
+      cleanLabel: cleanStoredSourceLabel,
+      inferCaptureTitle,
+      modeLabel,
+    },
+  });
 }
 
 function importedTraceSources({ importsDir }) {

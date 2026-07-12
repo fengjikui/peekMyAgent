@@ -88,6 +88,7 @@
     "smoke:source-repository-contract": "node scripts/source-repository-contract-smoke.mjs",
     "smoke:imported-source-provider": "node scripts/imported-source-provider-smoke.mjs",
     "smoke:file-source-provider": "node scripts/file-source-provider-smoke.mjs",
+    "smoke:persisted-source-provider": "node scripts/persisted-source-provider-smoke.mjs",
     "smoke:source-meta": "node scripts/source-meta-persistence-smoke.mjs",
     "smoke:project-source-actions": "node scripts/project-source-actions-smoke.mjs",
     "smoke:large-response-compact": "node scripts/large-response-compact-smoke.mjs",
