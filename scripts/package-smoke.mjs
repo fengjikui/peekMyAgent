@@ -38,12 +38,15 @@ for (const required of [
   "src/core/platform.mjs",
   "src/core/otel-events.mjs",
   "src/core/provenance.mjs",
+  "src/core/source-identifiers.mjs",
   "src/server/http.mjs",
   "src/server/file-source-provider.mjs",
   "src/server/imported-trace-source-provider.mjs",
   "src/server/live-source-provider.mjs",
   "src/server/persisted-source-provider.mjs",
+  "src/server/source-lifecycle-service.mjs",
   "src/server/source-repository.mjs",
+  "src/server/source-metadata.mjs",
   "src/server/source-text.mjs",
   "src/persistence/migrations/index.mjs",
   "src/persistence/migrations/runner.mjs",
@@ -89,6 +92,6 @@ const deniedPatterns = [
 const deniedFiles = packageFiles.filter((file) => deniedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(deniedFiles, [], `npm package includes release-unsafe files: ${deniedFiles.join(", ")}`);
 
-assert.ok(packs[0].entryCount <= 53, `expected a compact package, got ${packs[0].entryCount} files`);
+assert.ok(packs[0].entryCount <= 56, `expected a compact package, got ${packs[0].entryCount} files`);
 
 console.log("package smoke passed");

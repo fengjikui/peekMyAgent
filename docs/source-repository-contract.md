@@ -30,9 +30,11 @@ repository 按以下固定顺序收集：
 
 repository 门面负责 provider 汇聚、运行时校验和 source 解析。custom evidence 与显式 demo 位于 `file-source-provider.mjs`；imported Trace 目录/manifest 位于 `imported-trace-source-provider.mjs`；SQLite source 的 live 去重、标题优先级和最小 capture 推断位于 `persisted-source-provider.mjs`；实时 watch 到 SourceSummary 的映射及请求/回复/子 Agent/Raw 统计位于 `live-source-provider.mjs`；通用文本约束位于 `source-text.mjs`。Trace 语义标题清洗与首条用户请求推断仍由 Viewer 作为 policy 注入，避免 provider 反向依赖消息解释。
 
-watch/proxy 生命周期和 source lifecycle 尚未迁出 Viewer Server，但四种 source 的列表 DTO 已由独立 provider 构造。这是明确的过渡边界。
+`source-metadata.mjs` 统一管理 live/stored/conversation 稳定别名、元数据合并、原子 sidecar 写入和 title/pin/hidden 装饰。`source-lifecycle-service.mjs` 通过显式端口管理单 source 与项目级 rename、pin、archive、delete；imported Trace 删除强制限制在 imports 根目录。Viewer 路由只保留 HTTP body 读取和依赖装配。
+
+watch/proxy 的创建、恢复、pause/resume/stop 生命周期仍在 Viewer Server；四种 source 的列表 DTO 和 source 更新生命周期已经独立。这是当前过渡边界。
 
 后续迁移顺序：
 
-1. source lifecycle service（rename/archive/delete/project 操作）；
-2. source capture reader（live/SQLite/file 的统一分页与 request window）。
+1. source capture reader（live/SQLite/file 的统一分页与 request window）；
+2. watch runtime service（start/reuse/restore/pause/resume/stop）。

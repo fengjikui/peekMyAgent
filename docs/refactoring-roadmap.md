@@ -143,7 +143,8 @@ src/
 - 已迁移 file/demo provider：custom evidence 与显式 demo 的定义、路径解析、可用性和统计开关不再由 Viewer Server 所有；默认仍不加载 demo。
 - 已迁移 persisted provider：SQLite source 与 live watch 去重、手动/存储/conversation/inferred 标题优先级由独立 provider 管理，消息语义通过 title policy 注入。
 - 已迁移 live provider：watch runtime 与 SourceSummary 映射分离，请求/回复/子 Agent/Raw/last_seen 统计由独立 provider 管理，标题语义通过单一策略注入。
-- 下一步迁移 source lifecycle service，并建立统一 capture reader，为后续分页 API 和 Trace domain 拆分铺路。
+- 已迁移 Source metadata 与 lifecycle：稳定别名、原子 sidecar、title/pin/hidden 装饰以及 rename/archive/delete/project 编排由独立模块管理，Viewer 路由只读取输入并装配端口。
+- 下一步建立统一 capture reader，为分页 API、Trace domain 和 watch runtime 拆分铺路。
 
 ## 阶段 3：拆分 Viewer Client
 

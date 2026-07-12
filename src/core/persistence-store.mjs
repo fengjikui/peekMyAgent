@@ -3,7 +3,10 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { defaultStateDir, defaultStorePath as resolveDefaultStorePath } from "./app-paths.mjs";
 import { buildOrderedRequestTree, reconstructFromRequestTree } from "./request-tree.mjs";
+import { sourceIdForWatch } from "./source-identifiers.mjs";
 import { migratePersistenceStore, persistenceSchemaVersion } from "../persistence/migrations/index.mjs";
+
+export { sourceIdForWatch, watchIdFromSourceId } from "./source-identifiers.mjs";
 
 const require = createRequire(import.meta.url);
 const PRIVATE_STORE_FILE_MODE = 0o600;
@@ -630,14 +633,6 @@ export class PersistenceStore {
       )
     `);
   }
-}
-
-export function sourceIdForWatch(watchId) {
-  return `stored-${watchId}`;
-}
-
-export function watchIdFromSourceId(sourceId) {
-  return sourceId?.startsWith("stored-") ? sourceId.slice("stored-".length) : null;
 }
 
 function byteLength(value) {

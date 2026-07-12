@@ -6,8 +6,10 @@ import { startViewerServer } from "../src/viewer/server.mjs";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "peek-security-boundary-"));
 const storePath = path.join(tmp, "store.sqlite");
+const originalStateDir = process.env.PEEKMYAGENT_STATE_DIR;
 
 try {
+  process.env.PEEKMYAGENT_STATE_DIR = tmp;
   await assert.rejects(
     () => startViewerServer({ cwd: process.cwd(), storePath, host: "0.0.0.0" }),
     /Refusing to bind peekMyAgent to non-loopback host/,
@@ -432,6 +434,8 @@ try {
   }
   console.log("security-boundary smoke: OK");
 } finally {
+  if (originalStateDir == null) delete process.env.PEEKMYAGENT_STATE_DIR;
+  else process.env.PEEKMYAGENT_STATE_DIR = originalStateDir;
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 
