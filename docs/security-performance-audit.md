@@ -92,6 +92,7 @@
 - Compact 首屏进一步截短 system/assistant/internal preview、entry 文本和 response 重复预览，只保留时间线直接展示所需的 composition 分区；完整内容由 `/api/request` 单请求详情恢复。
 - Compact 首屏不再携带 Raw headers、上游 response headers、重复的 `response.preview` 和完整 `context_delta.previews.command_message` 对象；真实 137 请求 Trace 的 compact payload 从约 2.16MB 降到约 1.54MB，合成 420 请求样本从约 4.58MB 降到约 3.90MB。
 - Trace 导出直接读取 source 的 raw captures 并执行脱敏打包，不再先构建完整 viewer timeline，避免大 Trace 导出触发 turns、agent trace、context diff 等重计算。
+- Trace 导入/导出安全策略已收拢到 `TraceBundleService`，HTTP、未来 CLI 或桌面入口必须复用同一限额、脱敏、provenance 和安全目录契约。
 - Raw JSON 搜索增加 debounce，减少大 JSON 下的连续重渲染。
 - 切换/刷新视图时清理旧翻译 action 状态，避免长时间使用后积累无效 UI 状态。
 - 重命名持久化到 SQLite/import manifest，刷新后不再恢复旧标题。

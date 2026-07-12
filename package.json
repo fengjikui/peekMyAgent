@@ -72,6 +72,7 @@
     "smoke:watch-pause-resume": "node scripts/watch-pause-resume-smoke.mjs",
     "smoke:agent-trace-view": "node scripts/agent-trace-view-smoke.mjs",
     "smoke:trace-bundle": "node scripts/trace-bundle-smoke.mjs",
+    "smoke:trace-bundle-service-contract": "node scripts/trace-bundle-service-contract-smoke.mjs",
     "smoke:timeline-display": "node scripts/timeline-display-invariants-check.mjs --strict",
     "smoke:timeline-window": "node scripts/timeline-window-smoke.mjs",
     "smoke:markdown-safety": "node scripts/markdown-safety-smoke.mjs",

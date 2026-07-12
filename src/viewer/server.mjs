@@ -4,15 +4,12 @@ import { execFile } from "node:child_process";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { startCaptureProxy, startSharedCaptureProxy } from "../core/capture-proxy.mjs";
 import { importedTracesDir, safePathSegment, translationsDir } from "../core/app-paths.mjs";
 import { claudeCodeProxySettingsArgs, mergeClaudeCodeProcessEnv, resolveClaudeCodeTargetBaseUrl } from "../core/claude-code-settings.mjs";
 import { childProcessSpawnConfig, isAccessibleDirectory, safeProcessCwd, userHome } from "../core/platform.mjs";
 import { openPersistenceStore } from "../core/persistence-store.mjs";
-import { captureProvenanceOr, importedTraceProvenance } from "../core/provenance.mjs";
-import { redactText } from "../core/redaction.mjs";
 import { sourceIdForWatch, watchIdFromSourceId } from "../core/source-identifiers.mjs";
 import { clearViewerRegistry, writeViewerRegistry } from "../core/viewer-registry.mjs";
 import { resolveTraeCnDynamicRoute } from "../adapters/trae-cn-integration.mjs";
@@ -60,6 +57,7 @@ import {
   stableSourceMetaKeys,
 } from "../server/source-metadata.mjs";
 import { SOURCE_TEXT_LIMITS, sanitizeSourceText } from "../server/source-text.mjs";
+import { TRACE_BUNDLE_LIMITS, TraceBundleService } from "../server/trace-bundle-service.mjs";
 import {
   extractTranslationSchemaDescriptions,
   isSkippableTranslationMaterial,
@@ -79,9 +77,6 @@ import {
 
 const viewerDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(viewerDir, "../..");
-const MAX_TRACE_IMPORT_BYTES = 64 * 1024 * 1024;
-const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
-const MAX_TRACE_IMPORT_CAPTURES = 5000;
 const MAX_SOURCE_TITLE_CHARS = SOURCE_TEXT_LIMITS.title;
 const MAX_TRACE_TITLE_CHARS = SOURCE_TEXT_LIMITS.traceTitle;
 const MAX_SOURCE_AGENT_CHARS = SOURCE_TEXT_LIMITS.agent;
@@ -96,8 +91,6 @@ const MAX_API_SOURCE_ID_CHARS = 512;
 const MAX_API_REQUEST_ID_CHARS = 256;
 const MAX_OTEL_EVENT_WATCHES = 32;
 const MAX_OTEL_EVENTS_PER_WATCH = 2400;
-const MAX_TRACE_EXPORT_REDACTION_DEPTH = 64;
-const MAX_TRACE_EXPORT_REDACTION_NODES = 200000;
 const MAX_TRANSLATION_CONCURRENCY = 100;
 const MAX_TRANSLATION_MATERIALS = 1500;
 const MAX_TRANSLATION_MATERIAL_CHARS = 200000;
@@ -292,13 +285,14 @@ async function handleRequest(req, res, options) {
     if (rejectWrongMethod(req, res, "POST")) return;
     const intentGuard = validateTraceImportIntent(req);
     if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    return writeJson(res, 200, await importTraceBundle(req, options));
+    const buffer = await readRawBody(req, { maxBytes: TRACE_BUNDLE_LIMITS.importBytes });
+    return writeJson(res, 200, traceBundleService(options).import(buffer));
   }
   if (url.pathname === "/api/trace/export") {
     if (rejectWrongMethod(req, res, "GET")) return;
     const intentGuard = validateTraceExportIntent(req);
     if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    return exportTraceBundle(res, url.searchParams.get("source") || "", options);
+    return exportTraceBundleResponse(res, url.searchParams.get("source") || "", options);
   }
   if (url.pathname === "/api/capture/otel") {
     if (rejectWrongMethod(req, res, "POST")) return;
@@ -1450,248 +1444,31 @@ function sourceLifecycleService(options) {
   });
 }
 
-function exportTraceBundle(res, sourceId, options) {
-  const data = loadTraceExportData(sourceId, options);
-  const bundle = buildTraceBundle(data);
-  const fileBase = safeFileName(`peekmyagent-trace-${bundle.manifest.trace_id}-${bundle.manifest.exported_at.slice(0, 10)}`);
-  const payload = Buffer.from(`${JSON.stringify(bundle, null, 2)}\n`, "utf8");
-  const gzipped = zlib.gzipSync(payload);
+function exportTraceBundleResponse(res, sourceId, options) {
+  const exported = traceBundleService(options).export(sourceId);
   res.writeHead(200, {
     ...viewerSecurityHeaders(),
     "content-type": "application/gzip",
-    "content-disposition": `attachment; filename="${fileBase}.peektrace.json.gz"`,
+    "content-disposition": `attachment; filename="${exported.filename}"`,
     "cache-control": "no-store",
-    "x-peekmyagent-trace-id": bundle.manifest.trace_id,
+    "x-peekmyagent-trace-id": exported.bundle.manifest.trace_id,
   });
-  res.end(gzipped);
+  res.end(exported.buffer);
 }
 
-function loadTraceExportData(sourceId, options) {
-  sourceId = sanitizeApiLookupId(sourceId, { limit: MAX_API_SOURCE_ID_CHARS });
-  const sources = viewerSourceRepository(options).list({ includeStats: false });
-  if (!sources.length) throw new Error("No viewer sources configured");
-  if (!sourceId) throw httpError(400, "Trace export requires a source id.");
-  const source = sources.find((item) => item.id === sourceId);
-  if (!source) throw httpError(404, `Trace source not found: ${sourceId}`);
-  return { source, captures: sourceCaptureReader(options).readAll(source).captures };
-}
-
-function buildTraceBundle(data) {
-  const rawCaptures = (data.captures || []).filter(Boolean);
-  const exportRedaction = redactTraceExportValue(rawCaptures);
-  const captures = exportRedaction.value;
-  const traceId = crypto.createHash("sha256").update(JSON.stringify(captures.map((capture) => capture.capture_id || capture.request_index || ""))).digest("hex").slice(0, 12);
-  const stats = traceBundleStats(captures);
-  return {
-    format: "peekmyagent.trace.v1",
-    manifest: {
-      trace_id: traceId,
-      exported_at: new Date().toISOString(),
-      title: data.source?.label || data.source?.id || "peekMyAgent Trace",
-      source_id: data.source?.id || null,
-      request_count: captures.length,
-      response_count: stats.response_count,
-      subagent_count: stats.subagent_count,
-      raw_body_bytes: stats.raw_body_bytes,
-      export_kind: "sanitized_share_bundle",
-      redaction: {
-        applied: true,
-        strategy: "secret-patterns-in-string-values",
-        count: exportRedaction.redactions.length,
-      },
-      privacy_notice: "This portable trace is sanitized for common secret/token patterns, but may still contain private prompts, code, file paths, tool results, or business data. Review before sharing.",
-      note: "Portable peekMyAgent trace bundle. Import in the dashboard for readonly viewing.",
+function traceBundleService(options) {
+  return new TraceBundleService({
+    repository: viewerSourceRepository(options),
+    captureReader: sourceCaptureReader(options),
+    importsDir: options.importsDir,
+    importedSourceFromDir: importedTraceSourceFromDir,
+    sanitizeTitle: sanitizeTraceTitle,
+    sanitizeSourceId: (value) => sanitizeApiLookupId(value, { limit: MAX_API_SOURCE_ID_CHARS }),
+    errors: {
+      client: (message) => httpError(400, message),
+      tooLarge: (message) => httpError(413, message),
     },
-    source: {
-      id: data.source?.id || null,
-      label: data.source?.label || null,
-      agent: data.source?.agent || null,
-      confidence: data.source?.confidence || null,
-      kind: data.source?.kind || null,
-      workspace: data.source?.workspace || null,
-      conversation_id: data.source?.conversation_id || null,
-    },
-    captures,
-  };
-}
-
-function traceBundleStats(captures) {
-  return {
-    response_count: captures.filter((capture) => capture?.response).length,
-    subagent_count: captures.filter((capture) => headerValue(capture?.headers, "x-claude-code-agent-id")).length,
-    raw_body_bytes: captures.reduce((sum, capture) => sum + (Number(capture?.raw_body_length) || byteLength(capture?.body)), 0),
-  };
-}
-
-function redactTraceExportValue(value, pathParts = [], context = { nodes: 0 }) {
-  const fieldPath = pathParts.length ? pathParts.join(".") : "trace";
-  if (pathParts.length && isSensitiveTraceExportField(pathParts[pathParts.length - 1])) {
-    return redactedTraceExportMarker(fieldPath, "trace_export_sensitive_field");
-  }
-  if (pathParts.length > MAX_TRACE_EXPORT_REDACTION_DEPTH) {
-    return redactedTraceExportMarker(fieldPath, "trace_export_max_depth");
-  }
-  if (context.nodes >= MAX_TRACE_EXPORT_REDACTION_NODES) {
-    return redactedTraceExportMarker(fieldPath, "trace_export_node_budget");
-  }
-  context.nodes += 1;
-  if (typeof value === "string") {
-    return redactText(value, fieldPath);
-  }
-  if (Array.isArray(value)) {
-    const redactions = [];
-    const output = [];
-    for (const [index, item] of value.entries()) {
-      if (context.nodes >= MAX_TRACE_EXPORT_REDACTION_NODES) {
-        const child = redactedTraceExportMarker(fieldPath, "trace_export_node_budget");
-        redactions.push(...child.redactions);
-        output.push(child.value);
-        break;
-      }
-      const child = redactTraceExportValue(item, [...pathParts, String(index)], context);
-      redactions.push(...child.redactions);
-      output.push(child.value);
-    }
-    return { value: output, redactions };
-  }
-  if (value && typeof value === "object") {
-    const redactions = [];
-    const output = {};
-    for (const [key, childValue] of Object.entries(value)) {
-      if (context.nodes >= MAX_TRACE_EXPORT_REDACTION_NODES) {
-        const child = redactedTraceExportMarker(fieldPath, "trace_export_node_budget");
-        redactions.push(...child.redactions);
-        output.__peekmyagent_redacted__ = child.value;
-        break;
-      }
-      const child = redactTraceExportValue(childValue, [...pathParts, key], context);
-      redactions.push(...child.redactions);
-      output[key] = child.value;
-    }
-    return { value: output, redactions };
-  }
-  return { value, redactions: [] };
-}
-
-function redactedTraceExportMarker(fieldPath, reason) {
-  return {
-    value: `[REDACTED:${reason}]`,
-    redactions: [{ field_path: fieldPath, reason }],
-  };
-}
-
-function isSensitiveTraceExportField(fieldName) {
-  return /authorization|api[-_]?key|x-api-key|cookie|token|secret|password|credential|session[-_]?id/i.test(String(fieldName || ""));
-}
-
-async function importTraceBundle(req, options) {
-  const buffer = await readRawBody(req, { maxBytes: MAX_TRACE_IMPORT_BYTES });
-  const bundle = parseTraceBundle(buffer);
-  const captures = validateTraceBundle(bundle);
-  fs.mkdirSync(options.importsDir, { recursive: true, mode: 0o700 });
-  const traceId = safeFileName(bundle.manifest?.trace_id || traceIdForCaptures(captures));
-  const dir = uniqueImportDir(options.importsDir, traceId);
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const importedAt = new Date().toISOString();
-  const title = sanitizeTraceTitle(bundle.manifest?.title || bundle.source?.label, `Imported trace ${traceId}`);
-  const manifest = {
-    ...(bundle.manifest || {}),
-    trace_id: traceId,
-    imported_at: importedAt,
-    title,
-    source: bundle.source || {},
-    format: bundle.format || "peekmyagent.trace.v1",
-  };
-  fs.writeFileSync(path.join(dir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
-  fs.writeFileSync(path.join(dir, "proxy-captures.json"), `${JSON.stringify(captures, null, 2)}\n`, { mode: 0o600 });
-  const source = importedTraceSourceFromDir(dir, path.basename(dir));
-  return {
-    ok: true,
-    imported: true,
-    source,
-    source_id: source?.id || null,
-    request_count: captures.length,
-    sources: listSources(options),
-  };
-}
-
-function parseTraceBundle(buffer) {
-  if (!buffer?.length) throw new Error("Trace bundle is empty.");
-  if (buffer.length > MAX_TRACE_IMPORT_BYTES) throw httpError(413, `Trace bundle is too large. Limit is ${formatBytes(MAX_TRACE_IMPORT_BYTES)}.`);
-  let payload;
-  try {
-    payload = isGzipBuffer(buffer) ? zlib.gunzipSync(buffer, { maxOutputLength: MAX_TRACE_IMPORT_UNZIPPED_BYTES }) : buffer;
-  } catch (error) {
-    if (/maxOutputLength|too large|buffer/i.test(error?.message || "")) {
-      throw httpError(413, `Trace bundle expands beyond ${formatBytes(MAX_TRACE_IMPORT_UNZIPPED_BYTES)}.`);
-    }
-    throw error;
-  }
-  if (payload.length > MAX_TRACE_IMPORT_UNZIPPED_BYTES) throw httpError(413, `Trace bundle expands beyond ${formatBytes(MAX_TRACE_IMPORT_UNZIPPED_BYTES)}.`);
-  try {
-    return JSON.parse(payload.toString("utf8"));
-  } catch {
-    throw new Error("Trace bundle must be a peekMyAgent .peektrace.json.gz or JSON file.");
-  }
-}
-
-function validateTraceBundle(bundle) {
-  if (!bundle || typeof bundle !== "object") throw new Error("Invalid trace bundle.");
-  if (bundle.format && bundle.format !== "peekmyagent.trace.v1") throw new Error(`Unsupported trace bundle format: ${bundle.format}`);
-  const captures = Array.isArray(bundle.captures) ? bundle.captures : Array.isArray(bundle["proxy-captures"]) ? bundle["proxy-captures"] : null;
-  if (!captures?.length) throw new Error("Trace bundle does not contain captures.");
-  if (captures.length > MAX_TRACE_IMPORT_CAPTURES) throw httpError(413, `Trace bundle contains too many captures. Limit is ${MAX_TRACE_IMPORT_CAPTURES}.`);
-  for (const [index, capture] of captures.entries()) {
-    if (!capture || typeof capture !== "object") throw new Error(`Invalid capture at index ${index}.`);
-    capture.capture_id ||= crypto.randomUUID();
-    capture.watch_id ||= bundle.source?.id || bundle.manifest?.trace_id || "imported-trace";
-    capture.request_index ||= index + 1;
-    capture.provenance = captureProvenanceOr(capture.provenance, () => importedTraceProvenance(capture));
-  }
-  return captures;
-}
-
-function traceIdForCaptures(captures) {
-  return crypto
-    .createHash("sha256")
-    .update(JSON.stringify(captures.map((capture) => [capture.capture_id, capture.request_index, capture.received_at])))
-    .digest("hex")
-    .slice(0, 12);
-}
-
-function uniqueImportDir(root, traceId) {
-  const resolvedRoot = path.resolve(root || "");
-  const safeTraceId = safeFileName(traceId);
-  let candidate = safeImportChildDir(resolvedRoot, safeTraceId);
-  let suffix = 2;
-  while (fs.existsSync(candidate)) {
-    candidate = safeImportChildDir(resolvedRoot, `${safeTraceId}-${suffix}`);
-    suffix += 1;
-  }
-  return candidate;
-}
-
-function safeImportChildDir(root, childName) {
-  const target = path.resolve(root, childName);
-  const relative = path.relative(root, target);
-  if (!root || !relative || relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error("Refusing to create an imported trace outside the imports directory.");
-  }
-  return target;
-}
-
-function isGzipBuffer(buffer) {
-  return buffer[0] === 0x1f && buffer[1] === 0x8b;
-}
-
-function safeFileName(value) {
-  const text = String(value || "trace")
-    .replace(/[^a-zA-Z0-9._-]+/g, "-")
-    .replace(/\.\.+/g, ".")
-    .replace(/^-+|-+$/g, "")
-    .replace(/^\.+|\.+$/g, "")
-    .slice(0, 120);
-  return text || "trace";
+  });
 }
 
 async function stopWatch(req, { watches, sourceMeta, sourceMetaPath, store }) {

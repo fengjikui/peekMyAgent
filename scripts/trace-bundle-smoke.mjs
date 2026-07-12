@@ -70,7 +70,7 @@ try {
     });
 
     const exported = await fetchBuffer(`${viewer.url}/api/trace/export?source=${encodeURIComponent(watch.id)}`);
-    assert.equal(exported.status, 200);
+    assert.equal(exported.status, 200, exported.status === 200 ? "trace export succeeds" : exported.buffer.toString("utf8"));
     assert.match(exported.headers.get("content-disposition") || "", /\.peektrace\.json\.gz/);
     const bundle = JSON.parse(zlib.gunzipSync(exported.buffer).toString("utf8"));
     const bundleText = JSON.stringify(bundle);
