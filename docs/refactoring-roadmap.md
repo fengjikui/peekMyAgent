@@ -147,7 +147,8 @@ src/
 - 已建立统一 SourceCaptureReader：live/SQLite/file 的首屏、单请求窗口和 raw export 走同一协议；SQLite detail 与 export 快速路径由回归测试锁定。
 - 已开始拆 Trace domain：消息等价与 Context Delta 已独立，主/子 Agent context chain、fixed-context 变化和本轮工具事件由直接契约覆盖。
 - 已迁移 Turn Timeline：用户轮次边界、内部请求暂存以及工具/context 统计由独立模块管理，避免子 Agent 或 metadata 产生幽灵 Turn。
-- 下一步迁移 subagent lineage 与 agent graph；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
+- 已迁移 Subagent Graph：Header 强实例关联、OTel prompt 回配、spawn/return 配对、分支步骤和 Turn 归属由独立 Trace Domain 管理。
+- 下一步拆 translation/bundle service；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
 
 ## 阶段 3：拆分 Viewer Client
 

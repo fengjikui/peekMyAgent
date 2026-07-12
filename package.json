@@ -96,6 +96,7 @@
     "smoke:message-equivalence-contract": "node scripts/message-equivalence-contract-smoke.mjs",
     "smoke:context-delta-contract": "node scripts/context-delta-contract-smoke.mjs",
     "smoke:turn-timeline-contract": "node scripts/turn-timeline-contract-smoke.mjs",
+    "smoke:subagent-graph-contract": "node scripts/subagent-graph-contract-smoke.mjs",
     "smoke:source-meta": "node scripts/source-meta-persistence-smoke.mjs",
     "smoke:project-source-actions": "node scripts/project-source-actions-smoke.mjs",
     "smoke:large-response-compact": "node scripts/large-response-compact-smoke.mjs",

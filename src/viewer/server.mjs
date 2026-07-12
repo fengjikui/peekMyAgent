@@ -71,6 +71,11 @@ import {
 import { translationMaterialHash } from "../translation/hash.mjs";
 import { annotateRequestContextChanges } from "../trace/context-delta.mjs";
 import { buildTurnTimeline as buildTraceTurnTimeline } from "../trace/turn-timeline.mjs";
+import {
+  annotateSubagentLineage as annotateTraceSubagentLineage,
+  attachSubagentGraphToTurns,
+  buildSubagentGraph,
+} from "../trace/subagent-graph.mjs";
 
 const viewerDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(viewerDir, "../..");
@@ -2029,11 +2034,12 @@ function capturesForWatch(watch) {
 
 function buildViewerDataFromCaptures({ source, captures, debugSources = [], command = null, partial = null }) {
   const requests = captures.map((capture, index) => summarizeCapture(capture, source, index, debugSources[index] || null));
+  const graphSemantics = subagentGraphSemantics();
+  annotateTraceSubagentLineage(requests, graphSemantics);
   annotateRequestChanges(requests);
-  annotateSubagentLineage(requests);
   const turns = buildTurnTimeline(requests);
-  const agentTrace = buildAgentTrace(requests);
-  attachAgentTraceToTurns(turns, agentTrace);
+  const agentTrace = buildSubagentGraph(requests, graphSemantics);
+  attachSubagentGraphToTurns(turns, agentTrace);
   const stats = viewerStatsWithSourceTotals(buildStats(requests, agentTrace), source, partial);
   return {
     generated_at: new Date().toISOString(),
@@ -2474,20 +2480,32 @@ function buildTurnTimeline(requests) {
   });
 }
 
+function subagentGraphSemantics() {
+  return {
+    extractHistoryToolCalls(request) {
+      return extractToolCalls(Array.isArray(request.raw?.body?.messages) ? request.raw.body.messages : []);
+    },
+    firstUserPromptText,
+    normalizePrompt: normalizeTranslationSourceText,
+    previewText: textPreview,
+    stableJson,
+    childAgentType(request, spawn) {
+      if (spawn?.subagent_type) return spawn.subagent_type;
+      const debug = request?.debug_source || request?.trace?.debug_source || "";
+      if (debug.startsWith("agent:")) return debug.replace(/^agent:/, "");
+      return "Subagent";
+    },
+  };
+}
+
 // Subagent attribution that survives OTel (subscription) capture. The header
 // (x-claude-code-agent-id) and debug source agent:* signals only exist on the
 // proxy path; OTel dumps the body only. But the body still links parent↔child:
 // a subagent's first user message equals the prompt of a parent `Agent` tool_use,
 // and all rounds of one subagent share that same initial prompt. We derive a
-// synthetic per-instance id (body:<promptHash>) so buildAgentTrace groups the
+// synthetic per-instance id (body:<promptHash>) so the subagent graph groups the
 // branch, and mark source_hint=subagent so turn grouping nests it under the
 // parent turn instead of spawning a phantom turn.
-function subagentPromptKey(text) {
-  const normalized = normalizeTranslationSourceText(text || "");
-  if (!normalized || normalized.length < 8) return "";
-  return crypto.createHash("sha256").update(normalized).digest("hex");
-}
-
 function firstUserPromptText(request) {
   const messages = request.raw?.body?.messages;
   if (!Array.isArray(messages)) return "";
@@ -2499,251 +2517,6 @@ function firstUserPromptText(request) {
     return "";
   }
   return "";
-}
-
-function annotateSubagentLineage(requests) {
-  // Collect Agent/Task spawn prompts from both response tool_calls and the
-  // assistant tool_use blocks in history (the latter survives even when the
-  // OTel response file for the parent request wasn't paired).
-  const spawnByPromptKey = new Map();
-  for (const request of requests) {
-    const responseCalls = request.summary?.response?.tool_calls || [];
-    const historyCalls = extractToolCalls(Array.isArray(request.raw?.body?.messages) ? request.raw.body.messages : []);
-    for (const call of [...responseCalls, ...historyCalls]) {
-      if (!isAgentSpawnTool(call.name)) continue;
-      const promptText = call.arguments?.prompt || call.arguments?.task || "";
-      const key = subagentPromptKey(promptText);
-      if (!key || spawnByPromptKey.has(key)) continue;
-      spawnByPromptKey.set(key, {
-        subagent_type: call.arguments?.subagent_type || call.arguments?.agentType || call.arguments?.type || null,
-        description: call.arguments?.description || call.arguments?.taskName || "",
-      });
-    }
-  }
-  if (!spawnByPromptKey.size) return;
-
-  for (const request of requests) {
-    if (request.is_subagent) continue; // proxy header path already classified it
-    if (request.source_hint?.type === "metadata") continue;
-    const key = subagentPromptKey(firstUserPromptText(request));
-    if (!key) continue;
-    const spawn = spawnByPromptKey.get(key);
-    if (!spawn) continue;
-    const instanceId = `body:${key.slice(0, 12)}`;
-    const typeLabel = spawn.subagent_type || "子 Agent";
-    request.is_subagent = true;
-    request.subagent_type = spawn.subagent_type || null;
-    request.source_hint = { type: "subagent", label: `${typeLabel} 子 Agent`, confidence: "medium" };
-    request.trace = {
-      ...request.trace,
-      actor_type: "child",
-      claude_agent_id: request.trace?.claude_agent_id || instanceId,
-      subagent_prompt_key: key,
-    };
-  }
-}
-
-function buildAgentTrace(requests) {
-  const requestById = new Map(requests.map((request) => [request.id, request]));
-  const spawnCalls = [];
-  const childGroups = new Map();
-  // Pair body-detected branches (claude_agent_id = body:<promptHash>) to their
-  // spawn by prompt hash; header-based branches keep the order-based pairing.
-  const spawnByPromptKey = new Map();
-  for (const request of requests) {
-    const agentId = request.trace?.claude_agent_id || null;
-    if (agentId) {
-      if (!childGroups.has(agentId)) childGroups.set(agentId, []);
-      childGroups.get(agentId).push(request);
-    }
-    for (const call of request.summary?.response?.tool_calls || []) {
-      if (isAgentSpawnTool(call.name)) {
-        const promptKey = subagentPromptKey(call.arguments?.prompt || call.arguments?.task || "");
-        const spawnRecord = {
-          id: call.id || `spawn-${request.request_index}-${spawnCalls.length + 1}`,
-          name: call.name || "Agent",
-          parent_request_id: request.id,
-          parent_request_index: request.request_index,
-          order: spawnCalls.length,
-          label: agentSpawnLabel(call),
-          description: textPreview(call.arguments?.description || call.arguments?.taskName || call.arguments?.subagent_type || "", 120),
-          prompt_preview: textPreview(call.arguments?.prompt || call.arguments?.task || "", 220),
-          subagent_type: call.arguments?.subagent_type || call.arguments?.agentType || call.arguments?.type || null,
-          raw_arguments: call.arguments ?? null,
-        };
-        spawnCalls.push(spawnRecord);
-        if (promptKey && !spawnByPromptKey.has(promptKey)) spawnByPromptKey.set(promptKey, spawnRecord);
-      }
-    }
-  }
-
-  const parentReturns = [];
-  const spawnById = new Map(spawnCalls.map((call) => [call.id, call]));
-  for (const request of requests) {
-    for (const result of request.summary?.current_tool_results || []) {
-      const spawn = result.id ? spawnById.get(result.id) : null;
-      if (!spawn) continue;
-      parentReturns.push({
-        spawn_id: spawn.id,
-        parent_request_id: request.id,
-        parent_request_index: request.request_index,
-        result_preview: textPreview(result.content, 260),
-      });
-    }
-  }
-  const returnBySpawnId = new Map(parentReturns.map((item) => [item.spawn_id, item]));
-  const sortedChildGroups = [...childGroups.entries()]
-    .map(([agentId, groupRequests]) => [agentId, [...groupRequests].sort(compareRequestsByIndex)])
-    .sort((left, right) => compareRequestsByIndex(left[1][0], right[1][0]));
-
-  const branches = sortedChildGroups.map(([agentId, groupRequests], index) => {
-    const promptKey = groupRequests[0]?.trace?.subagent_prompt_key || null;
-    const spawn = (promptKey && spawnByPromptKey.get(promptKey)) || spawnCalls[index] || null;
-    const returned = spawn ? returnBySpawnId.get(spawn.id) || null : null;
-    const requestIds = groupRequests.map((request) => request.id);
-    const responseToolCallCount = groupRequests.reduce((sum, request) => sum + (request.summary?.response?.tool_calls?.length || 0), 0);
-    const requestToolResultCount = groupRequests.reduce((sum, request) => sum + (request.summary?.current_tool_results?.length || 0), 0);
-    return {
-      id: `branch-${index + 1}-${agentId}`,
-      label: spawn?.description || spawn?.subagent_type || `子 Agent ${index + 1}`,
-      agent_id: agentId,
-      agent_type: childAgentType(groupRequests[0], spawn),
-      confidence: spawn ? "high_ordered" : "high_agent_id",
-      linkage_note: spawn
-        ? "通过子 Agent 实例顺序与父级 Agent tool_use 顺序关联；子分支内部由 x-claude-code-agent-id 强关联。"
-        : "通过 x-claude-code-agent-id 强关联；未找到可配对的父级 Agent tool_use。",
-      spawn: spawn
-        ? {
-            id: spawn.id,
-            name: spawn.name,
-            parent_request_id: spawn.parent_request_id,
-            parent_request_index: spawn.parent_request_index,
-            label: spawn.label,
-            description: spawn.description,
-            prompt_preview: spawn.prompt_preview,
-            subagent_type: spawn.subagent_type,
-          }
-        : null,
-      return: returned,
-      request_ids: requestIds,
-      request_indexes: groupRequests.map((request) => request.request_index),
-      first_request_index: groupRequests[0]?.request_index || null,
-      last_request_index: groupRequests.at(-1)?.request_index || null,
-      response_tool_call_count: responseToolCallCount,
-      request_tool_result_count: requestToolResultCount,
-      status: returned ? "returned" : groupRequests.some((request) => request.summary?.response?.finish_reason === "end_turn") ? "completed" : "running",
-      steps: groupRequests.map((request, stepIndex) => ({
-        request_id: request.id,
-        request_index: request.request_index,
-        response_id: request.summary?.response?.message_id || null,
-        response_captured: Boolean(request.summary?.response?.captured),
-        finish_reason: request.summary?.response?.finish_reason || null,
-        response_tool_calls: (request.summary?.response?.tool_calls || []).map((call) => ({
-          id: call.id || null,
-          name: call.name || "unknown",
-          arguments_preview: textPreview(stableJson(call.arguments ?? null), 180),
-        })),
-        request_tool_results: (request.summary?.current_tool_results || []).map((result) => ({
-          id: result.id || null,
-          content_preview: textPreview(result.content, 160),
-        })),
-        response_preview: textPreview(request.summary?.response?.preview || request.summary?.response?.text || "", stepIndex ? 220 : 120),
-      })),
-    };
-  });
-
-  for (const [branchIndex, branch] of branches.entries()) {
-    for (const requestId of branch.request_ids) {
-      const request = requestById.get(requestId);
-      if (request) {
-        request.trace.branch_id = branch.id;
-        request.trace.agent_branch = {
-          id: branch.id,
-          index: branchIndex + 1,
-          label: branch.label,
-          agent_id: branch.agent_id,
-          agent_type: branch.agent_type,
-          status: branch.status,
-        };
-      }
-    }
-    if (branch.spawn?.parent_request_id) {
-      const request = requestById.get(branch.spawn.parent_request_id);
-      if (request) {
-        request.trace.spawn_branch_ids ||= [];
-        request.trace.spawn_branch_ids.push(branch.id);
-      }
-    }
-    if (branch.return?.parent_request_id) {
-      const request = requestById.get(branch.return.parent_request_id);
-      if (request) {
-        request.trace.returned_branch_ids ||= [];
-        request.trace.returned_branch_ids.push(branch.id);
-      }
-    }
-  }
-
-  return {
-    version: 1,
-    branch_count: branches.length,
-    spawn_count: spawnCalls.length,
-    return_count: parentReturns.length,
-    confidence: branches.length ? (spawnCalls.length >= branches.length && parentReturns.length ? "high" : "medium") : "none",
-    signals: {
-      child_instance: "x-claude-code-agent-id",
-      child_type: "debug source agent:*",
-      request_response_pair: "capture_id/request_index",
-      parent_spawn: "response Agent tool_use",
-      parent_return: "request Agent tool_result",
-    },
-    branches,
-    spawns: spawnCalls,
-    returns: parentReturns,
-  };
-}
-
-function attachAgentTraceToTurns(turns, agentTrace) {
-  if (!agentTrace?.branches?.length) return;
-  const turnByRequestId = new Map();
-  const turnByRequestIndex = new Map();
-  for (const turn of turns) {
-    turn.agent_branches = [];
-    turn.agent_branch_count = 0;
-    for (const requestId of turn.request_ids || []) turnByRequestId.set(requestId, turn);
-    for (const requestIndex of turn.request_indexes || []) turnByRequestIndex.set(requestIndex, turn);
-  }
-  for (const branch of agentTrace.branches) {
-    const owner =
-      turnByRequestId.get(branch.spawn?.parent_request_id) ||
-      turnByRequestIndex.get(branch.spawn?.parent_request_index) ||
-      turnByRequestId.get(branch.request_ids?.[0]) ||
-      turnByRequestIndex.get(branch.request_indexes?.[0]) ||
-      turnByRequestId.get(branch.return?.parent_request_id) ||
-      turnByRequestIndex.get(branch.return?.parent_request_index);
-    if (!owner) continue;
-    owner.agent_branches.push(branch.id);
-    owner.agent_branch_count = owner.agent_branches.length;
-  }
-}
-
-function compareRequestsByIndex(left, right) {
-  return Number(left?.request_index || 0) - Number(right?.request_index || 0);
-}
-
-function isAgentSpawnTool(name) {
-  return /^(Agent|Task|sessions_spawn|subagents)$/i.test(String(name || ""));
-}
-
-function agentSpawnLabel(call) {
-  const args = call.arguments || {};
-  return args.description || args.taskName || args.subagent_type || call.name || "Agent";
-}
-
-function childAgentType(request, spawn) {
-  if (spawn?.subagent_type) return spawn.subagent_type;
-  const debug = request?.debug_source || request?.trace?.debug_source || "";
-  if (debug.startsWith("agent:")) return debug.replace(/^agent:/, "");
-  return "Subagent";
 }
 
 function normalizeTurnUserKey(text) {
