@@ -61,6 +61,7 @@ const viewerCommands = [
   ["npm", "run", "smoke:translation-claude-cli"],
 ];
 const protocolCommands = [
+  ["npm", "run", "smoke:provenance-contract"],
   ["npm", "run", "smoke:proxy-openai"],
   ["npm", "run", "smoke:proxy-anthropic"],
   ["npm", "run", "smoke:proxy-attribution"],

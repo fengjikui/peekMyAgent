@@ -31,6 +31,65 @@ export function validateCaptureProvenance(value) {
   return { ok: errors.length === 0, errors };
 }
 
+export function captureProvenanceOr(value, fallbackFactory) {
+  if (value == null) return fallbackFactory();
+  const validation = validateCaptureProvenance(value);
+  if (!validation.ok) throw new Error(`Invalid capture provenance: ${validation.errors.join("; ")}`);
+  return createCaptureProvenance(value);
+}
+
+export function proxyCaptureProvenance(capture = {}) {
+  const hasResponse = Boolean(capture.response);
+  const responseIsPartial = hasResponse && Boolean(capture.response?.truncated);
+  const responseIsError = hasResponse && Boolean(capture.response?.error || capture.upstream_error);
+  return createCaptureProvenance({
+    transport: "capture_proxy",
+    request: { origin: "network_proxy", fidelity: "exact", artifact: "http_request" },
+    response: hasResponse
+      ? {
+          origin: responseIsError ? "capture_proxy" : "network_proxy",
+          fidelity: responseIsPartial ? "partial" : "exact",
+          artifact: responseIsError ? "proxy_error_response" : "http_response",
+        }
+      : { origin: null, fidelity: "missing", artifact: null },
+    association: hasResponse
+      ? {
+          method: "capture_lifecycle",
+          confidence: "exact",
+          evidence: {
+            capture_id: capture.capture_id || capture.captureId || null,
+            response_status: capture.response?.status ?? capture.upstream_status ?? null,
+          },
+        }
+      : { method: "none", confidence: "none" },
+  });
+}
+
+export function importedTraceProvenance(capture = {}) {
+  const hasRequest = Object.hasOwn(capture, "body") && capture.body != null;
+  const hasResponse = Boolean(capture.response);
+  return createCaptureProvenance({
+    transport: "trace_import",
+    request: hasRequest
+      ? { origin: "imported_trace", fidelity: "exact", artifact: "capture_request" }
+      : { origin: "imported_trace", fidelity: "missing", artifact: null },
+    response: hasResponse
+      ? {
+          origin: "imported_trace",
+          fidelity: capture.response?.truncated ? "partial" : "exact",
+          artifact: "capture_response",
+        }
+      : { origin: "imported_trace", fidelity: "missing", artifact: null },
+    association: hasResponse
+      ? {
+          method: "imported_capture_record",
+          confidence: "high",
+          evidence: { capture_id: capture.capture_id || capture.captureId || null },
+        }
+      : { method: "none", confidence: "none" },
+  });
+}
+
 function normalizeArtifact(value, name) {
   const artifact = value && typeof value === "object" ? value : {};
   const fidelity = artifact.fidelity || "missing";

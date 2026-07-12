@@ -11,6 +11,7 @@ import { importedTracesDir, safePathSegment, translationsDir } from "../core/app
 import { claudeCodeProxySettingsArgs, mergeClaudeCodeProcessEnv, resolveClaudeCodeTargetBaseUrl } from "../core/claude-code-settings.mjs";
 import { childProcessSpawnConfig, isAccessibleDirectory, safeProcessCwd, userHome } from "../core/platform.mjs";
 import { openPersistenceStore, sourceIdForWatch, watchIdFromSourceId } from "../core/persistence-store.mjs";
+import { captureProvenanceOr, importedTraceProvenance } from "../core/provenance.mjs";
 import { redactText } from "../core/redaction.mjs";
 import { clearViewerRegistry, writeViewerRegistry } from "../core/viewer-registry.mjs";
 import { resolveTraeCnDynamicRoute } from "../adapters/trae-cn-integration.mjs";
@@ -1940,6 +1941,7 @@ function validateTraceBundle(bundle) {
     capture.capture_id ||= crypto.randomUUID();
     capture.watch_id ||= bundle.source?.id || bundle.manifest?.trace_id || "imported-trace";
     capture.request_index ||= index + 1;
+    capture.provenance = captureProvenanceOr(capture.provenance, () => importedTraceProvenance(capture));
   }
   return captures;
 }

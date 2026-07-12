@@ -21,8 +21,8 @@
 | Server | `src/viewer/server.mjs` 同时负责 HTTP、安全、repository、Trace domain、翻译、bundle 和 Agent send | 很难局部测试和分配代码所有权 |
 | Client | `src/viewer/client.js` 同时负责 store、fetch、协议解释和所有视图 | 小交互容易触发全量渲染，贡献者难定位 |
 | CLI | `bin/peekmyagent.mjs` 包含命令解析和几乎全部命令实现 | 新命令继续扩大入口文件，wrapper 生命周期难单测 |
-| 协议 | adapters normalizer、Server 和 Client 各自解释请求 | 字段漂移、展示歧义和重复修复 |
-| 数据库 | 内容寻址已落地，但没有显式 migration runner | 后续 schema 改动缺少升级保障 |
+| 协议 | provenance 与 translation block 已有共享契约；其余 request/detail DTO 仍由 Server 和 Client 分别解释 | 字段漂移、展示歧义和重复修复 |
+| 数据库 | 内容寻址和 migration runner 已落地；repository 仍集中在 `PersistenceStore` | 后续领域拆分仍受单体 store 约束 |
 | 性能 | 首屏渐进、折叠区与搜索结果已按需生成；后台仍读取完整 compact Trace | 网络、解释和内存成本仍随会话线性上升 |
 | 测试 | smoke 丰富，但基础设施重复，部分 UI 仅正则检查源码 | 维护成本高，真实交互回归覆盖不足 |
 | 发布 | `0.0.0`、无稳定版本/变更记录流程 | 用户难判断兼容性，npm 发布不可追踪 |
@@ -113,7 +113,8 @@ src/
 - 已接入 Claude Code OTel body events，通过 `traceId + spanId` 精确关联 response，并保留旧版本顺序回退。
 - 已建立 SQLite migration baseline：`PRAGMA user_version=1`、顺序事务 runner、旧库认领、未来版本保护和 schema shape 校验。
 - 已建立共享 translation block contract：Server、Client、提取脚本和 worker 统一规范化、lookup key、schema description 和 marker 解析，缓存 hash 保持兼容。
-- 尚未完成 Proxy、OpenClaw、file/import source 的统一 provenance；阶段 1 仍未完成。
+- 已将 provenance v1 接入 Capture Proxy、OpenClaw normalizer 和 portable Trace import：区分 artifact fidelity 与关联 confidence，保留合法原始来源，旧导入采用保守回退。
+- file/demo/debug 等尚未形成 CaptureRecord 的 source 仍需在后续 source repository 阶段建立统一 DTO；阶段 1 的共享地基已经完成，可以进入 Viewer Server 拆分。
 
 ## 阶段 2：拆分 Viewer Server
 
