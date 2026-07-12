@@ -12,6 +12,17 @@ import {
   rawSearchSnippetSegments,
 } from "./raw-search-model.js";
 import { RawSearchController } from "./raw-search-controller.js";
+import {
+  renderRawDetail as renderRawDetailView,
+  renderRawSearchControls as renderRawSearchControlsView,
+  renderRawSearchResults as renderRawSearchResultsView,
+  renderRawSourceNotice,
+  renderRawStickyControls as renderRawStickyControlsView,
+  renderRequestDetailError as renderRequestDetailErrorView,
+  renderRequestDetailLoading as renderRequestDetailLoadingView,
+  renderRequestRawNavigation,
+  renderResponseRawNavigation,
+} from "./raw-inspector-renderer.js";
 import { TurnRailController } from "./turn-rail.js";
 import {
   extractTranslationSchemaDescriptions as extractSchemaDescriptionsForTranslation,
@@ -4002,53 +4013,6 @@ function renderToolExchangeItem({ call, result, confidence }) {
   `;
 }
 
-function renderRawSectionNav(request, activeSection) {
-  const hasUpstreamToolUse = (request.summary?.current_tool_calls || []).length > 0;
-  const hasUpstreamToolResult = (request.summary?.current_tool_results || []).length > 0;
-  const sections = [
-    ["full", t("rawFull")],
-    ["system", "System"],
-    ...(previousRequest(request) ? [["system_diff", "System diff"]] : []),
-    ["tools", "Tools"],
-    ["harness", "Harness"],
-    ["messages", "Messages"],
-    ...(hasUpstreamToolUse ? [["upstream_tool_calls", "tool_use"]] : []),
-    ...(hasUpstreamToolResult ? [["tool_results", "tool_result"]] : []),
-    ["metadata", "Metadata"],
-  ];
-  return `
-    <div class="raw-section-nav request-sections">
-      ${sections
-        .map(
-          ([section, label]) => `
-            <button class="${section === activeSection ? "active" : ""}" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="${escapeHtml(section)}">
-              ${escapeHtml(label)}
-            </button>
-          `,
-        )
-        .join("")}
-    </div>
-  `;
-}
-
-function renderRawSectionNavGroup(label, sections, request, activeSection, mode = "request") {
-  if (!sections.length) return "";
-  return `
-    <div class="raw-section-nav-group">
-      <span class="raw-section-nav-label">${escapeHtml(label)}</span>
-      ${sections
-        .map(
-          ([section, sectionLabel]) => `
-            <button class="${section === activeSection ? "active" : ""}" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="${escapeHtml(section)}" ${mode === "response" ? 'data-raw-mode="response"' : ""}>
-              ${escapeHtml(sectionLabel)}
-            </button>
-          `,
-        )
-        .join("")}
-    </div>
-  `;
-}
-
 function rawSectionData(request, section) {
   return buildRawSectionData(request, section, {
     translate: t,
@@ -4057,12 +4021,7 @@ function rawSectionData(request, section) {
 }
 
 function renderRawDetail(title, value) {
-  return `
-    <details open>
-      <summary>${escapeHtml(title)}</summary>
-      <div class="json-node">${renderJson(value)}</div>
-    </details>
-  `;
+  return renderRawDetailView({ title, value, escapeHtml, renderJson });
 }
 
 function renderPre(text) {
@@ -4641,11 +4600,11 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
 }
 
 function renderRequestDetailLoading() {
-  return `<div class="empty-box">${escapeHtml(t("requestDetailLoading"))}</div>`;
+  return renderRequestDetailLoadingView({ translate: t, escapeHtml });
 }
 
 function renderRequestDetailError(error) {
-  return `<div class="empty-box error">${escapeHtml(t("requestDetailLoadFailed", { message: error?.message || String(error || "unknown") }))}</div>`;
+  return renderRequestDetailErrorView({ error, translate: t, escapeHtml });
 }
 
 function renderResponseOnlyRawSection(request, activeSection) {
@@ -4665,36 +4624,21 @@ function renderResponseOnlyRawSection(request, activeSection) {
 }
 
 function renderRawStickyControls(request, section, mode = "request") {
-  const navigation = mode === "response" ? renderResponseOnlyRawNav(request, section) : renderRawSectionNav(request, section);
-  return `
-    <div class="raw-sticky-controls">
-      ${navigation}
-      ${renderRawSearchControls(request, section, mode)}
-      ${renderTranslationControls(request, section)}
-    </div>
-  `;
-}
-
-function renderResponseOnlyRawNav(request, activeSection) {
-  const downstreamSections = [
-    ["response", "Response"],
-    ["tool_calls", "tool_use"],
-  ];
-  return `
-    <div class="raw-section-nav">
-      ${renderRawSectionNavGroup(t("rawNavDownstream"), downstreamSections, request, activeSection, "response")}
-      ${renderRawSectionNavGroup(t("rawNavReference"), [["tools", "Tools schema"]], request, activeSection, "response")}
-    </div>
-  `;
+  const navigation =
+    mode === "response"
+      ? renderResponseRawNavigation({ request, activeSection: section, translate: t, escapeHtml })
+      : renderRequestRawNavigation({ request, activeSection: section, hasPrevious: Boolean(previousRequest(request)), translate: t, escapeHtml });
+  return renderRawStickyControlsView({
+    navigation,
+    searchControls: renderRawSearchControls(request, section, mode),
+    translationControls: renderTranslationControls(request, section),
+  });
 }
 
 function renderResponseOnlyToolsSchemaSection(request) {
   const sectionData = rawSectionData(request, "tools");
   return `
-    <div class="raw-source-notice">
-      <strong>${escapeHtml(t("responseOnlyToolsNoticeTitle"))}</strong>
-      <span>${escapeHtml(t("responseOnlyToolsNotice"))}</span>
-    </div>
+    ${renderRawSourceNotice({ title: t("responseOnlyToolsNoticeTitle"), text: t("responseOnlyToolsNotice"), escapeHtml })}
     ${renderRawSectionContent(request, "tools", sectionData)}
   `;
 }
@@ -4703,30 +4647,14 @@ function renderRawSearchControls(request, section, mode = "request") {
   const query = rawSearchController.query;
   const scope = rawSearchScopeLabel(section, mode);
   const matches = normalizedRawSearchQuery() ? rawSearchMatchCount(request, section, mode) : 0;
-  return `
-    <div class="raw-search-bar">
-      <label class="raw-search-input-wrap">
-        <span>${escapeHtml(t("rawSearchScope", { section: scope }))}</span>
-        <input
-          type="search"
-          value="${escapeHtml(query)}"
-          placeholder="${escapeHtml(t("rawSearchPlaceholder", { section: scope }))}"
-          aria-label="${escapeHtml(t("rawSearchAria"))}"
-          data-raw-search="true"
-        />
-      </label>
-      ${
-        query
-          ? `<span class="raw-search-count" data-raw-search-position title="${escapeHtml(t("rawSearchResultCount", { count: matches }))}">${escapeHtml(rawSearchController.position(matches))}</span>
-             <span class="raw-search-navigation" role="group" aria-label="${escapeHtml(t("rawSearchResultCount", { count: matches }))}">
-               <button type="button" data-raw-search-nav="previous" title="${escapeHtml(t("rawSearchPrevious"))}" aria-label="${escapeHtml(t("rawSearchPrevious"))}" ${matches ? "" : "disabled"}>↑</button>
-               <button type="button" data-raw-search-nav="next" title="${escapeHtml(t("rawSearchNext"))}" aria-label="${escapeHtml(t("rawSearchNext"))}" ${matches ? "" : "disabled"}>↓</button>
-             </span>
-             <button type="button" class="raw-search-clear" data-raw-search-clear="true">${escapeHtml(t("rawSearchClear"))}</button>`
-          : ""
-      }
-    </div>
-  `;
+  return renderRawSearchControlsView({
+    query,
+    scope,
+    matches,
+    position: rawSearchController.position(matches),
+    translate: t,
+    escapeHtml,
+  });
 }
 
 function rawSearchMatchCount(request, section, mode = "request") {
@@ -4741,29 +4669,7 @@ function renderRawSearchResults(request, section, mode = "request") {
   const query = normalizedRawSearchQuery();
   const scope = rawSearchScopeLabel(section, mode);
   const entries = rawSearchEntriesForSection(request, section, mode);
-  if (!query) return "";
-  if (!entries.length) {
-    return `<div class="empty-box">${escapeHtml(t("rawSearchNoResults", { section: scope, query }))}</div>`;
-  }
-  return `
-    <section class="raw-search-results">
-      ${entries
-        .slice(0, 120)
-        .map(
-          (entry) => `
-            <article class="raw-search-result" data-raw-search-target="true">
-              <header>
-                <strong>${escapeHtml(entry.path || scope)}</strong>
-                <span>${escapeHtml(t("rawSearchMatchedIn", { scope: entry.scope || scope }))}</span>
-              </header>
-              <p>${highlightSearchSnippet(entry.text, query)}</p>
-              ${entry.value !== entry.text ? `<details><summary>${escapeHtml(t("rawSearchValue"))}</summary>${renderPre(entry.value)}</details>` : ""}
-            </article>
-          `,
-        )
-        .join("")}
-    </section>
-  `;
+  return renderRawSearchResultsView({ query, scope, entries, translate: t, escapeHtml, highlightSnippet: highlightSearchSnippet, renderPre });
 }
 
 function rawSearchEntriesForSection(request, section, mode = "request") {

@@ -157,7 +157,8 @@ src/
 - 已建立 Raw Inspector View Model：上行请求、下行 Response、Harness 和 Metadata 的方向约束由纯模块统一。
 - 已迁移 Raw Search Model：递归条目、过滤、摘要命中分段和循环导航索引不再依赖 DOM 或全局状态。
 - 已迁移 Raw Search Controller：查询、IME 组合态、延迟重绘、清空、当前命中和滚动高亮不再由全局 client state 所有。
-- 下一步迁移 Raw Inspector renderer；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
+- 已迁移 Raw Inspector 基础 Renderer：请求/响应导航、搜索控件与结果、详情状态和来源提示只依赖显式 DTO 与渲染依赖。
+- 下一步迁移翻译与 Messages renderer，并建立最小 client store；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
 
 ## 阶段 3：拆分 Viewer Client
 
