@@ -3,6 +3,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { defaultStateDir, defaultStorePath as resolveDefaultStorePath } from "./app-paths.mjs";
 import { buildOrderedRequestTree, reconstructFromRequestTree } from "./request-tree.mjs";
+import { migratePersistenceStore, persistenceSchemaVersion } from "../persistence/migrations/index.mjs";
 
 const require = createRequire(import.meta.url);
 const PRIVATE_STORE_FILE_MODE = 0o600;
@@ -26,92 +27,19 @@ export class PersistenceStore {
     fs.mkdirSync(path.dirname(storePath), { recursive: true, mode: 0o700 });
     const { DatabaseSync } = loadNodeSqlite();
     this.db = new DatabaseSync(storePath);
-    this.db.exec("PRAGMA journal_mode = WAL");
-    this.db.exec("PRAGMA foreign_keys = ON");
-    this.init();
-    restrictStoreFilePermissions(storePath);
-  }
-
-  init() {
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS watches (
-        watch_id TEXT PRIMARY KEY,
-        label TEXT,
-        agent TEXT,
-        mode TEXT,
-        confidence TEXT,
-        kind TEXT,
-        workspace TEXT,
-        conversation_id TEXT,
-        status TEXT,
-        created_at TEXT,
-        updated_at TEXT,
-        last_seen TEXT,
-        title TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS model_requests (
-        request_id TEXT PRIMARY KEY,
-        watch_id TEXT NOT NULL,
-        request_index INTEGER,
-        conversation_id TEXT,
-        agent_profile TEXT,
-        workspace TEXT,
-        received_at TEXT,
-        method TEXT,
-        path TEXT,
-        model TEXT,
-        raw_body_length INTEGER,
-        raw_body_json TEXT,
-        capture_json TEXT NOT NULL,
-        body_source TEXT NOT NULL DEFAULT 'original',
-        tree_schema_version INTEGER NOT NULL DEFAULT 1,
-        FOREIGN KEY (watch_id) REFERENCES watches(watch_id) ON DELETE CASCADE
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_model_requests_watch ON model_requests(watch_id, request_index, received_at);
-
-      CREATE TABLE IF NOT EXISTS content_blobs (
-        hash TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,
-        content_type TEXT NOT NULL,
-        payload_json TEXT NOT NULL,
-        byte_size INTEGER NOT NULL,
-        first_seen_at TEXT NOT NULL,
-        last_seen_at TEXT NOT NULL,
-        ref_count INTEGER NOT NULL DEFAULT 0
-      );
-
-      CREATE TABLE IF NOT EXISTS request_tree_nodes (
-        request_id TEXT NOT NULL,
-        node_id TEXT NOT NULL,
-        parent_node_id TEXT,
-        node_type TEXT NOT NULL,
-        object_key TEXT,
-        array_index INTEGER,
-        order_index INTEGER,
-        blob_hash TEXT,
-        json_path TEXT,
-        scalar_json TEXT,
-        PRIMARY KEY (request_id, node_id),
-        FOREIGN KEY (request_id) REFERENCES model_requests(request_id) ON DELETE CASCADE
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_request_tree_parent ON request_tree_nodes(request_id, parent_node_id);
-      CREATE INDEX IF NOT EXISTS idx_request_tree_blob ON request_tree_nodes(blob_hash);
-
-      CREATE TABLE IF NOT EXISTS response_blobs (
-        request_id TEXT PRIMARY KEY,
-        blob_hash TEXT NOT NULL,
-        content_type TEXT NOT NULL,
-        byte_size INTEGER NOT NULL,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (request_id) REFERENCES model_requests(request_id) ON DELETE CASCADE,
-        FOREIGN KEY (blob_hash) REFERENCES content_blobs(hash)
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_response_blobs_hash ON response_blobs(blob_hash);
-    `);
+    try {
+      this.db.exec("PRAGMA foreign_keys = ON");
+      this.migration = migratePersistenceStore(this.db);
+      this.db.exec("PRAGMA journal_mode = WAL");
+      restrictStoreFilePermissions(storePath);
+    } catch (error) {
+      try {
+        this.db.close();
+      } catch {
+        // Preserve the schema/migration error if SQLite close also fails.
+      }
+      throw error;
+    }
   }
 
   close() {
@@ -122,6 +50,10 @@ export class PersistenceStore {
   vacuum() {
     this.db.exec("VACUUM");
     restrictStoreFilePermissions(this.path);
+  }
+
+  schemaVersion() {
+    return persistenceSchemaVersion(this.db);
   }
 
   upsertWatch(watch) {

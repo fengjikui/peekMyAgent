@@ -38,6 +38,7 @@ daemon、Viewer HTTP API 和静态资源服务由同一个 `startViewerServer()`
 | `src/core/otel-events.mjs` | 提取 OTel raw-body log events 和 trace/span 关联字段 |
 | `src/core/provenance.mjs` | Capture 内容来源与关联置信度运行时契约 |
 | `src/core/persistence-store.mjs` | SQLite schema、watch/capture、内容 blob 和 request tree 持久化 |
+| `src/persistence/migrations/` | SQLite schema version、顺序 migration runner 和结构校验 |
 | `src/core/normalize.mjs` | 归一化 capture 的基础结构，目前主要由 CLI/实验脚本使用 |
 | `src/core/platform.mjs`、`paths.mjs`、`processes.mjs` | 跨平台路径、命令、进程和本机运行环境 |
 | `src/core/redaction.mjs` | Trace 导出等路径使用的敏感内容脱敏 |
@@ -102,10 +103,11 @@ SQLite 使用 WAL，核心实体为：
 
 Anthropic 风格请求的顶层 `system`、`tools`、`messages` 会拆成 blob 引用，从而避免长会话重复保存完整上下文。历史数据可通过 `pma compact` 迁移到该布局。
 
+数据库使用 `PRAGMA user_version` 记录 schema 版本，当前版本为 1。打开数据库时，migration runner 会先在单个事务中顺序执行所有 pending migration，再校验必需表和字段，成功后才切换 WAL；未标版本的现有数据库会以不重写业务数据的方式认领 v1。任一步失败会整体回滚，高于当前程序支持版本的数据库会被拒绝打开，避免旧版本误写新 schema。新增或修改表结构必须增加新 migration，不再直接把 DDL 塞回 store 构造函数。维护流程见 [数据库迁移指南](database-migrations.md)。
+
 当前边界：
 
 - OpenAI Responses 风格 `input` 尚未获得完全等价的语义分块。
-- 数据库还没有显式 schema version 和 migration runner。
 - response 更新会重新计算 blob refcount，长库写入有进一步优化空间。
 - imported/file-backed source 仍依赖完整文件读取和 JSON parse。
 

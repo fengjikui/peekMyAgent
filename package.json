@@ -61,6 +61,7 @@
     "smoke:watch-current": "node scripts/watch-current-smoke.mjs",
     "smoke:request-tree": "node scripts/request-tree-smoke.mjs",
     "smoke:persistence-store": "node scripts/persistence-store-smoke.mjs",
+    "smoke:persistence-migrations": "node --disable-warning=ExperimentalWarning scripts/persistence-migrations-smoke.mjs",
     "smoke:tool-exchange-delta": "node scripts/tool-exchange-delta-smoke.mjs",
     "smoke:context-chain-delta": "node scripts/context-chain-delta-smoke.mjs",
     "smoke:suggestion-mode": "node scripts/suggestion-mode-smoke.mjs",

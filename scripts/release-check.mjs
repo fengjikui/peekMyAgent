@@ -65,6 +65,7 @@ const protocolCommands = [
   ["npm", "run", "smoke:proxy-attribution"],
 ];
 const persistenceCommands = [
+  ["npm", "run", "smoke:persistence-migrations"],
   ["npm", "run", "smoke:persistence-store"],
   ["npm", "run", "smoke:project-source-actions"],
   ["npm", "run", "smoke:request-tree"],

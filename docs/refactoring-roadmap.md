@@ -111,7 +111,8 @@ src/
 
 - 已建立 provenance v1 最小运行时契约，先用于 OTel raw-body request/response，分离正文 fidelity 与关联 confidence。
 - 已接入 Claude Code OTel body events，通过 `traceId + spanId` 精确关联 response，并保留旧版本顺序回退。
-- 尚未完成 Proxy、OpenClaw、file/import source 的统一 provenance，也尚未建立数据库 migration runner；阶段 1 仍未完成。
+- 已建立 SQLite migration baseline：`PRAGMA user_version=1`、顺序事务 runner、旧库认领、未来版本保护和 schema shape 校验。
+- 尚未完成 Proxy、OpenClaw、file/import source 的统一 provenance，以及共享 translation block key；阶段 1 仍未完成。
 
 ## 阶段 2：拆分 Viewer Server
 
@@ -198,9 +199,9 @@ src/
 
 ### PR 1：数据库 migration baseline
 
-- 只引入 schema version、migration runner 和升级 smoke。
-- 不改现有表结构和产品行为。
-- 这是所有后续持久化演进的安全前提。
+- **已完成（2026-07-12）。**
+- 引入 schema version、migration runner 和升级 smoke，不改现有表结构和产品行为。
+- 新库、旧库、幂等打开、失败回滚和未来版本拒绝均有确定性覆盖。
 
 ### PR 2：共享 translation block key
 
