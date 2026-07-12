@@ -16,6 +16,7 @@ const allowTrackedChanges = process.env.PEEKMYAGENT_RELEASE_CHECK_ALLOW_TRACKED_
 const coreCommands = [
   ["npm", "run", "smoke:platform"],
   ["npm", "run", "smoke:security-boundary"],
+  ["npm", "run", "smoke:viewer-http-contract"],
   ["npm", "run", "smoke:source-list-performance"],
   ["npm", "run", "smoke:source-meta"],
   ["npm", "run", "smoke:doctor"],

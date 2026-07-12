@@ -83,6 +83,7 @@
     "smoke:agent-send": "node scripts/agent-send-smoke.mjs",
     "smoke:platform": "node scripts/platform-smoke.mjs",
     "smoke:security-boundary": "node scripts/security-boundary-smoke.mjs",
+    "smoke:viewer-http-contract": "node scripts/viewer-http-contract-smoke.mjs",
     "smoke:source-list-performance": "node scripts/source-list-performance-smoke.mjs",
     "smoke:source-meta": "node scripts/source-meta-persistence-smoke.mjs",
     "smoke:project-source-actions": "node scripts/project-source-actions-smoke.mjs",

@@ -18,6 +18,28 @@ import { resolveTraeCnDynamicRoute } from "../adapters/trae-cn-integration.mjs";
 import { OTEL_WATCH_KIND, otelDirToCaptures } from "../core/otel-capture.mjs";
 import { extractOtelBodyEvents, mergeOtelBodyEvents } from "../core/otel-events.mjs";
 import {
+  assertSafeBindHost,
+  httpError,
+  readJsonBody,
+  readRawBody,
+  rejectWrongMethod,
+  serveFile,
+  validateAgentSendIntent,
+  validateDaemonShutdownIntent,
+  validateLocalHttpRequest,
+  validateOtelEventIngestIntent,
+  validateOtelIngestIntent,
+  validateSourceUpdateIntent,
+  validateTraceExportIntent,
+  validateTraceImportIntent,
+  validateTranslationGenerateIntent,
+  validateWatchPauseIntent,
+  validateWatchStartIntent,
+  validateWatchStopIntent,
+  viewerSecurityHeaders,
+  writeJson,
+} from "../server/http.mjs";
+import {
   extractTranslationSchemaDescriptions,
   isSkippableTranslationMaterial,
   normalizeTranslationSourceText,
@@ -29,7 +51,6 @@ import { translationMaterialHash } from "../translation/hash.mjs";
 
 const viewerDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(viewerDir, "../..");
-const MAX_JSON_BODY_BYTES = 8 * 1024 * 1024;
 const MAX_TRACE_IMPORT_BYTES = 64 * 1024 * 1024;
 const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
 const MAX_TRACE_IMPORT_CAPTURES = 5000;
@@ -53,19 +74,7 @@ const MAX_TRANSLATION_CONCURRENCY = 100;
 const MAX_TRANSLATION_MATERIALS = 1500;
 const MAX_TRANSLATION_MATERIAL_CHARS = 200000;
 const MAX_TRANSLATION_TOTAL_CHARS = 2000000;
-const TRACE_EXPORT_INTENT_HEADER = "x-peekmyagent-intent";
-const TRACE_EXPORT_INTENT = "trace-export";
-const TRACE_IMPORT_INTENT = "trace-import";
-const AGENT_SEND_INTENT = "agent-send";
-const OTEL_INGEST_INTENT = "otel-ingest";
-const OTEL_EVENT_INGEST_INTENT = "otel-event-ingest";
 const OTEL_WATCH_ID_HEADER = "x-peekmyagent-watch-id";
-const TRANSLATION_GENERATE_INTENT = "translation-generate";
-const SOURCE_UPDATE_INTENT = "source-update";
-const DAEMON_SHUTDOWN_INTENT = "daemon-shutdown";
-const WATCH_START_INTENT = "watch-start";
-const WATCH_STOP_INTENT = "watch-stop";
-const WATCH_PAUSE_INTENT = "watch-pause";
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
 const TIMELINE_RESPONSE_TEXT_CHARS = 700;
 const TIMELINE_RESPONSE_THINKING_CHARS = 360;
@@ -4569,291 +4578,6 @@ function readJsonFile(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
-function readJsonBody(req, { maxBytes = MAX_JSON_BODY_BYTES } = {}) {
-  const contentType = headerValue(req.headers || {}, "content-type");
-  if (contentType && !/^application\/(?:json|[^;]+\+json)\b/i.test(contentType)) {
-    throw httpError(415, "Expected application/json request body.");
-  }
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let total = 0;
-    req.on("data", (chunk) => {
-      total += chunk.length;
-      if (total > maxBytes) {
-        reject(httpError(413, `JSON request body is too large. Limit is ${formatBytes(maxBytes)}.`));
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () => {
-      const text = Buffer.concat(chunks).toString("utf8");
-      if (!text.trim()) return resolve({});
-      try {
-        resolve(JSON.parse(text));
-      } catch (error) {
-        reject(error);
-      }
-    });
-    req.on("error", reject);
-  });
-}
-
-function readRawBody(req, { maxBytes = MAX_TRACE_IMPORT_BYTES } = {}) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let total = 0;
-    req.on("data", (chunk) => {
-      total += chunk.length;
-      if (total > maxBytes) {
-        reject(httpError(413, `Request body is too large. Limit is ${formatBytes(maxBytes)}.`));
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
-  });
-}
-
-function validateLocalHttpRequest(req, url, { unsafeAllowRemote = false } = {}) {
-  if (!url.pathname.startsWith("/api/")) return null;
-  const hostHeader = headerValue(req.headers || {}, "host");
-  const host = hostNameFromHeader(hostHeader);
-  if (host && !unsafeAllowRemote && !isLoopbackHost(host)) {
-    return { status: 403, message: "peekMyAgent dashboard only accepts loopback Host headers by default." };
-  }
-  const origin = headerValue(req.headers || {}, "origin");
-  if (origin) {
-    const originGuard = validateBrowserSourceHeader(origin, hostHeader, { unsafeAllowRemote, headerName: "Origin" });
-    if (originGuard) return originGuard;
-  }
-  const referer = headerValue(req.headers || {}, "referer");
-  if (referer) {
-    const refererGuard = validateBrowserSourceHeader(referer, hostHeader, { unsafeAllowRemote, headerName: "Referer" });
-    if (refererGuard) return refererGuard;
-  }
-  const secFetchSite = headerValue(req.headers || {}, "sec-fetch-site").toLowerCase();
-  if (secFetchSite === "cross-site") {
-    return { status: 403, message: "Cross-site browser requests are not allowed." };
-  }
-  const secFetchMode = headerValue(req.headers || {}, "sec-fetch-mode").toLowerCase();
-  const secFetchDest = headerValue(req.headers || {}, "sec-fetch-dest").toLowerCase();
-  if (secFetchMode === "no-cors" || (secFetchDest && secFetchDest !== "empty")) {
-    return { status: 403, message: "Browser resource or navigation requests are not allowed for peekMyAgent APIs." };
-  }
-  const method = String(req.method || "").toUpperCase();
-  const expectedMethod = expectedApiMethod(url.pathname);
-  const knownWrongMethod = expectedMethod && method !== expectedMethod;
-  if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && !knownWrongMethod) {
-    const contentType = headerValue(req.headers || {}, "content-type");
-    const isJson = /^application\/(?:json|[^;]+\+json)\b/i.test(contentType);
-    const isTraceImport = url.pathname === "/api/trace/import" && /^(application\/(?:octet-stream|gzip|json)|[^;]+\/[^;]+\+json)\b/i.test(contentType);
-    if (!isJson && !isTraceImport) {
-      return { status: 415, message: "State-changing API calls require application/json or an accepted trace import content type." };
-    }
-  }
-  return null;
-}
-
-function expectedApiMethod(pathname) {
-  switch (pathname) {
-    case "/api/sources":
-    case "/api/translations":
-    case "/api/trace/export":
-    case "/api/watch/status":
-    case "/api/daemon/ping":
-    case "/api/daemon/status":
-    case "/api/view":
-    case "/api/request":
-      return "GET";
-    case "/api/translations/generate":
-    case "/api/watch/start":
-    case "/api/watch/stop":
-    case "/api/watch/pause":
-    case "/api/agent/send":
-    case "/api/source/update":
-    case "/api/trace/import":
-    case "/api/capture/otel":
-    case "/api/capture/otel/events":
-    case "/api/capture/otel/traces":
-    case "/api/daemon/shutdown":
-      return "POST";
-    default:
-      return "";
-  }
-}
-
-function validateTraceExportIntent(req) {
-  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
-  if (intent === TRACE_EXPORT_INTENT) return null;
-  return {
-    status: 403,
-    message: "Trace export requires an explicit dashboard export intent.",
-  };
-}
-
-function validateTraceImportIntent(req) {
-  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
-  if (intent === TRACE_IMPORT_INTENT) return null;
-  return {
-    status: 403,
-    message: "Trace import requires an explicit dashboard import intent.",
-  };
-}
-
-function validateAgentSendIntent(req) {
-  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
-  if (intent === AGENT_SEND_INTENT) return null;
-  return {
-    status: 403,
-    message: "Agent send requires an explicit dashboard send intent.",
-  };
-}
-
-function validateOtelIngestIntent(req) {
-  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
-  if (intent === OTEL_INGEST_INTENT) return null;
-  return {
-    status: 403,
-    message: "OTel ingest requires an explicit local wrapper ingest intent.",
-  };
-}
-
-function validateOtelEventIngestIntent(req) {
-  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
-  if (intent === OTEL_EVENT_INGEST_INTENT) return null;
-  return {
-    status: 403,
-    message: "OTel event ingest requires an explicit local telemetry intent.",
-  };
-}
-
-function validateTranslationGenerateIntent(req) {
-  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
-  if (intent === TRANSLATION_GENERATE_INTENT) return null;
-  return {
-    status: 403,
-    message: "Translation generation requires an explicit dashboard refresh intent.",
-  };
-}
-
-function validateSourceUpdateIntent(req) {
-  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
-  if (intent === SOURCE_UPDATE_INTENT) return null;
-  return {
-    status: 403,
-    message: "Source update requires an explicit dashboard source action intent.",
-  };
-}
-
-function validateDaemonShutdownIntent(req) {
-  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
-  if (intent === DAEMON_SHUTDOWN_INTENT) return null;
-  return {
-    status: 403,
-    message: "Daemon shutdown requires an explicit local CLI shutdown intent.",
-  };
-}
-
-function validateWatchStartIntent(req) {
-  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
-  if (intent === WATCH_START_INTENT) return null;
-  return {
-    status: 403,
-    message: "Watch start requires an explicit local wrapper start intent.",
-  };
-}
-
-function validateWatchStopIntent(req) {
-  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
-  if (intent === WATCH_STOP_INTENT) return null;
-  return {
-    status: 403,
-    message: "Watch stop requires an explicit dashboard or CLI stop intent.",
-  };
-}
-
-function validateWatchPauseIntent(req) {
-  const intent = headerValue(req.headers || {}, TRACE_EXPORT_INTENT_HEADER);
-  if (intent === WATCH_PAUSE_INTENT) return null;
-  return {
-    status: 403,
-    message: "Watch pause requires an explicit dashboard or CLI pause intent.",
-  };
-}
-
-function rejectWrongMethod(req, res, method) {
-  const actual = String(req.method || "GET").toUpperCase();
-  const expected = String(method || "GET").toUpperCase();
-  if (actual === expected) return false;
-  res.setHeader("allow", expected);
-  writeJson(res, 405, { error: `Method ${actual} is not allowed for this endpoint. Use ${expected}.` });
-  return true;
-}
-
-function validateBrowserSourceHeader(value, hostHeader, { unsafeAllowRemote = false, headerName = "Origin" } = {}) {
-  if (unsafeAllowRemote) return null;
-  let parsed;
-  try {
-    parsed = new URL(value);
-  } catch {
-    return { status: 403, message: `Invalid ${headerName} header.` };
-  }
-  if (!isLoopbackHost(parsed.hostname)) {
-    return { status: 403, message: "Cross-site browser requests are not allowed." };
-  }
-  if (!browserSourceMatchesHost(parsed, hostHeader)) {
-    return { status: 403, message: "Browser API requests must come from the active peekMyAgent dashboard origin." };
-  }
-  return null;
-}
-
-function browserSourceMatchesHost(parsedSource, hostHeader) {
-  const request = hostParts(hostHeader);
-  if (!request.hostname) return false;
-  if (parsedSource.protocol !== "http:") return false;
-  if (!isLoopbackHost(request.hostname) || !isLoopbackHost(parsedSource.hostname)) return false;
-  return normalizedPort(parsedSource.protocol, parsedSource.port) === request.port;
-}
-
-function hostParts(value) {
-  const text = String(value || "").trim();
-  if (!text) return { hostname: "", port: "" };
-  try {
-    const parsed = new URL(`http://${text}`);
-    return { hostname: parsed.hostname, port: normalizedPort(parsed.protocol, parsed.port) };
-  } catch {
-    return { hostname: hostNameFromHeader(text), port: "" };
-  }
-}
-
-function normalizedPort(protocol, port) {
-  if (port) return String(port);
-  if (protocol === "https:") return "443";
-  return "80";
-}
-
-function assertSafeBindHost(host, { unsafeAllowRemote = false } = {}) {
-  const normalized = String(host || "").trim();
-  if (!normalized || isLoopbackHost(normalized) || unsafeAllowRemote || process.env.PEEKMYAGENT_UNSAFE_ALLOW_REMOTE === "1") return;
-  throw new Error(`Refusing to bind peekMyAgent to non-loopback host ${normalized}. Use PEEKMYAGENT_UNSAFE_ALLOW_REMOTE=1 only on trusted networks.`);
-}
-
-function hostNameFromHeader(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (text.startsWith("[")) return text.slice(1, text.indexOf("]"));
-  return text.split(":")[0];
-}
-
-function isLoopbackHost(host) {
-  const value = String(host || "").trim().toLowerCase();
-  if (!value) return false;
-  return value === "localhost" || value === "127.0.0.1" || value === "::1" || value === "0:0:0:0:0:0:0:1";
-}
-
 function normalizePathBackedLabel(value, fieldName) {
   const text = String(value || "").trim();
   if (!text) throw httpError(400, `${fieldName} is required.`);
@@ -4872,12 +4596,6 @@ function sanitizeApiLookupId(value, { limit = MAX_API_SOURCE_ID_CHARS } = {}) {
   const maxChars = Math.max(16, Number(limit) || MAX_API_SOURCE_ID_CHARS);
   if (text.length <= maxChars) return text;
   return `${text.slice(0, maxChars - 3).trimEnd()}...`;
-}
-
-function httpError(statusCode, message) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
 }
 
 function formatBytes(bytes) {
@@ -4948,38 +4666,6 @@ function listen(server, host, port) {
       resolve(server.address());
     });
   });
-}
-
-function serveFile(res, filePath, contentType) {
-  const body = fs.readFileSync(filePath);
-  res.writeHead(200, { ...viewerSecurityHeaders(), "content-type": contentType, "cache-control": "no-store" });
-  res.end(body);
-}
-
-function writeJson(res, status, value) {
-  res.writeHead(status, { ...viewerSecurityHeaders(), "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-  res.end(`${JSON.stringify(value, null, 2)}\n`);
-}
-
-function viewerSecurityHeaders() {
-  return {
-    "x-content-type-options": "nosniff",
-    "referrer-policy": "no-referrer",
-    "cross-origin-opener-policy": "same-origin",
-    "cross-origin-resource-policy": "same-origin",
-    "permissions-policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), serial=(), usb=()",
-    "content-security-policy": [
-      "default-src 'self'",
-      "script-src 'self'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data:",
-      "connect-src 'self'",
-      "object-src 'none'",
-      "base-uri 'none'",
-      "form-action 'none'",
-      "frame-ancestors 'none'",
-    ].join("; "),
-  };
 }
 
 export function defaultWorkspace() {

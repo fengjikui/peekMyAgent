@@ -134,6 +134,12 @@ src/
 - Server route 只做输入校验、调用 service 和序列化输出。
 - 所有现有安全 smoke 与 Trace fixture 输出不变。
 
+当前进展（2026-07-12）：
+
+- 已抽出 `src/server/http.mjs`，集中管理 method 表、loopback/Origin/Fetch Metadata 防护、Content-Type、intent、body parser、CSP 和 JSON/静态响应。
+- 已增加不启动 daemon 的 HTTP contract smoke，并继续以真实 Viewer security smoke 锁定校验顺序和响应行为。
+- 下一步抽出 source repository，统一 live、SQLite、file/demo 与 imported Trace 的 source 读取接口。
+
 ## 阶段 3：拆分 Viewer Client
 
 **目标：** 把数据获取、状态和视图更新从一个全局脚本中解耦。
