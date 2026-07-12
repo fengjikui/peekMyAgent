@@ -1,4 +1,8 @@
 import { renderMarkdownPreview, renderSafeMarkdown } from "./markdown.js";
+import {
+  renderMessagesControls as renderMessagesControlsView,
+  renderMessagesSection as renderMessagesSectionView,
+} from "./messages-renderer.js";
 import { ViewerApiClient } from "./api-client.js";
 import { RequestDetailCache, requestNeedsDetail } from "./request-detail-cache.js";
 import {
@@ -99,7 +103,6 @@ const AGENT_EVENT_LIMIT = 80;
 const AGENT_SUMMARY_DOT_LIMIT = 8;
 const TRACE_RESULT_PAGE_SIZE = 24;
 const traceSearchTextCache = new WeakMap();
-const RAW_MESSAGE_MARKDOWN_INLINE_CHARS = 5000;
 const SUPPORTED_UI_LANGUAGES = [
   { value: "zh-CN", label: "中文" },
   { value: "en-US", label: "English" },
@@ -4777,122 +4780,20 @@ function matchingToolTranslationGroups(request) {
 }
 
 function renderMessagesControls(section) {
-  if (section !== "messages") return "";
-  const mode = normalizeMessagesMode(state.rawMessagesMode);
-  return `
-    <div class="translation-toolbar compact">
-      <div class="translation-segmented" role="group" aria-label="${escapeHtml(t("messagesViewAria"))}">
-        <button type="button" class="${mode === "organized" ? "active" : ""}" data-messages-mode="organized">${escapeHtml(t("messagesOrganized"))}</button>
-        <button type="button" class="${mode === "source" ? "active" : ""}" data-messages-mode="source">${escapeHtml(t("messagesOriginal"))}</button>
-      </div>
-    </div>
-  `;
+  return renderMessagesControlsView({ section, mode: normalizeMessagesMode(state.rawMessagesMode), translate: t, escapeHtml });
 }
 
 function renderMessagesSection(messagesValue) {
-  const messages = Array.isArray(messagesValue) ? messagesValue : [];
-  if (state.rawMessagesMode === "source") return renderRawDetail("messages / history", messages);
-  if (!messages.length) return `<div class="empty-box">${escapeHtml(t("messagesEmpty"))}</div>`;
-  return `
-    <section class="raw-message-list">
-      ${messages.map((message, index) => renderOrganizedMessage(message, index)).join("")}
-    </section>
-  `;
-}
-
-function renderOrganizedMessage(message, index) {
-  const role = typeof message === "object" && message ? message.role || "unknown" : "unknown";
-  const blocks = normalizeMessageBlocks(message);
-  return `
-    <article class="raw-message-card role-${escapeHtml(safeClassName(role))}">
-      <header class="raw-message-card-header">
-        <strong>#${escapeHtml(String(index))} ${escapeHtml(String(role))}</strong>
-        <span>${escapeHtml(t("messageRole"))}: ${escapeHtml(String(role))}</span>
-      </header>
-      <div class="raw-message-blocks">
-        ${blocks.map((block, blockIndex) => renderOrganizedMessageBlock(block, blockIndex)).join("")}
-      </div>
-    </article>
-  `;
-}
-
-function normalizeMessageBlocks(message) {
-  if (message == null) return [{ type: "empty", text: "", raw: message }];
-  if (typeof message !== "object") return [{ type: "text", text: String(message), raw: message }];
-  const content = message.content;
-  if (Array.isArray(content)) {
-    return content.length ? content.map((block) => normalizeMessageBlock(block)) : [{ type: "empty", text: "", raw: content }];
-  }
-  if (typeof content === "string") return [{ type: "text", text: content, raw: content }];
-  if (content != null) return [normalizeMessageBlock(content)];
-  return [normalizeMessageBlock(message)];
-}
-
-function normalizeMessageBlock(block) {
-  if (block == null) return { type: "empty", text: "", raw: block };
-  if (typeof block !== "object") return { type: "text", text: String(block), raw: block };
-  const type = String(block.type || "object");
-  const text = messageBlockText(block);
-  return { type, text, raw: block };
-}
-
-function messageBlockText(block) {
-  if (!block || typeof block !== "object") return String(block ?? "");
-  if (typeof block.text === "string") return block.text;
-  if (typeof block.content === "string") return block.content;
-  if (typeof block.input === "string") return block.input;
-  if (typeof block.name === "string" && block.type === "tool_use") return `${block.name}${block.id ? ` (${block.id})` : ""}`;
-  return "";
-}
-
-function renderOrganizedMessageBlock(block, index) {
-  const type = block.type || "unknown";
-  const text = block.text || "";
-  const isText = type === "text" || (text && !hasStructuredMessagePayload(block.raw));
-  const markdownText = truncateOrganizedMessageText(text);
-  return `
-    <section class="raw-message-block ${escapeHtml(isText ? "text" : "structured")}">
-      <header>
-        <span>${escapeHtml(t("messageType"))}: ${escapeHtml(String(type))}</span>
-        <em>#${escapeHtml(String(index))}</em>
-      </header>
-      ${
-        text
-          ? `<div class="raw-message-markdown">${renderSafeMarkdown(markdownText.text)}</div>
-             ${
-               markdownText.truncated
-                 ? `<p class="raw-message-truncation">${escapeHtml(t("messageTextTruncated", { shown: formatCompactNumber(markdownText.text.length), total: formatCompactNumber(text.length) }))}</p>`
-                 : ""
-             }`
-          : `<p class="raw-message-empty">${escapeHtml(t("messageTextFallback"))}</p>`
-      }
-      ${
-        isText
-          ? ""
-          : `<details class="raw-message-raw"><summary>${escapeHtml(t("messageRawDetails"))}</summary><div class="json-node">${renderJson(block.raw)}</div></details>`
-      }
-    </section>
-  `;
-}
-
-function truncateOrganizedMessageText(text) {
-  const value = String(text || "");
-  if (value.length <= RAW_MESSAGE_MARKDOWN_INLINE_CHARS) return { text: value, truncated: false };
-  return {
-    text: `${value.slice(0, RAW_MESSAGE_MARKDOWN_INLINE_CHARS).trimEnd()}\n\n...`,
-    truncated: true,
-  };
-}
-
-function hasStructuredMessagePayload(value) {
-  return value && typeof value === "object" && Object.keys(value).some((key) => !["type", "text", "content"].includes(key));
-}
-
-function safeClassName(value) {
-  return String(value || "unknown")
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "unknown";
+  return renderMessagesSectionView({
+    messagesValue,
+    mode: normalizeMessagesMode(state.rawMessagesMode),
+    translate: t,
+    escapeHtml,
+    renderRawDetail,
+    renderMarkdown: renderSafeMarkdown,
+    renderJson,
+    formatNumber: formatCompactNumber,
+  });
 }
 
 function renderTranslationControls(request, section) {

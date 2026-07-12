@@ -6,6 +6,8 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/api-client.js", javascriptAsset("api-client.js")],
   ["/client.js", javascriptAsset("client.js")],
   ["/markdown.js", javascriptAsset("markdown.js")],
+  ["/message-view-model.js", javascriptAsset("message-view-model.js")],
+  ["/messages-renderer.js", javascriptAsset("messages-renderer.js")],
   ["/raw-inspector-renderer.js", javascriptAsset("raw-inspector-renderer.js")],
   ["/raw-search-controller.js", javascriptAsset("raw-search-controller.js")],
   ["/raw-search-model.js", javascriptAsset("raw-search-model.js")],
