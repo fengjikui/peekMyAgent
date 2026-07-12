@@ -40,6 +40,8 @@ import {
   writeJson,
 } from "../server/http.mjs";
 import { SourceRepository } from "../server/source-repository.mjs";
+import { importedTraceSourceFromDir as sourceFromImportedTraceDir, listImportedTraceSources } from "../server/imported-trace-source-provider.mjs";
+import { SOURCE_TEXT_LIMITS, sanitizeSourceText } from "../server/source-text.mjs";
 import {
   extractTranslationSchemaDescriptions,
   isSkippableTranslationMaterial,
@@ -55,11 +57,11 @@ const projectRoot = path.resolve(viewerDir, "../..");
 const MAX_TRACE_IMPORT_BYTES = 64 * 1024 * 1024;
 const MAX_TRACE_IMPORT_UNZIPPED_BYTES = 256 * 1024 * 1024;
 const MAX_TRACE_IMPORT_CAPTURES = 5000;
-const MAX_SOURCE_TITLE_CHARS = 80;
-const MAX_TRACE_TITLE_CHARS = 120;
-const MAX_SOURCE_AGENT_CHARS = 80;
-const MAX_SOURCE_WORKSPACE_CHARS = 512;
-const MAX_SOURCE_CONVERSATION_CHARS = 256;
+const MAX_SOURCE_TITLE_CHARS = SOURCE_TEXT_LIMITS.title;
+const MAX_TRACE_TITLE_CHARS = SOURCE_TEXT_LIMITS.traceTitle;
+const MAX_SOURCE_AGENT_CHARS = SOURCE_TEXT_LIMITS.agent;
+const MAX_SOURCE_WORKSPACE_CHARS = SOURCE_TEXT_LIMITS.workspace;
+const MAX_SOURCE_CONVERSATION_CHARS = SOURCE_TEXT_LIMITS.conversation;
 const MAX_TRANSLATION_SOURCE_ID_CHARS = 512;
 const MAX_TRANSLATION_REQUEST_ID_CHARS = 256;
 const MAX_TRANSLATION_SECTION_CHARS = 48;
@@ -897,57 +899,11 @@ function isGenericPersistedSourceLabel(label, source = {}) {
 }
 
 function importedTraceSources({ importsDir }) {
-  if (!importsDir || !fs.existsSync(importsDir)) return [];
-  return fs
-    .readdirSync(importsDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => importedTraceSourceFromDir(path.join(importsDir, entry.name), entry.name))
-    .filter(Boolean);
+  return listImportedTraceSources({ importsDir, summarizeDirectory: sourceListStats, cleanText: cleanTitleText });
 }
 
 function importedTraceSourceFromDir(dir, idPart = path.basename(dir)) {
-  if (!hasCaptureFile(dir)) return null;
-  const manifest = readOptionalJson(path.join(dir, "manifest.json")) || {};
-  const source = manifest.source || {};
-  const stats = traceManifestStats(manifest) || sourceListStats(dir);
-  const label = sanitizeTraceTitle(manifest.title || source.label, path.basename(dir));
-  const agent = sanitizeSourceMetadataText(source.agent || manifest.agent, { fallback: "Imported Trace", limit: MAX_SOURCE_AGENT_CHARS });
-  const workspace = sanitizeSourceMetadataText(source.workspace || stats.workspace, { limit: MAX_SOURCE_WORKSPACE_CHARS }) || null;
-  const conversationId = sanitizeSourceMetadataText(source.conversation_id, { limit: MAX_SOURCE_CONVERSATION_CHARS }) || null;
-  return {
-    id: `imported-${idPart}`,
-    label,
-    original_label: label,
-    agent,
-    confidence: "imported",
-    kind: "imported_trace",
-    path: dir,
-    available: true,
-    readonly: true,
-    imported: true,
-    note: "导入的 peekMyAgent Trace 包；只读查看，不绑定本机实时监听。",
-    created_at: manifest.imported_at || manifest.exported_at || null,
-    ...stats,
-    workspace,
-    conversation_id: conversationId,
-  };
-}
-
-function traceManifestStats(manifest) {
-  const requestCount = boundedManifestCount(manifest?.request_count);
-  if (requestCount <= 0) return null;
-  return {
-    request_count: requestCount,
-    response_count: boundedManifestCount(manifest.response_count),
-    subagent_count: boundedManifestCount(manifest.subagent_count),
-    raw_body_bytes: boundedManifestCount(manifest.raw_body_bytes),
-  };
-}
-
-function boundedManifestCount(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number) || number <= 0) return 0;
-  return Math.min(Math.floor(number), Number.MAX_SAFE_INTEGER);
+  return sourceFromImportedTraceDir(dir, idPart, { summarizeDirectory: sourceListStats, cleanText: cleanTitleText });
 }
 
 function initialViewLimit(searchParams) {
@@ -4092,20 +4048,7 @@ function cleanStoredSourceLabel(text) {
 }
 
 function sanitizeTitleText(value, { fallback = "", limit = MAX_SOURCE_TITLE_CHARS } = {}) {
-  let normalized = cleanTitleText(value)
-    .replace(/[\x00-\x1F\x7F]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!normalized) {
-    normalized = cleanTitleText(fallback)
-      .replace(/[\x00-\x1F\x7F]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-  if (!normalized) return "";
-  const maxChars = Math.max(3, Number(limit) || MAX_SOURCE_TITLE_CHARS);
-  if (normalized.length <= maxChars) return normalized;
-  return `${normalized.slice(0, maxChars - 3).trimEnd()}...`;
+  return sanitizeSourceText(value, { fallback, limit, clean: cleanTitleText });
 }
 
 function sanitizeSourceTitle(value) {

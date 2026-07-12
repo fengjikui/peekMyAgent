@@ -28,11 +28,13 @@ repository 按以下固定顺序收集：
 
 ## 当前边界
 
-本里程碑只迁移 provider 汇聚、运行时校验和 source 解析。标题推断、Trace 统计、live capture 统计和 imported manifest 读取仍由 `viewer/server.mjs` 中的 provider 实现负责。这是刻意保留的过渡边界，不应描述为 source 领域已经完全拆分。
+repository 门面负责 provider 汇聚、运行时校验和 source 解析。imported Trace 的目录发现、manifest 快速统计、旧 bundle fallback 和 DTO 构造已迁入 `imported-trace-source-provider.mjs`；通用控制字符/空白/fallback/截断规则位于 `source-text.mjs`。Trace 语义标题清洗仍由 Viewer 作为策略注入，旧 bundle 的内容统计仍通过现有 summarizer fallback，避免复制消息解释逻辑。
+
+标题推断、live capture 统计和 persisted 标题恢复仍由 `viewer/server.mjs` 中的 provider 实现负责。这是明确的过渡边界，不应描述为 source 领域已经完全拆分。
 
 后续迁移顺序：
 
-1. imported/file provider（依赖最少）；
+1. file/demo provider；
 2. persisted provider（通过 store repository）；
 3. live provider（需要先分离 watch runtime 与 Trace summary）；
 4. source lifecycle service（rename/archive/delete/project 操作）。
