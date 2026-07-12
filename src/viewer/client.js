@@ -13,6 +13,7 @@ const state = {
   activeRawSection: "full",
   rawSearchQuery: "",
   rawSearchTimer: 0,
+  rawSearchComposing: false,
   rawMessagesMode: "organized",
   requestDetails: new Map(),
   requestDetailPromises: new Map(),
@@ -42,6 +43,7 @@ const state = {
   traceQuery: "",
   traceFilter: "all",
   traceQueryTimer: 0,
+  traceSearchComposing: false,
   traceResultLimit: 24,
   agentSend: { loading: false, error: "", message: "", result: null },
   openSourceMenuId: null,
@@ -1223,18 +1225,26 @@ async function init() {
     const input = event.target.closest("[data-raw-search]");
     if (!input || !els.rawTree.contains(input)) return;
     state.rawSearchQuery = input.value || "";
-    if (!state.activeRequestId) return;
+    if (event.isComposing || state.rawSearchComposing) return;
+    scheduleRawSearchRender();
+  });
+  els.rawTree.addEventListener("compositionstart", (event) => {
+    const input = event.target.closest("[data-raw-search]");
+    if (!input || !els.rawTree.contains(input)) return;
+    state.rawSearchComposing = true;
     window.clearTimeout(state.rawSearchTimer);
-    state.rawSearchTimer = window.setTimeout(() => {
-      showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
-      requestAnimationFrame(() => {
-        const nextInput = els.rawTree.querySelector("[data-raw-search]");
-        if (!nextInput) return;
-        nextInput.focus();
-        const cursor = nextInput.value.length;
-        nextInput.setSelectionRange(cursor, cursor);
-      });
-    }, 120);
+  });
+  els.rawTree.addEventListener("compositionend", (event) => {
+    const input = event.target.closest("[data-raw-search]");
+    if (!input || !els.rawTree.contains(input)) return;
+    state.rawSearchComposing = false;
+    state.rawSearchQuery = input.value || "";
+    scheduleRawSearchRender();
+  });
+  els.rawTree.addEventListener("keydown", (event) => {
+    const input = event.target.closest("[data-raw-search]");
+    if (!input || !els.rawTree.contains(input)) return;
+    if (event.key === "Enter" && !event.isComposing && !state.rawSearchComposing) event.preventDefault();
   });
   document.addEventListener("click", (event) => {
     const retranslateButton = event.target.closest("[data-translation-retranslate]");
@@ -1270,6 +1280,22 @@ async function init() {
     if (!document.hidden) refreshLiveData({ force: true });
   });
   startAutoRefresh();
+}
+
+function scheduleRawSearchRender() {
+  if (!state.activeRequestId) return;
+  window.clearTimeout(state.rawSearchTimer);
+  state.rawSearchTimer = window.setTimeout(() => {
+    showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
+    requestAnimationFrame(() => restoreSearchInputFocus(els.rawTree.querySelector("[data-raw-search]")));
+  }, 120);
+}
+
+function restoreSearchInputFocus(input) {
+  if (!input) return;
+  input.focus();
+  const cursor = input.value.length;
+  input.setSelectionRange(cursor, cursor);
 }
 
 async function loadSource(sourceId, { preserveScroll = false } = {}) {
@@ -2295,20 +2321,24 @@ function renderTraceQueryBar(requests) {
 
 function bindTraceQueryEvents() {
   const input = els.traceQueryBar?.querySelector("[data-trace-search]");
-  input?.addEventListener("input", () => {
+  input?.addEventListener("input", (event) => {
     state.traceQuery = input.value || "";
     state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
+    if (event.isComposing || state.traceSearchComposing) return;
+    scheduleTraceSearchRender();
+  });
+  input?.addEventListener("compositionstart", () => {
+    state.traceSearchComposing = true;
     window.clearTimeout(state.traceQueryTimer);
-    state.traceQueryTimer = window.setTimeout(() => {
-      renderAll();
-      requestAnimationFrame(() => {
-        const nextInput = els.traceQueryBar?.querySelector("[data-trace-search]");
-        if (!nextInput) return;
-        nextInput.focus();
-        const cursor = nextInput.value.length;
-        nextInput.setSelectionRange(cursor, cursor);
-      });
-    }, 160);
+  });
+  input?.addEventListener("compositionend", () => {
+    state.traceSearchComposing = false;
+    state.traceQuery = input.value || "";
+    state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
+    scheduleTraceSearchRender();
+  });
+  input?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.isComposing && !state.traceSearchComposing) event.preventDefault();
   });
   els.traceQueryBar?.querySelectorAll("[data-trace-filter]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -2324,6 +2354,14 @@ function bindTraceQueryEvents() {
     state.traceResultLimit += TRACE_RESULT_PAGE_SIZE;
     renderAll();
   });
+}
+
+function scheduleTraceSearchRender() {
+  window.clearTimeout(state.traceQueryTimer);
+  state.traceQueryTimer = window.setTimeout(() => {
+    renderAll();
+    requestAnimationFrame(() => restoreSearchInputFocus(els.traceQueryBar?.querySelector("[data-trace-search]")));
+  }, 160);
 }
 
 function traceQueryActive() {
