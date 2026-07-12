@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 const clientSource = fs.readFileSync(new URL("../src/viewer/client.js", import.meta.url), "utf8");
 const markdownSource = fs.readFileSync(new URL("../src/viewer/markdown.js", import.meta.url), "utf8");
+const turnRailSource = fs.readFileSync(new URL("../src/viewer/turn-rail.js", import.meta.url), "utf8");
 const stylesSource = fs.readFileSync(new URL("../src/viewer/styles.css", import.meta.url), "utf8");
 
 assert.match(clientSource, /const TIMELINE_WINDOW_THRESHOLD = 180;/, "timeline window threshold should be explicit");
@@ -12,6 +13,10 @@ assert.match(clientSource, /const AGENT_EVENT_LIMIT = 80;/, "large multi-agent v
 assert.match(clientSource, /function timelineWindowInfo\(turns, requests\)/, "timelineWindowInfo should exist");
 assert.match(clientSource, /filteredTurns\.length \? renderTurnTimeline\(turnWindow, requests\)/, "main timeline should render the computed filtered window");
 assert.match(clientSource, /const filtered = traceFilteredTurns\(turns, requests\);/, "turn rail universe should follow the active Trace query");
+assert.match(clientSource, /import \{ TurnRailController \} from "\.\/turn-rail\.js";/, "the timeline should delegate rail interaction to its feature controller");
+assert.match(clientSource, /turnRailController\.bind\(\)/, "the turn rail controller should own its browser event lifecycle");
+assert.match(turnRailSource, /export function visibleTurnWindow\(/, "the turn rail window policy should be directly testable");
+assert.match(turnRailSource, /syncActiveFromScroll\(\)/, "the turn rail controller should own scroll activation");
 assert.match(clientSource, /data-turn-window-jump/, "window edge jump controls should be wired");
 assert.match(clientSource, /function jumpToTurn\(turnId, scroll = true\)/, "turn rail jumps should re-render the active window");
 assert.match(clientSource, /const RAW_MESSAGE_MARKDOWN_INLINE_CHARS = 5000;/, "organized Messages view should cap markdown rendering");

@@ -151,7 +151,8 @@ src/
 - 已迁移 Trace Bundle Service：Raw 快路径导出、递归脱敏、gzip/数量边界、provenance 补全与安全导入目录由独立服务管理。
 - 已建立共享 Translation Material Collector：Viewer 局部/整段刷新与离线提取统一使用 system/tool/schema hash、去重、occurrence 和限额协议。
 - 已迁移 Translation Service：材料/manifest 私有落盘、缓存 alias、并发/force 参数、脚本编排和公开响应边界不再由 Viewer Server 所有。
-- 下一步进入 Viewer Client feature renderer 拆分；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
+- 已迁移首个 Viewer Client feature：Turn Rail 的窗口策略、悬停、点击跳转和滚动激活由独立控制器管理，并有直接契约测试。
+- 下一步审计 Client 状态与数据依赖，再选择 Raw Inspector 或 request-detail cache 作为第二个低耦合边界；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
 
 ## 阶段 3：拆分 Viewer Client
 
@@ -159,11 +160,12 @@ src/
 
 建议顺序：
 
-1. 抽出 API client 和 request-detail cache。
-2. 建立最小 client store，明确 source、timeline window、selected request、language 和 pane layout。
-3. 按 timeline、raw inspector、translation、agent graph、composer 拆 feature renderer。
-4. 将硬编码文案移入中英文资源表；增加缺失 key 检查。
-5. 删除确认无调用的函数和 CSS，再按 component/feature 拆样式。
+1. 抽出低耦合交互 feature，验证依赖注入和直接契约测试模式。Turn Rail 已完成。
+2. 抽出 API client 和 request-detail cache。
+3. 建立最小 client store，明确 source、timeline window、selected request、language 和 pane layout。
+4. 按 timeline、raw inspector、translation、agent graph、composer 拆 feature renderer。
+5. 将硬编码文案移入中英文资源表；增加缺失 key 检查。
+6. 删除确认无调用的函数和 CSS，再按 component/feature 拆样式。
 
 验收：
 

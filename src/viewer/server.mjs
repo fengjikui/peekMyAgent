@@ -222,6 +222,7 @@ async function handleRequest(req, res, options) {
   if (url.pathname === "/styles.css") return serveFile(res, path.join(viewerDir, "styles.css"), "text/css; charset=utf-8");
   if (url.pathname === "/client.js") return serveFile(res, path.join(viewerDir, "client.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/markdown.js") return serveFile(res, path.join(viewerDir, "markdown.js"), "text/javascript; charset=utf-8");
+  if (url.pathname === "/turn-rail.js") return serveFile(res, path.join(viewerDir, "turn-rail.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/translation-blocks.js") {
     return serveFile(res, path.join(projectRoot, "src", "translation", "blocks.mjs"), "text/javascript; charset=utf-8");
   }

@@ -1,4 +1,5 @@
 import { renderMarkdownPreview, renderSafeMarkdown } from "./markdown.js";
+import { TurnRailController } from "./turn-rail.js";
 import {
   extractTranslationSchemaDescriptions as extractSchemaDescriptionsForTranslation,
   isSkippableTranslationMaterial,
@@ -967,9 +968,6 @@ const SIDEBAR_WIDTH_MIN = 220;
 const SIDEBAR_WIDTH_MAX = 420;
 const MAIN_PANEL_MIN = 520;
 const RESIZER_WIDTH = 6;
-const TURN_RAIL_MIN_ITEMS = 24;
-const TURN_RAIL_MAX_ITEMS = 72;
-const TURN_RAIL_ITEM_PITCH = 11;
 const els = {
   appShell: document.querySelector(".app-shell"),
   toggleSidebar: document.querySelector("#toggleSidebar"),
@@ -997,7 +995,19 @@ const els = {
   rawTree: document.querySelector("#rawTree"),
 };
 
-let scrollRaf = 0;
+const turnRailController = new TurnRailController({
+  element: els.turnRail,
+  mainPanel: els.mainPanel,
+  getTurns: () => railTurnUniverse(),
+  getActiveId: () => state.activeId,
+  hasData: () => Boolean(state.data?.requests?.length),
+  titleFor: turnTitleText,
+  excerptFor: turnExcerptText,
+  translate: t,
+  escapeHtml,
+  onJump: jumpToTurn,
+  onActiveChange: markActiveTurn,
+});
 
 init();
 
@@ -1275,23 +1285,9 @@ async function init() {
     event.stopPropagation();
     retranslateTranslationBlock(retranslateButton.dataset.translationRetranslate);
   });
-  els.turnRail.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-turn]");
-    if (!button || !els.turnRail.contains(button)) return;
-    jumpToTurn(button.dataset.turn, true);
-  });
-  const updateRailHoverFromEvent = (event) => {
-    const button = event.target.closest("[data-turn]");
-    if (!button || !els.turnRail.contains(button)) return;
-    updateTurnRailHover(button.dataset.turn);
-  };
-  els.turnRail.addEventListener("pointerover", updateRailHoverFromEvent);
-  els.turnRail.addEventListener("pointermove", updateRailHoverFromEvent);
-  els.turnRail.addEventListener("mousemove", updateRailHoverFromEvent);
-  els.turnRail.addEventListener("pointerleave", () => clearTurnRailHover());
+  turnRailController.bind();
   bindSidebarResizer();
   bindRawResizer();
-  els.mainPanel.addEventListener("scroll", scheduleActiveSync, { passive: true });
   window.addEventListener("resize", () => {
     if (state.sidebarWidth) setSidebarWidth(state.sidebarWidth, { persist: false });
     if (state.rawWidth) setRawPanelWidth(state.rawWidth, { persist: false });
@@ -2865,81 +2861,8 @@ function commandMessagePreview(commandMessage) {
   return body ? `${command} · ${shortPreview(body, 180)}` : `Command ${command}`;
 }
 
-function renderTurnRailItem(turn) {
-  const title = turnTitleText(turn);
-  const excerpt = turnExcerptText(turn);
-  const hasSubagent = Boolean(turn.subagent_count);
-  const active = turn.id === state.activeId;
-  return `
-    <button class="turn-mark ${hasSubagent ? "subagent" : ""} ${active ? "active" : ""}" type="button" data-turn="${escapeHtml(turn.id)}" aria-label="${escapeHtml(t("jumpToTurnAria", { index: turn.index }))}">
-      <span class="turn-line"></span>
-      <span class="turn-tooltip">
-        <strong>Turn ${escapeHtml(turn.index)} · ${escapeHtml(title)}</strong>
-        <span>${escapeHtml(excerpt)}</span>
-      </span>
-    </button>
-  `;
-}
-
 function renderTurnRail() {
-  if (!els.turnRail || !state.data?.requests?.length) {
-    if (els.turnRail) els.turnRail.innerHTML = "";
-    return;
-  }
-  const turns = visibleRailTurns();
-  const allTurns = railTurnUniverse();
-  const activeIndex = allTurns.findIndex((turn) => turn.id === state.activeId);
-  const windowStart = turns.length ? allTurns.findIndex((turn) => turn.id === turns[0].id) : 0;
-  const windowEnd = windowStart + turns.length;
-  const topHint = windowStart > 0 ? '<span class="turn-window-edge" aria-hidden="true"></span>' : "";
-  const bottomHint = windowEnd < allTurns.length ? '<span class="turn-window-edge" aria-hidden="true"></span>' : "";
-  els.turnRail.innerHTML = `
-    ${topHint}
-    ${turns.map(renderTurnRailItem).join("")}
-    ${bottomHint}
-  `;
-  els.turnRail.setAttribute(
-    "aria-label",
-    activeIndex >= 0 ? t("turnRailAriaDynamic", { current: activeIndex + 1, total: allTurns.length }) : t("turnRailAriaTotal", { total: allTurns.length }),
-  );
-}
-
-function visibleRailTurns() {
-  const allTurns = railTurnUniverse();
-  const maxItems = currentTurnRailMaxItems();
-  if (allTurns.length <= maxItems) return allTurns;
-  const activeIndex = Math.max(0, allTurns.findIndex((turn) => turn.id === state.activeId));
-  const halfWindow = Math.floor(maxItems / 2);
-  const maxStart = Math.max(0, allTurns.length - maxItems);
-  const start = Math.min(Math.max(0, activeIndex - halfWindow), maxStart);
-  return allTurns.slice(start, start + maxItems);
-}
-
-function currentTurnRailMaxItems() {
-  const available = Math.max(220, window.innerHeight - 340);
-  return Math.min(TURN_RAIL_MAX_ITEMS, Math.max(TURN_RAIL_MIN_ITEMS, Math.floor(available / TURN_RAIL_ITEM_PITCH)));
-}
-
-function updateTurnRailHover(turnId) {
-  if (!els.turnRail) return;
-  const buttons = [...els.turnRail.querySelectorAll("[data-turn]")];
-  const hoveredIndex = buttons.findIndex((button) => button.dataset.turn === turnId);
-  els.turnRail.classList.toggle("hovering", hoveredIndex >= 0);
-  buttons.forEach((button, index) => {
-    button.classList.remove("hover-center", "hover-near-1", "hover-near-2", "hover-near-3");
-    if (hoveredIndex < 0) return;
-    const distance = Math.abs(index - hoveredIndex);
-    if (distance === 0) button.classList.add("hover-center");
-    else if (distance <= 3) button.classList.add(`hover-near-${distance}`);
-  });
-}
-
-function clearTurnRailHover() {
-  if (!els.turnRail) return;
-  els.turnRail.classList.remove("hovering");
-  els.turnRail.querySelectorAll("[data-turn]").forEach((button) => {
-    button.classList.remove("hover-center", "hover-near-1", "hover-near-2", "hover-near-3");
-  });
+  turnRailController.render();
 }
 
 function railTurnUniverse(data = state.data) {
@@ -4926,45 +4849,7 @@ function maxSidebarWidth() {
 }
 
 function scheduleActiveSync() {
-  if (scrollRaf) return;
-  scrollRaf = requestAnimationFrame(() => {
-    scrollRaf = 0;
-    syncActiveFromScroll();
-  });
-}
-
-function syncActiveFromScroll() {
-  if (!state.data?.requests?.length) return;
-  const turnGroups = [...document.querySelectorAll("[data-turn-group]")];
-  if (!turnGroups.length) return;
-
-  const { scrollTop, scrollHeight, clientHeight } = els.mainPanel;
-  const bottomSnap = Math.min(160, clientHeight * 0.18);
-  if (scrollTop + clientHeight >= scrollHeight - bottomSnap) {
-    const last = turnGroups.at(-1);
-    if (last?.dataset.turnGroup && last.dataset.turnGroup !== state.activeId) {
-      markActiveTurn(last.dataset.turnGroup, false);
-    }
-    return;
-  }
-
-  const activePosition = scrollTop + 118;
-  let candidate = turnGroups[0];
-
-  for (let index = 1; index < turnGroups.length; index += 1) {
-    const previousTop = turnGroups[index - 1].offsetTop;
-    const currentTop = turnGroups[index].offsetTop;
-    const switchPoint = previousTop + (currentTop - previousTop) / 2;
-    if (activePosition >= switchPoint) {
-      candidate = turnGroups[index];
-    } else {
-      break;
-    }
-  }
-
-  if (candidate.dataset.turnGroup && candidate.dataset.turnGroup !== state.activeId) {
-    markActiveTurn(candidate.dataset.turnGroup, false);
-  }
+  turnRailController.scheduleActiveSync();
 }
 
 async function showRaw(id, section = "full", { mode = "request" } = {}) {
