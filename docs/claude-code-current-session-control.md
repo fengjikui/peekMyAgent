@@ -49,7 +49,7 @@ The natural workflow is:
 
 6. The viewer shows the new live session in the left sidebar.
 
-Running the same command again from the same Claude Code session reuses the existing active recording instead of creating duplicate left-sidebar entries. Pass `--new` only when a separate recording is intentionally needed.
+Running the same command again from the same Claude Code session reuses the existing active recording instead of creating duplicate left-sidebar entries. Clear the existing recording first when a replacement is intentionally needed.
 
 Autocomplete-friendly slash commands:
 

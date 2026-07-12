@@ -49,6 +49,7 @@ const TRACE_IMPORT_INTENT = "trace-import";
 const AGENT_SEND_INTENT = "agent-send";
 const OTEL_INGEST_INTENT = "otel-ingest";
 const OTEL_EVENT_INGEST_INTENT = "otel-event-ingest";
+const OTEL_WATCH_ID_HEADER = "x-peekmyagent-watch-id";
 const TRANSLATION_GENERATE_INTENT = "translation-generate";
 const SOURCE_UPDATE_INTENT = "source-update";
 const DAEMON_SHUTDOWN_INTENT = "daemon-shutdown";
@@ -1325,7 +1326,13 @@ async function ingestOtelCaptures(req, options) {
 }
 
 async function ingestOtelEvents(req, url, { otelBodyEvents }) {
-  const watchId = sanitizeApiLookupId(url.searchParams.get("watch_id"), { limit: MAX_API_REQUEST_ID_CHARS });
+  // OTLP exporters do not consistently preserve endpoint query strings. The
+  // dedicated header is the stable transport; the query remains for backward
+  // compatibility with older wrappers and direct smoke fixtures.
+  const watchId = sanitizeApiLookupId(
+    headerValue(req.headers || {}, OTEL_WATCH_ID_HEADER) || url.searchParams.get("watch_id"),
+    { limit: MAX_API_REQUEST_ID_CHARS },
+  );
   if (!watchId) throw httpError(400, "OTel event ingest requires watch_id");
   const payload = await readJsonBody(req);
   const incoming = extractOtelBodyEvents(payload, { maxEvents: MAX_OTEL_EVENTS_PER_WATCH });

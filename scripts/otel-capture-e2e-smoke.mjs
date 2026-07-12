@@ -71,9 +71,19 @@ const record = (eventName, bodyRef, sequence) => ({
     attr('body_ref', bodyRef),
   ],
 });
+const exporterHeaders = Object.fromEntries(
+  String(process.env.OTEL_EXPORTER_OTLP_HEADERS || '')
+    .split(',')
+    .map((entry) => entry.split('=').map((part) => part.trim()))
+    .filter(([key, value]) => key && value),
+);
+if (!exporterHeaders['x-peekmyagent-watch-id']) {
+  console.error('otel watch identity header missing');
+  process.exit(9);
+}
 const eventResponse = await fetch(process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT, {
   method: 'POST',
-  headers: { 'content-type': 'application/json', 'x-peekmyagent-intent': 'otel-event-ingest' },
+  headers: { 'content-type': 'application/json', ...exporterHeaders },
   body: JSON.stringify({ resourceLogs: [{ scopeLogs: [{ logRecords: [record('api_request_body', 'c1.request.json', 1), record('api_response_body', 'req_1.response.json', 2), record('api_request_body', 'c2.request.json', 3)] }] }] }),
 });
 if (!eventResponse.ok) {

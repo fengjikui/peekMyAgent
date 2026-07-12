@@ -72,15 +72,15 @@ assert.equal(env.OTEL_LOG_RAW_API_BODIES, `file:${dir}`);
 assert.equal(env.OTEL_LOGS_EXPORT_INTERVAL, "1000");
 assert.throws(() => otelTelemetryEnv(""), /requires a directory/);
 const correlatedEnv = otelTelemetryEnv(dir, {
-  logsEndpoint: "http://127.0.0.1:43110/api/capture/otel/events?watch_id=w",
-  tracesEndpoint: "http://127.0.0.1:43110/api/capture/otel/traces?watch_id=w",
-  headers: "x-peekmyagent-intent=otel-event-ingest",
+  logsEndpoint: "http://127.0.0.1:43110/api/capture/otel/events",
+  tracesEndpoint: "http://127.0.0.1:43110/api/capture/otel/traces",
+  headers: "x-peekmyagent-intent=otel-event-ingest,x-peekmyagent-watch-id=w",
 });
 assert.equal(correlatedEnv.CLAUDE_CODE_ENHANCED_TELEMETRY_BETA, "1");
 assert.equal(correlatedEnv.OTEL_LOGS_EXPORTER, "otlp");
 assert.equal(correlatedEnv.OTEL_TRACES_EXPORTER, "otlp");
 assert.equal(correlatedEnv.OTEL_EXPORTER_OTLP_PROTOCOL, "http/json");
-assert.equal(correlatedEnv.OTEL_EXPORTER_OTLP_HEADERS, "x-peekmyagent-intent=otel-event-ingest");
+assert.equal(correlatedEnv.OTEL_EXPORTER_OTLP_HEADERS, "x-peekmyagent-intent=otel-event-ingest,x-peekmyagent-watch-id=w");
 
 // --- scanOtelDir ---
 const scan = scanOtelDir(dir);

@@ -308,6 +308,8 @@ export class PersistenceStore {
       upstream_status: capture.upstream_status ?? stored.upstream_status ?? null,
       upstream_error: capture.upstream_error ?? stored.upstream_error ?? null,
       response: responseForStore ?? stored.response ?? null,
+      source: capture.source ?? stored.source ?? null,
+      provenance: capture.provenance ?? stored.provenance ?? null,
     };
     this.db.prepare("UPDATE model_requests SET capture_json = ? WHERE request_id = ?").run(JSON.stringify(next), capture.capture_id);
     if (capture.watch_id && capture.response?.received_at) {

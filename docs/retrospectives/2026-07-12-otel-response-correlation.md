@@ -37,6 +37,13 @@ raw-body 文件名没有共同 ID：
 5. 周期性 ingest 不执行顺序猜测；进程退出的最终 ingest 才为旧版本或事件缺失执行 `file_write_order` 回退，并标为 `heuristic`。
 6. provenance v1 分别记录 request/response fidelity 与 association confidence。
 
+真实 wrapper 测试随后暴露了两个增量生命周期问题：
+
+- request 首次落库时 response 文件可能尚未生成；旧 `updateCaptureResponse()` 后续只更新 response 和状态，没有刷新 `source` 与 `provenance`，导致正文已经存在但关联证据仍停留在 `none`；
+- Claude Code 的 OTLP exporter 没有稳定保留 endpoint 上的 `?watch_id=...` 查询参数，daemon 因而收不到可归属的事件。
+
+对应修复为：增量 response 更新同时持久化 source/provenance；wrapper 改用固定 logs/traces endpoint，并通过 `x-peekmyagent-watch-id` 传递归属。服务端仍接受旧 query 参数，保证已有脚本兼容。
+
 ## 验证
 
 确定性测试覆盖：
@@ -58,6 +65,8 @@ npm run release:check:macos
 ```
 
 最终 macOS release gate 在 Node.js 24.14.0、arm64 上通过，约 50 项 smoke 全绿。npm 安装包清单保持无 docs/tmp/private artifacts；因新增两个必需核心模块，受控文件预算由 40 精确调整为 42。
+
+修复后的真实 Claude Code OTel 测试产生 3 个完整 request/response：2 个业务请求使用 `otel_trace_span / exact` 关联；启动阶段的标题生成请求没有对应事件证据，在最终 ingest 中明确降级为 `file_write_order / heuristic`。这验证了“精确证据优先、缺失时诚实降级”，而不是宣称所有请求都必然精确关联。
 
 ## 剩余风险
 

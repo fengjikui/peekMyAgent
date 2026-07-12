@@ -148,7 +148,6 @@ peekMyAgent 找到了可能对应的历史监听：
 
 ```bash
 pma --reuse claude -c
-pma --new claude -c
 pma --ask claude -r <session-id>
 ```
 
@@ -441,11 +440,7 @@ pma watch-current --agent claude-code --stop
 pma watch-current --agent claude-code --clear
 ```
 
-同一个 Claude Code 会话重复运行普通 watch 命令时，会复用已有 active watch。只有明确需要新建一条监听时才使用：
-
-```bash
-pma watch-current --agent claude-code --new
-```
+同一个 Claude Code 会话重复运行普通 watch 命令时，会复用已有 active watch。需要替换时，先清空当前监听，再重新注册。
 
 ## 常用命令速查
 
@@ -545,9 +540,7 @@ pma watch-current --viewer-url http://127.0.0.1:52502
 
 ### 左侧出现重复 watch
 
-正常情况下，同一个 Claude Code session 会复用 active watch。如果你使用了 `--new`，会强制创建新 watch。
-
-可以在页面里对不需要的条目点击 `停止并清空`。
+正常情况下，同一个 Claude Code session 会复用 active watch。可以在页面里对不需要的条目点击 `停止并清空`。
 
 ### 能注册 session，但捕获不到请求
 

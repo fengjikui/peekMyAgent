@@ -172,13 +172,12 @@ Continue the last Claude Code session:
 pma claude -c
 ```
 
-When Claude Code uses `-c/--continue` or `-r/--resume`, peekMyAgent may find an existing recording for the same project/session. In an interactive terminal it asks whether to reuse that recording or create a new one. Pressing Enter accepts option 1 and continues writing to the same recording in both proxy and OTel capture modes; use `--new` when a separate recording is intentional.
+When Claude Code uses `-c/--continue` or `-r/--resume`, peekMyAgent may find an existing recording for the same project/session. In an interactive terminal it asks whether to reuse that recording or create a new one. Pressing Enter accepts option 1 and continues writing to the same recording in both proxy and OTel capture modes; choose option 2 when a separate recording is intentional.
 
 Use these flags to choose explicitly:
 
 ```bash
 pma --reuse claude -c
-pma --new claude -c
 pma --ask claude -r <session-id>
 ```
 

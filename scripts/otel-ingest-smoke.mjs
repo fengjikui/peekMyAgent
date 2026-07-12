@@ -62,9 +62,13 @@ try {
   });
   assert.equal(noEventIntentRes.status, 403, "OTel events require explicit telemetry intent");
 
-  const eventRes = await fetch(`${viewer.url}/api/capture/otel/events?watch_id=${watchId}`, {
+  const eventRes = await fetch(`${viewer.url}/api/capture/otel/events`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-peekmyagent-intent": "otel-event-ingest" },
+    headers: {
+      "content-type": "application/json",
+      "x-peekmyagent-intent": "otel-event-ingest",
+      "x-peekmyagent-watch-id": watchId,
+    },
     body: JSON.stringify(
       otelPayload([
         logRecord("api_request_body", "c1.request.json", "trace-1", "span-1", 1),
@@ -102,6 +106,37 @@ try {
   assert.equal(view.requests[0].raw.provenance.association.confidence, "exact");
   assert.equal(view.requests[1].request_index, 2);
 
+  // --- response/event arriving after the request refreshes provenance too ---
+  dump("req_2.response.json", 2001, {
+    id: "req_2",
+    content: [{ type: "text", text: "late response" }],
+    stop_reason: "end_turn",
+    usage: { input_tokens: 4000, output_tokens: 6 },
+  });
+  const lateEventRes = await fetch(`${viewer.url}/api/capture/otel/events`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-peekmyagent-intent": "otel-event-ingest",
+      "x-peekmyagent-watch-id": watchId,
+    },
+    body: JSON.stringify(otelPayload([logRecord("api_response_body", "req_2.response.json", "trace-2", "span-2", 4)])),
+  });
+  assert.equal(lateEventRes.status, 200);
+  const lateIngestRes = await fetch(`${viewer.url}/api/capture/otel`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-peekmyagent-intent": "otel-ingest" },
+    body: JSON.stringify({ dir: dumpDir, watch_id: watchId, agent: "Claude Code", workspace: "/tmp/ws", event_correlation_enabled: true }),
+  });
+  const lateIngest = await lateIngestRes.json();
+  assert.equal(lateIngest.ingested, 0, "late response does not duplicate its request");
+  assert.equal(lateIngest.responses, 2, "both known responses are eligible for idempotent refresh");
+  const lateView = await (await fetch(`${viewer.url}/api/view?source=${encodeURIComponent(ingest.source_id)}`)).json();
+  assert.equal(lateView.requests[1].summary.response.captured, true, "late response is persisted");
+  assert.equal(lateView.requests[1].raw.provenance.association.method, "otel_trace_span", "late response refreshes association provenance");
+  assert.equal(lateView.requests[1].raw.provenance.association.confidence, "exact");
+  assert.equal(lateView.requests[1].raw.source.response_file, "req_2.response.json", "late response refreshes source evidence");
+
   // --- /api/sources lists it ---
   const sourcesRes = await fetch(`${viewer.url}/api/sources`);
   const sources = await sourcesRes.json();
@@ -109,7 +144,7 @@ try {
   assert.ok(src, "source appears in /api/sources");
   assert.equal(src.agent, "Claude Code");
   assert.equal(src.request_count, 2);
-  assert.equal(src.response_count, 1);
+  assert.equal(src.response_count, 2);
 
   // --- incremental re-ingest is a dedup no-op for requests ---
   const reRes = await fetch(`${viewer.url}/api/capture/otel`, {
@@ -167,7 +202,7 @@ try {
   const continuedSources = await (await fetch(`${viewer.url}/api/sources`)).json();
   const continuedSource = (Array.isArray(continuedSources) ? continuedSources : continuedSources.sources || []).find((source) => source.id === ingest.source_id);
   assert.equal(continuedSource.request_count, 3);
-  assert.equal(continuedSource.response_count, 2);
+  assert.equal(continuedSource.response_count, 3);
 
   // --- bad input rejected ---
   const badRes = await fetch(`${viewer.url}/api/capture/otel`, {
