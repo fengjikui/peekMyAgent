@@ -142,7 +142,8 @@ src/
 - 已迁移 imported Trace provider：manifest 快速统计、旧 bundle fallback、目录发现与 DTO 构造不再由 Viewer Server 所有；共享 Source 文本约束保持标题清洗兼容。
 - 已迁移 file/demo provider：custom evidence 与显式 demo 的定义、路径解析、可用性和统计开关不再由 Viewer Server 所有；默认仍不加载 demo。
 - 已迁移 persisted provider：SQLite source 与 live watch 去重、手动/存储/conversation/inferred 标题优先级由独立 provider 管理，消息语义通过 title policy 注入。
-- 下一步分离 live source summary 与 watch runtime，再迁移 source lifecycle service。
+- 已迁移 live provider：watch runtime 与 SourceSummary 映射分离，请求/回复/子 Agent/Raw/last_seen 统计由独立 provider 管理，标题语义通过单一策略注入。
+- 下一步迁移 source lifecycle service，并建立统一 capture reader，为后续分页 API 和 Trace domain 拆分铺路。
 
 ## 阶段 3：拆分 Viewer Client
 

@@ -43,6 +43,7 @@ import { SourceRepository } from "../server/source-repository.mjs";
 import { importedTraceSourceFromDir as sourceFromImportedTraceDir, listImportedTraceSources } from "../server/imported-trace-source-provider.mjs";
 import { listFileSources } from "../server/file-source-provider.mjs";
 import { listPersistedSources } from "../server/persisted-source-provider.mjs";
+import { listLiveSources } from "../server/live-source-provider.mjs";
 import { SOURCE_TEXT_LIMITS, sanitizeSourceText } from "../server/source-text.mjs";
 import {
   extractTranslationSchemaDescriptions,
@@ -4171,51 +4172,14 @@ function sourceListStats(dir) {
 }
 
 function activeWatchSources(watches) {
-  if (!watches) return [];
-  return [...watches.values()].map((watch) => {
-    const captures = capturesForWatch(watch);
-    const inferredTitle = captures.map(inferCaptureTitle).find(Boolean);
-    const label = cleanStoredSourceLabel(watch.title || watch.label) || textPreview(cleanTitleText(inferredTitle), 48) || watch.label;
-    return {
-      id: watch.id,
-      label,
-      user_title: watch.title || null,
-      original_label: watch.label,
-      agent: watch.agent,
-      mode: watch.mode,
-      confidence: watch.confidence,
-      kind: watch.kind,
-      path: watch.base_url,
-      available: true,
-      live_watch_id: watch.watch_id,
-      live_status: watch.status,
-      conversation_id: watch.conversation_id,
-      provider_id: watch.provider_id,
-      config_patched: watch.config_patched,
-      note: watch.note,
-      request_count: captures.length,
-      workspace: watch.workspace,
-      created_at: watch.created_at,
-      restarted_at: watch.restarted_at || null,
-      paused_at: watch.paused_at || null,
-      resumed_at: watch.resumed_at || null,
-      stopped_at: watch.stopped_at || null,
-      last_seen: watch.last_seen || captures.at(-1)?.received_at || watch.restarted_at || watch.created_at,
-      skipped_while_paused: Number(watch.skipped_while_paused) || 0,
-      response_count: captures.filter((capture) => capture.response).length,
-      last_response_seen: watch.last_response_seen || latestCaptureResponseSeen(captures),
-      subagent_count: captures.filter((capture) => headerValue(capture.headers, "x-claude-code-agent-id")).length,
-      raw_body_bytes: captures.reduce((sum, capture) => sum + (Number(capture.raw_body_length) || byteLength(capture.body)), 0),
-    };
+  return listLiveSources({
+    watches,
+    capturesForWatch,
+    resolveLabel(watch, captures) {
+      const inferredTitle = captures.map(inferCaptureTitle).find(Boolean);
+      return cleanStoredSourceLabel(watch.title || watch.label) || textPreview(cleanTitleText(inferredTitle), 48) || watch.label;
+    },
   });
-}
-
-function latestCaptureResponseSeen(captures) {
-  return captures
-    .map((capture) => capture.response?.received_at)
-    .filter(Boolean)
-    .sort()
-    .at(-1) || null;
 }
 
 function decorateSources(sources, sourceMeta) {

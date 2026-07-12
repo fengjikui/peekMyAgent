@@ -22,6 +22,7 @@ const coreCommands = [
   ["npm", "run", "smoke:imported-source-provider"],
   ["npm", "run", "smoke:file-source-provider"],
   ["npm", "run", "smoke:persisted-source-provider"],
+  ["npm", "run", "smoke:live-source-provider"],
   ["npm", "run", "smoke:source-meta"],
   ["npm", "run", "smoke:doctor"],
   ["npm", "run", "smoke:source-install"],
