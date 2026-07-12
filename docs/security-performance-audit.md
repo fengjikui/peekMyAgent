@@ -128,7 +128,7 @@
 - `npm run smoke:platform`
   - 覆盖跨平台 browser opener 命令。
 - `npm run smoke:package`
-  - 覆盖 npm 包内容边界，拒绝把 `docs/`、`tmp/`、handover/private/resume/memory 草稿、`.env`、数据库、日志、压缩包和录屏/截图素材打进发布包。
+  - 覆盖 npm 包内容边界，拒绝把 `docs/`、`tmp/`、handover/private/resume/memory 草稿、`.env`、数据库、日志、压缩包和录屏/截图素材打进发布包；同时约束文件总数、压缩体积和解压体积，避免模块化重构被单一文件数阈值误判。
 - `npm run smoke:timeline-window`
   - 覆盖长 Trace 主时间线窗口渲染和 Raw Messages 整理视图截断，防止前端回退到大 DOM 全量渲染。
 - `npm run smoke:markdown-safety`

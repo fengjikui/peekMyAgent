@@ -61,8 +61,10 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/viewer/client.js` | 浏览器应用装配、共享状态、数据加载和尚未迁出的 feature renderer |
 | `src/viewer/api-client.js` | 浏览器 `/api/*` URL、method、intent header、body 与错误协议门面 |
 | `src/viewer/raw-view-model.js` | Raw Inspector 上行、下行、Harness、Metadata 的纯 section 数据与方向约束 |
+| `src/viewer/raw-search-model.js` | Raw 搜索条目构建、过滤、摘要命中分段与导航索引的纯模型 |
 | `src/viewer/request-detail-cache.js` | compact request 的完整详情按需加载、并发去重、错误和 source 生命周期缓存 |
 | `src/viewer/turn-rail.js` | Turn Rail 可见窗口、悬停层级、跳转和滚动激活控制器 |
+| `src/server/viewer-static-assets.mjs` | Viewer 浏览器资源白名单、文件解析与 content type manifest |
 | `src/viewer/markdown.js` | 受限、安全的 Markdown 渲染 |
 | `src/viewer/styles.css` | 三栏应用和所有 Viewer 组件样式 |
 | `integrations/` | Claude Code slash command 和 OpenClaw plugin 集成 |
@@ -156,6 +158,8 @@ sequenceDiagram
 
 Raw Inspector 的分类标签、当前区块搜索和原文/翻译操作组成同一个粘性控制区。原文模式只搜索原始 JSON 路径和值；整理/翻译模式只搜索当前可见的结构化 system、harness 或工具文本，并筛选原有块和工具组。匹配计数以可见关键词的实际出现次数为准，上一个/下一个按钮逐词循环定位并强化当前高亮。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属。
 
+搜索的递归条目、大小写无关过滤、特殊字符转义、摘要窗口、高亮分段和循环索引由 `raw-search-model.js` 统一；DOM 层只负责把纯模型结果渲染为 `mark` 并滚动到当前可见命中。这样搜索语义可以脱离浏览器直接做契约测试。
+
 顶部 Trace 搜索和 Raw 区块搜索均遵守浏览器 IME composition 生命周期：中文、日文、韩文等输入法组词期间不替换输入框 DOM，只有选词完成后才触发过滤和重绘。
 
 Turn Rail 已作为首个 Viewer Client feature 从全局脚本迁出。`client.js` 只注入当前 Turn 集合、active id、文案和状态回调；窗口密度、边缘提示、悬停层级、点击跳转与滚动激活由 `TurnRailController` 所有。纯窗口策略和滚动选择规则有独立契约测试，后续 feature 也应遵循“依赖注入、纯策略可测、应用层只装配”的边界。
@@ -212,7 +216,7 @@ Server 的主要路由包括 source/view/request、translation、watch 控制、
 
 ## 测试与发布门禁
 
-`npm run release:check` 组合约 50 项确定性 smoke，使用隔离的 HOME、状态目录和端口，覆盖：
+`npm run release:check` 组合 70 余项确定性 smoke，使用隔离的 HOME、状态目录和端口，覆盖：
 
 - CLI、doctor、安装、卸载和维护。
 - proxy/OTel、watch、pause/resume、request tree 和 block cache。

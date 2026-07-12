@@ -36,6 +36,7 @@ for (const required of [
   "src/viewer/api-client.js",
   "src/viewer/client.js",
   "src/viewer/markdown.js",
+  "src/viewer/raw-search-model.js",
   "src/viewer/raw-view-model.js",
   "src/viewer/request-detail-cache.js",
   "src/viewer/turn-rail.js",
@@ -54,6 +55,7 @@ for (const required of [
   "src/server/source-metadata.mjs",
   "src/server/source-text.mjs",
   "src/server/trace-bundle-service.mjs",
+  "src/server/viewer-static-assets.mjs",
   "src/trace/message-equivalence.mjs",
   "src/trace/context-delta.mjs",
   "src/trace/turn-timeline.mjs",
@@ -104,6 +106,14 @@ const deniedPatterns = [
 const deniedFiles = packageFiles.filter((file) => deniedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(deniedFiles, [], `npm package includes release-unsafe files: ${deniedFiles.join(", ")}`);
 
-assert.ok(packs[0].entryCount <= 68, `expected a compact package, got ${packs[0].entryCount} files`);
+const MAX_PACKAGE_ENTRIES = 96;
+const MAX_PACKED_BYTES = 250_000;
+const MAX_UNPACKED_BYTES = 1_100_000;
+assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
+assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);
+assert.ok(
+  packs[0].unpackedSize <= MAX_UNPACKED_BYTES,
+  `npm package is too large when unpacked: ${packs[0].unpackedSize}/${MAX_UNPACKED_BYTES} bytes`,
+);
 
 console.log("package smoke passed");

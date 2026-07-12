@@ -58,6 +58,7 @@ import {
 } from "../server/source-metadata.mjs";
 import { SOURCE_TEXT_LIMITS, sanitizeSourceText } from "../server/source-text.mjs";
 import { TRACE_BUNDLE_LIMITS, TraceBundleService } from "../server/trace-bundle-service.mjs";
+import { resolveViewerStaticAsset } from "../server/viewer-static-assets.mjs";
 import {
   normalizeTranslationSourceText,
 } from "../translation/blocks.mjs";
@@ -218,17 +219,8 @@ async function handleRequest(req, res, options) {
   const url = new URL(req.url || "/", "http://peek.local");
   const guard = validateLocalHttpRequest(req, url, options);
   if (guard) return writeJson(res, guard.status, { error: guard.message });
-  if (url.pathname === "/") return serveFile(res, path.join(viewerDir, "index.html"), "text/html; charset=utf-8");
-  if (url.pathname === "/styles.css") return serveFile(res, path.join(viewerDir, "styles.css"), "text/css; charset=utf-8");
-  if (url.pathname === "/api-client.js") return serveFile(res, path.join(viewerDir, "api-client.js"), "text/javascript; charset=utf-8");
-  if (url.pathname === "/client.js") return serveFile(res, path.join(viewerDir, "client.js"), "text/javascript; charset=utf-8");
-  if (url.pathname === "/markdown.js") return serveFile(res, path.join(viewerDir, "markdown.js"), "text/javascript; charset=utf-8");
-  if (url.pathname === "/raw-view-model.js") return serveFile(res, path.join(viewerDir, "raw-view-model.js"), "text/javascript; charset=utf-8");
-  if (url.pathname === "/request-detail-cache.js") return serveFile(res, path.join(viewerDir, "request-detail-cache.js"), "text/javascript; charset=utf-8");
-  if (url.pathname === "/turn-rail.js") return serveFile(res, path.join(viewerDir, "turn-rail.js"), "text/javascript; charset=utf-8");
-  if (url.pathname === "/translation-blocks.js") {
-    return serveFile(res, path.join(projectRoot, "src", "translation", "blocks.mjs"), "text/javascript; charset=utf-8");
-  }
+  const staticAsset = resolveViewerStaticAsset(url.pathname, { viewerDir, projectRoot });
+  if (staticAsset) return serveFile(res, staticAsset.filePath, staticAsset.contentType);
   if (url.pathname === "/api/sources") {
     if (rejectWrongMethod(req, res, "GET")) return;
     return writeJson(res, 200, listSources(options));

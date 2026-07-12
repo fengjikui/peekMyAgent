@@ -6,6 +6,15 @@ import {
   rawSectionData as buildRawSectionData,
   rawUpstreamRequestValue,
 } from "./raw-view-model.js";
+import {
+  clampRawSearchIndex,
+  collectRawSearchEntries,
+  escapeRawSearchRegExp,
+  filterRawSearchEntries,
+  nextRawSearchIndex,
+  normalizeRawSearchQuery,
+  rawSearchSnippetSegments,
+} from "./raw-search-model.js";
 import { TurnRailController } from "./turn-rail.js";
 import {
   extractTranslationSchemaDescriptions as extractSchemaDescriptionsForTranslation,
@@ -4784,13 +4793,13 @@ function decorateRawSearchResults() {
   const targets = [...els.rawTree.querySelectorAll("[data-raw-search-target]")];
   targets.forEach((target) => highlightRawSearchText(target, query));
   const matches = visibleRawSearchMarks();
-  state.rawSearchActiveIndex = matches.length ? Math.min(state.rawSearchActiveIndex, matches.length - 1) : 0;
+  state.rawSearchActiveIndex = clampRawSearchIndex(state.rawSearchActiveIndex, matches.length);
   syncRawSearchActiveMatch(matches, state.rawSearchRevealPending);
   state.rawSearchRevealPending = false;
 }
 
 function highlightRawSearchText(root, query) {
-  const matcher = new RegExp(escapeRegExp(query), "gi");
+  const matcher = new RegExp(escapeRawSearchRegExp(query), "gi");
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const parent = node.parentElement;
@@ -4809,7 +4818,7 @@ function highlightRawSearchText(root, query) {
     const text = node.nodeValue || "";
     const fragment = document.createDocumentFragment();
     let cursor = 0;
-    for (const match of text.matchAll(new RegExp(escapeRegExp(query), "gi"))) {
+    for (const match of text.matchAll(new RegExp(escapeRawSearchRegExp(query), "gi"))) {
       const index = match.index || 0;
       if (index > cursor) fragment.append(document.createTextNode(text.slice(cursor, index)));
       const mark = document.createElement("mark");
@@ -4826,7 +4835,7 @@ function highlightRawSearchText(root, query) {
 function navigateRawSearch(delta) {
   const matches = visibleRawSearchMarks();
   if (!matches.length) return;
-  state.rawSearchActiveIndex = (state.rawSearchActiveIndex + delta + matches.length) % matches.length;
+  state.rawSearchActiveIndex = nextRawSearchIndex(state.rawSearchActiveIndex, delta, matches.length);
   syncRawSearchActiveMatch(matches, true);
 }
 
@@ -4887,22 +4896,21 @@ function renderRawSearchResults(request, section, mode = "request") {
 function rawSearchEntriesForSection(request, section, mode = "request") {
   const query = normalizedRawSearchQuery();
   if (!query) return [];
-  const entries = rawSearchCandidateEntries(request, section, mode);
-  return entries.filter((entry) => entry.searchText.toLowerCase().includes(query.toLowerCase()));
+  return filterRawSearchEntries(rawSearchCandidateEntries(request, section, mode), query);
 }
 
 function rawSearchCandidateEntries(request, section, mode = "request") {
   if (mode === "response") {
-    if (section === "tool_calls") return collectRawSearchEntries({ [t("currentResponseToolUse")]: request.summary?.response?.tool_calls || [] }, "response.tool_use");
-    if (section === "tools") return collectRawSearchEntries(rawSectionData(request, "tools").value, "Tools");
-    return collectRawSearchEntries(rawResponseSectionValue(request), "response");
+    if (section === "tool_calls") return rawSearchEntries({ [t("currentResponseToolUse")]: request.summary?.response?.tool_calls || [] }, "response.tool_use");
+    if (section === "tools") return rawSearchEntries(rawSectionData(request, "tools").value, "Tools");
+    return rawSearchEntries(rawResponseSectionValue(request), "response");
   }
   if (["tools", "harness", "system"].includes(section)) {
-    return collectRawSearchEntries(rawSectionData(request, section).value, rawSectionLabel(section));
+    return rawSearchEntries(rawSectionData(request, section).value, rawSectionLabel(section));
   }
   if (section === "system_diff") {
     const previous = previousRequest(request);
-    return collectRawSearchEntries(
+    return rawSearchEntries(
       {
         previous_system: previous ? systemTextFromRequest(previous) : "",
         current_system: systemTextFromRequest(request),
@@ -4910,42 +4918,15 @@ function rawSearchCandidateEntries(request, section, mode = "request") {
       "system_diff",
     );
   }
-  return collectRawSearchEntries(rawSectionData(request, section).value, rawSectionLabel(section));
+  return rawSearchEntries(rawSectionData(request, section).value, rawSectionLabel(section));
 }
 
-function collectRawSearchEntries(value, rootPath, output = []) {
-  if (value == null) {
-    output.push(rawSearchEntry(rootPath, String(value), String(value)));
-    return output;
-  }
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => collectRawSearchEntries(item, `${rootPath}[${index}]`, output));
-    return output;
-  }
-  if (typeof value === "object") {
-    const keys = Object.keys(value);
-    const shallow = stableJson(value);
-    if (shallow.length <= 320) output.push(rawSearchEntry(rootPath, shallow, shallow));
-    keys.forEach((key) => collectRawSearchEntries(value[key], `${rootPath}.${key}`, output));
-    return output;
-  }
-  const text = String(value);
-  output.push(rawSearchEntry(rootPath, text, text));
-  return output;
-}
-
-function rawSearchEntry(path, text, value) {
-  return {
-    path,
-    scope: path.split(/[.[\]]/).filter(Boolean)[0] || path,
-    text: shortPreview(String(text || ""), 420),
-    value: String(value || ""),
-    searchText: `${path}\n${value}`,
-  };
+function rawSearchEntries(value, rootPath) {
+  return collectRawSearchEntries(value, rootPath, { serialize: stableJson, preview: shortPreview });
 }
 
 function normalizedRawSearchQuery() {
-  return String(state.rawSearchQuery || "").trim();
+  return normalizeRawSearchQuery(state.rawSearchQuery);
 }
 
 function rawSearchScopeLabel(section, mode = "request") {
@@ -4956,19 +4937,9 @@ function rawSearchScopeLabel(section, mode = "request") {
 }
 
 function highlightSearchSnippet(text, query) {
-  const source = String(text || "");
-  const needle = String(query || "").trim();
-  if (!needle) return escapeHtml(source);
-  const lower = source.toLowerCase();
-  const index = lower.indexOf(needle.toLowerCase());
-  const start = Math.max(0, index - 90);
-  const end = Math.min(source.length, (index < 0 ? 0 : index) + needle.length + 180);
-  const snippet = `${start > 0 ? "..." : ""}${source.slice(start, end)}${end < source.length ? "..." : ""}`;
-  return escapeHtml(snippet).replace(new RegExp(escapeRegExp(needle), "gi"), (match) => `<mark>${match}</mark>`);
-}
-
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return rawSearchSnippetSegments(text, query)
+    .map((segment) => (segment.match ? `<mark>${escapeHtml(segment.text)}</mark>` : escapeHtml(segment.text)))
+    .join("");
 }
 
 function renderRawSectionContent(request, section, sectionData) {
