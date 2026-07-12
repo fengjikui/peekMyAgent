@@ -42,6 +42,7 @@ import {
 } from "../server/http.mjs";
 import { SourceRepository } from "../server/source-repository.mjs";
 import { SourceLifecycleService } from "../server/source-lifecycle-service.mjs";
+import { SourceCaptureReader } from "../server/source-capture-reader.mjs";
 import { importedTraceSourceFromDir as sourceFromImportedTraceDir, listImportedTraceSources } from "../server/imported-trace-source-provider.mjs";
 import { listFileSources } from "../server/file-source-provider.mjs";
 import { listPersistedSources } from "../server/persisted-source-provider.mjs";
@@ -780,6 +781,16 @@ function viewerSourceRepository(options) {
   });
 }
 
+function sourceCaptureReader(options) {
+  return new SourceCaptureReader({
+    watches: options.watches,
+    store: options.store,
+    files: { readJson, readOptionalJson },
+    runtime: { capturesForWatch, commandForWatch: liveWatchCommand },
+    errors: { requestNotFound: (requestId) => httpError(404, `Request not found: ${requestId}`) },
+  });
+}
+
 function persistedSources({ store, watches, sourceMeta }) {
   return listPersistedSources({
     store,
@@ -811,20 +822,13 @@ function initialViewLimit(searchParams) {
 function loadViewerData(sourceId, options, { requireSource = false, initialLimit = 0 } = {}) {
   const repository = viewerSourceRepository(options);
   const source = repository.resolve(sourceId, { requireSource });
-  if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
-  if (source.live_watch_id) return loadLiveWatchData(source, options, { initialLimit });
-  if (source.kind === "persisted_capture") return loadPersistedData(source, options, { initialLimit });
-
-  const allCaptures = readJson(path.join(source.path, "proxy-captures.json"));
-  const captures = initialLimit ? allCaptures.slice(0, initialLimit) : allCaptures;
-  const debugSources = (readOptionalJson(path.join(source.path, "debug-api-sources.json")) || []).slice(0, captures.length);
-  const command = readOptionalJson(path.join(source.path, "command.json"));
+  const { captures, debugSources, command, totalCount } = sourceCaptureReader(options).read(source, { limit: initialLimit });
   return buildViewerDataFromCaptures({
     source,
     captures,
     debugSources,
     command,
-    partial: initialPartialInfo({ requestedLimit: initialLimit, loadedCount: captures.length, totalCount: allCaptures.length }),
+    partial: initialPartialInfo({ requestedLimit: initialLimit, loadedCount: captures.length, totalCount }),
   });
 }
 
@@ -833,50 +837,8 @@ function loadViewerRequestDetail(sourceId, requestId, options, { requireSource =
   if (!requestId) throw httpError(400, "Missing request id");
   const repository = viewerSourceRepository(options);
   const source = repository.resolve(sourceId, { requireSource });
-  if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
-  if (source.live_watch_id) return loadLiveWatchRequestDetail(source, requestId, options);
-  if (source.kind === "persisted_capture") return loadPersistedRequestDetail(source, requestId, options);
-  return loadFileRequestDetail(source, requestId);
-}
-
-function loadLiveWatchRequestDetail(source, requestId, { watches }) {
-  const watch = [...(watches?.values() || [])].find((item) => item.watch_id === source.live_watch_id || item.id === source.id);
-  if (!watch) throw new Error(`Live watch not found: ${source.live_watch_id || source.id}`);
-  const captures = capturesForWatch(watch);
-  const targetIndex = captures.findIndex((capture) => captureMatchesRequestId(capture, requestId));
-  if (targetIndex < 0) throw httpError(404, `Request not found: ${requestId}`);
-  const windowCaptures = captures.slice(Math.max(0, targetIndex - 1), targetIndex + 1);
-  const request = summarizeRequestDetailWindow(windowCaptures, source, requestId);
-  return {
-    generated_at: new Date().toISOString(),
-    source,
-    request,
-    detail_scope: "request_window",
-  };
-}
-
-function loadPersistedRequestDetail(source, requestId, { store }) {
-  const watchId = source.store_watch_id || watchIdFromSourceId(source.id);
-  if (!watchId) throw new Error(`Invalid persisted source id: ${source.id}`);
-  const captures = store.loadCaptureWindow(watchId, requestId, { previousCount: 1 });
-  if (!captures.length) throw httpError(404, `Request not found: ${requestId}`);
-  const request = summarizeRequestDetailWindow(captures, source, requestId);
-  return {
-    generated_at: new Date().toISOString(),
-    source,
-    request,
-    detail_scope: "request_window",
-  };
-}
-
-function loadFileRequestDetail(source, requestId) {
-  const captures = readJson(path.join(source.path, "proxy-captures.json"));
-  const targetIndex = captures.findIndex((capture) => captureMatchesRequestId(capture, requestId));
-  if (targetIndex < 0) throw httpError(404, `Request not found: ${requestId}`);
-  const startIndex = Math.max(0, targetIndex - 1);
-  const windowCaptures = captures.slice(startIndex, targetIndex + 1);
-  const debugSources = (readOptionalJson(path.join(source.path, "debug-api-sources.json")) || []).slice(startIndex, targetIndex + 1);
-  const request = summarizeRequestDetailWindow(windowCaptures, source, requestId, { startIndex, debugSources });
+  const { captures, debugSources, startIndex } = sourceCaptureReader(options).readRequestWindow(source, requestId, { previousCount: 1 });
+  const request = summarizeRequestDetailWindow(captures, source, requestId, { startIndex, debugSources });
   return {
     generated_at: new Date().toISOString(),
     source,
@@ -896,10 +858,6 @@ function summarizeRequestDetailWindow(captures, source, requestId, { startIndex 
   if (!request) throw httpError(404, `Request not found: ${requestId}`);
   request.detail_scope = "request_window";
   return request;
-}
-
-function captureMatchesRequestId(capture, requestId) {
-  return capture?.capture_id === requestId || String(capture?.request_index) === String(requestId);
 }
 
 function compactViewerDataForTimeline(data) {
@@ -1509,18 +1467,7 @@ function loadTraceExportData(sourceId, options) {
   if (!sourceId) throw httpError(400, "Trace export requires a source id.");
   const source = sources.find((item) => item.id === sourceId);
   if (!source) throw httpError(404, `Trace source not found: ${sourceId}`);
-  if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
-  if (source.live_watch_id) {
-    const watch = [...(options.watches?.values() || [])].find((item) => item.watch_id === source.live_watch_id || item.id === source.id);
-    if (!watch) throw new Error(`Live watch not found: ${source.live_watch_id || source.id}`);
-    return { source, captures: capturesForWatch(watch) };
-  }
-  if (source.kind === "persisted_capture") {
-    const watchId = source.store_watch_id || watchIdFromSourceId(source.id);
-    if (!watchId) throw new Error(`Invalid persisted source id: ${source.id}`);
-    return { source, captures: options.store?.loadCaptures(watchId) || [] };
-  }
-  return { source, captures: readJson(path.join(source.path, "proxy-captures.json")) };
+  return { source, captures: sourceCaptureReader(options).readAll(source).captures };
 }
 
 function buildTraceBundle(data) {
@@ -2024,19 +1971,6 @@ function findWatch(watches, input) {
   return null;
 }
 
-function loadLiveWatchData(source, { watches }, { initialLimit = 0 } = {}) {
-  const watch = watches.get(source.id);
-  if (!watch) throw new Error(`Live watch not found: ${source.id}`);
-  const allCaptures = capturesForWatch(watch);
-  const captures = initialLimit ? allCaptures.slice(0, initialLimit) : allCaptures;
-  return buildViewerDataFromCaptures({
-    source,
-    captures,
-    command: liveWatchCommand(watch),
-    partial: initialPartialInfo({ requestedLimit: initialLimit, loadedCount: captures.length, totalCount: allCaptures.length }),
-  });
-}
-
 function daemonPing({ sharedCaptureProxy }) {
   return {
     ok: true,
@@ -2090,19 +2024,6 @@ function resolveDynamicAgentRouteWatch({ route, body, watches, store, sharedCapt
 
 function capturesForWatch(watch) {
   return (watch.proxy?.captures || []).filter((capture) => capture.watch_id === watch.watch_id);
-}
-
-function loadPersistedData(source, { store }, { initialLimit = 0 } = {}) {
-  const watchId = source.store_watch_id || watchIdFromSourceId(source.id);
-  if (!watchId) throw new Error(`Invalid persisted source id: ${source.id}`);
-  const totalCount = Number(source.request_count) || 0;
-  const captures = initialLimit ? store.loadInitialCaptures(watchId, { limit: initialLimit }) : store.loadCaptures(watchId);
-  return buildViewerDataFromCaptures({
-    source,
-    captures,
-    command: null,
-    partial: initialPartialInfo({ requestedLimit: initialLimit, loadedCount: captures.length, totalCount }),
-  });
 }
 
 function buildViewerDataFromCaptures({ source, captures, debugSources = [], command = null, partial = null }) {

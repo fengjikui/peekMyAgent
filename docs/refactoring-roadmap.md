@@ -144,7 +144,8 @@ src/
 - 已迁移 persisted provider：SQLite source 与 live watch 去重、手动/存储/conversation/inferred 标题优先级由独立 provider 管理，消息语义通过 title policy 注入。
 - 已迁移 live provider：watch runtime 与 SourceSummary 映射分离，请求/回复/子 Agent/Raw/last_seen 统计由独立 provider 管理，标题语义通过单一策略注入。
 - 已迁移 Source metadata 与 lifecycle：稳定别名、原子 sidecar、title/pin/hidden 装饰以及 rename/archive/delete/project 编排由独立模块管理，Viewer 路由只读取输入并装配端口。
-- 下一步建立统一 capture reader，为分页 API、Trace domain 和 watch runtime 拆分铺路。
+- 已建立统一 SourceCaptureReader：live/SQLite/file 的首屏、单请求窗口和 raw export 走同一协议；SQLite detail 与 export 快速路径由回归测试锁定。
+- 下一步拆 Trace domain；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
 
 ## 阶段 3：拆分 Viewer Client
 

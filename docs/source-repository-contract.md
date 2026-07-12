@@ -32,9 +32,11 @@ repository 门面负责 provider 汇聚、运行时校验和 source 解析。cus
 
 `source-metadata.mjs` 统一管理 live/stored/conversation 稳定别名、元数据合并、原子 sidecar 写入和 title/pin/hidden 装饰。`source-lifecycle-service.mjs` 通过显式端口管理单 source 与项目级 rename、pin、archive、delete；imported Trace 删除强制限制在 imports 根目录。Viewer 路由只保留 HTTP body 读取和依赖装配。
 
-watch/proxy 的创建、恢复、pause/resume/stop 生命周期仍在 Viewer Server；四种 source 的列表 DTO 和 source 更新生命周期已经独立。这是当前过渡边界。
+`source-capture-reader.mjs` 已统一四种 source 的首屏、单请求窗口和导出读取协议；SQLite detail 保持窗口读取，导出保持 raw capture 快速路径。file/imported backend 目前仍会完整 parse JSON 后切片。
+
+watch/proxy 的创建、恢复、pause/resume/stop 生命周期仍在 Viewer Server；四种 source 的列表 DTO、source 更新生命周期和 capture 读取门面已经独立。这是当前过渡边界。
 
 后续迁移顺序：
 
-1. source capture reader（live/SQLite/file 的统一分页与 request window）；
+1. 为 file/imported reader 增加 sidecar index 与 cursor/turn 分页；
 2. watch runtime service（start/reuse/restore/pause/resume/stop）。

@@ -44,6 +44,7 @@ for (const required of [
   "src/server/imported-trace-source-provider.mjs",
   "src/server/live-source-provider.mjs",
   "src/server/persisted-source-provider.mjs",
+  "src/server/source-capture-reader.mjs",
   "src/server/source-lifecycle-service.mjs",
   "src/server/source-repository.mjs",
   "src/server/source-metadata.mjs",
@@ -92,6 +93,6 @@ const deniedPatterns = [
 const deniedFiles = packageFiles.filter((file) => deniedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(deniedFiles, [], `npm package includes release-unsafe files: ${deniedFiles.join(", ")}`);
 
-assert.ok(packs[0].entryCount <= 56, `expected a compact package, got ${packs[0].entryCount} files`);
+assert.ok(packs[0].entryCount <= 57, `expected a compact package, got ${packs[0].entryCount} files`);
 
 console.log("package smoke passed");

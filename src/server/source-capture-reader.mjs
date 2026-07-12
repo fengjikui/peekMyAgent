@@ -1,0 +1,150 @@
+import path from "node:path";
+import { watchIdFromSourceId } from "../core/source-identifiers.mjs";
+
+export class SourceCaptureReader {
+  constructor({ watches, store, files, runtime, errors } = {}) {
+    this.watches = watches || new Map();
+    this.store = store || null;
+    this.files = files || {};
+    this.runtime = runtime || {};
+    this.errors = errors || {};
+  }
+
+  read(source, { limit = 0, includeCompanions = true } = {}) {
+    this.assertAvailable(source);
+    if (source.live_watch_id) return this.readLive(source, { limit, includeCompanions });
+    if (source.kind === "persisted_capture") return this.readPersisted(source, { limit });
+    return this.readFile(source, { limit, includeCompanions });
+  }
+
+  readAll(source) {
+    return this.read(source, { includeCompanions: false });
+  }
+
+  readRequestWindow(source, requestId, { previousCount = 1 } = {}) {
+    this.assertAvailable(source);
+    if (source.live_watch_id) return this.readLiveWindow(source, requestId, { previousCount });
+    if (source.kind === "persisted_capture") return this.readPersistedWindow(source, requestId, { previousCount });
+    return this.readFileWindow(source, requestId, { previousCount });
+  }
+
+  readLive(source, { limit, includeCompanions }) {
+    const watch = this.resolveWatch(source);
+    const allCaptures = this.capturesForWatch(watch);
+    const captures = limit ? allCaptures.slice(0, limit) : allCaptures;
+    return {
+      captures,
+      debugSources: [],
+      command: includeCompanions ? this.runtime.commandForWatch?.(watch) || null : null,
+      totalCount: allCaptures.length,
+      startIndex: 0,
+    };
+  }
+
+  readPersisted(source, { limit }) {
+    const watchId = this.persistedWatchId(source);
+    const captures = limit ? this.store?.loadInitialCaptures(watchId, { limit }) || [] : this.store?.loadCaptures(watchId) || [];
+    return {
+      captures,
+      debugSources: [],
+      command: null,
+      totalCount: Number(source.request_count) || captures.length,
+      startIndex: 0,
+    };
+  }
+
+  readFile(source, { limit, includeCompanions }) {
+    const allCaptures = this.readJson(path.join(source.path, "proxy-captures.json"));
+    const captures = limit ? allCaptures.slice(0, limit) : allCaptures;
+    return {
+      captures,
+      debugSources: includeCompanions
+        ? (this.readOptionalJson(path.join(source.path, "debug-api-sources.json")) || []).slice(0, captures.length)
+        : [],
+      command: includeCompanions ? this.readOptionalJson(path.join(source.path, "command.json")) : null,
+      totalCount: allCaptures.length,
+      startIndex: 0,
+    };
+  }
+
+  readLiveWindow(source, requestId, { previousCount }) {
+    const captures = this.capturesForWatch(this.resolveWatch(source));
+    return captureWindow(captures, requestId, { previousCount, notFound: (id) => this.requestNotFound(id) });
+  }
+
+  readPersistedWindow(source, requestId, { previousCount }) {
+    const captures = this.store?.loadCaptureWindow(this.persistedWatchId(source), requestId, { previousCount }) || [];
+    if (!captures.length) throw this.requestNotFound(requestId);
+    return { captures, debugSources: [], command: null, totalCount: Number(source.request_count) || 0, startIndex: captureStartIndex(captures) };
+  }
+
+  readFileWindow(source, requestId, { previousCount }) {
+    const captures = this.readJson(path.join(source.path, "proxy-captures.json"));
+    const window = captureWindow(captures, requestId, { previousCount, notFound: (id) => this.requestNotFound(id) });
+    const debugSources = this.readOptionalJson(path.join(source.path, "debug-api-sources.json")) || [];
+    return {
+      ...window,
+      debugSources: debugSources.slice(window.startIndex, window.startIndex + window.captures.length),
+      command: this.readOptionalJson(path.join(source.path, "command.json")),
+    };
+  }
+
+  resolveWatch(source) {
+    const watch = [...(this.watches?.values() || [])].find((item) => item.watch_id === source.live_watch_id || item.id === source.id);
+    if (!watch) throw new Error(`Live watch not found: ${source.live_watch_id || source.id}`);
+    return watch;
+  }
+
+  capturesForWatch(watch) {
+    if (typeof this.runtime.capturesForWatch !== "function") throw new Error("capturesForWatch is required");
+    return this.runtime.capturesForWatch(watch) || [];
+  }
+
+  persistedWatchId(source) {
+    const watchId = source.store_watch_id || watchIdFromSourceId(source.id);
+    if (!watchId) throw new Error(`Invalid persisted source id: ${source.id}`);
+    return watchId;
+  }
+
+  readJson(filePath) {
+    if (typeof this.files.readJson !== "function") throw new Error("file readJson is required");
+    return this.files.readJson(filePath);
+  }
+
+  readOptionalJson(filePath) {
+    return typeof this.files.readOptionalJson === "function" ? this.files.readOptionalJson(filePath) : null;
+  }
+
+  assertAvailable(source) {
+    if (!source) throw new Error("source is required");
+    if (!source.available) throw new Error(`Evidence not found: ${source.path}`);
+  }
+
+  requestNotFound(requestId) {
+    return typeof this.errors.requestNotFound === "function"
+      ? this.errors.requestNotFound(requestId)
+      : new Error(`Request not found: ${requestId}`);
+  }
+}
+
+export function captureWindow(captures, requestId, { previousCount = 1, notFound } = {}) {
+  const targetIndex = captures.findIndex((capture) => captureMatchesRequestId(capture, requestId));
+  if (targetIndex < 0) throw (typeof notFound === "function" ? notFound(requestId) : new Error(`Request not found: ${requestId}`));
+  const startIndex = Math.max(0, targetIndex - Math.max(0, Number(previousCount) || 0));
+  return {
+    captures: captures.slice(startIndex, targetIndex + 1),
+    debugSources: [],
+    command: null,
+    totalCount: captures.length,
+    startIndex,
+  };
+}
+
+function captureMatchesRequestId(capture, requestId) {
+  return capture?.capture_id === requestId || String(capture?.request_index) === String(requestId);
+}
+
+function captureStartIndex(captures) {
+  const requestIndex = Number(captures[0]?.request_index);
+  return Number.isFinite(requestIndex) && requestIndex > 0 ? requestIndex - 1 : 0;
+}
