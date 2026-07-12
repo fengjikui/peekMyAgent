@@ -31,6 +31,8 @@ const coreCommands = [
   ["npm", "run", "smoke:context-delta-contract"],
   ["npm", "run", "smoke:turn-timeline-contract"],
   ["npm", "run", "smoke:subagent-graph-contract"],
+  ["npm", "run", "smoke:translation-materials-contract"],
+  ["npm", "run", "smoke:translation-service-contract"],
   ["npm", "run", "smoke:source-meta"],
   ["npm", "run", "smoke:doctor"],
   ["npm", "run", "smoke:source-install"],

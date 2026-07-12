@@ -2,15 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { translationsDir } from "../src/core/app-paths.mjs";
 import { openPersistenceStore, defaultStorePath } from "../src/core/persistence-store.mjs";
-import {
-  extractTranslationSchemaDescriptions as extractSchemaDescriptions,
-  isSkippableTranslationMaterial,
-  normalizeTranslationSourceText as normalizeText,
-  systemTranslationKind,
-  translationToolDescription as toolDescriptionOf,
-  translationToolName as toolNameOf,
-} from "../src/translation/blocks.mjs";
-import { translationMaterialHash as materialHash } from "../src/translation/hash.mjs";
+import { TranslationMaterialCollector, countTranslationMaterialsByKind } from "../src/translation/materials.mjs";
 
 const args = process.argv.slice(2);
 const targetLanguage = optionValue("--target-language") || "zh-CN";
@@ -22,13 +14,13 @@ const outDir =
 const store = openPersistenceStore(storePath);
 try {
   const sources = store.listSources().filter((source) => source.agent === agentFilter);
-  const byHash = new Map();
+  const collector = new TranslationMaterialCollector({ targetLanguage, contentText: extractContentText });
   for (const source of sources) {
     const captures = store.loadCaptures(source.store_watch_id);
-    for (const capture of captures) collectCaptureMaterials(byHash, capture, source);
+    for (const capture of captures) collector.collectCapture(capture, source);
   }
 
-  const materials = [...byHash.values()].sort(compareMaterial);
+  const materials = collector.materials();
   fs.mkdirSync(outDir, { recursive: true, mode: 0o700 });
   const materialsPath = path.join(outDir, "materials.jsonl");
   fs.writeFileSync(materialsPath, materials.map((item) => JSON.stringify(item)).join("\n") + (materials.length ? "\n" : ""), {
@@ -42,7 +34,7 @@ try {
     target_language: targetLanguage,
     materials_path: materialsPath,
     item_count: materials.length,
-    counts_by_kind: countBy(materials, "kind"),
+    counts_by_kind: countTranslationMaterialsByKind(materials),
     source_count: sources.length,
     request_occurrence_count: materials.reduce((sum, item) => sum + item.occurrences.length, 0),
     contains_source_text: true,
@@ -52,106 +44,6 @@ try {
   console.log(JSON.stringify({ ...manifest, manifest_path: manifestPath }, null, 2));
 } finally {
   store.close();
-}
-
-function collectCaptureMaterials(byHash, capture, source) {
-  const body = capture.body || {};
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  const occurrence = {
-    source_id: source.id,
-    watch_id: capture.watch_id,
-    request_id: capture.capture_id,
-    request_index: capture.request_index,
-    workspace: capture.workspace || source.workspace || null,
-    conversation_id: capture.conversation_id || source.conversation_id || null,
-  };
-
-  extractSystemParts(body, messages).forEach((part, index) => {
-    const kind = systemTranslationKind(part.text);
-    addMaterial(byHash, {
-      kind,
-      source_text: part.text,
-      source_language: "en",
-      target_language: targetLanguage,
-      metadata: {
-        source: part.source,
-        index,
-      },
-      occurrence,
-    });
-  });
-
-  const tools = Array.isArray(body.tools) ? body.tools : [];
-  tools.forEach((tool, toolIndex) => {
-    const toolName = toolNameOf(tool);
-    const description = toolDescriptionOf(tool);
-    if (description) {
-      addMaterial(byHash, {
-        kind: "tool_description",
-        source_text: description,
-        source_language: "en",
-        target_language: targetLanguage,
-        metadata: {
-          tool_name: toolName,
-          path: `tools[${toolIndex}].description`,
-        },
-        occurrence,
-      });
-    }
-    const schema = tool.input_schema || tool.function?.parameters || tool.parameters || null;
-    for (const item of extractSchemaDescriptions(schema, { toolName, rootPath: `tools[${toolIndex}].input_schema` })) {
-      addMaterial(byHash, {
-        kind: "tool_parameter_description",
-        source_text: item.description,
-        source_language: "en",
-        target_language: targetLanguage,
-        metadata: {
-          tool_name: toolName,
-          path: item.path,
-          field_name: item.field_name,
-        },
-        occurrence,
-      });
-    }
-  });
-}
-
-function addMaterial(byHash, input) {
-  const sourceText = normalizeText(input.source_text);
-  if (isSkippableTranslationMaterial(input.kind, sourceText)) return;
-  if (!sourceText || sourceText.length < 2) return;
-  const hash = materialHash(input.kind, sourceText);
-  const existing = byHash.get(hash);
-  if (existing) {
-    existing.occurrences.push(input.occurrence);
-    existing.occurrence_count = existing.occurrences.length;
-    return;
-  }
-  const item = {
-    id: `${input.kind}:${hash.slice(0, 16)}`,
-    hash,
-    kind: input.kind,
-    source_language: input.source_language,
-    target_language: input.target_language,
-    text_chars: sourceText.length,
-    source_text: sourceText,
-    metadata: input.metadata || {},
-    occurrences: [input.occurrence],
-    occurrence_count: 1,
-  };
-  byHash.set(hash, item);
-}
-
-function extractSystemParts(body, messages) {
-  const output = [];
-  if (typeof body.system === "string") output.push({ source: "body.system", text: body.system });
-  if (Array.isArray(body.system)) {
-    body.system.forEach((part) => output.push({ source: "body.system", text: extractContentText(part) }));
-  }
-  for (const message of messages) {
-    if (message.role === "system") output.push({ source: "messages.system", text: extractContentText(message.content) });
-  }
-  return output.filter((part) => part.text);
 }
 
 function extractContentText(content) {
@@ -175,21 +67,6 @@ function extractContentText(content) {
   if (content.text) return content.text;
   if (content.content) return extractContentText(content.content);
   return JSON.stringify(content);
-}
-
-function compareMaterial(left, right) {
-  const kind = left.kind.localeCompare(right.kind);
-  if (kind) return kind;
-  const count = right.occurrence_count - left.occurrence_count;
-  if (count) return count;
-  return left.hash.localeCompare(right.hash);
-}
-
-function countBy(items, key) {
-  return items.reduce((acc, item) => {
-    acc[item[key]] = (acc[item[key]] || 0) + 1;
-    return acc;
-  }, {});
 }
 
 function optionValue(name) {

@@ -149,7 +149,9 @@ src/
 - 已迁移 Turn Timeline：用户轮次边界、内部请求暂存以及工具/context 统计由独立模块管理，避免子 Agent 或 metadata 产生幽灵 Turn。
 - 已迁移 Subagent Graph：Header 强实例关联、OTel prompt 回配、spawn/return 配对、分支步骤和 Turn 归属由独立 Trace Domain 管理。
 - 已迁移 Trace Bundle Service：Raw 快路径导出、递归脱敏、gzip/数量边界、provenance 补全与安全导入目录由独立服务管理。
-- 下一步拆 translation service；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
+- 已建立共享 Translation Material Collector：Viewer 局部/整段刷新与离线提取统一使用 system/tool/schema hash、去重、occurrence 和限额协议。
+- 已迁移 Translation Service：材料/manifest 私有落盘、缓存 alias、并发/force 参数、脚本编排和公开响应边界不再由 Viewer Server 所有。
+- 下一步进入 Viewer Client feature renderer 拆分；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
 
 ## 阶段 3：拆分 Viewer Client
 

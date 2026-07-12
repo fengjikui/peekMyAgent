@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { startCaptureProxy, startSharedCaptureProxy } from "../core/capture-proxy.mjs";
-import { importedTracesDir, safePathSegment, translationsDir } from "../core/app-paths.mjs";
+import { importedTracesDir } from "../core/app-paths.mjs";
 import { claudeCodeProxySettingsArgs, mergeClaudeCodeProcessEnv, resolveClaudeCodeTargetBaseUrl } from "../core/claude-code-settings.mjs";
 import { childProcessSpawnConfig, isAccessibleDirectory, safeProcessCwd, userHome } from "../core/platform.mjs";
 import { openPersistenceStore } from "../core/persistence-store.mjs";
@@ -59,14 +59,10 @@ import {
 import { SOURCE_TEXT_LIMITS, sanitizeSourceText } from "../server/source-text.mjs";
 import { TRACE_BUNDLE_LIMITS, TraceBundleService } from "../server/trace-bundle-service.mjs";
 import {
-  extractTranslationSchemaDescriptions,
-  isSkippableTranslationMaterial,
   normalizeTranslationSourceText,
-  systemTranslationKind,
-  translationToolDescription,
-  translationToolName,
 } from "../translation/blocks.mjs";
-import { translationMaterialHash } from "../translation/hash.mjs";
+import { TranslationMaterialCollector } from "../translation/materials.mjs";
+import { TranslationService } from "../translation/service.mjs";
 import { annotateRequestContextChanges } from "../trace/context-delta.mjs";
 import { buildTurnTimeline as buildTraceTurnTimeline } from "../trace/turn-timeline.mjs";
 import {
@@ -85,16 +81,10 @@ const MAX_SOURCE_CONVERSATION_CHARS = SOURCE_TEXT_LIMITS.conversation;
 const MAX_TRANSLATION_SOURCE_ID_CHARS = 512;
 const MAX_TRANSLATION_REQUEST_ID_CHARS = 256;
 const MAX_TRANSLATION_SECTION_CHARS = 48;
-const MAX_TRANSLATION_METADATA_KEYS = 32;
-const MAX_TRANSLATION_METADATA_STRING_CHARS = 512;
 const MAX_API_SOURCE_ID_CHARS = 512;
 const MAX_API_REQUEST_ID_CHARS = 256;
 const MAX_OTEL_EVENT_WATCHES = 32;
 const MAX_OTEL_EVENTS_PER_WATCH = 2400;
-const MAX_TRANSLATION_CONCURRENCY = 100;
-const MAX_TRANSLATION_MATERIALS = 1500;
-const MAX_TRANSLATION_MATERIAL_CHARS = 200000;
-const MAX_TRANSLATION_TOTAL_CHARS = 2000000;
 const OTEL_WATCH_ID_HEADER = "x-peekmyagent-watch-id";
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
 const TIMELINE_RESPONSE_TEXT_CHARS = 700;
@@ -241,9 +231,14 @@ async function handleRequest(req, res, options) {
   }
   if (url.pathname === "/api/translations") {
     if (rejectWrongMethod(req, res, "GET")) return;
-    const agent = sanitizeSourceMetadataText(url.searchParams.get("agent") || "Claude Code", { fallback: "Claude Code", limit: MAX_SOURCE_AGENT_CHARS });
-    const targetLanguage = url.searchParams.get("target_language") || "zh-CN";
-    return writeJson(res, 200, publicTranslationCache(loadTranslationCache({ agent, targetLanguage })));
+    return writeJson(
+      res,
+      200,
+      translationService(options).loadPublicCache({
+        agent: url.searchParams.get("agent") || "Claude Code",
+        targetLanguage: url.searchParams.get("target_language") || "zh-CN",
+      }),
+    );
   }
   if (url.pathname === "/api/translations/generate") {
     if (rejectWrongMethod(req, res, "POST")) return;
@@ -354,260 +349,55 @@ async function handleRequest(req, res, options) {
 }
 
 async function generateTranslations(req, options) {
-  const input = await readJsonBody(req);
-  const agent = sanitizeSourceMetadataText(input.agent || "Claude Code", { fallback: "Claude Code", limit: MAX_SOURCE_AGENT_CHARS });
-  const targetLanguage = normalizePathBackedLabel(input.target_language || "zh-CN", "target_language");
-  const concurrency = boundedPositiveInt(input.concurrency, 8, MAX_TRANSLATION_CONCURRENCY);
-  const sourceId = sanitizeSourceMetadataText(input.source_id || "", { limit: MAX_TRANSLATION_SOURCE_ID_CHARS });
-  const section = sanitizeSourceMetadataText(input.section || "", { limit: MAX_TRANSLATION_SECTION_CHARS });
-  const requestId = sanitizeSourceMetadataText(input.request_id || "", { limit: MAX_TRANSLATION_REQUEST_ID_CHARS });
-  const force = input.force === true;
-  const inputMaterials = Array.isArray(input.materials) ? input.materials : [];
-  const extract = inputMaterials.length
-    ? writeTranslationMaterialsFromInput({ materials: inputMaterials, sourceId, requestId, agent, targetLanguage })
-    : sourceId
-    ? writeTranslationMaterialsForViewerSource({ sourceId, agent, targetLanguage, options, section, requestId })
-    : parseJsonCommandOutput((await runNodeScript("scripts/extract-translation-materials.mjs", ["--agent", agent, "--target-language", targetLanguage])).stdout);
-  const translateArgs = [
-    "--agent",
-    agent,
-    "--target-language",
+  return translationService(options).generate(await readJsonBody(req));
+}
+
+function translationMaterialCollector(targetLanguage) {
+  return new TranslationMaterialCollector({
     targetLanguage,
-    "--concurrency",
-    String(concurrency),
-  ];
-  if (force && extract?.material_hashes?.length) translateArgs.push("--force-hashes", extract.material_hashes.join(","));
-  const translate = await runNodeScript("scripts/translate-materials-zh.mjs", translateArgs);
-  const translateResult = parseJsonCommandOutput(translate.stdout);
-  const translations = loadTranslationCache({ agent, targetLanguage });
-  return {
-    ok: true,
-    agent,
-    target_language: targetLanguage,
-    extract: publicTranslationCommandResult(extract),
-    translate: publicTranslationCommandResult(translateResult),
-    cache: publicTranslationCache(translations, { includeEntries: false }),
-  };
-}
-
-function publicTranslationCache(cache, { includeEntries = true } = {}) {
-  const { cache_path: _cachePath, entries, ...rest } = cache || {};
-  return {
-    ...rest,
-    ...(includeEntries ? { entries: entries || {} } : {}),
-  };
-}
-
-function publicTranslationCommandResult(result) {
-  if (!result || typeof result !== "object" || Array.isArray(result)) return result;
-  const { cache_path: _cachePath, materials_path: _materialsPath, manifest_path: _manifestPath, ...rest } = result;
-  return rest;
-}
-
-function writeTranslationMaterialsForViewerSource({ sourceId, agent, targetLanguage, options, section = "", requestId = "" }) {
-  const byHash = new Map();
-  if (requestId) {
-    const detail = loadViewerRequestDetail(sourceId, requestId, options, { requireSource: true });
-    collectViewerRequestTranslationMaterials(byHash, detail.request, detail.source, targetLanguage, { section });
-    const materials = [...byHash.values()].sort(compareTranslationMaterial);
-    return writeTranslationMaterials({ materials, sourceId, agent, targetLanguage, sourceCount: 1 });
-  }
-  const data = loadViewerData(sourceId, options, { requireSource: true });
-  for (const request of data.requests || []) {
-    collectViewerRequestTranslationMaterials(byHash, request, data.source, targetLanguage, { section });
-  }
-  const materials = [...byHash.values()].sort(compareTranslationMaterial);
-  return writeTranslationMaterials({ materials, sourceId, agent, targetLanguage, sourceCount: 1 });
-}
-
-function writeTranslationMaterialsFromInput({ materials: inputMaterials, sourceId, requestId, agent, targetLanguage }) {
-  const byHash = new Map();
-  const occurrence = {
-    source_id: sourceId || null,
-    watch_id: null,
-    request_id: requestId || null,
-    request_index: null,
-    workspace: null,
-    conversation_id: null,
-  };
-  for (const item of inputMaterials) {
-    addTranslationMaterial(byHash, {
-      kind: String(item.kind || "manual_text").trim() || "manual_text",
-      source_text: item.source_text,
-      source_language: String(item.source_language || "en").trim() || "en",
-      target_language: targetLanguage,
-      metadata: item.metadata && typeof item.metadata === "object" ? item.metadata : {},
-      occurrence,
-    });
-  }
-  const materials = [...byHash.values()].sort(compareTranslationMaterial);
-  return writeTranslationMaterials({ materials, sourceId, agent, targetLanguage, sourceCount: sourceId ? 1 : 0 });
-}
-
-function writeTranslationMaterials({ materials, sourceId, agent, targetLanguage, sourceCount }) {
-  const safeTargetLanguage = normalizePathBackedLabel(targetLanguage, "target_language");
-  assertTranslationMaterialsWithinLimits(materials);
-  const dir = translationsDir(agent, targetLanguage);
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const materialsPath = path.join(dir, "materials.jsonl");
-  fs.writeFileSync(materialsPath, materials.map((item) => JSON.stringify(item)).join("\n") + (materials.length ? "\n" : ""), { mode: 0o600 });
-  const manifest = {
-    generated_at: new Date().toISOString(),
-    source_id: sourceId,
-    agent,
-    target_language: safeTargetLanguage,
-    materials_path: materialsPath,
-    item_count: materials.length,
-    counts_by_kind: countTranslationMaterialsByKind(materials),
-    source_count: sourceCount,
-    request_occurrence_count: materials.reduce((sum, item) => sum + item.occurrences.length, 0),
-    contains_source_text: true,
-    material_hashes: materials.map((item) => item.hash),
-  };
-  const manifestPath = path.join(dir, "manifest.json");
-  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
-  return { ...manifest, manifest_path: manifestPath };
-}
-
-function assertTranslationMaterialsWithinLimits(materials) {
-  if (materials.length > MAX_TRANSLATION_MATERIALS) {
-    throw httpError(413, `Translation material count is too large. Limit is ${MAX_TRANSLATION_MATERIALS}.`);
-  }
-  let totalChars = 0;
-  for (const item of materials) {
-    const textChars = Number.isFinite(item.text_chars) ? item.text_chars : String(item.source_text || "").length;
-    if (textChars > MAX_TRANSLATION_MATERIAL_CHARS) {
-      throw httpError(413, `Translation material is too large. Limit is ${MAX_TRANSLATION_MATERIAL_CHARS} chars per block.`);
-    }
-    totalChars += textChars;
-    if (totalChars > MAX_TRANSLATION_TOTAL_CHARS) {
-      throw httpError(413, `Translation materials are too large. Limit is ${MAX_TRANSLATION_TOTAL_CHARS} total chars.`);
-    }
-  }
-}
-
-function collectViewerRequestTranslationMaterials(byHash, request, source, targetLanguage, { section = "" } = {}) {
-  const body = request.raw?.body || {};
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  const occurrence = {
-    source_id: source.id,
-    watch_id: request.watch_id || request.raw?.watch_id || null,
-    request_id: request.id,
-    request_index: request.request_index,
-    workspace: request.workspace || source.workspace || null,
-    conversation_id: request.conversation_id || source.conversation_id || null,
-  };
-
-  if (!section || section === "system") {
-    extractTranslationSystemParts(body, messages).forEach((part, index) => {
-      addTranslationMaterial(byHash, {
-        kind: systemTranslationKind(part.text),
-        source_text: part.text,
-        source_language: "en",
-        target_language: targetLanguage,
-        metadata: { source: part.source, index },
-        occurrence,
-      });
-    });
-  }
-
-  if (!section || section === "harness") {
-    extractHarnessTranslationParts(messages).forEach((part) => {
-      addTranslationMaterial(byHash, {
-        kind: part.kind,
-        source_text: part.text,
-        source_language: "en",
-        target_language: targetLanguage,
-        metadata: { label: part.label, path: part.path },
-        occurrence,
-      });
-    });
-  }
-
-  if (!section || section === "tools") {
-    const tools = Array.isArray(body.tools) ? body.tools : [];
-    tools.forEach((tool, toolIndex) => {
-      const toolName = translationToolName(tool);
-      const description = translationToolDescription(tool);
-      if (description) {
-        addTranslationMaterial(byHash, {
-          kind: "tool_description",
-          source_text: description,
-          source_language: "en",
-          target_language: targetLanguage,
-          metadata: { tool_name: toolName, path: `tools[${toolIndex}].description` },
-          occurrence,
-        });
-      }
-      const schema = tool.input_schema || tool.function?.parameters || tool.parameters || null;
-      for (const item of extractTranslationSchemaDescriptions(schema, { rootPath: `tools[${toolIndex}].input_schema` })) {
-        addTranslationMaterial(byHash, {
-          kind: "tool_parameter_description",
-          source_text: item.description,
-          source_language: "en",
-          target_language: targetLanguage,
-          metadata: { tool_name: toolName, path: item.path, field_name: item.field_name },
-          occurrence,
-        });
-      }
-    });
-  }
-}
-
-function addTranslationMaterial(byHash, input) {
-  const sourceText = normalizeTranslationSourceText(input.source_text);
-  if (isSkippableTranslationMaterial(input.kind, sourceText)) return;
-  if (!sourceText || sourceText.length < 2) return;
-  const hash = translationMaterialHash(input.kind, sourceText);
-  const existing = byHash.get(hash);
-  if (existing) {
-    existing.occurrences.push(input.occurrence);
-    existing.occurrence_count = existing.occurrences.length;
-    return;
-  }
-  byHash.set(hash, {
-    id: `${input.kind}:${hash.slice(0, 16)}`,
-    hash,
-    kind: input.kind,
-    source_language: input.source_language,
-    target_language: input.target_language,
-    text_chars: sourceText.length,
-    source_text: sourceText,
-    metadata: sanitizeTranslationMaterialMetadata(input.metadata || {}),
-    occurrences: [input.occurrence],
-    occurrence_count: 1,
+    contentText: extractContentText,
+    extractHarnessParts: extractHarnessTranslationParts,
+    tooLarge: (message) => httpError(413, message),
   });
 }
 
-function sanitizeTranslationMaterialMetadata(value, depth = 0) {
-  if (value == null) return {};
-  if (typeof value === "string") return sanitizeSourceMetadataText(value, { limit: MAX_TRANSLATION_METADATA_STRING_CHARS });
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "boolean") return value;
-  if (Array.isArray(value)) {
-    if (depth >= 2) return [];
-    return value.slice(0, MAX_TRANSLATION_METADATA_KEYS).map((item) => sanitizeTranslationMaterialMetadata(item, depth + 1));
-  }
-  if (typeof value !== "object") return null;
-  if (depth >= 2) return {};
-  const output = {};
-  for (const [key, child] of Object.entries(value).slice(0, MAX_TRANSLATION_METADATA_KEYS)) {
-    const cleanKey = sanitizeSourceMetadataText(key, { limit: MAX_TRANSLATION_METADATA_STRING_CHARS });
-    if (cleanKey) output[cleanKey] = sanitizeTranslationMaterialMetadata(child, depth + 1);
-  }
-  return output;
-}
-
-function extractTranslationSystemParts(body, messages) {
-  const output = [];
-  if (typeof body.system === "string") output.push({ source: "body.system", text: body.system });
-  if (Array.isArray(body.system)) {
-    body.system.forEach((part) => output.push({ source: "body.system", text: extractContentText(part) }));
-  }
-  for (const message of messages) {
-    if (message.role === "system") output.push({ source: "messages.system", text: extractContentText(message.content) });
-  }
-  return output.filter((part) => part.text);
+function translationService(options) {
+  return new TranslationService({
+    projectRoot,
+    materialProvider: {
+      fromSource({ sourceId, requestId, section, targetLanguage }) {
+        const collector = translationMaterialCollector(targetLanguage);
+        if (requestId) {
+          const detail = loadViewerRequestDetail(sourceId, requestId, options, { requireSource: true });
+          collector.collectRequest(detail.request, detail.source, { section });
+        } else {
+          const data = loadViewerData(sourceId, options, { requireSource: true });
+          for (const request of data.requests || []) collector.collectRequest(request, data.source, { section });
+        }
+        return { materials: collector.materials(), sourceCount: 1 };
+      },
+      fromInput({ materials, sourceId, requestId, targetLanguage }) {
+        const collector = translationMaterialCollector(targetLanguage);
+        collector.collectInput(materials, {
+          source_id: sourceId || null,
+          watch_id: null,
+          request_id: requestId || null,
+          request_index: null,
+          workspace: null,
+          conversation_id: null,
+        });
+        return { materials: collector.materials(), sourceCount: sourceId ? 1 : 0 };
+      },
+    },
+    sanitize: {
+      agent: (value) => sanitizeSourceMetadataText(value, { fallback: "Claude Code", limit: MAX_SOURCE_AGENT_CHARS }),
+      targetLanguage: (value) => normalizePathBackedLabel(value, "target_language"),
+      sourceId: (value) => sanitizeSourceMetadataText(value, { limit: MAX_TRANSLATION_SOURCE_ID_CHARS }),
+      section: (value) => sanitizeSourceMetadataText(value, { limit: MAX_TRANSLATION_SECTION_CHARS }),
+      requestId: (value) => sanitizeSourceMetadataText(value, { limit: MAX_TRANSLATION_REQUEST_ID_CHARS }),
+    },
+    slugify,
+  });
 }
 
 // Extract the harness-injected prompt fragments from the message history so
@@ -649,46 +439,6 @@ function extractHarnessTranslationParts(messages) {
   return output.filter((part) => part.text);
 }
 
-function compareTranslationMaterial(left, right) {
-  const kind = left.kind.localeCompare(right.kind);
-  if (kind) return kind;
-  const count = right.occurrence_count - left.occurrence_count;
-  if (count) return count;
-  return left.hash.localeCompare(right.hash);
-}
-
-function countTranslationMaterialsByKind(materials) {
-  return materials.reduce((acc, item) => {
-    acc[item.kind] = (acc[item.kind] || 0) + 1;
-    return acc;
-  }, {});
-}
-
-function runNodeScript(relativeScriptPath, args) {
-  const scriptPath = path.join(projectRoot, relativeScriptPath);
-  return new Promise((resolve, reject) => {
-    const spawnConfig = childProcessSpawnConfig(process.execPath, [scriptPath, ...args], { env: process.env });
-    execFile(spawnConfig.command, spawnConfig.args, { cwd: projectRoot, env: process.env, maxBuffer: 20 * 1024 * 1024, ...spawnConfig.options }, (error, stdout, stderr) => {
-      if (error) {
-        error.message = `${error.message}${stderr ? `\n${stderr.trim()}` : ""}`;
-        reject(error);
-        return;
-      }
-      resolve({ stdout, stderr });
-    });
-  });
-}
-
-function parseJsonCommandOutput(stdout) {
-  const text = String(stdout || "").trim();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { text };
-  }
-}
-
 function positiveInt(value, fallback) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : fallback;
@@ -696,68 +446,6 @@ function positiveInt(value, fallback) {
 
 function boundedPositiveInt(value, fallback, max) {
   return Math.min(positiveInt(value, fallback), max);
-}
-
-function loadTranslationCache({ agent, targetLanguage }) {
-  targetLanguage = normalizePathBackedLabel(targetLanguage || "zh-CN", "target_language");
-  const candidates = translationCacheCandidates(agent, targetLanguage);
-  const found = candidates.find((candidate) => fs.existsSync(candidate.cachePath));
-  const { cachePath, manifestPath, slug } = found || candidates[0];
-  if (!fs.existsSync(cachePath)) {
-    return {
-      available: false,
-      agent,
-      cache_slug: slug,
-      target_language: targetLanguage,
-      cache_path: cachePath,
-      entries: {},
-      entry_count: 0,
-    };
-  }
-  const cache = readJsonFile(cachePath);
-  const manifest = fs.existsSync(manifestPath) ? readJsonFile(manifestPath) : null;
-  const entries = cache?.entries && typeof cache.entries === "object" ? cache.entries : {};
-  return {
-    available: true,
-    agent,
-    cache_slug: slug,
-    target_language: cache?.target_language || targetLanguage,
-    cache_path: cachePath,
-    generated_at: cache?.generated_at || null,
-    provider: cache?.provider || null,
-    manifest: manifest
-      ? {
-          generated_at: manifest.generated_at || null,
-          item_count: manifest.item_count || 0,
-          counts_by_kind: manifest.counts_by_kind || {},
-          source_count: manifest.source_count || 0,
-        }
-      : null,
-    entries,
-    entry_count: Object.keys(entries).length,
-  };
-}
-
-function translationCacheCandidates(agent, targetLanguage) {
-  const safeTargetLanguage = normalizePathBackedLabel(targetLanguage || "zh-CN", "target_language");
-  const slugs = [...new Set([slugify(agent), ...translationAliasSlugs(agent)])].filter(Boolean);
-  return slugs.map((slug) => {
-    const dir = translationsDir(slug, safeTargetLanguage);
-    return {
-      slug,
-      dir,
-      cachePath: path.join(dir, `${safePathSegment(safeTargetLanguage, "target-language")}.json`),
-      manifestPath: path.join(dir, "manifest.json"),
-    };
-  });
-}
-
-function translationAliasSlugs(agent) {
-  const value = String(agent || "");
-  const aliases = [];
-  if (/claude|anthropic|\bcc\b|claude-code/i.test(value)) aliases.push("claude-code");
-  if (/trae/i.test(value)) aliases.push("trae-cn");
-  return aliases;
 }
 
 function baseSources({ cwd, demo, evidencePath, watches }, { includeStats = true } = {}) {
@@ -3434,10 +3122,6 @@ function slugify(value) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 32) || "agent";
-}
-
-function readJsonFile(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
 function normalizePathBackedLabel(value, fieldName) {

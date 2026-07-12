@@ -52,7 +52,8 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/server/source-capture-reader.mjs` | live/SQLite/file 的首屏、请求窗口与导出 captures 统一读取协议 |
 | `src/server/trace-bundle-service.mjs` | Trace 导出脱敏压缩、导入验证、provenance 和私有落盘边界 |
 | `src/trace/message-equivalence.mjs`、`context-delta.mjs`、`turn-timeline.mjs`、`subagent-graph.mjs` | 消息等价、context chain、历史复用、Turn 编组与多 Agent 血缘图协议 |
-| `src/translation/blocks.mjs`、`hash.mjs` | 跨 Server/Client/脚本共享的翻译块规范化、key、marker、schema 遍历和 Node hash |
+| `src/translation/blocks.mjs`、`hash.mjs`、`materials.mjs` | 跨 Server/Client/脚本共享的翻译块规范化、key、marker、schema 遍历、材料去重与限额 |
+| `src/translation/service.mjs` | 翻译材料/manifest 私有落盘、缓存 alias 查找、并发/force 参数与翻译脚本编排 |
 | `src/adapters/claude-code-otel.mjs` | Claude Code OTel 数据归一化 |
 | `src/adapters/openclaw-config.mjs`、`openclaw-normalize.mjs` | OpenClaw profile 配置和协议归一化 |
 | `src/adapters/trae-cn-integration.mjs` | Trae CN 配置发现、启停、漂移检查和稳定路由 |
