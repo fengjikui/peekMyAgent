@@ -4,9 +4,12 @@ import { ViewerApiClient } from "../src/viewer/api-client.js";
 
 const calls = [];
 const responses = [];
+const fetchContext = { name: "browser-window" };
 const api = new ViewerApiClient({
   origin: "http://viewer.test:43110",
-  fetchImpl: async (path, options = {}) => {
+  fetchContext,
+  fetchImpl: async function fetchWithBrowserContext(path, options = {}) {
+    assert.equal(this, fetchContext, "fetch should retain its browser execution context");
     calls.push({ path, options });
     return responses.shift() || jsonResponse({ ok: true });
   },

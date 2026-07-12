@@ -9,6 +9,7 @@
 - 统一 Trace 导入的二进制 body、文件名和 intent header。
 - 保留 Trace 导出的原始 `Response`，由应用层决定下载文件名和 Blob 生命周期。
 - 将 JSON 或文本错误响应转换为一致的 `Error`。
+- 绑定浏览器 `fetch` 的执行上下文，避免解构或保存方法后触发 `Illegal invocation`。
 
 API Client 不持有 source、request、translation 或布局状态，也不操作 DOM。这样 request-detail cache、Raw Inspector 和其他 feature 可以共享协议层，而不依赖 `client.js` 的全局实现。
 

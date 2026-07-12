@@ -1,7 +1,7 @@
 export class ViewerApiClient {
-  constructor({ fetchImpl = globalThis.fetch, origin = globalThis.location?.origin || "http://127.0.0.1" } = {}) {
+  constructor({ fetchImpl = globalThis.fetch, fetchContext = globalThis, origin = globalThis.location?.origin || "http://127.0.0.1" } = {}) {
     if (typeof fetchImpl !== "function") throw new Error("fetchImpl is required");
-    this.fetch = fetchImpl;
+    this.fetch = fetchImpl.bind(fetchContext);
     this.origin = origin;
   }
 
