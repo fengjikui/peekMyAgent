@@ -14,6 +14,7 @@ const state = {
   rawSearchQuery: "",
   rawSearchTimer: 0,
   rawSearchComposing: false,
+  rawSearchActiveIndex: 0,
   rawMessagesMode: "organized",
   requestDetails: new Map(),
   requestDetailPromises: new Map(),
@@ -358,6 +359,8 @@ const I18N = {
     rawSearchAria: "搜索当前 Raw 区块",
     rawSearchScope: "当前范围：{section}",
     rawSearchClear: "清除搜索",
+    rawSearchPrevious: "上一个匹配项",
+    rawSearchNext: "下一个匹配项",
     rawSearchResultCount: "{count} 条匹配",
     rawSearchNoResults: "当前 {section} 中没有匹配 “{query}”。",
     rawSearchMatchedIn: "匹配于 {scope}",
@@ -564,8 +567,6 @@ const I18N = {
     waitingToolResult: "等待结果或未捕获",
     unpairedToolResult: "未配对结果",
     noMatchedToolResult: "本次捕获中还没有匹配到工具结果。",
-    rawOriginalNotice: "当前内容来自捕获时保存的原始 JSON body。",
-    rawReconstructedNotice: "原始 body 已不可用；当前内容由 ordered request tree 和 content blobs 重建。",
     noPreviousSystemDiff: "这条请求没有上一条请求，无法生成 system diff。",
     noVisibleLineChanges: "没有可见行级变化",
     diffRowsChanged: "+{added} / -{removed} 行",
@@ -716,6 +717,8 @@ const I18N = {
     rawSearchAria: "Search current Raw section",
     rawSearchScope: "Scope: {section}",
     rawSearchClear: "Clear search",
+    rawSearchPrevious: "Previous match",
+    rawSearchNext: "Next match",
     rawSearchResultCount: "{count} matches",
     rawSearchNoResults: "No matches for \"{query}\" in current {section}.",
     rawSearchMatchedIn: "Matched in {scope}",
@@ -922,8 +925,6 @@ const I18N = {
     waitingToolResult: "Waiting for result or not captured",
     unpairedToolResult: "Unpaired result",
     noMatchedToolResult: "No matching tool result was captured yet.",
-    rawOriginalNotice: "Current content comes from the original JSON body saved at capture time.",
-    rawReconstructedNotice: "Original body is unavailable; this content was rebuilt from the ordered request tree and content blobs.",
     noPreviousSystemDiff: "This request has no previous request, so no system diff can be generated.",
     noVisibleLineChanges: "No visible line-level changes",
     diffRowsChanged: "+{added} / -{removed} lines",
@@ -1175,9 +1176,15 @@ async function init() {
     setTargetTranslationLanguageFromSelect();
   });
   els.rawTree.addEventListener("click", (event) => {
+    const searchNavigationButton = event.target.closest("[data-raw-search-nav]");
+    if (searchNavigationButton && els.rawTree.contains(searchNavigationButton)) {
+      navigateRawSearch(searchNavigationButton.dataset.rawSearchNav === "previous" ? -1 : 1);
+      return;
+    }
     const clearSearchButton = event.target.closest("[data-raw-search-clear]");
     if (clearSearchButton && els.rawTree.contains(clearSearchButton)) {
       state.rawSearchQuery = "";
+      state.rawSearchActiveIndex = 0;
       if (state.activeRequestId) showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
       return;
     }
@@ -1226,6 +1233,7 @@ async function init() {
     if (!input || !els.rawTree.contains(input)) return;
     state.rawSearchQuery = input.value || "";
     if (event.isComposing || state.rawSearchComposing) return;
+    state.rawSearchActiveIndex = 0;
     scheduleRawSearchRender();
   });
   els.rawTree.addEventListener("compositionstart", (event) => {
@@ -1239,6 +1247,7 @@ async function init() {
     if (!input || !els.rawTree.contains(input)) return;
     state.rawSearchComposing = false;
     state.rawSearchQuery = input.value || "";
+    state.rawSearchActiveIndex = 0;
     scheduleRawSearchRender();
   });
   els.rawTree.addEventListener("keydown", (event) => {
@@ -1853,6 +1862,7 @@ async function buildTranslationLookup(requests, translations) {
 function setTranslationMode(mode, section) {
   const targetLanguage = currentTargetLanguage();
   state.translationMode = mode === targetLanguage ? targetLanguage : "source";
+  state.rawSearchActiveIndex = 0;
   localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
   if (state.activeRequestId) showRaw(state.activeRequestId, section || state.activeRawSection || "full", { mode: state.activeRawMode || "request" });
 }
@@ -4946,6 +4956,8 @@ function syncActiveFromScroll() {
 async function showRaw(id, section = "full", { mode = "request" } = {}) {
   const request = state.data.requests.find((item) => item.id === id);
   if (!request) return;
+  const contextChanged = state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode;
+  if (contextChanged) state.rawSearchActiveIndex = 0;
   clearTranslationActions("raw");
   markActiveRequest(id, false);
   state.activeRawSection = section;
@@ -4960,6 +4972,7 @@ async function showRaw(id, section = "full", { mode = "request" } = {}) {
     const hydrated = await ensureDetailsForRawSection(request, section);
     if (state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode) return;
     els.rawTree.innerHTML = renderRawSections(hydrated, section, mode);
+    decorateRawSearchResults();
   } catch (error) {
     if (state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode) return;
     els.rawTree.innerHTML = renderRequestDetailError(error);
@@ -4975,7 +4988,6 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
   if (mode === "response") return renderResponseOnlyRawSection(request, activeSection);
   if (activeSection === "system_diff") {
     return `
-      ${renderRawSourceNotice(request)}
       ${renderRawStickyControls(request, activeSection, mode)}
       ${renderSystemDiff(request)}
     `;
@@ -4983,14 +4995,12 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
   const sectionData = rawSectionData(request, activeSection);
   if (activeSection !== "full") {
     return `
-      ${renderRawSourceNotice(request)}
       ${renderRawStickyControls(request, activeSection, mode)}
       ${renderMessagesControls(activeSection)}
       ${renderRawSectionContent(request, activeSection, sectionData)}
     `;
   }
   return `
-    ${renderRawSourceNotice(request)}
     ${renderRawStickyControls(request, activeSection, mode)}
     ${normalizedRawSearchQuery() ? renderRawSearchResults(request, activeSection, mode) : `
     ${renderRawDetail(t("rawFullCapture"), rawUpstreamRequestValue(request))}
@@ -5079,7 +5089,11 @@ function renderRawSearchControls(request, section, mode = "request") {
       </label>
       ${
         query
-          ? `<span class="raw-search-count">${escapeHtml(t("rawSearchResultCount", { count: matches }))}</span>
+          ? `<span class="raw-search-count" data-raw-search-position title="${escapeHtml(t("rawSearchResultCount", { count: matches }))}">${escapeHtml(matches ? `${Math.min(state.rawSearchActiveIndex + 1, matches)}/${matches}` : "0/0")}</span>
+             <span class="raw-search-navigation" role="group" aria-label="${escapeHtml(t("rawSearchResultCount", { count: matches }))}">
+               <button type="button" data-raw-search-nav="previous" title="${escapeHtml(t("rawSearchPrevious"))}" aria-label="${escapeHtml(t("rawSearchPrevious"))}" ${matches ? "" : "disabled"}>↑</button>
+               <button type="button" data-raw-search-nav="next" title="${escapeHtml(t("rawSearchNext"))}" aria-label="${escapeHtml(t("rawSearchNext"))}" ${matches ? "" : "disabled"}>↓</button>
+             </span>
              <button type="button" class="raw-search-clear" data-raw-search-clear="true">${escapeHtml(t("rawSearchClear"))}</button>`
           : ""
       }
@@ -5093,6 +5107,64 @@ function rawSearchMatchCount(request, section, mode = "request") {
     return matchingTranslationMaterials(request, section).length;
   }
   return rawSearchEntriesForSection(request, section, mode).length;
+}
+
+function decorateRawSearchResults() {
+  const query = normalizedRawSearchQuery();
+  if (!query) return;
+  const targets = [...els.rawTree.querySelectorAll("[data-raw-search-target]")];
+  if (!targets.length) return;
+  targets.forEach((target) => highlightRawSearchText(target, query));
+  state.rawSearchActiveIndex = Math.min(state.rawSearchActiveIndex, targets.length - 1);
+  syncRawSearchActiveTarget(targets, false);
+}
+
+function highlightRawSearchText(root, query) {
+  const matcher = new RegExp(escapeRegExp(query), "gi");
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent || !node.nodeValue || !matcher.test(node.nodeValue)) {
+        matcher.lastIndex = 0;
+        return NodeFilter.FILTER_REJECT;
+      }
+      matcher.lastIndex = 0;
+      if (parent.closest("button, input, textarea, script, style, mark, .raw-sticky-controls")) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  for (const node of textNodes) {
+    const text = node.nodeValue || "";
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    for (const match of text.matchAll(new RegExp(escapeRegExp(query), "gi"))) {
+      const index = match.index || 0;
+      if (index > cursor) fragment.append(document.createTextNode(text.slice(cursor, index)));
+      const mark = document.createElement("mark");
+      mark.className = "raw-search-highlight";
+      mark.textContent = match[0];
+      fragment.append(mark);
+      cursor = index + match[0].length;
+    }
+    if (cursor < text.length) fragment.append(document.createTextNode(text.slice(cursor)));
+    node.replaceWith(fragment);
+  }
+}
+
+function navigateRawSearch(delta) {
+  const targets = [...els.rawTree.querySelectorAll("[data-raw-search-target]")];
+  if (!targets.length) return;
+  state.rawSearchActiveIndex = (state.rawSearchActiveIndex + delta + targets.length) % targets.length;
+  syncRawSearchActiveTarget(targets, true);
+}
+
+function syncRawSearchActiveTarget(targets, scroll) {
+  targets.forEach((target, index) => target.classList.toggle("raw-search-target-active", index === state.rawSearchActiveIndex));
+  const position = els.rawTree.querySelector("[data-raw-search-position]");
+  if (position) position.textContent = `${state.rawSearchActiveIndex + 1}/${targets.length}`;
+  if (scroll) targets[state.rawSearchActiveIndex]?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function renderRawSearchResults(request, section, mode = "request") {
@@ -5109,7 +5181,7 @@ function renderRawSearchResults(request, section, mode = "request") {
         .slice(0, 120)
         .map(
           (entry) => `
-            <article class="raw-search-result">
+            <article class="raw-search-result" data-raw-search-target="true">
               <header>
                 <strong>${escapeHtml(entry.path || scope)}</strong>
                 <span>${escapeHtml(t("rawSearchMatchedIn", { scope: entry.scope || scope }))}</span>
@@ -5134,12 +5206,12 @@ function rawSearchEntriesForSection(request, section, mode = "request") {
 function rawSearchCandidateEntries(request, section, mode = "request") {
   if (mode === "response") {
     if (section === "tool_calls") return collectRawSearchEntries({ [t("currentResponseToolUse")]: request.summary?.response?.tool_calls || [] }, "response.tool_use");
-    if (section === "tools") return rawToolsSearchEntries(request);
+    if (section === "tools") return collectRawSearchEntries(rawSectionData(request, "tools").value, "Tools");
     return collectRawSearchEntries(rawResponseSectionValue(request), "response");
   }
-  if (section === "tools") return rawToolsSearchEntries(request);
-  if (section === "harness") return rawHarnessSearchEntries(request);
-  if (section === "system") return rawSystemSearchEntries(request);
+  if (["tools", "harness", "system"].includes(section)) {
+    return collectRawSearchEntries(rawSectionData(request, section).value, rawSectionLabel(section));
+  }
   if (section === "system_diff") {
     const previous = previousRequest(request);
     return collectRawSearchEntries(
@@ -5151,34 +5223,6 @@ function rawSearchCandidateEntries(request, section, mode = "request") {
     );
   }
   return collectRawSearchEntries(rawSectionData(request, section).value, rawSectionLabel(section));
-}
-
-function rawToolsSearchEntries(request) {
-  const rawEntries = collectRawSearchEntries(rawSectionData(request, "tools").value, "Tools");
-  const materialEntries = collectToolTranslationMaterials(request).map((item) => translationMaterialSearchEntry(item, toolTranslationLabel(item), "Tools"));
-  return [...materialEntries, ...rawEntries];
-}
-
-function rawHarnessSearchEntries(request) {
-  return collectHarnessTranslationMaterials(request).map((item) => translationMaterialSearchEntry(item, item.metadata?.label || translationKindLabel(item.kind), rawSectionLabel("harness")));
-}
-
-function rawSystemSearchEntries(request) {
-  const rawEntries = collectRawSearchEntries(rawSectionData(request, "system").value, "System");
-  const materialEntries = collectSystemTranslationMaterials(request).map((item, index) => translationMaterialSearchEntry(item, `${item.metadata?.source || "system"} #${index + 1}`, "System"));
-  return [...materialEntries, ...rawEntries];
-}
-
-function translationMaterialSearchEntry(item, label, scope) {
-  const translated = translatedTextFor(item.kind, item.source_text);
-  const text = [label, item.metadata?.path, item.source_text, translated].filter(Boolean).join("\n");
-  return {
-    path: label,
-    scope,
-    text: shortPreview(text, 420),
-    value: text,
-    searchText: text,
-  };
 }
 
 function collectRawSearchEntries(value, rootPath, output = []) {
@@ -5450,6 +5494,7 @@ function renderTranslatedSystemSection(request) {
             label: `${item.metadata.source || "system"} #${Number.isInteger(item.metadata?.index) ? item.metadata.index + 1 : index + 1}`,
             kind: item.kind,
             sourceText: item.source_text,
+            searchTarget: Boolean(normalizedRawSearchQuery()),
           }),
         )
         .join("")}
@@ -5483,7 +5528,7 @@ function groupToolTranslationMaterials(materials) {
 
 function renderToolTranslationGroup(group) {
   return `
-    <section class="tool-translation-group">
+    <section class="tool-translation-group" ${normalizedRawSearchQuery() ? 'data-raw-search-target="true"' : ""}>
       <header class="tool-translation-group-header">
         <strong>${escapeHtml(group.toolName)}</strong>
         <span>${escapeHtml(group.description ? t("toolDescriptionCount") : t("noToolDescription"))} · ${escapeHtml(t("parameterCount", { count: group.parameters.length }))}</span>
@@ -5562,6 +5607,7 @@ function renderTranslatedHarnessSection(request) {
             label: item.metadata?.label || translationKindLabel(item.kind),
             kind: item.kind,
             sourceText: item.source_text,
+            searchTarget: Boolean(normalizedRawSearchQuery()),
           }),
         )
         .join("")}
@@ -5577,14 +5623,14 @@ function renderStructuredTranslationEmpty(section, fallback) {
   return `<div class="empty-box">${escapeHtml(message)}</div>`;
 }
 
-function renderTranslationBlock({ label, kind, sourceText, compact = false }) {
+function renderTranslationBlock({ label, kind, sourceText, compact = false, searchTarget = false }) {
   const translation = translatedTextFor(kind, sourceText);
   const hit = Boolean(translation);
   const kindClass = translationKindClass(kind);
   const displayText = translation || sourceText || "";
   const actionId = registerTranslationAction({ kind, sourceText, section: state.activeRawSection || "tools", surface: "raw", metadata: { label } });
   return `
-    <article class="translation-block ${escapeHtml(kindClass)} ${compact ? "compact" : ""} ${hit ? "hit" : "miss"}">
+    <article class="translation-block ${escapeHtml(kindClass)} ${compact ? "compact" : ""} ${hit ? "hit" : "miss"}" ${searchTarget ? 'data-raw-search-target="true"' : ""}>
       <header>
         <strong>${escapeHtml(label)}</strong>
         <span class="translation-block-meta">
@@ -5667,23 +5713,6 @@ function translationSectionStats(request, section) {
 function translatedTextFor(kind, sourceText) {
   const source = normalizeTranslationText(sourceText);
   return source ? state.translationLookup.get(translationLookupKey(kind, source))?.translated_text || "" : "";
-}
-
-function toolTranslationLabel(item) {
-  const toolName = item.metadata?.tool_name || "unknown";
-  if (item.kind === "tool_description") return `${toolName} · description`;
-  return `${toolName} · ${item.metadata?.field_name || item.metadata?.path || "parameter"}`;
-}
-
-function renderRawSourceNotice(request) {
-  const source = request.raw?.body_source || "original";
-  const reconstructed = source === "reconstructed";
-  return `
-    <div class="raw-source-notice ${reconstructed ? "reconstructed" : "original"}">
-      <strong>${reconstructed ? "Raw reconstructed" : "Raw original"}</strong>
-      <span>${escapeHtml(reconstructed ? t("rawReconstructedNotice") : t("rawOriginalNotice"))}</span>
-    </div>
-  `;
 }
 
 function rawSectionLabel(section) {

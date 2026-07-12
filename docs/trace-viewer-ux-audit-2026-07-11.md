@@ -82,10 +82,10 @@ cursor/turn 分页和增量客户端 store 仍属于后续阶段。
 
 ### 4.2 Raw Inspector 的证据边界表达成熟
 
-- `Raw reconstructed` 明确说明原始 body 已不可用、当前内容由 blob 和 request tree 重建。
+- 原始或分块重建的请求体使用同一紧凑视图；需要核对来源时仍可在完整请求的 `body_source` 字段中查看，不再用常驻提示卡占据阅读空间。
 - Assistant 的 Raw 视图优先展示 Response，并保留 `tool_use` 和注入的 Tools schema。
 - Tools schema 明确说明它来自上行 harness 注入，而不是 response 返回。
-- 区块级搜索、翻译、缓存状态、复制和重译已经形成完整闭环；搜索与原文/翻译操作随分类标签固定，并根据原文/整理视图分别检索原始 JSON 或结构化翻译块。Tools 批量复制保留工具与参数归属。
+- 区块级搜索、翻译、缓存状态、复制和重译已经形成完整闭环；搜索与原文/翻译操作随分类标签固定，并根据原文/整理视图分别检索原始 JSON 或结构化翻译块。匹配文本高亮，上一个/下一个图标按匹配块循环定位。Tools 批量复制保留工具与参数归属。
 - 请求卡和上行视图不再混入 Response 或本次响应 `tool_use`；“完整请求”和“请求 Metadata”同样排除 response、响应状态及其派生统计。请求侧使用单层紧凑标签，完整请求在首位、Metadata 在末位。下行信息统一从 Assistant 回复进入，Assistant 的 Tools schema 继续明确标为“上行参考”。
 
 这部分体现了产品对“原始事实”和“派生解释”的尊重，应继续保持。
