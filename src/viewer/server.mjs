@@ -220,6 +220,7 @@ async function handleRequest(req, res, options) {
   if (guard) return writeJson(res, guard.status, { error: guard.message });
   if (url.pathname === "/") return serveFile(res, path.join(viewerDir, "index.html"), "text/html; charset=utf-8");
   if (url.pathname === "/styles.css") return serveFile(res, path.join(viewerDir, "styles.css"), "text/css; charset=utf-8");
+  if (url.pathname === "/api-client.js") return serveFile(res, path.join(viewerDir, "api-client.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/client.js") return serveFile(res, path.join(viewerDir, "client.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/markdown.js") return serveFile(res, path.join(viewerDir, "markdown.js"), "text/javascript; charset=utf-8");
   if (url.pathname === "/turn-rail.js") return serveFile(res, path.join(viewerDir, "turn-rail.js"), "text/javascript; charset=utf-8");

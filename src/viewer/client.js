@@ -1,4 +1,5 @@
 import { renderMarkdownPreview, renderSafeMarkdown } from "./markdown.js";
+import { ViewerApiClient } from "./api-client.js";
 import { TurnRailController } from "./turn-rail.js";
 import {
   extractTranslationSchemaDescriptions as extractSchemaDescriptionsForTranslation,
@@ -10,6 +11,7 @@ import {
   translationToolName as toolNameOf,
 } from "./translation-blocks.js";
 
+const api = new ViewerApiClient();
 const state = {
   sources: [],
   data: null,
@@ -1177,7 +1179,7 @@ async function init() {
   if (state.sidebarWidth) applySidebarWidth(state.sidebarWidth);
   setRawPanelOpen(state.rawOpen);
   setSidebarOpen(state.sidebarOpen);
-  state.sources = await fetchJson("/api/sources");
+  state.sources = await api.listSources();
   renderSessionNav();
   const requestedSource = new URLSearchParams(window.location.search).get("source");
   const first =
@@ -1345,7 +1347,7 @@ async function loadSource(sourceId, { preserveScroll = false } = {}) {
 }
 
 async function refreshSources() {
-  state.sources = await fetchJson("/api/sources");
+  state.sources = await api.listSources();
   renderSessionNav();
   if (state.activeSourceId && !state.sources.some((source) => source.id === state.activeSourceId)) {
     const first = state.sources.find((source) => source.available) || state.sources[0];
@@ -1364,7 +1366,7 @@ async function refreshLiveData({ force = false } = {}) {
 
   state.autoRefreshInFlight = true;
   try {
-    const nextSources = await fetchJson("/api/sources");
+    const nextSources = await api.listSources();
     const sourceChanged = sourcesSignature(nextSources) !== sourcesSignature(state.sources);
     state.sources = nextSources;
     if (sourceChanged) renderSessionNav();
@@ -1469,14 +1471,7 @@ function shouldUseProgressiveSourceLoad(sourceId, { preserveScroll = false } = {
 }
 
 function fetchViewerData(sourceId, { initial = false, limit = INITIAL_SOURCE_REQUEST_LIMIT } = {}) {
-  const url = new URL("/api/view", window.location.origin);
-  url.searchParams.set("source", sourceId);
-  url.searchParams.set("compact", "1");
-  if (initial) {
-    url.searchParams.set("initial", "1");
-    url.searchParams.set("limit", String(limit));
-  }
-  return fetchJson(`${url.pathname}${url.search}`);
+  return api.viewSource(sourceId, { initial, limit });
 }
 
 function clearRequestDetailCache() {
@@ -1509,7 +1504,7 @@ async function ensureRequestDetailLoaded(requestId) {
   if (state.requestDetailPromises.has(requestId)) return state.requestDetailPromises.get(requestId);
 
   const sourceId = state.data?.source?.id || state.activeSourceId || "";
-  const promise = fetchJson(`/api/request?source=${encodeURIComponent(sourceId)}&request=${encodeURIComponent(requestId)}`)
+  const promise = api.requestDetail(sourceId, requestId)
     .then(async (payload) => {
       const fullRequest = normalizeRequestDetail(payload.request);
       state.requestDetails.set(requestId, fullRequest);
@@ -1587,7 +1582,7 @@ async function loadTranslationsForActiveSource({ autoRefresh = true } = {}) {
   try {
     const attempts = [];
     for (const agent of agents) {
-      const translations = await fetchJson(`/api/translations?agent=${encodeURIComponent(agent)}&target_language=${encodeURIComponent(targetLanguage)}`);
+      const translations = await api.translations(agent, targetLanguage);
       attempts.push(translations);
       if (translations.available) {
         state.translations = translations;
@@ -1638,17 +1633,13 @@ async function generateTranslationsForActiveSource(section, { automatic = false,
   };
   if (state.activeRequestId) showRaw(state.activeRequestId, activeSection, { mode: state.activeRawMode || "request" });
   try {
-    const result = await fetchJson("/api/translations/generate", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-peekmyagent-intent": "translation-generate" },
-      body: JSON.stringify({
-        agent: selectedAgent,
-        source_id: state.data?.source?.id || state.activeSourceId || "",
-        request_id: state.activeRequestId || "",
-        section: activeSection,
-        force: !automatic,
-        target_language: targetLanguage,
-      }),
+    const result = await api.generateTranslations({
+      agent: selectedAgent,
+      source_id: state.data?.source?.id || state.activeSourceId || "",
+      request_id: state.activeRequestId || "",
+      section: activeSection,
+      force: !automatic,
+      target_language: targetLanguage,
     });
     await loadTranslationsForActiveSource({ autoRefresh: false });
     const translated = Number(result.translate?.translated || 0);
@@ -1778,17 +1769,13 @@ async function retranslateTranslationBlock(actionId) {
   state.translationGenerate = { loading: true, error: "", message: materials.length > 1 ? t("translatingParameterGroup") : t("retranslatingBlock") };
   if (item.surface === "raw" && state.activeRequestId) showRaw(state.activeRequestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
   try {
-    const result = await fetchJson("/api/translations/generate", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-peekmyagent-intent": "translation-generate" },
-      body: JSON.stringify({
-        agent: selectedAgent,
-        source_id: state.data?.source?.id || state.activeSourceId || "",
-        request_id: item.requestId || state.activeRequestId || "",
-        target_language: targetLanguage,
-        force: true,
-        materials,
-      }),
+    const result = await api.generateTranslations({
+      agent: selectedAgent,
+      source_id: state.data?.source?.id || state.activeSourceId || "",
+      request_id: item.requestId || state.activeRequestId || "",
+      target_language: targetLanguage,
+      force: true,
+      materials,
     });
     await loadTranslationsForActiveSource({ autoRefresh: false });
     const translated = Number(result.translate?.translated || 0);
@@ -2138,12 +2125,8 @@ async function handleProjectAction(action, projectKey) {
 
 async function exportTraceSource(sourceId) {
   if (!window.confirm(t("exportTraceConfirm"))) return;
-  const url = `/api/trace/export?source=${encodeURIComponent(sourceId)}`;
   try {
-    const response = await fetch(url, {
-      headers: { "x-peekmyagent-intent": "trace-export" },
-    });
-    if (!response.ok) throw new Error(await responseErrorMessage(response));
+    const response = await api.exportTrace(sourceId);
     const blob = await response.blob();
     const link = document.createElement("a");
     const objectUrl = URL.createObjectURL(blob);
@@ -2164,16 +2147,8 @@ async function importTraceFromFile(event) {
   input.value = "";
   if (!file) return;
   try {
-    const response = await fetchJson("/api/trace/import", {
-      method: "POST",
-      headers: {
-        "content-type": "application/octet-stream",
-        "x-peekmyagent-intent": "trace-import",
-        "x-peekmyagent-file-name": file.name,
-      },
-      body: await file.arrayBuffer(),
-    });
-    state.sources = response.sources || (await fetchJson("/api/sources"));
+    const response = await api.importTrace(await file.arrayBuffer(), file.name);
+    state.sources = response.sources || (await api.listSources());
     renderSessionNav();
     if (response.source_id) await loadSource(response.source_id);
   } catch (error) {
@@ -2191,16 +2166,12 @@ function closeNavMenuOnce(event) {
 
 async function updateSourceMeta(sourceId, payload) {
   try {
-    const response = await fetchJson("/api/source/update", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-peekmyagent-intent": "source-update" },
-      body: JSON.stringify({ id: sourceId, ...payload }),
-    });
-    state.sources = response.sources || (await fetchJson("/api/sources"));
+    const response = await api.updateSource({ id: sourceId, ...payload });
+    state.sources = response.sources || (await api.listSources());
   } catch (error) {
     console.warn("peekMyAgent source update failed", error);
     window.alert(t("sourceUpdateFailed", { message: error.message }));
-    state.sources = await fetchJson("/api/sources");
+    state.sources = await api.listSources();
     renderSessionNav();
     return;
   }
@@ -2219,23 +2190,19 @@ async function updateSourceMeta(sourceId, payload) {
 async function updateProjectSources(projectGroup, payload) {
   const affectedActiveSource = projectGroup.sources.some((source) => source.id === state.activeSourceId);
   try {
-    const response = await fetchJson("/api/source/update", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-peekmyagent-intent": "source-update" },
-      body: JSON.stringify({
-        project: {
-          agent: projectGroup.agent,
-          workspace: projectGroup.workspace || "",
-          project: projectGroup.project,
-        },
-        ...payload,
-      }),
+    const response = await api.updateSource({
+      project: {
+        agent: projectGroup.agent,
+        workspace: projectGroup.workspace || "",
+        project: projectGroup.project,
+      },
+      ...payload,
     });
-    state.sources = response.sources || (await fetchJson("/api/sources"));
+    state.sources = response.sources || (await api.listSources());
   } catch (error) {
     console.warn("peekMyAgent project update failed", error);
     window.alert(t("projectUpdateFailed", { message: error.message }));
-    state.sources = await fetchJson("/api/sources");
+    state.sources = await api.listSources();
     renderSessionNav();
     return;
   }
@@ -2718,13 +2685,9 @@ async function sendAgentComposerMessage(rawMessage) {
   updateAgentComposerUi(sourceId, { loading: true, message: state.agentSend.message, value: "" });
   await nextUiTick();
   try {
-    const result = await fetchJson("/api/agent/send", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-peekmyagent-intent": "agent-send" },
-      body: JSON.stringify({
-        source_id: sourceId,
-        message,
-      }),
+    const result = await api.sendAgent({
+      source_id: sourceId,
+      message,
     });
     state.agentSend = {
       loading: false,
@@ -2804,15 +2767,11 @@ document.addEventListener("keydown", (event) => {
 async function stopActiveWatch(clear) {
   if (!state.data?.source?.live_watch_id) return;
   try {
-    await fetchJson("/api/watch/stop", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-peekmyagent-intent": "watch-stop" },
-      body: JSON.stringify({
-        id: state.data.source.id,
-        clear,
-      }),
+    await api.stopWatch({
+      id: state.data.source.id,
+      clear,
     });
-    state.sources = await fetchJson("/api/sources");
+    state.sources = await api.listSources();
     renderSessionNav();
     if (clear) {
       const first = state.sources.find((source) => source.available) || state.sources[0];
@@ -5973,24 +5932,6 @@ function renderPrimitive(value) {
   if (typeof value === "number") return `<span class="json-number">${value}</span>`;
   if (typeof value === "boolean") return `<span class="json-boolean">${value}</span>`;
   return escapeHtml(String(value));
-}
-
-async function fetchJson(url, options) {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    throw new Error(await responseErrorMessage(response));
-  }
-  return response.json();
-}
-
-async function responseErrorMessage(response) {
-  const text = await response.text();
-  try {
-    const parsed = JSON.parse(text);
-    return parsed.error || text;
-  } catch {
-    return text;
-  }
 }
 
 function contentDispositionFileName(value) {
