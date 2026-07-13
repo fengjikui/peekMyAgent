@@ -4,6 +4,7 @@ import {
   renderMessagesSection as renderMessagesSectionView,
 } from "./messages-renderer.js";
 import { ViewerApiClient } from "./api-client.js";
+import { ViewerClientStore } from "./client-store.js";
 import { RequestDetailCache, requestNeedsDetail } from "./request-detail-cache.js";
 import {
   rawResponseSectionValue,
@@ -48,28 +49,17 @@ import {
 } from "./translation-blocks.js";
 
 const api = new ViewerApiClient();
-const state = {
+const clientStore = new ViewerClientStore();
+const state = Object.assign(clientStore.state, {
   sources: [],
   data: null,
-  activeId: null,
-  activeRequestId: null,
-  activeSourceId: null,
   sourceLoadSeq: 0,
   progressiveLoadError: "",
-  activeRawMode: "request",
-  rawOpen: true,
-  activeRawSection: "full",
-  rawMessagesMode: "organized",
-  rawWidth: 0,
-  sidebarOpen: true,
-  sidebarWidth: 0,
   autoRefreshTimer: 0,
   autoRefreshInFlight: false,
   sessionInfoControlsBound: false,
   responseExpanded: new Set(),
   upstreamExpanded: new Set(),
-  latestOnly: false,
-  translationMode: "source",
   translations: null,
   translationLookup: new Map(),
   translationGenerate: { loading: false, error: "", message: "" },
@@ -90,9 +80,7 @@ const state = {
   agentSend: { loading: false, error: "", message: "", result: null },
   openSourceMenuId: null,
   openProjectMenuKey: null,
-  uiLanguage: "zh-CN",
-  targetTranslationLanguage: "zh-CN",
-};
+});
 
 const LIVE_REFRESH_MS = 1200;
 const LATEST_ONLY_KEY = "peekmyagent.latestOnly";
@@ -1177,7 +1165,7 @@ function applyStaticI18n() {
 }
 
 async function setUiLanguage(value) {
-  state.uiLanguage = normalizeUiLanguage(value);
+  clientStore.setLanguage({ uiLanguage: normalizeUiLanguage(value) }, { reason: "set-ui-language" });
   localStorage.setItem(UI_LANGUAGE_KEY, state.uiLanguage);
   applyStaticI18n();
   if (state.data) renderAll();
@@ -1190,8 +1178,10 @@ async function setTargetTranslationLanguage(value) {
     renderLanguageSelectors();
     return;
   }
-  state.targetTranslationLanguage = next;
-  state.translationMode = next;
+  clientStore.setLanguage(
+    { targetTranslationLanguage: next, translationMode: next },
+    { reason: "set-translation-language" },
+  );
   state.translationAutoRefresh.clear();
   localStorage.setItem(TARGET_TRANSLATION_LANGUAGE_KEY, next);
   localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
@@ -1211,17 +1201,29 @@ async function setTargetTranslationLanguageFromSelect() {
 }
 
 async function init() {
-  state.rawOpen = localStorage.getItem("peekmyagent.rawOpen") !== "false";
-  state.rawWidth = readRawPanelWidth();
-  if (state.rawWidth) applyRawPanelWidth(state.rawWidth);
-  state.sidebarOpen = localStorage.getItem("peekmyagent.sidebarOpen") !== "false";
-  state.sidebarWidth = readSidebarWidth();
-  state.latestOnly = localStorage.getItem(LATEST_ONLY_KEY) === "true";
-  state.rawMessagesMode = normalizeMessagesMode(localStorage.getItem(RAW_MESSAGES_MODE_KEY));
-  state.uiLanguage = normalizeUiLanguage(localStorage.getItem(UI_LANGUAGE_KEY));
+  const rawOpen = localStorage.getItem("peekmyagent.rawOpen") !== "false";
+  const rawWidth = readRawPanelWidth();
+  const sidebarOpen = localStorage.getItem("peekmyagent.sidebarOpen") !== "false";
+  const sidebarWidth = readSidebarWidth();
   const storedTargetLanguage = localStorage.getItem(TARGET_TRANSLATION_LANGUAGE_KEY);
-  state.targetTranslationLanguage = storedTargetLanguage ? normalizeTranslationLanguage(storedTargetLanguage) : defaultTranslationLanguage();
-  state.translationMode = localStorage.getItem(TRANSLATION_MODE_KEY) === currentTargetLanguage() ? currentTargetLanguage() : "source";
+  const targetTranslationLanguage = storedTargetLanguage
+    ? normalizeTranslationLanguage(storedTargetLanguage)
+    : defaultTranslationLanguage();
+  clientStore.update(
+    {
+      rawOpen,
+      rawWidth,
+      sidebarOpen,
+      sidebarWidth,
+      latestOnly: localStorage.getItem(LATEST_ONLY_KEY) === "true",
+      rawMessagesMode: normalizeMessagesMode(localStorage.getItem(RAW_MESSAGES_MODE_KEY)),
+      uiLanguage: normalizeUiLanguage(localStorage.getItem(UI_LANGUAGE_KEY)),
+      targetTranslationLanguage,
+      translationMode: localStorage.getItem(TRANSLATION_MODE_KEY) === targetTranslationLanguage ? targetTranslationLanguage : "source",
+    },
+    { reason: "hydrate-preferences", silent: true },
+  );
+  if (state.rawWidth) applyRawPanelWidth(state.rawWidth);
   applyStaticI18n();
   renderLanguageSelectors();
   if (state.sidebarWidth) applySidebarWidth(state.sidebarWidth);
@@ -1389,15 +1391,16 @@ async function refreshActiveSource(activeSource) {
   const wasNearBottom = isMainPanelNearBottom();
   const previousScrollTop = els.mainPanel.scrollTop;
   state.data = nextData;
-  state.activeSourceId = nextData.source.id;
   await loadTranslationsForActiveSource();
   const turnIds = activeTurnIds(nextData);
-  if (!turnIds.includes(state.activeId)) {
-    state.activeId = turnIds.at(-1) || null;
-  }
-  if (!nextData.requests.some((request) => request.id === state.activeRequestId)) {
-    state.activeRequestId = nextData.requests.at(-1)?.id || nextData.requests[0]?.id || null;
-  }
+  const activeId = turnIds.includes(state.activeId) ? state.activeId : turnIds.at(-1) || null;
+  const activeRequestId = nextData.requests.some((request) => request.id === state.activeRequestId)
+    ? state.activeRequestId
+    : nextData.requests.at(-1)?.id || nextData.requests[0]?.id || null;
+  clientStore.setSelection(
+    { activeSourceId: nextData.source.id, activeId, activeRequestId },
+    { reason: "refresh-source" },
+  );
   renderAll();
   if (wasNearBottom) {
     els.mainPanel.scrollTop = els.mainPanel.scrollHeight;
@@ -1410,13 +1413,15 @@ async function refreshActiveSource(activeSource) {
 function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } = {}) {
   state.data = data;
   const turnIds = activeTurnIds(data);
-  if (!preserveScroll || !turnIds.includes(state.activeId)) {
-    state.activeId = turnIds[0] || null;
-  }
-  if (!preserveScroll || !data.requests.some((request) => request.id === state.activeRequestId)) {
-    state.activeRequestId = data.requests[0]?.id || null;
-  }
-  state.activeSourceId = data.source.id;
+  const activeId = preserveScroll && turnIds.includes(state.activeId) ? state.activeId : turnIds[0] || null;
+  const activeRequestId =
+    preserveScroll && data.requests.some((request) => request.id === state.activeRequestId)
+      ? state.activeRequestId
+      : data.requests[0]?.id || null;
+  clientStore.setSelection(
+    { activeSourceId: data.source.id, activeId, activeRequestId },
+    { reason: "load-source" },
+  );
   const url = new URL(window.location.href);
   url.searchParams.set("source", state.activeSourceId);
   window.history.replaceState(null, "", url);
@@ -1592,7 +1597,7 @@ async function generateTranslationsForActiveSource(section, { automatic = false,
       message: automatic && message === t("translationCacheLatest", { language: languageLabel }) ? t("translationAutoUpdated") : message,
     };
     if (cacheAvailable && stats.hit > 0) {
-      state.translationMode = targetLanguage;
+      clientStore.setLanguage({ translationMode: targetLanguage }, { reason: "translation-generated" });
       localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
     }
   } catch (error) {
@@ -1727,7 +1732,7 @@ async function retranslateTranslationBlock(actionId) {
           : t("retranslatedBlockDone")
         : t("translationCacheLatest", { language: currentTargetLanguageLabel() }),
     };
-    state.translationMode = targetLanguage;
+    clientStore.setLanguage({ translationMode: targetLanguage }, { reason: "translation-block-generated" });
     localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
   } catch (error) {
     state.translationGenerate = {
@@ -1796,14 +1801,17 @@ async function buildTranslationLookup(requests, translations) {
 
 function setTranslationMode(mode, section) {
   const targetLanguage = currentTargetLanguage();
-  state.translationMode = mode === targetLanguage ? targetLanguage : "source";
+  clientStore.setLanguage(
+    { translationMode: mode === targetLanguage ? targetLanguage : "source" },
+    { reason: "set-translation-mode" },
+  );
   rawSearchController.modeChanged();
   localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
   if (state.activeRequestId) showRaw(state.activeRequestId, section || state.activeRawSection || "full", { mode: state.activeRawMode || "request" });
 }
 
 function setMessagesMode(mode) {
-  state.rawMessagesMode = normalizeMessagesMode(mode);
+  clientStore.setRawView({ rawMessagesMode: normalizeMessagesMode(mode) }, { reason: "set-messages-mode" });
   localStorage.setItem(RAW_MESSAGES_MODE_KEY, state.rawMessagesMode);
   if (state.activeRequestId) showRaw(state.activeRequestId, "messages", { mode: state.activeRawMode || "request" });
 }
@@ -2270,7 +2278,9 @@ function bindTraceQueryEvents() {
       state.traceFilter = button.dataset.traceFilter || "all";
       state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
       const filteredTurns = traceFilteredTurns(state.data?.turns || [], state.data?.requests || []);
-      if (!filteredTurns.some((turn) => turn.id === state.activeId)) state.activeId = filteredTurns[0]?.id || null;
+      if (!filteredTurns.some((turn) => turn.id === state.activeId)) {
+        clientStore.setSelection({ activeId: filteredTurns[0]?.id || null }, { reason: "filter-trace" });
+      }
       renderAll();
     });
   });
@@ -4145,7 +4155,7 @@ function bindRequestEvents() {
 
 function jumpToTurn(turnId, scroll = true) {
   if (!turnId) return;
-  state.activeId = turnId;
+  clientStore.setSelection({ activeId: turnId }, { reason: "jump-to-turn" });
   renderAll();
   markActiveTurn(turnId, scroll);
 }
@@ -4162,7 +4172,7 @@ function jumpToAgentBranch(branchId) {
   if (!branchId) return;
   const turn = state.data?.turns?.find((item) => (item.agent_branches || []).includes(branchId));
   if (turn) {
-    state.activeId = turn.id;
+    clientStore.setSelection({ activeId: turn.id }, { reason: "jump-to-agent-branch" });
     state.openAgentDashboards.add(turn.id);
     state.agentBranchFilters.set(turn.id, "all");
     const sortedBranchIds = (state.data?.agent_trace?.branches || [])
@@ -4269,7 +4279,7 @@ function updateUpstreamToggleButtons(requestId, open) {
 }
 
 function toggleLatestOnly() {
-  state.latestOnly = !state.latestOnly;
+  clientStore.setTimeline({ latestOnly: !state.latestOnly }, { reason: "toggle-latest-only" });
   localStorage.setItem(LATEST_ONLY_KEY, String(state.latestOnly));
   renderAll();
   if (state.latestOnly) {
@@ -4289,7 +4299,7 @@ function toggleResponseExpansion(requestId) {
 }
 
 function markActiveTurn(id, scroll) {
-  state.activeId = id;
+  clientStore.setSelection({ activeId: id }, { reason: "mark-active-turn" });
   renderTurnRail();
   document.querySelectorAll("[data-turn]").forEach((button) => button.classList.toggle("active", button.dataset.turn === id));
   document.querySelectorAll("[data-turn-group]").forEach((group) => group.classList.toggle("active", group.dataset.turnGroup === id));
@@ -4298,14 +4308,14 @@ function markActiveTurn(id, scroll) {
 }
 
 function markActiveRequest(id, scroll) {
-  state.activeRequestId = id;
+  clientStore.setSelection({ activeRequestId: id }, { reason: "mark-active-request" });
   document.querySelectorAll("[data-card]").forEach((card) => card.classList.toggle("active", card.dataset.card === id));
   const target = document.getElementById(id);
   if (scroll) target?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function setRawPanelOpen(open) {
-  state.rawOpen = open;
+  clientStore.setLayout({ rawOpen: open }, { reason: "set-raw-panel-open" });
   if (open) {
     if (state.rawWidth) applyRawPanelWidth(state.rawWidth);
     else els.appShell.style.removeProperty("--raw-width");
@@ -4379,7 +4389,7 @@ function updateRawPanelWidthFromPointer(clientX, { persist = true } = {}) {
 
 function setRawPanelWidth(width, { persist = true } = {}) {
   const nextWidth = clampRawPanelWidth(width);
-  state.rawWidth = nextWidth;
+  clientStore.setLayout({ rawWidth: nextWidth }, { reason: "set-raw-panel-width" });
   applyRawPanelWidth(nextWidth);
   if (persist) localStorage.setItem(RAW_WIDTH_KEY, String(nextWidth));
   scheduleActiveSync();
@@ -4415,7 +4425,7 @@ function maxRawPanelWidth() {
 
 function setSidebarOpen(open) {
   const rawShare = rawPanelContentShare();
-  state.sidebarOpen = open;
+  clientStore.setLayout({ sidebarOpen: open }, { reason: "set-sidebar-open" });
   if (open) {
     if (state.sidebarWidth) applySidebarWidth(state.sidebarWidth);
     else els.appShell.style.removeProperty("--sidebar-width");
@@ -4513,7 +4523,7 @@ function updateSidebarWidthFromPointer(clientX, { persist = true } = {}) {
 
 function setSidebarWidth(width, { persist = true } = {}) {
   const nextWidth = clampSidebarWidth(width);
-  state.sidebarWidth = nextWidth;
+  clientStore.setLayout({ sidebarWidth: nextWidth }, { reason: "set-sidebar-width" });
   applySidebarWidth(nextWidth);
   if (persist) localStorage.setItem(SIDEBAR_WIDTH_KEY, String(nextWidth));
   if (state.rawOpen && state.rawWidth) setRawPanelWidth(state.rawWidth, { persist: false });
@@ -4558,9 +4568,11 @@ async function showRaw(id, section = "full", { mode = "request" } = {}) {
   const contextChanged = state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode;
   if (contextChanged) rawSearchController.contextChanged();
   clearTranslationActions("raw");
+  clientStore.setRawContext(
+    { requestId: id, section, mode },
+    { reason: "show-raw" },
+  );
   markActiveRequest(id, false);
-  state.activeRawSection = section;
-  state.activeRawMode = mode;
   setRawPanelOpen(true);
   els.rawTitle.textContent = `Request ${request.request_index} · ${mode === "response" ? responseRawSectionLabel(section) : rawSectionLabel(section)}`;
   els.rawTree.className = "raw-tree";

@@ -34,6 +34,7 @@ for (const required of [
   "bin/peekmyagent.mjs",
   "src/viewer/server.mjs",
   "src/viewer/api-client.js",
+  "src/viewer/client-store.js",
   "src/viewer/client.js",
   "src/viewer/markdown.js",
   "src/viewer/message-view-model.js",

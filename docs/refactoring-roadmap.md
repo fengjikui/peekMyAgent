@@ -160,7 +160,7 @@ src/
 - 已迁移 Raw Inspector 基础 Renderer：请求/响应导航、搜索控件与结果、详情状态和来源提示只依赖显式 DTO 与渲染依赖。
 - 已迁移 Message View Model 与 Renderer：role/content/block 规范化、结构化判定、长文本截断、原文/整理切换与安全 Markdown 不再由全局 client 所有。
 - 已迁移 Translation View Model 与 Renderer：工具分组、译文搜索排序、命中统计、System/Harness 块、工具说明与参数汇总不再直接读取全局 client state；缓存 key 继续复用共享 translation block contract，动作注册通过显式依赖留在应用层。
-- 下一步建立最小 client store，先明确 source、request selection、Raw/translation mode 与 pane layout 的所有权；file/imported sidecar index 与 cursor 分页留在大 Trace 数据路径阶段实施。
+- 最小 client store 已建立：source/Turn/request selection、Raw/messages mode、UI/翻译语言、pane layout 与 latest-only 已有单一写入边界和原子变更通知；file/imported sidecar index 与 cursor 分页仍留在大 Trace 数据路径阶段实施。
 
 ## 阶段 3：拆分 Viewer Client
 
@@ -170,7 +170,7 @@ src/
 
 1. 抽出低耦合交互 feature，验证依赖注入和直接契约测试模式。Turn Rail 已完成。
 2. 抽出 API client 和 request-detail cache。已完成。
-3. 建立最小 client store，明确 source、timeline window、selected request、language 和 pane layout。
+3. 建立最小 client store，明确 source、timeline window、selected request、language 和 pane layout。已完成第一阶段：核心选择/偏好已迁移，timeline window 的 normalized entity/page 状态留待阶段 4。
 4. 按 timeline、raw inspector、translation、agent graph、composer 拆 feature renderer。
 5. 将硬编码文案移入中英文资源表；增加缺失 key 检查。
 6. 删除确认无调用的函数和 CSS，再按 component/feature 拆样式。

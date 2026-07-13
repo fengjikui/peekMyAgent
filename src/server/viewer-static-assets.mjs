@@ -4,6 +4,7 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/", { base: "viewer", file: "index.html", contentType: "text/html; charset=utf-8" }],
   ["/styles.css", { base: "viewer", file: "styles.css", contentType: "text/css; charset=utf-8" }],
   ["/api-client.js", javascriptAsset("api-client.js")],
+  ["/client-store.js", javascriptAsset("client-store.js")],
   ["/client.js", javascriptAsset("client.js")],
   ["/markdown.js", javascriptAsset("markdown.js")],
   ["/message-view-model.js", javascriptAsset("message-view-model.js")],
