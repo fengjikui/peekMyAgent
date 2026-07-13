@@ -2,12 +2,23 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const source = fs.readFileSync(new URL("../src/viewer/client.js", import.meta.url), "utf8");
+const controllerSource = fs.readFileSync(new URL("../src/viewer/trace-timeline-controller.js", import.meta.url), "utf8");
+const rendererSource = fs.readFileSync(new URL("../src/viewer/trace-timeline-renderer.js", import.meta.url), "utf8");
 
 assert.match(source, /import \{[\s\S]*?buildTraceTimelineView,[\s\S]*?from "\.\/trace-timeline-model\.js";/);
+assert.match(source, /import \{ TraceTimelineController \} from "\.\/trace-timeline-controller\.js";/);
+assert.match(source, /renderTurnTimeline as renderTurnTimelineView,[\s\S]*?from "\.\/trace-timeline-renderer\.js";/);
 assert.match(source, /function renderAll\(\) \{[\s\S]*?renderHeaderSurface\(\);[\s\S]*?renderTimelineSurface\(\{ updateViewControls: false \}\);[\s\S]*?renderComposerSurface\(\);/);
-assert.match(source, /function renderTimelineSurface\([\s\S]*?clearTranslationActions\("timeline"\);[\s\S]*?bindTimelineEvents\(\);/);
-assert.match(source, /function bindTimelineEvents\(\) \{[\s\S]*?els\.timeline\.querySelectorAll/);
-assert.doesNotMatch(functionSource("bindTimelineEvents"), /document\.querySelectorAll/);
+assert.match(
+  functionSource("renderTimelineSurface"),
+  /clearTranslationActions\("timeline"\);[\s\S]*?traceTimelineController\.render\([\s\S]*?renderTraceQueryBarView[\s\S]*?renderTurnTimelineView/,
+);
+assert.match(source, /traceTimelineController\.bind\(\);/);
+assert.doesNotMatch(source, /function bindTimelineEvents\(/, "Timeline events should be owned by the controller");
+assert.doesNotMatch(source, /function bindTraceQueryEvents\(/, "query events should be owned by the controller");
+assert.match(controllerSource, /timelineElement\.addEventListener\("click"/);
+assert.match(controllerSource, /queryElement\.addEventListener\("compositionstart"/);
+assert.match(rendererSource, /export function renderTurnTimeline/);
 
 for (const functionName of [
   "jumpToTurn",
@@ -35,6 +46,8 @@ assert.match(functionSource("markActiveRequest"), /clientStore\.setSelection/);
 assert.doesNotMatch(functionSource("markActiveRequest"), /querySelectorAll/);
 assert.doesNotMatch(functionSource("syncActiveTurnDom"), /document\.querySelectorAll/);
 assert.doesNotMatch(functionSource("syncActiveRequestDom"), /document\.querySelectorAll/);
+assert.match(functionSource("syncActiveTurnDom"), /traceTimelineController\.syncActiveTurn/);
+assert.match(functionSource("syncActiveRequestDom"), /traceTimelineController\.syncActiveRequest/);
 
 console.log("viewer timeline surface contract smoke passed");
 

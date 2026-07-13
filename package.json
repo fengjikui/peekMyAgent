@@ -76,6 +76,8 @@
     "smoke:timeline-display": "node scripts/timeline-display-invariants-check.mjs --strict",
     "smoke:timeline-window": "node scripts/timeline-window-smoke.mjs",
     "smoke:trace-timeline-model-contract": "node scripts/trace-timeline-model-contract-smoke.mjs",
+    "smoke:trace-timeline-renderer-contract": "node scripts/trace-timeline-renderer-contract-smoke.mjs",
+    "smoke:trace-timeline-controller-contract": "node scripts/trace-timeline-controller-contract-smoke.mjs",
     "smoke:viewer-timeline-surface-contract": "node scripts/viewer-timeline-surface-contract-smoke.mjs",
     "smoke:turn-rail-contract": "node scripts/turn-rail-contract-smoke.mjs",
     "smoke:markdown-safety": "node scripts/markdown-safety-smoke.mjs",

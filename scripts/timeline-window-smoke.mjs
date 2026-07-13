@@ -6,6 +6,8 @@ const markdownSource = fs.readFileSync(new URL("../src/viewer/markdown.js", impo
 const messageViewModelSource = fs.readFileSync(new URL("../src/viewer/message-view-model.js", import.meta.url), "utf8");
 const messagesRendererSource = fs.readFileSync(new URL("../src/viewer/messages-renderer.js", import.meta.url), "utf8");
 const timelineModelSource = fs.readFileSync(new URL("../src/viewer/trace-timeline-model.js", import.meta.url), "utf8");
+const timelineRendererSource = fs.readFileSync(new URL("../src/viewer/trace-timeline-renderer.js", import.meta.url), "utf8");
+const timelineControllerSource = fs.readFileSync(new URL("../src/viewer/trace-timeline-controller.js", import.meta.url), "utf8");
 const turnRailSource = fs.readFileSync(new URL("../src/viewer/turn-rail.js", import.meta.url), "utf8");
 const stylesSource = fs.readFileSync(new URL("../src/viewer/styles.css", import.meta.url), "utf8");
 
@@ -14,13 +16,18 @@ assert.match(timelineModelSource, /export const TIMELINE_WINDOW_SIZE = 120;/, "t
 assert.match(clientSource, /const AGENT_BRANCH_PAGE_SIZE = 24;/, "large multi-agent views should page branches");
 assert.match(clientSource, /const AGENT_EVENT_LIMIT = 80;/, "large multi-agent views should cap the initial event strip");
 assert.match(timelineModelSource, /export function buildTraceTimelineView\(/, "the Timeline View Model should be directly testable");
-assert.match(clientSource, /renderTurnTimeline\(timelineView\.turnWindow, requests\)/, "main timeline should render the computed filtered window");
+assert.match(
+  clientSource,
+  /renderTurnTimelineView\(\{[\s\S]*?turnWindowOrTurns: timelineView\.turnWindow,[\s\S]*?requests,/,
+  "main timeline should render the computed filtered window",
+);
 assert.match(clientSource, /return currentTimelineView\(data\)\.railTurns;/, "turn rail universe should follow the Timeline View Model");
 assert.match(clientSource, /import \{ TurnRailController \} from "\.\/turn-rail\.js";/, "the timeline should delegate rail interaction to its feature controller");
 assert.match(clientSource, /turnRailController\.bind\(\)/, "the turn rail controller should own its browser event lifecycle");
 assert.match(turnRailSource, /export function visibleTurnWindow\(/, "the turn rail window policy should be directly testable");
 assert.match(turnRailSource, /syncActiveFromScroll\(\)/, "the turn rail controller should own scroll activation");
-assert.match(clientSource, /data-turn-window-jump/, "window edge jump controls should be wired");
+assert.match(timelineRendererSource, /data-turn-window-jump/, "window edge jump controls should be rendered by the Timeline renderer");
+assert.match(timelineControllerSource, /onTurnWindowJump/, "window edge jump controls should be wired by the Timeline controller");
 assert.match(clientSource, /function jumpToTurn\(turnId, scroll = true\)/, "turn rail jumps should re-render the active window");
 assert.match(messageViewModelSource, /export const DEFAULT_MESSAGE_TEXT_LIMIT = 5000;/, "organized Messages view should cap markdown rendering");
 assert.match(messageViewModelSource, /export function truncateMessageText\(text, limit = DEFAULT_MESSAGE_TEXT_LIMIT\)/, "organized Messages truncation helper should remain directly testable");

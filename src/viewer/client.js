@@ -40,10 +40,16 @@ import {
 import { TurnRailController } from "./turn-rail.js";
 import {
   buildTraceTimelineView,
-  fallbackTimelineTurns,
   findTurnLeadRequest,
   TRACE_RESULT_PAGE_SIZE,
 } from "./trace-timeline-model.js";
+import { TraceTimelineController } from "./trace-timeline-controller.js";
+import {
+  renderEmptyTimeline as renderEmptyTimelineView,
+  renderTraceNoResults as renderTraceNoResultsView,
+  renderTraceQueryBar as renderTraceQueryBarView,
+  renderTurnTimeline as renderTurnTimelineView,
+} from "./trace-timeline-renderer.js";
 import {
   extractTranslationSchemaDescriptions as extractSchemaDescriptionsForTranslation,
   isSkippableTranslationMaterial,
@@ -80,8 +86,6 @@ const state = Object.assign(clientStore.state, {
   agentBranchFilters: new Map(),
   traceQuery: "",
   traceFilter: "all",
-  traceQueryTimer: 0,
-  traceSearchComposing: false,
   traceResultLimit: 24,
   agentSend: { loading: false, error: "", message: "", result: null },
   openSourceMenuId: null,
@@ -1027,6 +1031,63 @@ const turnRailController = new TurnRailController({
   onJump: jumpToTurn,
   onActiveChange: markActiveTurn,
 });
+const traceTimelineController = new TraceTimelineController({
+  queryElement: els.traceQueryBar,
+  timelineElement: els.timeline,
+  onQueryChange(value) {
+    state.traceQuery = value;
+    state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
+  },
+  onRenderRequested() {
+    renderTimelineSurface();
+  },
+  onFilter(filter) {
+    state.traceFilter = filter;
+    state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
+    const filteredTurns = currentTimelineView().filteredTurns;
+    if (!filteredTurns.some((turn) => turn.id === state.activeId)) {
+      clientStore.setSelection({ activeId: filteredTurns[0]?.id || null }, { reason: "filter-trace" });
+    }
+    renderTimelineSurface();
+  },
+  onShowMore() {
+    state.traceResultLimit += TRACE_RESULT_PAGE_SIZE;
+    renderTimelineSurface();
+  },
+  onResponseToggle: toggleResponseExpansion,
+  onUpstreamToggle: toggleUpstreamDetails,
+  onUpstreamPanelToggle: syncUpstreamDetailsState,
+  onTurnWindowJump(turnId) {
+    jumpToTurn(turnId, true);
+  },
+  onRaw({ requestId, section, mode }) {
+    showRaw(requestId, section, { mode });
+  },
+  onAgentJump: jumpToRequest,
+  onAgentBranchJump: jumpToAgentBranch,
+  onAgentBranchToggle: toggleAgentBranch,
+  onSupportingTimelineToggle(turnId) {
+    if (state.openSupportingTimelines.has(turnId)) state.openSupportingTimelines.delete(turnId);
+    else state.openSupportingTimelines.add(turnId);
+    renderTimelineSurface();
+  },
+  onAgentDashboardToggle(turnId) {
+    if (state.openAgentDashboards.has(turnId)) state.openAgentDashboards.delete(turnId);
+    else state.openAgentDashboards.add(turnId);
+    renderTimelineSurface();
+  },
+  onAgentBranchMore(turnId) {
+    const current = state.agentBranchLimits.get(turnId) || AGENT_BRANCH_PAGE_SIZE;
+    state.agentBranchLimits.set(turnId, current + AGENT_BRANCH_PAGE_SIZE);
+    renderTimelineSurface();
+  },
+  onAgentStatusFilter({ turnId, filter }) {
+    state.agentBranchFilters.set(turnId, filter);
+    state.agentBranchLimits.set(turnId, AGENT_BRANCH_PAGE_SIZE);
+    renderTimelineSurface();
+  },
+  onSystemDiff: showSystemDiff,
+});
 const requestDetailCache = new RequestDetailCache({
   loadDetail: async (sourceId, requestId) => (await api.requestDetail(sourceId, requestId)).request,
   onLoaded: async (fullRequest) => {
@@ -1254,6 +1315,7 @@ async function init() {
     setTargetTranslationLanguageFromSelect();
   });
   rawSearchController.bind();
+  traceTimelineController.bind();
   els.rawTree.addEventListener("click", (event) => {
     const retranslateButton = event.target.closest("[data-translation-retranslate]");
     if (retranslateButton && els.rawTree.contains(retranslateButton)) {
@@ -2223,16 +2285,30 @@ function renderTimelineSurface({ updateViewControls = true } = {}) {
   if (updateViewControls) renderViewControls();
   const { source, requests } = state.data;
   const timelineView = currentTimelineView();
-  els.traceQueryBar.innerHTML = renderTraceQueryBar(timelineView);
-  els.timeline.innerHTML = requests.length
-    ? timelineView.filteredTurns.length
-      ? renderTurnTimeline(timelineView.turnWindow, requests)
-      : renderTraceNoResults()
-    : renderEmptyTimeline(source.workbench);
-  bindTraceQueryEvents();
-  bindTimelineEvents();
-  syncActiveTurnDom(state.activeId);
-  syncActiveRequestDom(state.activeRequestId);
+  traceTimelineController.render({
+    queryHtml: renderTraceQueryBarView({
+      timelineView,
+      query: state.traceQuery,
+      filter: state.traceFilter,
+      resultPageSize: TRACE_RESULT_PAGE_SIZE,
+      translate: t,
+      escapeHtml,
+    }),
+    timelineHtml: requests.length
+      ? timelineView.filteredTurns.length
+        ? renderTurnTimelineView({
+            turnWindowOrTurns: timelineView.turnWindow,
+            requests,
+            requestExcerpt,
+            renderTurnGroup,
+            translate: t,
+            escapeHtml,
+          })
+        : renderTraceNoResultsView({ translate: t, escapeHtml })
+      : renderEmptyTimelineView({ summary: source.workbench, translate: t, escapeHtml }),
+    activeTurnId: state.activeId,
+    activeRequestId: state.activeRequestId,
+  });
 }
 
 function renderComposerSurface() {
@@ -2256,89 +2332,6 @@ function renderProgressiveLoadNotice(partial) {
   `;
 }
 
-function renderTraceQueryBar(timelineView = currentTimelineView()) {
-  const counts = timelineView.filterCounts;
-  const matchCount = timelineView.matchCount;
-  const shownCount = timelineView.shownCount;
-  const filters = [
-    ["all", t("traceFilterAll", { count: counts.all })],
-    ["issues", t("traceFilterIssues", { count: counts.issues })],
-    ["slow", t("traceFilterSlow", { count: counts.slow })],
-    ["tools", t("traceFilterTools", { count: counts.tools })],
-    ["subagents", t("traceFilterSubagents", { count: counts.subagents })],
-  ];
-  return `
-    <label class="trace-search-field">
-      <input type="search" value="${escapeHtml(state.traceQuery)}" placeholder="${escapeHtml(t("traceSearchPlaceholder"))}" aria-label="${escapeHtml(t("traceSearchAria"))}" data-trace-search>
-    </label>
-    <div class="trace-filter-group" role="group" aria-label="${escapeHtml(t("traceFilterAria"))}">
-      ${filters.map(([filter, label]) => `<button class="trace-filter ${state.traceFilter === filter ? "active" : ""}" type="button" data-trace-filter="${escapeHtml(filter)}" aria-pressed="${escapeHtml(String(state.traceFilter === filter))}">${escapeHtml(label)}</button>`).join("")}
-    </div>
-    ${
-      timelineView.queryActive
-        ? `<div class="trace-match-status">
-            <span>${escapeHtml(t("traceMatchCount", { shown: shownCount, total: matchCount }))}</span>
-            ${matchCount > shownCount ? `<button type="button" data-trace-more>${escapeHtml(t("traceShowMore", { count: Math.min(TRACE_RESULT_PAGE_SIZE, matchCount - shownCount) }))}</button>` : ""}
-          </div>`
-        : ""
-    }
-  `;
-}
-
-function bindTraceQueryEvents() {
-  const input = els.traceQueryBar?.querySelector("[data-trace-search]");
-  input?.addEventListener("input", (event) => {
-    state.traceQuery = input.value || "";
-    state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
-    if (event.isComposing || state.traceSearchComposing) return;
-    scheduleTraceSearchRender();
-  });
-  input?.addEventListener("compositionstart", () => {
-    state.traceSearchComposing = true;
-    window.clearTimeout(state.traceQueryTimer);
-  });
-  input?.addEventListener("compositionend", () => {
-    state.traceSearchComposing = false;
-    state.traceQuery = input.value || "";
-    state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
-    scheduleTraceSearchRender();
-  });
-  input?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.isComposing && !state.traceSearchComposing) event.preventDefault();
-  });
-  els.traceQueryBar?.querySelectorAll("[data-trace-filter]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.traceFilter = button.dataset.traceFilter || "all";
-      state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
-      const filteredTurns = currentTimelineView().filteredTurns;
-      if (!filteredTurns.some((turn) => turn.id === state.activeId)) {
-        clientStore.setSelection({ activeId: filteredTurns[0]?.id || null }, { reason: "filter-trace" });
-      }
-      renderTimelineSurface();
-    });
-  });
-  const moreButton = els.traceQueryBar?.querySelector("[data-trace-more]");
-  moreButton?.addEventListener("click", () => {
-    state.traceResultLimit += TRACE_RESULT_PAGE_SIZE;
-    renderTimelineSurface();
-  });
-}
-
-function scheduleTraceSearchRender() {
-  window.clearTimeout(state.traceQueryTimer);
-  state.traceQueryTimer = window.setTimeout(() => {
-    renderTimelineSurface();
-    requestAnimationFrame(() => restoreSearchInputFocus(els.traceQueryBar?.querySelector("[data-trace-search]")));
-  }, 160);
-}
-
-function restoreSearchInputFocus(input) {
-  if (!input) return;
-  input.focus();
-  const cursor = input.value.length;
-  input.setSelectionRange(cursor, cursor);
-}
-
 function traceQueryActive() {
   return state.traceFilter !== "all" || Boolean(String(state.traceQuery || "").trim());
 }
@@ -2354,29 +2347,6 @@ function currentTimelineView(data = state.data) {
     activeId: state.activeId,
     requestExcerpt,
   });
-}
-
-function renderTraceNoResults() {
-  return `
-    <section class="trace-no-results">
-      <h3>${escapeHtml(t("traceNoResultsTitle"))}</h3>
-      <p>${escapeHtml(t("traceNoResultsBody"))}</p>
-    </section>
-  `;
-}
-
-function renderEmptyTimeline(summary) {
-  return `
-    <section class="empty-timeline">
-      <h3>${escapeHtml(t("emptyTimelineTitle"))}</h3>
-      <p>${escapeHtml(t("emptyTimelineBody"))}</p>
-      <div class="empty-grid">
-        ${renderSummaryMetric(t("emptyStatus"), summary?.status || t("emptyWatching"))}
-        ${renderSummaryMetric(t("emptyWatch"), summary?.watch_ids?.join(", ") || t("emptyNotRecorded"))}
-        ${renderSummaryMetric(t("emptyCapture"), summary?.capture_label || "exact proxy capture")}
-      </div>
-    </section>
-  `;
 }
 
 function renderSessionInfo(source, stats, requests) {
@@ -2714,41 +2684,6 @@ function renderNavItem(request) {
         <span class="nav-excerpt">${escapeHtml(requestExcerpt(request))}</span>
       </span>
     </button>
-  `;
-}
-
-function renderTurnTimeline(turnWindowOrTurns, requests) {
-  const turnWindow = Array.isArray(turnWindowOrTurns)
-    ? {
-        turns: turnWindowOrTurns,
-        allTurns: turnWindowOrTurns,
-        start: 0,
-        end: turnWindowOrTurns.length,
-        total: turnWindowOrTurns.length,
-        windowed: false,
-      }
-    : turnWindowOrTurns;
-  const normalizedTurns =
-    Array.isArray(turnWindow?.turns) && turnWindow.turns.length
-      ? turnWindow.turns
-      : fallbackTimelineTurns(requests, { requestExcerpt });
-  const requestMap = new Map(requests.map((request) => [request.id, request]));
-  return [renderTimelineWindowEdge(turnWindow, "before"), ...normalizedTurns.map((turn) => renderTurnGroup(turn, requestMap)), renderTimelineWindowEdge(turnWindow, "after")].join("");
-}
-
-function renderTimelineWindowEdge(turnWindow, edge) {
-  if (!turnWindow?.windowed) return "";
-  const hiddenCount = edge === "before" ? turnWindow.start : turnWindow.total - turnWindow.end;
-  if (hiddenCount <= 0) return "";
-  const target = edge === "before" ? turnWindow.allTurns?.[0] : turnWindow.allTurns?.at(-1);
-  const label = edge === "before" ? t("timelineWindowBefore", { count: hiddenCount }) : t("timelineWindowAfter", { count: hiddenCount });
-  const summary = t("timelineWindowSummary", { start: turnWindow.start + 1, end: turnWindow.end, total: turnWindow.total });
-  return `
-    <section class="timeline-window-edge-card ${edge}" aria-label="${escapeHtml(label)}">
-      <span>${escapeHtml(label)}</span>
-      <span>${escapeHtml(summary)}</span>
-      ${target?.id ? `<button type="button" data-turn-window-jump="${escapeHtml(target.id)}">${escapeHtml(edge === "before" ? t("jumpToFirstTurn") : t("jumpToLastTurn"))}</button>` : ""}
-    </section>
   `;
 }
 
@@ -3912,105 +3847,6 @@ function bindViewControlEvents() {
   });
 }
 
-function bindTimelineEvents() {
-  els.timeline.querySelectorAll("[data-response-toggle]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      toggleResponseExpansion(button.dataset.responseToggle);
-    });
-  });
-  els.timeline.querySelectorAll("[data-upstream-toggle]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      toggleUpstreamDetails(button.dataset.upstreamToggle);
-    });
-  });
-  els.timeline.querySelectorAll("[data-upstream-panel]").forEach((panel) => {
-    panel.addEventListener("toggle", () => syncUpstreamDetailsState(panel));
-  });
-  els.timeline.querySelectorAll("[data-turn-window-jump]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      jumpToTurn(button.dataset.turnWindowJump, true);
-    });
-  });
-  els.timeline.querySelectorAll("[data-raw]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      showRaw(button.dataset.raw, button.dataset.rawSection || "full", { mode: button.dataset.rawMode || "request" });
-    });
-  });
-  els.timeline.querySelectorAll("[data-agent-jump]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      jumpToRequest(button.dataset.agentJump);
-    });
-  });
-  els.timeline.querySelectorAll("[data-agent-branch-jump]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      jumpToAgentBranch(button.dataset.agentBranchJump);
-    });
-  });
-  els.timeline.querySelectorAll("[data-agent-branch-toggle]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      toggleAgentBranch(button.dataset.agentBranchToggle);
-    });
-  });
-  els.timeline.querySelectorAll("[data-supporting-timeline-toggle]").forEach((summary) => {
-    summary.addEventListener("click", (event) => {
-      event.preventDefault();
-      const turnId = summary.dataset.supportingTimelineToggle;
-      if (state.openSupportingTimelines.has(turnId)) state.openSupportingTimelines.delete(turnId);
-      else state.openSupportingTimelines.add(turnId);
-      renderTimelineSurface();
-    });
-  });
-  // Control the multi-agent dashboard open state ourselves so a Timeline
-  // surface refresh does not snap the whole panel shut.
-  els.timeline.querySelectorAll("[data-agent-dashboard-toggle]").forEach((summary) => {
-    summary.addEventListener("click", (event) => {
-      event.preventDefault();
-      const turnId = summary.dataset.agentDashboardToggle;
-      if (state.openAgentDashboards.has(turnId)) state.openAgentDashboards.delete(turnId);
-      else state.openAgentDashboards.add(turnId);
-      renderTimelineSurface();
-    });
-  });
-  els.timeline.querySelectorAll("[data-agent-branch-more]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const turnId = button.dataset.agentBranchMore;
-      const current = state.agentBranchLimits.get(turnId) || AGENT_BRANCH_PAGE_SIZE;
-      state.agentBranchLimits.set(turnId, current + AGENT_BRANCH_PAGE_SIZE);
-      renderTimelineSurface();
-    });
-  });
-  els.timeline.querySelectorAll("[data-agent-status-filter]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const turnId = button.dataset.agentStatusFilter;
-      const filter = button.dataset.agentFilterValue || "all";
-      state.agentBranchFilters.set(turnId, filter);
-      state.agentBranchLimits.set(turnId, AGENT_BRANCH_PAGE_SIZE);
-      renderTimelineSurface();
-    });
-  });
-  els.timeline.querySelectorAll("[data-system-diff]").forEach((button) => {
-    button.addEventListener("click", () => showSystemDiff(button.dataset.systemDiff));
-  });
-}
-
 function jumpToTurn(turnId, scroll = true) {
   if (!turnId) return;
   clientStore.setSelection({ activeId: turnId }, { reason: "jump-to-turn" });
@@ -4165,7 +4001,7 @@ function markActiveTurn(id, scroll) {
 function syncActiveTurnDom(id) {
   renderTurnRail();
   els.turnRail.querySelectorAll("[data-turn]").forEach((button) => button.classList.toggle("active", button.dataset.turn === id));
-  els.timeline.querySelectorAll("[data-turn-group]").forEach((group) => group.classList.toggle("active", group.dataset.turnGroup === id));
+  traceTimelineController.syncActiveTurn(id);
 }
 
 function markActiveRequest(id, scroll) {
@@ -4175,7 +4011,7 @@ function markActiveRequest(id, scroll) {
 }
 
 function syncActiveRequestDom(id) {
-  els.timeline.querySelectorAll("[data-card]").forEach((card) => card.classList.toggle("active", card.dataset.card === id));
+  traceTimelineController.syncActiveRequest(id);
 }
 
 function setRawPanelOpen(open) {
