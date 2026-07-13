@@ -28,7 +28,7 @@ flowchart LR
 
 daemon、Viewer HTTP API 和静态资源服务由同一个 `startViewerServer()` 实例提供。共享 Capture Proxy 在配置了 capture port 时由该进程一并启动，但监听独立端口。
 
-Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。HTTP 路由读取并校验 JSON 后，将 rename、pin、archive、delete 和项目批量操作交给 `SourceLifecycleService`；该 service 只通过显式 runtime、SQLite、metadata 和 imports 端口执行副作用。Trace 内容读取、watch 创建/恢复和其他 Viewer domain 仍在 `server.mjs`，尚未完成拆分。
+Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。HTTP 路由读取并校验 JSON 后，将 rename、pin、archive、delete 和项目批量操作交给 `SourceLifecycleService`；该 service 只通过显式 runtime、SQLite、metadata 和 imports 端口执行副作用。模型下行 JSON/SSE 已由 Trace Domain 的 response normalizer 统一解释；Trace 内容组装、watch 创建/恢复和其他 Viewer domain 仍在 `server.mjs`，尚未完成拆分。
 
 ## 源码地图
 
@@ -51,6 +51,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/server/source-lifecycle-service.mjs` | 单 source/项目级 rename、pin、archive、delete 编排及 imported Trace 目录边界 |
 | `src/server/source-capture-reader.mjs` | live/SQLite/file 的首屏、请求窗口与导出 captures 统一读取协议 |
 | `src/server/trace-bundle-service.mjs` | Trace 导出脱敏压缩、导入验证、provenance 和私有落盘边界 |
+| `src/trace/model-response-normalizer.mjs` | Anthropic/OpenAI-compatible JSON/SSE 下行文本、thinking、tool use 与完整回复 DTO 归一化 |
 | `src/trace/message-equivalence.mjs`、`context-delta.mjs`、`turn-timeline.mjs`、`subagent-graph.mjs` | 消息等价、context chain、历史复用、Turn 编组与多 Agent 血缘图协议 |
 | `src/translation/blocks.mjs`、`hash.mjs`、`materials.mjs` | 跨 Server/Client/脚本共享的翻译块规范化、key、marker、schema 遍历、材料去重与限额 |
 | `src/translation/service.mjs` | 翻译材料/manifest 私有落盘、缓存 alias 查找、并发/force 参数与翻译脚本编排 |
@@ -219,7 +220,7 @@ Viewer 会从 capture 中派生：
 - 主 Agent、子 Agent、spawn/return 和事件时间线。
 - 相邻上下文的新增消息、system diff 和工具变化。
 
-当前这些解释逻辑主要位于 `server.mjs` 和 `client.js`，没有完全复用 `src/adapters/*` 的 normalizer。它是后续建立共享协议层的首要原因。
+模型下行的 JSON/SSE、thinking、text、tool use 和 stop reason 已由 `src/trace/model-response-normalizer.mjs` 统一归一化，详见[模型回复归一化契约](model-response-normalizer-contract.md)。上行消息分类、协议/provider 推断和 Viewer composition 仍主要位于 `server.mjs`，尚未完全复用 `src/adapters/*` 的 normalizer。
 
 ## 翻译缓存
 

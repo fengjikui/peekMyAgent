@@ -65,6 +65,11 @@ import {
 import { TranslationMaterialCollector } from "../translation/materials.mjs";
 import { TranslationService } from "../translation/service.mjs";
 import { annotateRequestContextChanges } from "../trace/context-delta.mjs";
+import {
+  extractContentText,
+  extractToolCalls,
+  summarizeModelResponse,
+} from "../trace/model-response-normalizer.mjs";
 import { buildTurnTimeline as buildTraceTurnTimeline } from "../trace/turn-timeline.mjs";
 import {
   annotateSubagentLineage as annotateTraceSubagentLineage,
@@ -1657,256 +1662,6 @@ function compactResponseForViewer(response, responseSummary) {
   };
 }
 
-function summarizeModelResponse(response) {
-  if (!response) {
-    return {
-      captured: false,
-      message_id: null,
-      preview: "",
-      text: "",
-      thinking: "",
-      thinking_preview: "",
-      usage: null,
-      finish_reason: null,
-      latency_ms: null,
-      status: null,
-      stream: false,
-      event_count: 0,
-      truncated: false,
-    };
-  }
-  const contentType = headerValue(response.headers, "content-type");
-  const stream = /event-stream/i.test(contentType) || /^\s*(event:|data:)/m.test(response.body_text || "");
-  const parsed = stream ? summarizeSseResponse(response.body_text || "") : summarizeJsonResponse(response.body_json);
-  const completeResponse = assembleCompleteResponse(parsed, { stream, truncated: Boolean(response.truncated) });
-  return {
-    captured: true,
-    message_id: parsed.message_id || null,
-    preview: textPreview(parsed.text, 1200),
-    text: textPreview(parsed.text, 8000),
-    thinking: textPreview(parsed.thinking, 8000),
-    thinking_preview: textPreview(parsed.thinking, 240),
-    tool_calls: parsed.tool_calls || [],
-    usage: parsed.usage,
-    finish_reason: parsed.finish_reason || null,
-    complete_response: completeResponse,
-    latency_ms: response.duration_ms ?? null,
-    status: response.status ?? null,
-    stream,
-    event_count: parsed.event_count || 0,
-    truncated: Boolean(response.truncated),
-    raw_body_bytes: response.raw_body_length || 0,
-    captured_body_bytes: response.captured_body_length || 0,
-    received_at: response.received_at || null,
-  };
-}
-
-function summarizeJsonResponse(body) {
-  if (!body || typeof body !== "object") return { message_id: null, role: null, model: null, text: "", thinking: "", tool_calls: [], usage: null, finish_reason: null, event_count: 0 };
-  const textParts = [];
-  const thinkingParts = [];
-  const toolCalls = [];
-  const finishReasons = [];
-  if (Array.isArray(body.content)) textParts.push(extractContentText(body.content));
-  if (Array.isArray(body.content)) thinkingParts.push(extractThinkingText(body.content));
-  if (Array.isArray(body.content)) toolCalls.push(...extractToolCallsFromContent(body.content));
-  if (body.content && typeof body.content === "object" && !Array.isArray(body.content)) thinkingParts.push(extractThinkingText(body.content));
-  if (typeof body.content === "string") textParts.push(body.content);
-  if (Array.isArray(body.choices)) {
-    for (const choice of body.choices) {
-      if (choice?.message?.content) textParts.push(extractContentText(choice.message.content));
-      if (choice?.message?.content) thinkingParts.push(extractThinkingText(choice.message.content));
-      if (choice?.message?.reasoning_content) thinkingParts.push(choice.message.reasoning_content);
-      if (choice?.message?.content) toolCalls.push(...extractToolCallsFromContent(choice.message.content));
-      if (Array.isArray(choice?.message?.tool_calls)) toolCalls.push(...extractToolCalls([{ tool_calls: choice.message.tool_calls }]));
-      if (choice?.delta?.content) textParts.push(extractContentText(choice.delta.content));
-      if (choice?.delta?.reasoning_content) thinkingParts.push(choice.delta.reasoning_content);
-      if (Array.isArray(choice?.delta?.tool_calls)) toolCalls.push(...extractToolCalls([{ tool_calls: choice.delta.tool_calls }]));
-      if (choice?.finish_reason) finishReasons.push(choice.finish_reason);
-    }
-  }
-  if (Array.isArray(body.output)) {
-    for (const item of body.output) {
-      if (Array.isArray(item?.content)) textParts.push(extractContentText(item.content));
-      if (Array.isArray(item?.content)) thinkingParts.push(extractThinkingText(item.content));
-      if (Array.isArray(item?.content)) toolCalls.push(...extractToolCallsFromContent(item.content));
-      if (item?.content && typeof item.content === "object" && !Array.isArray(item.content)) thinkingParts.push(extractThinkingText(item.content));
-      if (item?.content) textParts.push(extractContentText(item.content));
-    }
-  }
-  if (body.stop_reason) finishReasons.push(body.stop_reason);
-  if (body.finish_reason) finishReasons.push(body.finish_reason);
-  return {
-    message_id: body.id || null,
-    role: body.role || null,
-    model: body.model || null,
-    text: textParts.filter(Boolean).join("\n"),
-    thinking: thinkingParts.filter(Boolean).join("\n"),
-    tool_calls: dedupeToolCalls(toolCalls),
-    usage: body.usage || null,
-    finish_reason: uniqueValues(finishReasons).join(", ") || null,
-    event_count: 0,
-  };
-}
-
-function summarizeSseResponse(text) {
-  const events = parseSseEvents(text);
-  const textParts = [];
-  const thinkingParts = [];
-  const fallbackTextParts = [];
-  const fallbackThinkingParts = [];
-  const toolCalls = [];
-  const toolCallBlocks = new Map();
-  const openAiToolCallBlocks = new Map();
-  const finishReasons = [];
-  let usage = null;
-  let messageId = null;
-  let role = null;
-  let model = null;
-  for (const event of events) {
-    if (!event.data || event.data === "[DONE]") continue;
-    const data = parseJson(event.data);
-    if (!data || typeof data !== "object") continue;
-    if (data.model) model = data.model;
-    if (Array.isArray(data.choices)) {
-      for (const choice of data.choices) {
-        if (choice?.delta?.role) role = choice.delta.role;
-        if (choice?.delta?.content) textParts.push(extractContentText(choice.delta.content));
-        if (choice?.delta?.reasoning_content) thinkingParts.push(choice.delta.reasoning_content);
-        if (choice?.message?.content) fallbackTextParts.push(extractContentText(choice.message.content));
-        if (choice?.message?.content) fallbackThinkingParts.push(extractThinkingText(choice.message.content));
-        if (choice?.message?.reasoning_content) fallbackThinkingParts.push(choice.message.reasoning_content);
-        if (choice?.message?.role) role = choice.message.role;
-        if (choice?.message?.content) toolCalls.push(...extractToolCallsFromContent(choice.message.content));
-        if (Array.isArray(choice?.message?.tool_calls)) toolCalls.push(...extractToolCalls([{ tool_calls: choice.message.tool_calls }]));
-        if (Array.isArray(choice?.delta?.tool_calls)) mergeOpenAiStreamToolCalls(openAiToolCallBlocks, choice.delta.tool_calls);
-        if (choice?.finish_reason) finishReasons.push(choice.finish_reason);
-      }
-    }
-    if (data.delta?.type === "text_delta" && data.delta.text) textParts.push(data.delta.text);
-    if (data.delta?.type === "thinking_delta" && data.delta.thinking) thinkingParts.push(data.delta.thinking);
-    else if (!data.delta?.type && data.delta?.text) textParts.push(data.delta.text);
-    if (data.content_block?.type === "text" && data.content_block.text) fallbackTextParts.push(data.content_block.text);
-    if (data.content_block?.type === "thinking" && data.content_block.thinking) fallbackThinkingParts.push(data.content_block.thinking);
-    if (data.content_block?.type === "tool_use") {
-      const call = toolCallFromPart(data.content_block);
-      if (call) {
-        toolCalls.push(call);
-        toolCallBlocks.set(data.index, { call, partialJson: "" });
-      }
-    }
-    if (data.delta?.type === "input_json_delta" && data.index != null) {
-      const block = toolCallBlocks.get(data.index);
-      if (block) block.partialJson += data.delta.partial_json || "";
-    }
-    if (data.message?.content) fallbackTextParts.push(extractContentText(data.message.content));
-    if (data.message?.content) fallbackThinkingParts.push(extractThinkingText(data.message.content));
-    if (data.message?.content) toolCalls.push(...extractToolCallsFromContent(data.message.content));
-    if (data.type === "message_start" && data.message?.id) {
-      messageId = data.message.id;
-      if (data.message.role) role = data.message.role;
-      if (data.message.model) model = data.message.model;
-    }
-    if (data.id && data.type === "message") messageId = data.id;
-    if (data.delta?.stop_reason) finishReasons.push(data.delta.stop_reason);
-    if (data.stop_reason) finishReasons.push(data.stop_reason);
-    if (data.finish_reason) finishReasons.push(data.finish_reason);
-    if (data.usage) usage = data.usage;
-    if (data.message?.usage) usage = data.message.usage;
-  }
-  const visibleText = textParts.filter(Boolean).join("") || fallbackTextParts.filter(Boolean).join("\n");
-  const thinkingText = thinkingParts.filter(Boolean).join("") || fallbackThinkingParts.filter(Boolean).join("\n");
-  return {
-    message_id: messageId,
-    role,
-    model,
-    text: visibleText,
-    thinking: thinkingText,
-    tool_calls: dedupeToolCalls([...mergeStreamToolCallInputs(toolCalls, toolCallBlocks), ...finalizeOpenAiStreamToolCalls(openAiToolCallBlocks)]),
-    usage,
-    finish_reason: uniqueValues(finishReasons).join(", ") || null,
-    event_count: events.length,
-  };
-}
-
-function assembleCompleteResponse(parsed, { stream = false, truncated = false } = {}) {
-  const content = [];
-  if (parsed?.thinking) content.push({ type: "thinking", thinking: parsed.thinking });
-  if (parsed?.text) content.push({ type: "text", text: parsed.text });
-  for (const call of parsed?.tool_calls || []) {
-    content.push({
-      type: "tool_use",
-      id: call.id || null,
-      name: call.name || "unknown",
-      input: call.arguments ?? null,
-    });
-  }
-  return {
-    id: parsed?.message_id || null,
-    role: parsed?.role || "assistant",
-    model: parsed?.model || null,
-    content,
-    text: parsed?.text || "",
-    thinking: parsed?.thinking || "",
-    tool_use: parsed?.tool_calls || [],
-    stop_reason: parsed?.finish_reason || null,
-    finish_reason: parsed?.finish_reason || null,
-    usage: parsed?.usage || null,
-    stream: Boolean(stream),
-    event_count: parsed?.event_count || 0,
-    truncated: Boolean(truncated),
-  };
-}
-
-function mergeOpenAiStreamToolCalls(blocks, chunks) {
-  for (const chunk of chunks || []) {
-    const key = chunk.index ?? chunk.id ?? blocks.size;
-    const current = blocks.get(key) || { id: null, name: null, argumentsText: "", type: null };
-    if (chunk.id) current.id = chunk.id;
-    if (chunk.type) current.type = chunk.type;
-    if (chunk.function?.name) current.name = chunk.function.name;
-    if (chunk.name) current.name = chunk.name;
-    if (chunk.function?.arguments) current.argumentsText += chunk.function.arguments;
-    else if (chunk.arguments) current.argumentsText += chunk.arguments;
-    blocks.set(key, current);
-  }
-}
-
-function finalizeOpenAiStreamToolCalls(blocks) {
-  return [...blocks.values()]
-    .filter((block) => block.id || block.name || block.argumentsText)
-    .map((block) => ({
-      name: block.name || "unknown",
-      id: block.id || null,
-      arguments: parseMaybeJson(block.argumentsText),
-    }));
-}
-
-function mergeStreamToolCallInputs(toolCalls, blocks) {
-  if (!blocks.size) return toolCalls;
-  return toolCalls.map((call) => {
-    const block = [...blocks.values()].find((item) => item.call === call || (item.call.id && item.call.id === call.id));
-    if (!block?.partialJson) return call;
-    return { ...call, arguments: parseMaybeJson(block.partialJson) };
-  });
-}
-
-function parseSseEvents(text) {
-  const events = [];
-  let current = { event: null, data: [] };
-  for (const line of String(text || "").split(/\r?\n/)) {
-    if (!line.trim()) {
-      if (current.event || current.data.length) events.push({ event: current.event, data: current.data.join("\n") });
-      current = { event: null, data: [] };
-      continue;
-    }
-    if (line.startsWith("event:")) current.event = line.slice("event:".length).trim();
-    else if (line.startsWith("data:")) current.data.push(line.slice("data:".length).trim());
-  }
-  if (current.event || current.data.length) events.push({ event: current.event, data: current.data.join("\n") });
-  return events;
-}
-
 function headerValue(headers, name) {
   const entry = Object.entries(headers || {}).find(([key]) => key.toLowerCase() === name.toLowerCase());
   const value = entry?.[1];
@@ -2265,46 +2020,6 @@ function extractSystemParts(body, messages) {
   return output.filter((part) => part.text);
 }
 
-function extractToolCalls(messages) {
-  const calls = [];
-  for (const message of messages) {
-    if (Array.isArray(message.tool_calls)) {
-      for (const call of message.tool_calls) {
-        calls.push({
-          name: call.function?.name || call.name || "unknown",
-          id: call.id || null,
-          arguments: parseMaybeJson(call.function?.arguments || call.arguments),
-        });
-      }
-    }
-    const parts = Array.isArray(message.content) ? message.content : [];
-    calls.push(...extractToolCallsFromContent(parts));
-  }
-  return calls;
-}
-
-function extractToolCallsFromContent(content) {
-  const parts = Array.isArray(content) ? content : content ? [content] : [];
-  return parts.map(toolCallFromPart).filter(Boolean);
-}
-
-function toolCallFromPart(part) {
-  if (!part || typeof part !== "object" || part.type !== "tool_use") return null;
-  return { name: part.name || "unknown", id: part.id || null, arguments: part.input ?? null };
-}
-
-function dedupeToolCalls(calls) {
-  const seen = new Set();
-  const output = [];
-  for (const call of calls.filter(Boolean)) {
-    const key = `${call.id || ""}:${call.name || ""}:${stableJson(call.arguments ?? null)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    output.push(call);
-  }
-  return output;
-}
-
 function extractToolResults(messages) {
   const results = [];
   for (const message of messages) {
@@ -2608,56 +2323,6 @@ function classifyCurrentEntry(messages) {
   return { kind: "unknown", label: "未识别输入", text: "" };
 }
 
-function extractContentText(content) {
-  if (content == null) return "";
-  if (typeof content === "string") return content;
-  if (typeof content === "number" || typeof content === "boolean") return String(content);
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (typeof part === "string") return part;
-        if (part?.type === "thinking" || part?.type === "reasoning") return "";
-        if (part?.type === "text") return part.text || "";
-        if (part?.text) return part.text;
-        if (part?.content) return extractContentText(part.content);
-        return JSON.stringify(part);
-      })
-      .filter(Boolean)
-      .join("\n");
-  }
-  if (content.type === "thinking" || content.type === "reasoning") return "";
-  if (content.text) return content.text;
-  if (content.content) return extractContentText(content.content);
-  return JSON.stringify(content);
-}
-
-function extractThinkingText(content) {
-  if (content == null) return "";
-  if (typeof content === "string") return "";
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (!part || typeof part !== "object") return "";
-        if (part.type === "thinking") return part.thinking || part.text || "";
-        if (part.type === "reasoning") return part.reasoning || part.text || "";
-        if (part.thinking) return part.thinking;
-        if (part.reasoning) return part.reasoning;
-        if (part.content) return extractThinkingText(part.content);
-        return "";
-      })
-      .filter(Boolean)
-      .join("\n");
-  }
-  if (typeof content === "object") {
-    if (content.type === "thinking") return content.thinking || content.text || "";
-    if (content.type === "reasoning") return content.reasoning || content.text || "";
-    if (content.thinking) return content.thinking;
-    if (content.reasoning) return content.reasoning;
-    if (content.content) return extractThinkingText(content.content);
-  }
-  return "";
-}
-
 function textPreview(text, limit) {
   const normalized = String(text || "").replace(/\s+\n/g, "\n").trim();
   if (normalized.length <= limit) return normalized;
@@ -2902,23 +2567,6 @@ function isKnownFrameworkReminderText(text) {
   if (!/^The user stepped away and is coming back\./i.test(value.slice(0, 80))) return false;
   const normalized = value.replace(/\s+/g, " ").trim();
   return /^The user stepped away and is coming back\. Recap in under 40 words,\s*1-2 plain sentences,\s*no markdown\./i.test(normalized);
-}
-
-function parseMaybeJson(value) {
-  if (typeof value !== "string") return value ?? null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
-}
-
-function parseJson(value) {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
 }
 
 function readJson(filePath) {

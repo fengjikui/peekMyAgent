@@ -29,6 +29,7 @@ const coreCommands = [
   ["npm", "run", "smoke:trace-bundle-service-contract"],
   ["npm", "run", "smoke:message-equivalence-contract"],
   ["npm", "run", "smoke:context-delta-contract"],
+  ["npm", "run", "smoke:model-response-normalizer-contract"],
   ["npm", "run", "smoke:turn-timeline-contract"],
   ["npm", "run", "smoke:subagent-graph-contract"],
   ["npm", "run", "smoke:translation-materials-contract"],

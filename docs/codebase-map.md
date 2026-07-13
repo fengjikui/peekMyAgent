@@ -35,6 +35,7 @@ pma CLI / adapter
 | Claude Code OTel 关联 | `src/core/otel-capture.mjs`、`otel-events.mjs`、`src/adapters/claude-code-otel.mjs` | Source 标题策略 |
 | OpenClaw/Trae 或新 Agent | `src/adapters/`、对应 integration、适配器 fixture | 在 Server/Client 散落 provider 条件分支 |
 | SQLite、内容块、迁移 | `src/core/persistence-store.mjs`、`src/persistence/migrations/` | 绕过 migration 直接改 schema |
+| 模型下行 JSON/SSE、thinking、tool use、stop reason | `src/trace/model-response-normalizer.mjs`、对应 contract smoke | 在 Viewer Server/renderer 按 provider 重写解析 |
 | Turn、context delta、子 Agent 血缘 | `src/trace/` 和对应 contract smoke | Viewer 中重新猜测关系 |
 | Source 列表、读取、重命名/归档/删除 | `src/server/source-*` provider/repository/service | HTTP route 直接操作文件或 SQLite |
 | 左侧 Source/项目导航与菜单 | `src/viewer/session-navigator-*`；应用副作用在 `client.js` | 每次渲染重新绑定按钮或 renderer 直接调用 API |
