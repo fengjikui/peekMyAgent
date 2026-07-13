@@ -43,6 +43,8 @@ for (const required of [
   "src/viewer/raw-search-model.js",
   "src/viewer/raw-view-model.js",
   "src/viewer/request-detail-cache.js",
+  "src/viewer/translation-renderer.js",
+  "src/viewer/translation-view-model.js",
   "src/viewer/turn-rail.js",
   "src/core/platform.mjs",
   "src/core/otel-events.mjs",

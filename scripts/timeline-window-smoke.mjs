@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 const clientSource = fs.readFileSync(new URL("../src/viewer/client.js", import.meta.url), "utf8");
 const markdownSource = fs.readFileSync(new URL("../src/viewer/markdown.js", import.meta.url), "utf8");
+const messageViewModelSource = fs.readFileSync(new URL("../src/viewer/message-view-model.js", import.meta.url), "utf8");
+const messagesRendererSource = fs.readFileSync(new URL("../src/viewer/messages-renderer.js", import.meta.url), "utf8");
 const turnRailSource = fs.readFileSync(new URL("../src/viewer/turn-rail.js", import.meta.url), "utf8");
 const stylesSource = fs.readFileSync(new URL("../src/viewer/styles.css", import.meta.url), "utf8");
 
@@ -19,12 +21,12 @@ assert.match(turnRailSource, /export function visibleTurnWindow\(/, "the turn ra
 assert.match(turnRailSource, /syncActiveFromScroll\(\)/, "the turn rail controller should own scroll activation");
 assert.match(clientSource, /data-turn-window-jump/, "window edge jump controls should be wired");
 assert.match(clientSource, /function jumpToTurn\(turnId, scroll = true\)/, "turn rail jumps should re-render the active window");
-assert.match(clientSource, /const RAW_MESSAGE_MARKDOWN_INLINE_CHARS = 5000;/, "organized Messages view should cap markdown rendering");
-assert.match(clientSource, /function truncateOrganizedMessageText\(text\)/, "organized Messages truncation helper should exist");
+assert.match(messageViewModelSource, /export const DEFAULT_MESSAGE_TEXT_LIMIT = 5000;/, "organized Messages view should cap markdown rendering");
+assert.match(messageViewModelSource, /export function truncateMessageText\(text, limit = DEFAULT_MESSAGE_TEXT_LIMIT\)/, "organized Messages truncation helper should remain directly testable");
 assert.match(clientSource, /function displaySourceLabel\(label\)[\s\S]*?Write the title in/, "source labels should hide appended title-generation instructions");
-assert.match(clientSource, /renderSafeMarkdown\(markdownText\.text\)/, "organized Messages should render the truncated markdown text");
+assert.match(messagesRendererSource, /renderMarkdown\(block\.textPreview\.text\)/, "organized Messages should render the truncated markdown text");
 assert.match(markdownSource, /export function renderSafeMarkdown\(text\)/, "safe markdown renderer should be testable as a module");
-assert.match(clientSource, /messageTextTruncated/, "organized Messages truncation should be visible to users");
+assert.match(messagesRendererSource, /messageTextTruncated/, "organized Messages truncation should be visible to users");
 assert.match(clientSource, /state\.openSupportingTimelines\.has\(turnId\)/, "supporting timelines should only render after they are opened");
 assert.match(clientSource, /const dashboardBody = dashboardOpen/, "multi-agent dashboard details should only render after opening");
 assert.match(clientSource, /collapsed\s*\?\s*""\s*:\s*`<div class="agent-branch-body">/, "collapsed subagent branches should not render hidden detail DOM");
