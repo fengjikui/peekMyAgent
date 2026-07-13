@@ -1,6 +1,6 @@
 # Coding Agent 代码库地图
 
-更新时间：2026-07-13
+更新时间：2026-07-14
 
 本文帮助 Codex、Claude Code 和其他 Coding Agent 在几分钟内找到正确改动边界。它不是第二份架构事实源：运行行为以[当前架构](architecture.md)为准，未来设计以[重构路线图](refactoring-roadmap.md)为准，协作和验证规则以仓库根目录的 `AGENTS.md` 为准。
 
@@ -41,7 +41,7 @@ pma CLI / adapter
 | Viewer HTTP 安全和 API | `src/server/http.mjs`、`src/viewer/server.mjs`、`src/viewer/api-client.js` | feature renderer 发 `fetch` |
 | 中栏 Timeline、请求卡、多 Agent 看板、上行详情 | `trace-timeline-*`、`request-card-renderer.js`、`agent-graph-*`、`upstream-detail-*` | renderer 读取全局 `state` 或 DOM |
 | Raw、Messages、翻译展示 | `raw-*`、`message-*`、`translation-*` | `client.js` 新增长段领域 HTML |
-| UI 状态与交互动作 | `client-store.js`、feature controller、`client.js` 装配层 | model/renderer 写全局状态 |
+| UI 状态与交互动作 | `client-store.js`、feature controller、`agent-composer-*`、`client.js` 装配层 | model/renderer 写全局状态 |
 | 中英文 UI 文案 | `client.js` 当前 i18n 资源和 `scripts/i18n-smoke.mjs` | 只改一种语言 |
 
 ## Viewer Feature 约定

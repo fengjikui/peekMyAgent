@@ -1,4 +1,5 @@
 import { renderMarkdownPreview, renderSafeMarkdown } from "./markdown.js";
+import { AgentComposerController } from "./agent-composer-controller.js";
 import {
   renderMessagesControls as renderMessagesControlsView,
   renderMessagesSection as renderMessagesSectionView,
@@ -97,7 +98,6 @@ const state = Object.assign(clientStore.state, {
   traceQuery: "",
   traceFilter: "all",
   traceResultLimit: 24,
-  agentSend: { loading: false, error: "", message: "", result: null },
   openSourceMenuId: null,
   openProjectMenuKey: null,
 });
@@ -475,6 +475,7 @@ const I18N = {
     sendFailed: "发送失败 exit {code}{preview}",
     sentWaitingCapture: "正在独立发送；这不会写入原终端...",
     sentRefreshingCapture: "已独立发送，正在刷新捕获...",
+    sentRefreshFailed: "消息已发送，但刷新捕获失败：{message}",
     watchActionFailed: "监听操作失败",
     metadataRequest: "元数据请求",
     subagentRequest: "子代理请求",
@@ -833,6 +834,7 @@ const I18N = {
     sendFailed: "Send failed exit {code}{preview}",
     sentWaitingCapture: "Sending separately; this does not write to the original terminal...",
     sentRefreshingCapture: "Sent separately; refreshing captures...",
+    sentRefreshFailed: "Message sent, but refreshing captures failed: {message}",
     watchActionFailed: "Watch action failed",
     metadataRequest: "Metadata request",
     subagentRequest: "Subagent request",
@@ -1115,6 +1117,17 @@ const rawSearchController = new RawSearchController({
   render: ({ requestId, section, mode }) => {
     showRaw(requestId, section, { mode });
   },
+});
+const agentComposerController = new AgentComposerController({
+  element: els.agentComposer,
+  sendMessage: (payload) => api.sendAgent(payload),
+  refreshSource: loadSource,
+  translate: t,
+  escapeHtml,
+  projectNameFromWorkspace,
+  shortId,
+  cleanText: cleanDisplayText,
+  shortPreview,
 });
 clientStore.subscribe((change) => {
   if (change.changedKeys.includes("activeId")) syncActiveTurnDom(change.state.activeId);
@@ -2320,8 +2333,7 @@ function renderTimelineSurface({ updateViewControls = true } = {}) {
 
 function renderComposerSurface() {
   if (!state.data) return;
-  els.agentComposer.innerHTML = renderAgentComposer(state.data.source);
-  bindAgentComposer();
+  agentComposerController.render(state.data.source);
 }
 
 function renderProgressiveLoadNotice(partial) {
@@ -2433,131 +2445,6 @@ function renderLiveWatchActions(source) {
       </div>
     </div>
   `;
-}
-
-function renderAgentComposer(source) {
-  const canSend = canSendToAgentSource(source);
-  const watching = source?.live_status === "watching";
-  const supported = /claude|openclaw/i.test(source?.agent || "");
-  const enabled = canSend && watching && supported && !state.agentSend.loading;
-  const statusText = composerStatusText(source, { canSend, watching, supported });
-  const result = state.agentSend.result;
-  const statusClass = state.agentSend.error || result?.exit_code ? "error" : "";
-  const statusMessage = state.agentSend.error || state.agentSend.message || (result ? agentSendResultText(result) : "");
-  return `
-    <form class="agent-compose-form ${enabled ? "" : "disabled"}" data-agent-compose data-source-id="${escapeHtml(source?.id || "")}">
-      <div class="agent-compose-target">
-        <strong>${escapeHtml(source?.agent || "Agent")}</strong>
-        <span>${escapeHtml(statusText)}</span>
-        ${supported && canSend ? `<span class="agent-compose-note">${escapeHtml(t("sendViaResumeNote"))}</span>` : ""}
-      </div>
-      <div class="agent-compose-row">
-        <textarea
-          class="agent-compose-input"
-          name="message"
-          rows="1"
-          placeholder="${escapeHtml(enabled ? t("composerPlaceholder") : statusText)}"
-          ${enabled ? "" : "disabled"}
-        ></textarea>
-        <button class="primary-button small agent-compose-send" type="submit" ${enabled ? "" : "disabled"}>
-          ${escapeHtml(state.agentSend.loading ? t("sending") : t("send"))}
-        </button>
-      </div>
-      <p class="agent-compose-status ${statusClass}" data-agent-compose-status ${statusMessage ? "" : "hidden"}>${escapeHtml(statusMessage)}</p>
-    </form>
-  `;
-}
-
-function canSendToAgentSource(source) {
-  if (!source) return false;
-  if (source.live_watch_id) return true;
-  return Boolean(source.store_watch_id && source.conversation_id && ["watching", "paused"].includes(source.live_status || ""));
-}
-
-function composerStatusText(source, { canSend, watching, supported }) {
-  if (!canSend) return t("sendUnavailable");
-  if (!supported) return t("sendUnsupported");
-  if (!watching) return source?.live_status === "paused" ? t("watchPaused") : t("watchStopped");
-  const project = source.project || projectNameFromWorkspace(source.workspace) || t("currentProject");
-  const conversation = source.conversation_id ? ` · ${shortId(source.conversation_id)}` : "";
-  return `${project}${conversation}`;
-}
-
-function agentSendResultText(result) {
-  const code = Number(result?.exit_code || 0);
-  if (!code) return t("sent");
-  const output = cleanDisplayText(result?.stderr || result?.stdout || "");
-  const preview = output ? ` · ${shortPreview(output, 120)}` : "";
-  return t("sendFailed", { code, preview });
-}
-
-function bindAgentComposer() {
-  const form = document.querySelector("[data-agent-compose]");
-  if (!form) return;
-  const textarea = form.querySelector("textarea[name='message']");
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    sendAgentComposerMessage(textarea?.value || "");
-  });
-  textarea?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
-      event.preventDefault();
-      sendAgentComposerMessage(textarea.value || "");
-    }
-  });
-}
-
-async function sendAgentComposerMessage(rawMessage) {
-  const message = String(rawMessage || "").trim();
-  if (!message || !state.data?.source?.id || state.agentSend.loading) return;
-  const sourceId = state.data.source.id;
-  state.agentSend = { loading: true, error: "", message: t("sentWaitingCapture"), result: null };
-  updateAgentComposerUi(sourceId, { loading: true, message: state.agentSend.message, value: "" });
-  await nextUiTick();
-  try {
-    const result = await api.sendAgent({
-      source_id: sourceId,
-      message,
-    });
-    state.agentSend = {
-      loading: false,
-      error: "",
-      message: "",
-      result,
-    };
-    updateAgentComposerUi(sourceId, { loading: false, message: t("sentRefreshingCapture"), result });
-    await loadSource(result?.source_id || sourceId, { preserveScroll: true });
-  } catch (error) {
-    state.agentSend = { loading: false, error: error.message, message: "", result: null };
-    updateAgentComposerUi(sourceId, { loading: false, error: error.message, value: rawMessage });
-  }
-}
-
-function updateAgentComposerUi(sourceId, { loading, message = "", error = "", result = null, value } = {}) {
-  const form = document.querySelector("[data-agent-compose]");
-  if (!form || form.dataset.sourceId !== sourceId) return;
-  const textarea = form.querySelector("textarea[name='message']");
-  const button = form.querySelector(".agent-compose-send");
-  const status = form.querySelector("[data-agent-compose-status]");
-  form.classList.toggle("disabled", Boolean(loading));
-  if (textarea) {
-    textarea.disabled = Boolean(loading);
-    if (value !== undefined) textarea.value = String(value || "");
-  }
-  if (button) {
-    button.disabled = Boolean(loading);
-    button.textContent = loading ? t("sending") : t("send");
-  }
-  if (status) {
-    const statusText = error || message || (result ? agentSendResultText(result) : "");
-    status.textContent = statusText;
-    status.hidden = !statusText;
-    status.classList.toggle("error", Boolean(error || Number(result?.exit_code || 0)));
-  }
-}
-
-function nextUiTick() {
-  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function bindWatchControls() {

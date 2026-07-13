@@ -9,6 +9,7 @@ const agentGraphModelSource = fs.readFileSync(new URL("../src/viewer/agent-graph
 const agentGraphRendererSource = fs.readFileSync(new URL("../src/viewer/agent-graph-renderer.js", import.meta.url), "utf8");
 const upstreamDetailModelSource = fs.readFileSync(new URL("../src/viewer/upstream-detail-model.js", import.meta.url), "utf8");
 const upstreamDetailRendererSource = fs.readFileSync(new URL("../src/viewer/upstream-detail-renderer.js", import.meta.url), "utf8");
+const agentComposerControllerSource = fs.readFileSync(new URL("../src/viewer/agent-composer-controller.js", import.meta.url), "utf8");
 
 assert.match(source, /import \{[\s\S]*?buildTraceTimelineView,[\s\S]*?from "\.\/trace-timeline-model\.js";/);
 assert.match(source, /import \{ TraceTimelineController \} from "\.\/trace-timeline-controller\.js";/);
@@ -21,6 +22,7 @@ assert.match(source, /import \{ AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView \} f
 assert.match(source, /import \{ renderAgentGraph as renderAgentGraphView \} from "\.\/agent-graph-renderer\.js";/);
 assert.match(source, /import \{ buildUpstreamDetailView \} from "\.\/upstream-detail-model\.js";/);
 assert.match(source, /import \{ renderUpstreamDetail as renderUpstreamDetailView \} from "\.\/upstream-detail-renderer\.js";/);
+assert.match(source, /import \{ AgentComposerController \} from "\.\/agent-composer-controller\.js";/);
 assert.match(source, /function renderAll\(\) \{[\s\S]*?renderHeaderSurface\(\);[\s\S]*?renderTimelineSurface\(\{ updateViewControls: false \}\);[\s\S]*?renderComposerSurface\(\);/);
 assert.match(
   functionSource("renderTimelineSurface"),
@@ -53,6 +55,12 @@ assert.doesNotMatch(source, /function renderCurrentMessageDelta\(/);
 assert.doesNotMatch(source, /function renderContextComposition\(/);
 assert.doesNotMatch(upstreamDetailModelSource, /\bdocument\b|\bwindow\b|\bfetch\s*\(|\bstate\./);
 assert.doesNotMatch(upstreamDetailRendererSource, /\bdocument\b|\bwindow\b|\bfetch\s*\(|\bstate\./);
+assert.match(source, /const agentComposerController = new AgentComposerController\(/);
+assert.match(functionSource("renderComposerSurface"), /agentComposerController\.render\(state\.data\.source\)/);
+assert.doesNotMatch(source, /function renderAgentComposer\(/);
+assert.doesNotMatch(source, /function bindAgentComposer\(/);
+assert.doesNotMatch(source, /function sendAgentComposerMessage\(/);
+assert.doesNotMatch(agentComposerControllerSource, /\bdocument\b|\bwindow\b|\bfetch\s*\(|\bstate\./);
 
 for (const functionName of [
   "jumpToTurn",

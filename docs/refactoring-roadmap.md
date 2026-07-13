@@ -1,6 +1,6 @@
 # peekMyAgent 重构路线图
 
-更新时间：2026-07-13
+更新时间：2026-07-14
 
 这份路线图的目标不是“大改得更漂亮”，而是在不破坏现有用户闭环的前提下，让 peekMyAgent 能长期演进、方便外部贡献，并为更多 Agent 适配建立稳定边界。当前系统事实见 [架构文档](architecture.md)。
 
@@ -166,6 +166,7 @@ src/
 - 已迁移 Request Card Renderer：请求卡外壳、上行标题与快捷动作、当前工具交换、Thinking 和 Assistant 回复 HTML 只消费显式 View DTO；详情读取、请求分类、翻译动作注册和响应折叠状态继续由应用层所有。
 - 已迁移 Agent Graph View：Turn 内分支选择、稳定编号/颜色、状态筛选、分页和交错事件流成为纯 View Model；看板 HTML 成为纯 Renderer，展开/跳转等动作仍由 Timeline Controller 和应用状态所有。
 - 已迁移 Upstream Detail View：System/Tools、历史消息、当前新增消息/子 Agent 回流和 provider token 口径成为纯 View Model；上行详情 HTML 成为纯 Renderer，compact detail 懒加载、缓存与展开状态仍由应用层所有；同时删除已无调用方的旧 context/badge/structure 渲染分支。
+- 已迁移 Agent Composer View：source 能力、发送目标/警示与结果文案成为纯 View Model，表单成为纯 Renderer；长生命周期 Controller 按 source 隔离草稿和发送状态，并管理 Enter/IME、detached resume 与 source 刷新，不再依赖全局 client state 或逐次事件绑定。
 
 ## 阶段 3：拆分 Viewer Client
 
