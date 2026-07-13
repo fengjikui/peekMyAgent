@@ -70,6 +70,7 @@
     "smoke:subagent-otel": "node scripts/subagent-otel-smoke.mjs",
     "smoke:content-parts-contract": "node scripts/content-parts-contract-smoke.mjs",
     "smoke:message-semantics-contract": "node scripts/message-semantics-contract-smoke.mjs",
+    "smoke:request-profile-contract": "node scripts/request-profile-contract-smoke.mjs",
     "smoke:model-response-normalizer-contract": "node scripts/model-response-normalizer-contract-smoke.mjs",
     "smoke:response-capture": "node scripts/response-capture-smoke.mjs",
     "smoke:watch-pause-resume": "node scripts/watch-pause-resume-smoke.mjs",

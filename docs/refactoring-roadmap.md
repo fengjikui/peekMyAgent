@@ -151,6 +151,7 @@ src/
 - 已迁移模型下行回复归一化：Anthropic/OpenAI-compatible JSON/SSE 的 text、thinking、分片 tool use、usage 与 stop reason 由独立 Trace Domain 模块组装为统一 DTO，Viewer Server 不再拥有 provider-specific response parser。
 - 已建立 Trace Content Parts 原语层：上行与下行共用可见文本、thinking、Anthropic/OpenAI tool call 和 tool result 提取，避免协议块解释分叉。
 - 已迁移 Trace 消息语义：真实用户输入、slash command、compact/Skill/framework/suggestion 注入、混合工具结果与 task notification 由单一纯模块解释，Turn、标题和翻译层复用显式端口。
+- 已迁移 Trace 请求画像：System 位置、Anthropic/OpenAI/Gemini 协议、provider/reasoning 扩展及 main/subagent/parent-spawn/metadata 来源提示由单一纯模块解释；metadata 优先级与 provenance 概念边界由直接契约锁定。
 - 已迁移 Trace Bundle Service：Raw 快路径导出、递归脱敏、gzip/数量边界、provenance 补全与安全导入目录由独立服务管理。
 - 已建立共享 Translation Material Collector：Viewer 局部/整段刷新与离线提取统一使用 system/tool/schema hash、去重、occurrence 和限额协议。
 - 已迁移 Translation Service：材料/manifest 私有落盘、缓存 alias、并发/force 参数、脚本编排和公开响应边界不再由 Viewer Server 所有。

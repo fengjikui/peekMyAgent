@@ -133,7 +133,7 @@ const deniedPatterns = [
 const deniedFiles = packageFiles.filter((file) => deniedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(deniedFiles, [], `npm package includes release-unsafe files: ${deniedFiles.join(", ")}`);
 
-const MAX_PACKAGE_ENTRIES = 97;
+const MAX_PACKAGE_ENTRIES = 98;
 const MAX_PACKED_BYTES = 250_000;
 const MAX_UNPACKED_BYTES = 1_100_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
