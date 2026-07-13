@@ -23,7 +23,7 @@ Store 只管理以下可序列化状态：
 - 通知包含 `changedKeys`、旧值 `previous`、动作 `reason` 和只读 snapshot；订阅者不需要重新比较整个应用状态。
 - 初始化读取浏览器偏好时允许 `silent` hydration，持久化本身仍由应用层负责。
 
-Store 不调用 `renderAll()`，不访问 `window`、`document`、`fetch` 或 `localStorage`。后续 feature 应根据 `changedKeys` 订阅自己拥有的视图更新，而不是把 Store 变成新的全局副作用中心。
+Store 不调用 `renderAll()`，不访问 `window`、`document`、`fetch` 或 `localStorage`。当前应用层已经订阅 `activeId` 与 `activeRequestId`，统一同步活动 Turn、请求卡片和 Turn Rail；其他 feature 仍应按 `changedKeys` 逐步订阅自己拥有的视图更新，而不是把 Store 变成新的全局副作用中心。
 
 ## 回归要求
 

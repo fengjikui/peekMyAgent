@@ -75,6 +75,8 @@ const viewerCommands = [
   ["npm", "run", "smoke:tool-exchange-delta"],
   ["npm", "run", "smoke:timeline-display"],
   ["npm", "run", "smoke:timeline-window"],
+  ["npm", "run", "smoke:trace-timeline-model-contract"],
+  ["npm", "run", "smoke:viewer-timeline-surface-contract"],
   ["npm", "run", "smoke:turn-rail-contract"],
   ["npm", "run", "smoke:markdown-safety"],
   ["npm", "run", "smoke:claude-internal-turn"],

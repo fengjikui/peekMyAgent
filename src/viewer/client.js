@@ -39,6 +39,12 @@ import {
 } from "./translation-view-model.js";
 import { TurnRailController } from "./turn-rail.js";
 import {
+  buildTraceTimelineView,
+  fallbackTimelineTurns,
+  findTurnLeadRequest,
+  TRACE_RESULT_PAGE_SIZE,
+} from "./trace-timeline-model.js";
+import {
   extractTranslationSchemaDescriptions as extractSchemaDescriptionsForTranslation,
   isSkippableTranslationMaterial,
   normalizeTranslationSourceText as normalizeTranslationText,
@@ -91,15 +97,11 @@ const TARGET_TRANSLATION_LANGUAGE_KEY = "peekmyagent.targetTranslationLanguage";
 const RAW_MESSAGES_MODE_KEY = "peekmyagent.rawMessagesMode";
 const DEFAULT_UI_LANGUAGE = "zh-CN";
 const DEFAULT_TRANSLATION_LANGUAGE = "zh-CN";
-const TIMELINE_WINDOW_THRESHOLD = 180;
-const TIMELINE_WINDOW_SIZE = 120;
 const INITIAL_SOURCE_REQUEST_LIMIT = 32;
 const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
 const AGENT_BRANCH_PAGE_SIZE = 24;
 const AGENT_EVENT_LIMIT = 80;
 const AGENT_SUMMARY_DOT_LIMIT = 8;
-const TRACE_RESULT_PAGE_SIZE = 24;
-const traceSearchTextCache = new WeakMap();
 const SUPPORTED_UI_LANGUAGES = [
   { value: "zh-CN", label: "中文" },
   { value: "en-US", label: "English" },
@@ -1046,6 +1048,10 @@ const rawSearchController = new RawSearchController({
     showRaw(requestId, section, { mode });
   },
 });
+clientStore.subscribe((change) => {
+  if (change.changedKeys.includes("activeId")) syncActiveTurnDom(change.state.activeId);
+  if (change.changedKeys.includes("activeRequestId")) syncActiveRequestDom(change.state.activeRequestId);
+});
 
 init();
 
@@ -1741,8 +1747,11 @@ async function retranslateTranslationBlock(actionId) {
       message: "",
     };
   }
-  renderAll();
-  if (item.surface === "raw" && state.activeRequestId) showRaw(state.activeRequestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
+  if (item.surface === "timeline") {
+    renderTimelineSurface();
+  } else if (item.surface === "raw" && state.activeRequestId) {
+    showRaw(state.activeRequestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
+  }
 }
 
 function translationGenerateMessage({ cacheAvailable, translated, remaining, stats }) {
@@ -2175,7 +2184,13 @@ function writeCollapsedProjects(collapsed) {
 
 function renderAll() {
   clearTranslationActions();
-  const { source, stats, requests, turns } = state.data;
+  renderHeaderSurface();
+  renderTimelineSurface({ updateViewControls: false });
+  renderComposerSurface();
+}
+
+function renderHeaderSurface() {
+  const { source, stats, requests } = state.data;
   els.pageTitle.textContent = displaySourceLabel(source.label);
   els.stats.innerHTML = [
     [t("statRequests"), stats.request_count],
@@ -2187,25 +2202,43 @@ function renderAll() {
   ]
     .map(([label, value]) => `<span class="stat">${label}: ${escapeHtml(String(value))}</span>`)
     .join("");
-  els.viewControls.innerHTML =
-    `<button class="stat stat-button ${state.latestOnly && !traceQueryActive() ? "active" : ""}" type="button" data-latest-only ${traceQueryActive() ? `disabled title="${escapeHtml(t("latestDisabledBySearch"))}"` : ""}>${state.latestOnly && !traceQueryActive() ? t("showAllTurns") : t("latestOnly")}</button>` +
-    `<button class="stat stat-button session-info-trigger" type="button" data-session-info>${t("sessionInfo")}</button>`;
+  renderViewControls();
   els.watchSummary.innerHTML = renderProgressiveLoadNotice(state.data?.partial);
   els.sessionInfoBody.innerHTML = renderSessionInfo(source, stats, requests);
   renderSessionNav();
-  els.traceQueryBar.innerHTML = renderTraceQueryBar(requests);
-  const filteredTurns = traceFilteredTurns(turns, requests);
-  const turnWindow = timelineWindowInfo(filteredTurns, requests);
-  els.timeline.innerHTML = requests.length ? (filteredTurns.length ? renderTurnTimeline(turnWindow, requests) : renderTraceNoResults()) : renderEmptyTimeline(source.workbench);
-  els.agentComposer.innerHTML = renderAgentComposer(source);
-  renderTurnRail();
-  bindSessionInfoControls();
   bindWatchControls();
-  bindAgentComposer();
+}
+
+function renderViewControls() {
+  els.viewControls.innerHTML =
+    `<button class="stat stat-button ${state.latestOnly && !traceQueryActive() ? "active" : ""}" type="button" data-latest-only ${traceQueryActive() ? `disabled title="${escapeHtml(t("latestDisabledBySearch"))}"` : ""}>${state.latestOnly && !traceQueryActive() ? t("showAllTurns") : t("latestOnly")}</button>` +
+    `<button class="stat stat-button session-info-trigger" type="button" data-session-info>${t("sessionInfo")}</button>`;
+  bindViewControlEvents();
+  bindSessionInfoControls();
+}
+
+function renderTimelineSurface({ updateViewControls = true } = {}) {
+  if (!state.data) return;
+  clearTranslationActions("timeline");
+  if (updateViewControls) renderViewControls();
+  const { source, requests } = state.data;
+  const timelineView = currentTimelineView();
+  els.traceQueryBar.innerHTML = renderTraceQueryBar(timelineView);
+  els.timeline.innerHTML = requests.length
+    ? timelineView.filteredTurns.length
+      ? renderTurnTimeline(timelineView.turnWindow, requests)
+      : renderTraceNoResults()
+    : renderEmptyTimeline(source.workbench);
   bindTraceQueryEvents();
-  bindRequestEvents();
-  if (state.activeId) markActiveTurn(state.activeId, false);
-  if (state.activeRequestId) markActiveRequest(state.activeRequestId, false);
+  bindTimelineEvents();
+  syncActiveTurnDom(state.activeId);
+  syncActiveRequestDom(state.activeRequestId);
+}
+
+function renderComposerSurface() {
+  if (!state.data) return;
+  els.agentComposer.innerHTML = renderAgentComposer(state.data.source);
+  bindAgentComposer();
 }
 
 function renderProgressiveLoadNotice(partial) {
@@ -2223,10 +2256,10 @@ function renderProgressiveLoadNotice(partial) {
   `;
 }
 
-function renderTraceQueryBar(requests) {
-  const counts = traceFilterCounts(requests);
-  const matchCount = traceQueryActive() ? traceMatchingRequestCount(state.data?.turns || [], requests) : counts.all;
-  const shownCount = Math.min(matchCount, state.traceResultLimit);
+function renderTraceQueryBar(timelineView = currentTimelineView()) {
+  const counts = timelineView.filterCounts;
+  const matchCount = timelineView.matchCount;
+  const shownCount = timelineView.shownCount;
   const filters = [
     ["all", t("traceFilterAll", { count: counts.all })],
     ["issues", t("traceFilterIssues", { count: counts.issues })],
@@ -2242,7 +2275,7 @@ function renderTraceQueryBar(requests) {
       ${filters.map(([filter, label]) => `<button class="trace-filter ${state.traceFilter === filter ? "active" : ""}" type="button" data-trace-filter="${escapeHtml(filter)}" aria-pressed="${escapeHtml(String(state.traceFilter === filter))}">${escapeHtml(label)}</button>`).join("")}
     </div>
     ${
-      traceQueryActive()
+      timelineView.queryActive
         ? `<div class="trace-match-status">
             <span>${escapeHtml(t("traceMatchCount", { shown: shownCount, total: matchCount }))}</span>
             ${matchCount > shownCount ? `<button type="button" data-trace-more>${escapeHtml(t("traceShowMore", { count: Math.min(TRACE_RESULT_PAGE_SIZE, matchCount - shownCount) }))}</button>` : ""}
@@ -2277,24 +2310,24 @@ function bindTraceQueryEvents() {
     button.addEventListener("click", () => {
       state.traceFilter = button.dataset.traceFilter || "all";
       state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
-      const filteredTurns = traceFilteredTurns(state.data?.turns || [], state.data?.requests || []);
+      const filteredTurns = currentTimelineView().filteredTurns;
       if (!filteredTurns.some((turn) => turn.id === state.activeId)) {
         clientStore.setSelection({ activeId: filteredTurns[0]?.id || null }, { reason: "filter-trace" });
       }
-      renderAll();
+      renderTimelineSurface();
     });
   });
   const moreButton = els.traceQueryBar?.querySelector("[data-trace-more]");
   moreButton?.addEventListener("click", () => {
     state.traceResultLimit += TRACE_RESULT_PAGE_SIZE;
-    renderAll();
+    renderTimelineSurface();
   });
 }
 
 function scheduleTraceSearchRender() {
   window.clearTimeout(state.traceQueryTimer);
   state.traceQueryTimer = window.setTimeout(() => {
-    renderAll();
+    renderTimelineSurface();
     requestAnimationFrame(() => restoreSearchInputFocus(els.traceQueryBar?.querySelector("[data-trace-search]")));
   }, 160);
 }
@@ -2310,114 +2343,17 @@ function traceQueryActive() {
   return state.traceFilter !== "all" || Boolean(String(state.traceQuery || "").trim());
 }
 
-function traceFilterCounts(requests) {
-  const list = Array.isArray(requests) ? requests : [];
-  return {
-    all: list.length,
-    issues: list.filter(traceRequestHasIssue).length,
-    slow: list.filter(traceRequestIsSlow).length,
-    tools: list.filter(traceRequestHasTools).length,
-    subagents: list.filter((request) => request.is_subagent).length,
-  };
-}
-
-function traceFilteredTurns(turns, requests) {
-  const normalizedTurns = Array.isArray(turns) && turns.length ? turns : fallbackTurns(requests);
-  const filter = state.traceFilter || "all";
-  const query = String(state.traceQuery || "").trim().toLocaleLowerCase();
-  if (filter === "all" && !query) return normalizedTurns;
-  const requestMap = new Map((requests || []).map((request) => [request.id, request]));
-  let remaining = state.traceResultLimit;
-  const matchedTurns = [];
-  for (const turn of normalizedTurns) {
-    const turnRequests = (turn.request_ids || []).map((id) => requestMap.get(id)).filter(Boolean);
-    const matchedRequestIds = traceMatchingRequestIdsForTurn(turn, turnRequests, filter, query);
-    if (!matchedRequestIds.length || remaining <= 0) continue;
-    const visibleRequestIds = matchedRequestIds.slice(0, remaining);
-    remaining -= visibleRequestIds.length;
-    matchedTurns.push({
-      ...turn,
-      request_ids: visibleRequestIds,
-      request_count: visibleRequestIds.length,
-      trace_filter_active: true,
-      trace_match_count: matchedRequestIds.length,
-    });
-  }
-  return matchedTurns;
-}
-
-function traceMatchingRequestCount(turns, requests) {
-  const normalizedTurns = Array.isArray(turns) && turns.length ? turns : fallbackTurns(requests);
-  const requestMap = new Map((requests || []).map((request) => [request.id, request]));
-  const filter = state.traceFilter || "all";
-  const query = String(state.traceQuery || "").trim().toLocaleLowerCase();
-  let count = 0;
-  for (const turn of normalizedTurns) {
-    const turnRequests = (turn.request_ids || []).map((id) => requestMap.get(id)).filter(Boolean);
-    count += traceMatchingRequestIdsForTurn(turn, turnRequests, filter, query).length;
-  }
-  return count;
-}
-
-function traceMatchingRequestIdsForTurn(turn, turnRequests, filter, query) {
-  const directMatches = turnRequests.filter((request) => traceRequestMatchesFilter(request, filter) && (!query || traceSearchTextForRequest(request).includes(query)));
-  if (directMatches.length || !query || filter !== "all" || !traceSearchTextForTurn(turn).includes(query)) return directMatches.map((request) => request.id);
-  const lead = turnLeadRequest(turnRequests, turn) || turnRequests[0];
-  return lead ? [lead.id] : [];
-}
-
-function traceRequestMatchesFilter(request, filter) {
-  if (filter === "issues") return traceRequestHasIssue(request);
-  if (filter === "slow") return traceRequestIsSlow(request);
-  if (filter === "tools") return traceRequestHasTools(request);
-  if (filter === "subagents") return Boolean(request.is_subagent);
-  return true;
-}
-
-function traceRequestHasIssue(request) {
-  const status = Number(request.upstream_status ?? request.summary?.response?.status ?? 0);
-  if (status >= 400) return true;
-  const evidence = [
-    request.summary?.entry?.text,
-    request.summary?.response?.preview,
-    ...(request.summary?.current_tool_results || []).map((result) => result.content),
-  ]
-    .filter(Boolean)
-    .join("\n");
-  return /(?:api error|\berror\b|exception|permission denied|timed? out|timeout|失败|报错|不可用)/i.test(evidence);
-}
-
-function traceRequestIsSlow(request) {
-  return Number(request.summary?.response?.latency_ms || 0) >= 5000;
-}
-
-function traceRequestHasTools(request) {
-  return Boolean((request.summary?.response?.tool_calls?.length || 0) + (request.summary?.current_tool_results?.length || 0));
-}
-
-function traceSearchTextForTurn(turn) {
-  return [turn.index, turn.title, turn.user_input, turn.command_message?.command, turn.command_message?.body].filter(Boolean).join(" ").toLocaleLowerCase();
-}
-
-function traceSearchTextForRequest(request) {
-  const cached = traceSearchTextCache.get(request);
-  if (cached) return cached;
-  const text = [
-    request.request_index,
-    request.summary?.entry?.label,
-    request.summary?.entry?.text,
-    request.summary?.assistant_preview,
-    request.summary?.response?.text,
-    request.summary?.response?.thinking_preview,
-    ...(request.summary?.tool_names || []),
-    ...(request.summary?.response?.tool_calls || []).flatMap((call) => [call.name, shortPreview(stableJson(call.arguments), 1000)]),
-    ...(request.summary?.current_tool_results || []).map((result) => result.content),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLocaleLowerCase();
-  traceSearchTextCache.set(request, text);
-  return text;
+function currentTimelineView(data = state.data) {
+  return buildTraceTimelineView({
+    turns: data?.turns || [],
+    requests: data?.requests || [],
+    query: state.traceQuery,
+    filter: state.traceFilter,
+    resultLimit: state.traceResultLimit,
+    latestOnly: state.latestOnly,
+    activeId: state.activeId,
+    requestExcerpt,
+  });
 }
 
 function renderTraceNoResults() {
@@ -2427,44 +2363,6 @@ function renderTraceNoResults() {
       <p>${escapeHtml(t("traceNoResultsBody"))}</p>
     </section>
   `;
-}
-
-function baseTurnList(turns, requests) {
-  const normalizedTurns = Array.isArray(turns) && turns.length ? turns : fallbackTurns(requests);
-  if (traceQueryActive() || !state.latestOnly || normalizedTurns.length <= 1) return normalizedTurns;
-  return [normalizedTurns.at(-1)];
-}
-
-function timelineWindowInfo(turns, requests) {
-  const allTurns = baseTurnList(turns, requests);
-  if (state.latestOnly || allTurns.length <= TIMELINE_WINDOW_THRESHOLD) {
-    return {
-      turns: allTurns,
-      allTurns,
-      start: 0,
-      end: allTurns.length,
-      total: allTurns.length,
-      windowed: false,
-    };
-  }
-  const rawActiveIndex = allTurns.findIndex((turn) => turn.id === state.activeId);
-  const activeIndex = rawActiveIndex >= 0 ? rawActiveIndex : 0;
-  const halfWindow = Math.floor(TIMELINE_WINDOW_SIZE / 2);
-  const maxStart = Math.max(0, allTurns.length - TIMELINE_WINDOW_SIZE);
-  const start = Math.min(Math.max(0, activeIndex - halfWindow), maxStart);
-  const end = Math.min(allTurns.length, start + TIMELINE_WINDOW_SIZE);
-  return {
-    turns: allTurns.slice(start, end),
-    allTurns,
-    start,
-    end,
-    total: allTurns.length,
-    windowed: true,
-  };
-}
-
-function visibleTurnList(turns, requests) {
-  return timelineWindowInfo(turns, requests).turns;
 }
 
 function renderEmptyTimeline(summary) {
@@ -2780,11 +2678,7 @@ function renderTurnRail() {
 }
 
 function railTurnUniverse(data = state.data) {
-  const requests = data?.requests || [];
-  const turns = data?.turns || [];
-  const filtered = traceFilteredTurns(turns, requests);
-  if (traceQueryActive() || !state.latestOnly || filtered.length <= 1) return filtered;
-  return [filtered.at(-1)];
+  return currentTimelineView(data).railTurns;
 }
 
 function activeTurnIds(data = state.data) {
@@ -2834,7 +2728,10 @@ function renderTurnTimeline(turnWindowOrTurns, requests) {
         windowed: false,
       }
     : turnWindowOrTurns;
-  const normalizedTurns = Array.isArray(turnWindow?.turns) && turnWindow.turns.length ? turnWindow.turns : fallbackTurns(requests);
+  const normalizedTurns =
+    Array.isArray(turnWindow?.turns) && turnWindow.turns.length
+      ? turnWindow.turns
+      : fallbackTimelineTurns(requests, { requestExcerpt });
   const requestMap = new Map(requests.map((request) => [request.id, request]));
   return [renderTimelineWindowEdge(turnWindow, "before"), ...normalizedTurns.map((turn) => renderTurnGroup(turn, requestMap)), renderTimelineWindowEdge(turnWindow, "after")].join("");
 }
@@ -2855,43 +2752,6 @@ function renderTimelineWindowEdge(turnWindow, edge) {
   `;
 }
 
-function fallbackTurns(requests) {
-  return requests.map((request, index) => ({
-    id: `turn-${index + 1}`,
-    index: index + 1,
-    title: requestExcerpt(request),
-    user_input: requestExcerpt(request),
-    request_ids: [request.id],
-    request_indexes: [request.request_index],
-    first_request_index: request.request_index,
-    last_request_index: request.request_index,
-    request_count: 1,
-    main_request_count: request.source_hint?.type === "metadata" ? 0 : 1,
-    internal_request_count: request.source_hint?.type === "metadata" ? 1 : 0,
-    subagent_count: request.is_subagent ? 1 : 0,
-    parent_spawn_count: request.source_hint?.type === "parent_spawn" ? 1 : 0,
-    tool_call_count: request.summary?.current_tool_calls?.length || 0,
-    tool_result_count: request.summary?.current_tool_results?.length || 0,
-    raw_body_bytes: request.counts?.raw_body_bytes || 0,
-  }));
-}
-
-// The request that carries this turn's defining user input (earliest, non-
-// subagent, non-metadata, matching the turn's user text or a slash command).
-// Used to pin the user message to the top of the turn regardless of whether it
-// was classified main or parent_spawn.
-function turnLeadRequest(requests, turn) {
-  const turnKey = normalizeTurnDisplayText(turn.user_input || turn.title || "");
-  return (
-    requests.find(
-      (request) =>
-        request.source_hint?.type !== "metadata" &&
-        !request.is_subagent &&
-        (Boolean(request.summary?.command_message) || (turnKey && normalizeTurnDisplayText(request.summary?.current_user || "") === turnKey)),
-    ) || null
-  );
-}
-
 function renderTurnGroup(turn, requestMap) {
   const requests = turn.request_ids.map((id) => requestMap.get(id)).filter(Boolean);
   if (turn.trace_filter_active) {
@@ -2907,7 +2767,7 @@ function renderTurnGroup(turn, requestMap) {
       </section>
     `;
   }
-  const lead = turnLeadRequest(requests, turn);
+  const lead = findTurnLeadRequest(requests, turn);
   let primaryRequests = requests.filter(isPrimaryTurnRequest);
   // Always pin the turn's defining user input to the top — even when it was
   // classified parent_spawn (and so isn't "primary") — so the user message
@@ -2940,10 +2800,6 @@ function isPrimaryTurnRequest(request) {
   if (request.is_subagent) return false;
   if ((request.summary?.current_tool_results?.length || 0) > 0) return false;
   return shouldShowTimelineRequestContent(request) || Boolean(request.summary?.command_message);
-}
-
-function normalizeTurnDisplayText(value) {
-  return cleanDisplayText(value).replace(/\s+/g, " ").trim();
 }
 
 function isTurnResponseRequest(request) {
@@ -4050,94 +3906,96 @@ function renderPre(text) {
   return `<pre>${escapeHtml(text)}</pre>`;
 }
 
-function bindRequestEvents() {
-  document.querySelectorAll("[data-latest-only]").forEach((button) => {
+function bindViewControlEvents() {
+  els.viewControls.querySelectorAll("[data-latest-only]").forEach((button) => {
     button.addEventListener("click", toggleLatestOnly);
   });
-  document.querySelectorAll("[data-response-toggle]").forEach((button) => {
+}
+
+function bindTimelineEvents() {
+  els.timeline.querySelectorAll("[data-response-toggle]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       toggleResponseExpansion(button.dataset.responseToggle);
     });
   });
-  document.querySelectorAll("[data-upstream-toggle]").forEach((button) => {
+  els.timeline.querySelectorAll("[data-upstream-toggle]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       toggleUpstreamDetails(button.dataset.upstreamToggle);
     });
   });
-  document.querySelectorAll("[data-upstream-panel]").forEach((panel) => {
+  els.timeline.querySelectorAll("[data-upstream-panel]").forEach((panel) => {
     panel.addEventListener("toggle", () => syncUpstreamDetailsState(panel));
   });
-  document.querySelectorAll("[data-turn-window-jump]").forEach((button) => {
+  els.timeline.querySelectorAll("[data-turn-window-jump]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       jumpToTurn(button.dataset.turnWindowJump, true);
     });
   });
-  document.querySelectorAll("[data-raw]").forEach((button) => {
+  els.timeline.querySelectorAll("[data-raw]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       showRaw(button.dataset.raw, button.dataset.rawSection || "full", { mode: button.dataset.rawMode || "request" });
     });
   });
-  document.querySelectorAll("[data-agent-jump]").forEach((button) => {
+  els.timeline.querySelectorAll("[data-agent-jump]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       jumpToRequest(button.dataset.agentJump);
     });
   });
-  document.querySelectorAll("[data-agent-branch-jump]").forEach((button) => {
+  els.timeline.querySelectorAll("[data-agent-branch-jump]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       jumpToAgentBranch(button.dataset.agentBranchJump);
     });
   });
-  document.querySelectorAll("[data-agent-branch-toggle]").forEach((button) => {
+  els.timeline.querySelectorAll("[data-agent-branch-toggle]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       toggleAgentBranch(button.dataset.agentBranchToggle);
     });
   });
-  document.querySelectorAll("[data-supporting-timeline-toggle]").forEach((summary) => {
+  els.timeline.querySelectorAll("[data-supporting-timeline-toggle]").forEach((summary) => {
     summary.addEventListener("click", (event) => {
       event.preventDefault();
       const turnId = summary.dataset.supportingTimelineToggle;
       if (state.openSupportingTimelines.has(turnId)) state.openSupportingTimelines.delete(turnId);
       else state.openSupportingTimelines.add(turnId);
-      renderAll();
+      renderTimelineSurface();
     });
   });
-  // Control the multi-agent dashboard open state ourselves (persist across
-  // renderAll) so toggling an inner branch card no longer snaps the whole panel
-  // shut.
-  document.querySelectorAll("[data-agent-dashboard-toggle]").forEach((summary) => {
+  // Control the multi-agent dashboard open state ourselves so a Timeline
+  // surface refresh does not snap the whole panel shut.
+  els.timeline.querySelectorAll("[data-agent-dashboard-toggle]").forEach((summary) => {
     summary.addEventListener("click", (event) => {
       event.preventDefault();
       const turnId = summary.dataset.agentDashboardToggle;
       if (state.openAgentDashboards.has(turnId)) state.openAgentDashboards.delete(turnId);
       else state.openAgentDashboards.add(turnId);
-      renderAll();
+      renderTimelineSurface();
     });
   });
-  document.querySelectorAll("[data-agent-branch-more]").forEach((button) => {
+  els.timeline.querySelectorAll("[data-agent-branch-more]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       const turnId = button.dataset.agentBranchMore;
       const current = state.agentBranchLimits.get(turnId) || AGENT_BRANCH_PAGE_SIZE;
       state.agentBranchLimits.set(turnId, current + AGENT_BRANCH_PAGE_SIZE);
-      renderAll();
+      renderTimelineSurface();
     });
   });
-  document.querySelectorAll("[data-agent-status-filter]").forEach((button) => {
+  els.timeline.querySelectorAll("[data-agent-status-filter]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -4145,10 +4003,10 @@ function bindRequestEvents() {
       const filter = button.dataset.agentFilterValue || "all";
       state.agentBranchFilters.set(turnId, filter);
       state.agentBranchLimits.set(turnId, AGENT_BRANCH_PAGE_SIZE);
-      renderAll();
+      renderTimelineSurface();
     });
   });
-  document.querySelectorAll("[data-system-diff]").forEach((button) => {
+  els.timeline.querySelectorAll("[data-system-diff]").forEach((button) => {
     button.addEventListener("click", () => showSystemDiff(button.dataset.systemDiff));
   });
 }
@@ -4156,7 +4014,7 @@ function bindRequestEvents() {
 function jumpToTurn(turnId, scroll = true) {
   if (!turnId) return;
   clientStore.setSelection({ activeId: turnId }, { reason: "jump-to-turn" });
-  renderAll();
+  renderTimelineSurface();
   markActiveTurn(turnId, scroll);
 }
 
@@ -4187,7 +4045,7 @@ function jumpToAgentBranch(branchId) {
   if (!state.expandedAgentBranches.has(branchId)) {
     state.expandedAgentBranches.add(branchId);
   }
-  renderAll();
+  renderTimelineSurface();
   const target = document.querySelector(`[data-branch="${cssEscape(branchId)}"]`);
   if (!target) return;
   const turnElement = target.closest("[data-turn-group]");
@@ -4201,7 +4059,7 @@ function toggleAgentBranch(branchId) {
   if (!branchId) return;
   if (state.expandedAgentBranches.has(branchId)) state.expandedAgentBranches.delete(branchId);
   else state.expandedAgentBranches.add(branchId);
-  renderAll();
+  renderTimelineSurface();
 }
 
 function scrollElementIntoView(target, { blockOffset = 0 } = {}) {
@@ -4232,7 +4090,7 @@ function toggleUpstreamDetails(requestId) {
   const nextOpen = !state.upstreamExpanded.has(requestId);
   if (nextOpen) state.upstreamExpanded.add(requestId);
   else state.upstreamExpanded.delete(requestId);
-  renderAll();
+  renderTimelineSurface();
   const panel = document.querySelector(`[data-upstream-panel="${cssEscape(requestId)}"]`);
   if (nextOpen) {
     const internalWrapper = panel?.closest(".turn-internal-request");
@@ -4240,10 +4098,10 @@ function toggleUpstreamDetails(requestId) {
     panel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     ensureRequestDetailLoaded(requestId)
       .then(() => {
-        if (state.upstreamExpanded.has(requestId)) renderAll();
+        if (state.upstreamExpanded.has(requestId)) renderTimelineSurface();
       })
       .catch(() => {
-        if (state.upstreamExpanded.has(requestId)) renderAll();
+        if (state.upstreamExpanded.has(requestId)) renderTimelineSurface();
       });
   }
   updateUpstreamToggleButtons(requestId, nextOpen);
@@ -4256,14 +4114,14 @@ function syncUpstreamDetailsState(panel) {
   if (open === state.upstreamExpanded.has(requestId)) return;
   if (open) state.upstreamExpanded.add(requestId);
   else state.upstreamExpanded.delete(requestId);
-  renderAll();
+  renderTimelineSurface();
   if (open) {
     ensureRequestDetailLoaded(requestId)
       .then(() => {
-        if (state.upstreamExpanded.has(requestId)) renderAll();
+        if (state.upstreamExpanded.has(requestId)) renderTimelineSurface();
       })
       .catch(() => {
-        if (state.upstreamExpanded.has(requestId)) renderAll();
+        if (state.upstreamExpanded.has(requestId)) renderTimelineSurface();
       });
   }
   updateUpstreamToggleButtons(requestId, open);
@@ -4281,9 +4139,9 @@ function updateUpstreamToggleButtons(requestId, open) {
 function toggleLatestOnly() {
   clientStore.setTimeline({ latestOnly: !state.latestOnly }, { reason: "toggle-latest-only" });
   localStorage.setItem(LATEST_ONLY_KEY, String(state.latestOnly));
-  renderAll();
+  renderTimelineSurface();
   if (state.latestOnly) {
-    const latestTurn = visibleTurnList(state.data?.turns, state.data?.requests || [])[0];
+    const latestTurn = currentTimelineView().turnWindow.turns[0];
     if (latestTurn?.id) markActiveTurn(latestTurn.id, true);
   } else if (state.activeId) {
     markActiveTurn(state.activeId, false);
@@ -4294,24 +4152,30 @@ function toggleResponseExpansion(requestId) {
   if (!requestId) return;
   if (state.responseExpanded.has(requestId)) state.responseExpanded.delete(requestId);
   else state.responseExpanded.add(requestId);
-  renderAll();
+  renderTimelineSurface();
   document.getElementById(requestId)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function markActiveTurn(id, scroll) {
   clientStore.setSelection({ activeId: id }, { reason: "mark-active-turn" });
-  renderTurnRail();
-  document.querySelectorAll("[data-turn]").forEach((button) => button.classList.toggle("active", button.dataset.turn === id));
-  document.querySelectorAll("[data-turn-group]").forEach((group) => group.classList.toggle("active", group.dataset.turnGroup === id));
   const target = document.getElementById(id);
   if (scroll) target?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function syncActiveTurnDom(id) {
+  renderTurnRail();
+  els.turnRail.querySelectorAll("[data-turn]").forEach((button) => button.classList.toggle("active", button.dataset.turn === id));
+  els.timeline.querySelectorAll("[data-turn-group]").forEach((group) => group.classList.toggle("active", group.dataset.turnGroup === id));
+}
+
 function markActiveRequest(id, scroll) {
   clientStore.setSelection({ activeRequestId: id }, { reason: "mark-active-request" });
-  document.querySelectorAll("[data-card]").forEach((card) => card.classList.toggle("active", card.dataset.card === id));
   const target = document.getElementById(id);
   if (scroll) target?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function syncActiveRequestDom(id) {
+  els.timeline.querySelectorAll("[data-card]").forEach((card) => card.classList.toggle("active", card.dataset.card === id));
 }
 
 function setRawPanelOpen(open) {
