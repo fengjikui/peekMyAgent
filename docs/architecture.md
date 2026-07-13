@@ -2,7 +2,7 @@
 
 更新时间：2026-07-13
 
-本文描述当前代码真实运行方式。它是维护者和贡献者理解仓库的入口，不是未来架构愿景；演进计划见 [重构路线图](refactoring-roadmap.md)。
+本文描述当前代码真实运行方式。它是维护者和贡献者理解仓库的事实源，不是未来架构愿景；需要快速定位改动位置的 Coding Agent 先读[代码库地图](codebase-map.md)，演进计划见[重构路线图](refactoring-roadmap.md)。
 
 ## 产品边界
 
@@ -65,6 +65,8 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/viewer/trace-timeline-renderer.js` | Trace 查询栏、空状态、窗口边界和 Turn 容器编排的依赖注入 HTML renderer |
 | `src/viewer/trace-timeline-controller.js` | Timeline 查询输入法生命周期、单次事件委派、活动态同步与应用动作端口 |
 | `src/viewer/request-card-renderer.js` | 请求卡外壳、上行标题/快捷动作、工具交换和 Assistant 回复的纯 HTML renderer |
+| `src/viewer/agent-graph-model.js` | Turn 内子 Agent 分支筛选、分页、稳定编号/颜色、状态统计与交错事件流 View Model |
+| `src/viewer/agent-graph-renderer.js` | 多 Agent 摘要、流程卡、事件顺序、筛选和分支详情的纯 HTML renderer |
 | `src/viewer/raw-view-model.js` | Raw Inspector 上行、下行、Harness、Metadata 的纯 section 数据与方向约束 |
 | `src/viewer/raw-search-model.js` | Raw 搜索条目构建、过滤、摘要命中分段与导航索引的纯模型 |
 | `src/viewer/raw-search-controller.js` | Raw 搜索输入法生命周期、延迟重绘、当前命中、高亮和滚动控制器 |
@@ -179,7 +181,7 @@ Viewer 的浏览器请求统一通过 `ViewerApiClient`。它集中定义 source
 
 Viewer 的核心选择和偏好状态已经由最小 `ViewerClientStore` 所有。当前涵盖 source/Turn/request 选择、Raw section/mode、UI 与目标翻译语言、三栏开关/宽度和 latest-only。Store 只提供原子 patch、领域写入约束和带 `changedKeys` 的订阅通知，不访问 DOM、网络或 `localStorage`；`client.js` 暂时复用同一 state 引用读取，并继续装配副作用。受管字段禁止再直接赋值；活动 Turn/request 已由 Store 通知统一同步 DOM 和 Turn Rail。详细契约见 [Viewer Client Store 契约](viewer-client-store-contract.md)。
 
-Trace Timeline 的搜索分类、命中计数、结果上限、latest-only 和 Turn 窗口由纯 `trace-timeline-model.js` 计算。查询栏、空状态、窗口边界与 Turn 容器编排由 `trace-timeline-renderer.js` 生成；`TraceTimelineController` 长期持有查询栏和 Timeline 根节点，通过一次事件委派处理 IME、筛选、Raw、Agent 跳转、折叠与活动态同步。请求卡外壳、上行标题/快捷动作、当前工具交换和 Assistant 回复 HTML 由 `request-card-renderer.js` 生成；应用层先完成请求类别、详情状态、翻译动作和响应折叠等业务决策，再注入显式 DTO 与受信任子块。renderer 不读取全局 state、不注册动作，也不访问 DOM。应用渲染仍分成 Header、Timeline 和 Composer 三个表面：Timeline 内部动作只重建 Timeline，翻译 Raw 块只刷新 Raw，翻译 Thinking 块只刷新 Timeline；source 装载、完整数据刷新、全局错误状态和 UI/目标翻译语言切换仍可使用组合 `renderAll()`。Agent graph 和上行详情内部块仍留在 `client.js`，后续继续按领域迁移。详细契约见 [Viewer Timeline 模型与局部渲染契约](viewer-timeline-contract.md)和[请求/回复卡片 Renderer 契约](request-card-renderer-contract.md)。
+Trace Timeline 的搜索分类、命中计数、结果上限、latest-only 和 Turn 窗口由纯 `trace-timeline-model.js` 计算。查询栏、空状态、窗口边界与 Turn 容器编排由 `trace-timeline-renderer.js` 生成；`TraceTimelineController` 长期持有查询栏和 Timeline 根节点，通过一次事件委派处理 IME、筛选、Raw、Agent 跳转、折叠与活动态同步。请求卡外壳、上行标题/快捷动作、当前工具交换和 Assistant 回复 HTML 由 `request-card-renderer.js` 生成。多 Agent 看板由 `agent-graph-model.js` 按 Trace Domain 已确认的分支关系计算筛选、分页和交错事件流，再由 `agent-graph-renderer.js` 生成 HTML；看板不自行推断 parent/child。应用层先完成请求类别、详情状态、翻译动作、响应折叠和交互状态等业务决策，再注入显式 DTO 与受信任子块。renderer 不读取全局 state、不注册动作，也不访问 DOM。应用渲染仍分成 Header、Timeline 和 Composer 三个表面：Timeline 内部动作只重建 Timeline，翻译 Raw 块只刷新 Raw，翻译 Thinking 块只刷新 Timeline；source 装载、完整数据刷新、全局错误状态和 UI/目标翻译语言切换仍可使用组合 `renderAll()`。上行详情内部块仍留在 `client.js`，后续继续按领域迁移。详细契约见 [Viewer Timeline 模型与局部渲染契约](viewer-timeline-contract.md)、[请求/回复卡片 Renderer 契约](request-card-renderer-contract.md)和[多 Agent 看板 View 契约](agent-graph-view-contract.md)。
 
 compact 首屏后的完整 request 由 `RequestDetailCache` 按需读取。同一 request 的并发展开共享 Promise，失败可重试，source 切换统一清空；首次加载和缓存命中的应用副作用通过回调注入，缓存层不反向依赖 DOM、全局 state 或翻译模块。
 

@@ -33,6 +33,8 @@ for (const required of [
   "package.json",
   "bin/peekmyagent.mjs",
   "src/viewer/server.mjs",
+  "src/viewer/agent-graph-model.js",
+  "src/viewer/agent-graph-renderer.js",
   "src/viewer/api-client.js",
   "src/viewer/client-store.js",
   "src/viewer/client.js",

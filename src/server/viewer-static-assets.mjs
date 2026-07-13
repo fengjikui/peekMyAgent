@@ -3,6 +3,8 @@ import path from "node:path";
 const VIEWER_STATIC_ASSETS = new Map([
   ["/", { base: "viewer", file: "index.html", contentType: "text/html; charset=utf-8" }],
   ["/styles.css", { base: "viewer", file: "styles.css", contentType: "text/css; charset=utf-8" }],
+  ["/agent-graph-model.js", javascriptAsset("agent-graph-model.js")],
+  ["/agent-graph-renderer.js", javascriptAsset("agent-graph-renderer.js")],
   ["/api-client.js", javascriptAsset("api-client.js")],
   ["/client-store.js", javascriptAsset("client-store.js")],
   ["/client.js", javascriptAsset("client.js")],

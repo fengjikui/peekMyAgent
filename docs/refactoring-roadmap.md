@@ -164,6 +164,7 @@ src/
 - 已迁移 Trace Timeline View Model：查询分类、命中 Turn、结果上限、latest-only、lead request 与窗口策略成为无 DOM 纯模块；Header、Timeline、Composer 已形成局部渲染表面，Timeline 内部交互和 Thinking 块翻译不再默认触发整页 `renderAll()`，活动选择由 Store 通知统一同步 DOM。
 - 已迁移 Trace Timeline Renderer/Controller：查询、空状态和窗口 HTML 使用显式 DTO；IME、筛选、Raw/Agent 动作和活动态通过长生命周期控制器做单次事件委派，不再在每次 Timeline 重绘后逐按钮重新绑定。
 - 已迁移 Request Card Renderer：请求卡外壳、上行标题与快捷动作、当前工具交换、Thinking 和 Assistant 回复 HTML 只消费显式 View DTO；详情读取、请求分类、翻译动作注册和响应折叠状态继续由应用层所有。
+- 已迁移 Agent Graph View：Turn 内分支选择、稳定编号/颜色、状态筛选、分页和交错事件流成为纯 View Model；看板 HTML 成为纯 Renderer，展开/跳转等动作仍由 Timeline Controller 和应用状态所有。
 
 ## 阶段 3：拆分 Viewer Client
 

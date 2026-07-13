@@ -79,6 +79,7 @@
     "smoke:trace-timeline-renderer-contract": "node scripts/trace-timeline-renderer-contract-smoke.mjs",
     "smoke:trace-timeline-controller-contract": "node scripts/trace-timeline-controller-contract-smoke.mjs",
     "smoke:request-card-renderer-contract": "node scripts/request-card-renderer-contract-smoke.mjs",
+    "smoke:agent-graph-view-contract": "node scripts/agent-graph-view-contract-smoke.mjs",
     "smoke:viewer-timeline-surface-contract": "node scripts/viewer-timeline-surface-contract-smoke.mjs",
     "smoke:turn-rail-contract": "node scripts/turn-rail-contract-smoke.mjs",
     "smoke:markdown-safety": "node scripts/markdown-safety-smoke.mjs",

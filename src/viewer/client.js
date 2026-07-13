@@ -5,6 +5,8 @@ import {
 } from "./messages-renderer.js";
 import { ViewerApiClient } from "./api-client.js";
 import { ViewerClientStore } from "./client-store.js";
+import { AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView } from "./agent-graph-model.js";
+import { renderAgentGraph as renderAgentGraphView } from "./agent-graph-renderer.js";
 import { RequestDetailCache, requestNeedsDetail } from "./request-detail-cache.js";
 import {
   renderTimelineAssistantResponse as renderTimelineAssistantResponseView,
@@ -85,7 +87,6 @@ const state = Object.assign(clientStore.state, {
   translationAutoRefresh: new Set(),
   translationActionItems: new Map(),
   nextTranslationActionId: 1,
-  collapsedAgentBranches: new Set(),
   expandedAgentBranches: new Set(),
   openAgentDashboards: new Set(),
   openSupportingTimelines: new Set(),
@@ -110,9 +111,6 @@ const DEFAULT_UI_LANGUAGE = "zh-CN";
 const DEFAULT_TRANSLATION_LANGUAGE = "zh-CN";
 const INITIAL_SOURCE_REQUEST_LIMIT = 32;
 const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
-const AGENT_BRANCH_PAGE_SIZE = 24;
-const AGENT_EVENT_LIMIT = 80;
-const AGENT_SUMMARY_DOT_LIMIT = 8;
 const SUPPORTED_UI_LANGUAGES = [
   { value: "zh-CN", label: "中文" },
   { value: "en-US", label: "English" },
@@ -2769,266 +2767,29 @@ function renderSupportingRequests(requests, turnId) {
 
 function renderAgentBranchesForTurn(turn, requestMap) {
   const trace = state.data?.agent_trace;
-  const branches = (trace?.branches || []).filter((branch) => (turn.agent_branches || []).includes(branch.id));
-  if (!branches.length) return "";
-  const sortedBranches = [...branches].sort((left, right) => Number(left.first_request_index || 0) - Number(right.first_request_index || 0));
-  const spawnIndexes = [...new Set(branches.map((branch) => branch.spawn?.parent_request_index).filter(Boolean))];
-  const returnIndexes = [...new Set(branches.map((branch) => branch.return?.parent_request_index).filter(Boolean))];
-  const typeNames = [...new Set(sortedBranches.map((branch, index) => agentBranchName(branch, index)))];
-  const summaryDots = sortedBranches
-    .slice(0, AGENT_SUMMARY_DOT_LIMIT)
-    .map((branch, index) => `<span class="agent-summary-dot" style="--branch-color:${escapeHtml(agentBranchColor(index))}" aria-hidden="true"></span>`)
-    .join("");
-  const dashboardOpen = state.openAgentDashboards.has(turn.id);
-  const activeFilter = state.agentBranchFilters.get(turn.id) || "all";
-  const branchEntries = sortedBranches.map((branch, index) => ({ branch, index }));
-  const filteredEntries = activeFilter === "all" ? branchEntries : branchEntries.filter(({ branch }) => branch.status === activeFilter);
-  const branchLimit = Math.max(AGENT_BRANCH_PAGE_SIZE, state.agentBranchLimits.get(turn.id) || AGENT_BRANCH_PAGE_SIZE);
-  const visibleEntries = filteredEntries.slice(0, branchLimit);
-  const hiddenBranchCount = Math.max(0, filteredEntries.length - visibleEntries.length);
-  const returned = sortedBranches.filter((branch) => branch.status === "returned").length;
-  const completed = sortedBranches.filter((branch) => branch.status === "completed").length;
-  const running = sortedBranches.filter((branch) => branch.status === "running").length;
-  const dashboardBody = dashboardOpen
-    ? `
-      <div class="agent-branch-head">
-        <div>
-          <p>${escapeHtml(agentTraceSummary(trace, branches))}</p>
-          <p class="agent-branch-status-line">${escapeHtml(t("branchStatusSummary", { returned, completed, running }))}</p>
-        </div>
-        <div class="agent-branch-head-meta">
-          ${spawnIndexes.length ? `<span>spawn #${escapeHtml(spawnIndexes.join(", #"))}</span>` : ""}
-          ${returnIndexes.length ? `<span>return #${escapeHtml(returnIndexes.join(", #"))}</span>` : ""}
-          <span>${escapeHtml(branchConfidenceLabel(trace?.confidence))}</span>
-        </div>
-      </div>
-      <div class="agent-branch-toolbar">
-        <div class="agent-status-filters" role="group" aria-label="${escapeHtml(t("agentStatusFilterAria"))}">
-          ${renderAgentFilterButton(turn.id, "all", t("agentFilterAll", { count: sortedBranches.length }), activeFilter)}
-          ${renderAgentFilterButton(turn.id, "running", t("agentFilterRunning", { count: running }), activeFilter)}
-          ${renderAgentFilterButton(turn.id, "completed", t("agentFilterCompleted", { count: completed }), activeFilter)}
-          ${renderAgentFilterButton(turn.id, "returned", t("agentFilterReturned", { count: returned }), activeFilter)}
-        </div>
-        <span>${escapeHtml(t("agentShowingCount", { shown: visibleEntries.length, total: filteredEntries.length }))}</span>
-      </div>
-      <div class="agent-flow-map">
-        ${visibleEntries.map(({ branch, index }) => renderAgentMapCard(branch, index)).join("")}
-      </div>
-      ${renderAgentEventStrip(filteredEntries)}
-      <div class="agent-branch-details" aria-label="${escapeHtml(t("subagentDetails"))}">
-        <div class="agent-branch-grid">
-          ${visibleEntries.length ? visibleEntries.map(({ branch, index }) => renderAgentBranch(branch, index, requestMap)).join("") : `<p class="agent-filter-empty">${escapeHtml(t("noAgentsForFilter"))}</p>`}
-        </div>
-        ${
-          hiddenBranchCount
-            ? `<button class="agent-branch-load-more" type="button" data-agent-branch-more="${escapeHtml(turn.id)}">${escapeHtml(t("showMoreAgents", { count: Math.min(AGENT_BRANCH_PAGE_SIZE, hiddenBranchCount) }))}</button>`
-            : ""
-        }
-      </div>`
-    : "";
-  return `
-    <details class="agent-branch-map" aria-label="${escapeHtml(t("multiAgentAria"))}" data-agent-dashboard="${escapeHtml(turn.id)}" ${dashboardOpen ? "open" : ""}>
-      <summary class="agent-branch-summary" data-agent-dashboard-toggle="${escapeHtml(turn.id)}">
-        ${summaryDots}
-        ${sortedBranches.length > AGENT_SUMMARY_DOT_LIMIT ? `<span class="agent-summary-more">+${escapeHtml(String(sortedBranches.length - AGENT_SUMMARY_DOT_LIMIT))}</span>` : ""}
-        <strong>${escapeHtml(t("multiAgentSummary", { count: branches.length }))}</strong>
-        <span class="agent-branch-summary-types">${escapeHtml(typeNames.join(" / "))}</span>
-      </summary>
-      ${dashboardBody}
-    </details>
-  `;
+  const view = buildAgentGraphView({
+    turn,
+    trace,
+    requestMap,
+    dashboardOpen: state.openAgentDashboards.has(turn.id),
+    activeFilter: state.agentBranchFilters.get(turn.id) || "all",
+    branchLimit: state.agentBranchLimits.get(turn.id) || AGENT_BRANCH_PAGE_SIZE,
+    expandedBranchIds: state.expandedAgentBranches,
+    requestTitle: requestDisplayTitle,
+  });
+  return renderAgentGraphView(view, {
+    translate: t,
+    escapeHtml,
+    shortId,
+    shortPreview,
+  });
 }
 
-function renderAgentFilterButton(turnId, filter, label, activeFilter) {
-  return `<button class="agent-status-filter ${filter === activeFilter ? "active" : ""}" type="button" data-agent-status-filter="${escapeHtml(turnId)}" data-agent-filter-value="${escapeHtml(filter)}" aria-pressed="${escapeHtml(String(filter === activeFilter))}">${escapeHtml(label)}</button>`;
-}
-
-function agentTraceSummary(trace, branches) {
-  const returned = branches.filter((branch) => branch.status === "returned").length;
-  const requestCount = branches.reduce((sum, branch) => sum + (branch.request_ids?.length || 0), 0);
-  const toolCalls = branches.reduce((sum, branch) => sum + (branch.response_tool_call_count || 0), 0);
-  const toolResults = branches.reduce((sum, branch) => sum + (branch.request_tool_result_count || 0), 0);
-  const signal = trace?.signals?.child_instance || "agent id";
-  return t("branchSummary", { branches: branches.length, requests: requestCount, returned, calls: toolCalls, results: toolResults, signal });
-}
-
-const AGENT_BRANCH_COLORS = ["#2563eb", "#16a34a", "#b4690e", "#7c3aed", "#dc2626", "#0891b2", "#db2777", "#65a30d"];
-function agentBranchColor(index) {
-  return AGENT_BRANCH_COLORS[index % AGENT_BRANCH_COLORS.length];
-}
-function agentBranchName(branch, index) {
-  return branch.agent_type || branch.spawn?.subagent_type || t("subagentFallback", { index: index + 1 });
-}
-
-function renderAgentBranch(branch, index, requestMap) {
-  const firstRequest = requestMap.get(branch.request_ids?.[0]);
-  const title = branch.label || branch.agent_type || t("subagentFallback", { index: index + 1 });
-  const collapsed = !state.expandedAgentBranches.has(branch.id);
-  const summary = agentBranchCompactSummary(branch);
-  const name = agentBranchName(branch, index);
-  const color = agentBranchColor(index);
-  return `
-    <article class="agent-branch-card ${collapsed ? "collapsed" : ""}" data-branch="${escapeHtml(branch.id)}" style="--branch-color:${escapeHtml(color)}">
-      <button class="agent-branch-toggle" type="button" data-agent-branch-toggle="${escapeHtml(branch.id)}" aria-expanded="${escapeHtml(String(!collapsed))}">
-        <span class="agent-branch-index">${escapeHtml(`${collapsed ? "▸" : "▾"}`)}</span>
-        <div>
-          <strong><span class="agent-type-chip">${escapeHtml(name)}</span> ${escapeHtml(t("childSeq", { index: index + 1 }))} · ${escapeHtml(title)}</strong>
-          <p>${escapeHtml(shortId(branch.agent_id))} · ${escapeHtml(requestDisplayTitle(firstRequest || {}))}</p>
-          <p class="agent-branch-compact">${escapeHtml(summary)}</p>
-        </div>
-        <span class="agent-branch-status ${escapeHtml(branch.status || "unknown")}">${escapeHtml(branchStatusLabel(branch.status))}</span>
-      </button>
-      ${
-        collapsed
-          ? ""
-          : `<div class="agent-branch-body">
-              ${branch.spawn ? renderBranchEdge(t("parentCall"), branch.spawn.parent_request_id, `#${branch.spawn.parent_request_index} · ${branch.spawn.label || branch.spawn.id}`) : ""}
-              <div class="agent-branch-steps">
-                ${(branch.steps || []).map((step) => renderAgentBranchStep(step)).join("")}
-              </div>
-              ${branch.return ? renderBranchEdge(t("resultReturn"), branch.return.parent_request_id, `#${branch.return.parent_request_index} · ${shortPreview(branch.return.result_preview, 90)}`) : ""}
-              <p class="agent-branch-note">${escapeHtml(branch.linkage_note || "")}</p>
-            </div>`
-      }
-    </article>
-  `;
-}
-
-function renderAgentMapCard(branch, index) {
-  const title = branch.label || branch.agent_type || t("subagentFallback", { index: index + 1 });
-  const name = agentBranchName(branch, index);
-  const color = agentBranchColor(index);
-  const indexes = [
-    branch.spawn?.parent_request_index ? `#${branch.spawn.parent_request_index}` : "",
-    ...(branch.request_indexes || []).slice(0, 4).map((requestIndex) => `#${requestIndex}`),
-    branch.return?.parent_request_index ? `#${branch.return.parent_request_index}` : "",
-  ].filter(Boolean);
-  const overflow = Math.max(0, (branch.request_indexes?.length || 0) - 4);
-  return `
-    <button class="agent-map-card ${escapeHtml(branch.status || "unknown")}" type="button" data-agent-branch-jump="${escapeHtml(branch.id)}" style="--branch-color:${escapeHtml(color)}" title="${escapeHtml(branch.linkage_note || t("jumpToAgentBranch"))}">
-      <span class="agent-map-topline">
-        <span class="agent-map-dot" aria-hidden="true"></span>
-        <strong>${escapeHtml(name)}</strong>
-        <span class="agent-map-seq">${escapeHtml(t("childSeq", { index: index + 1 }))}</span>
-        <em>${escapeHtml(branchStatusLabel(branch.status))}</em>
-      </span>
-      <span class="agent-map-title">${escapeHtml(shortPreview(title, 44))}</span>
-      <span class="agent-map-indexes">${escapeHtml(indexes.join(" → ") || t("noRecordedRequests"))}${overflow ? ` <span>+${escapeHtml(String(overflow))}</span>` : ""}</span>
-    </button>
-  `;
-}
-
-function agentBranchCompactSummary(branch) {
-  const requestCount = branch.request_ids?.length || 0;
-  const toolUse = branch.response_tool_call_count || 0;
-  const toolResult = branch.request_tool_result_count || 0;
-  const edges = [branch.spawn ? `spawn #${branch.spawn.parent_request_index}` : "", branch.return ? `return #${branch.return.parent_request_index}` : ""].filter(Boolean).join(" · ");
-  return [t("turnRequests", { count: requestCount }), toolUse || toolResult ? t("turnTools", { calls: toolUse, results: toolResult }) : "", edges].filter(Boolean).join(" · ");
-}
-
-function renderAgentEventStrip(branchEntries) {
-  const events = agentFlowEvents(branchEntries);
-  if (!events.length) return "";
-  const visibleEvents = events.slice(0, AGENT_EVENT_LIMIT);
-  return `
-    <div class="agent-event-strip" aria-label="${escapeHtml(t("eventOrder"))}">
-      <span class="agent-event-label">${escapeHtml(t("eventOrderCount", { shown: visibleEvents.length, total: events.length }))}</span>
-      <div class="agent-event-list">
-        ${visibleEvents.map(renderAgentEvent).join("")}
-      </div>
-    </div>
-  `;
-}
-
-function agentFlowEvents(branchEntries) {
-  const events = [];
-  for (const [displayIndex, entry] of branchEntries.entries()) {
-    const branch = entry?.branch || entry;
-    const index = Number.isInteger(entry?.index) ? entry.index : displayIndex;
-    const agentLabel = t("childSeq", { index: index + 1 });
-    if (branch.spawn?.parent_request_index) {
-      events.push({
-        order: events.length,
-        request_id: branch.spawn.parent_request_id,
-        request_index: branch.spawn.parent_request_index,
-        label: `${agentLabel} spawn`,
-      });
-    }
-    for (const step of branch.steps || []) {
-      events.push({
-        order: events.length,
-        request_id: step.request_id,
-        request_index: step.request_index,
-        label: `${agentLabel} ${agentStepEventLabel(step)}`,
-      });
-    }
-    if (branch.return?.parent_request_index) {
-      events.push({
-        order: events.length,
-        request_id: branch.return.parent_request_id,
-        request_index: branch.return.parent_request_index,
-        label: `${agentLabel} return`,
-      });
-    }
-  }
-  return events.sort((left, right) => Number(left.request_index || 0) - Number(right.request_index || 0) || left.order - right.order);
-}
-
-function agentStepEventLabel(step) {
-  if (step.request_tool_results?.length) return "tool_result";
-  if (step.response_tool_calls?.length) return "tool_use";
-  if (step.finish_reason === "end_turn") return "done";
-  return "request";
-}
-
-function renderAgentEvent(event) {
-  return `
-    <button class="agent-event" type="button" data-agent-jump="${escapeHtml(event.request_id || "")}">
-      <strong>#${escapeHtml(event.request_index || "")}</strong>
-      <span>${escapeHtml(event.label)}</span>
-    </button>
-  `;
-}
-
-function renderBranchEdge(label, requestId, text) {
-  return `
-    <button class="branch-edge" type="button" data-agent-jump="${escapeHtml(requestId || "")}">
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(text || t("emptyNotRecorded"))}</strong>
-    </button>
-  `;
-}
-
-function renderAgentBranchStep(step) {
-  const responseCalls = step.response_tool_calls || [];
-  const requestResults = step.request_tool_results || [];
-  const title = responseCalls.length ? t("requestTools", { tools: responseCalls.map((call) => call.name).join(", ") }) : step.finish_reason === "end_turn" ? t("subagentReply") : t("modelRequest");
-  return `
-    <button class="agent-branch-step" type="button" data-agent-jump="${escapeHtml(step.request_id)}">
-      <span class="step-request">#${escapeHtml(step.request_index)}</span>
-      <span class="step-body">
-        <strong>${escapeHtml(title)}</strong>
-        <em>${escapeHtml([step.response_id ? `response ${shortId(step.response_id)}` : "", step.finish_reason ? `finish ${step.finish_reason}` : ""].filter(Boolean).join(" · "))}</em>
-        ${responseCalls.length ? `<small>tool_use ${escapeHtml(responseCalls.map((call) => `${call.name}${call.id ? `:${shortId(call.id)}` : ""}`).join(", "))}</small>` : ""}
-        ${requestResults.length ? `<small>tool_result ${escapeHtml(requestResults.map((result) => shortId(result.id)).join(", "))}</small>` : ""}
-        ${step.response_preview ? `<small>${escapeHtml(shortPreview(step.response_preview, 110))}</small>` : ""}
-      </span>
-    </button>
-  `;
-}
-
-function branchStatusLabel(status) {
+function requestAgentBranchStatusLabel(status) {
   if (status === "returned") return t("returned");
   if (status === "completed") return t("completed");
   if (status === "running") return t("running");
   return t("unknown");
-}
-
-function branchConfidenceLabel(confidence) {
-  if (confidence === "high") return t("highConfidence");
-  if (confidence === "medium") return t("mediumConfidence");
-  if (confidence === "none") return t("noBranch");
-  return confidence || t("notEvaluated");
 }
 
 function renderProviderUsageStats(request) {
@@ -3044,7 +2805,7 @@ function renderRequestAgentBranchStat(request) {
     branch?.label ? t("branchTooltipLabel", { label: branch.label }) : "",
     branch?.agent_type ? t("typeTooltipLabel", { type: branch.agent_type }) : "",
     agentId ? `x-claude-code-agent-id：${agentId}` : "",
-    branch?.status ? t("statusTooltipLabel", { status: branchStatusLabel(branch.status) }) : "",
+    branch?.status ? t("statusTooltipLabel", { status: requestAgentBranchStatusLabel(branch.status) }) : "",
   ].filter(Boolean);
   const text = escapeHtml(label);
   const title = escapeHtml(titleParts.join("；") || t("subagentSourceTooltip"));

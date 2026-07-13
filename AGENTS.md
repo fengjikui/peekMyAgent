@@ -9,7 +9,7 @@ The words **MUST**, **SHOULD**, and **MAY** are normative.
 - `origin/main` is the only shared source of truth.
 - A local chat, handoff note, database, generated report, or unpushed commit is not shared project state.
 - Every validation report MUST name an exact commit SHA. Do not report that "the latest code" passed.
-- Read [the current architecture](docs/architecture.md), [the refactoring roadmap](docs/refactoring-roadmap.md), and the relevant source before changing behavior.
+- Read [the coding-agent codebase map](docs/codebase-map.md), [the current architecture](docs/architecture.md), [the refactoring roadmap](docs/refactoring-roadmap.md), and the relevant source before changing behavior.
 - Inspect current files and tests. Do not implement from an old conversation summary when the repository can answer the question.
 
 ## 2. Contributor Roles
