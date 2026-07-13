@@ -2,9 +2,16 @@ import crypto from "node:crypto";
 
 const AGENT_SPAWN_TOOL = /^(Agent|Task|sessions_spawn|subagents)$/i;
 
-export function annotateSubagentLineage(requests, semantics = {}) {
+export function createSubagentLineageState() {
+  return { spawnByPromptKey: new Map() };
+}
+
+export function annotateSubagentLineage(requests, semantics = {}, { state = createSubagentLineageState() } = {}) {
   assertSemantics(semantics);
-  const spawnByPromptKey = collectSpawnPrompts(requests, semantics);
+  const spawnByPromptKey = lineageSpawnPrompts(state);
+  for (const [key, spawn] of collectSpawnPrompts(requests, semantics)) {
+    if (!spawnByPromptKey.has(key)) spawnByPromptKey.set(key, spawn);
+  }
   if (!spawnByPromptKey.size) return requests;
 
   for (const request of requests || []) {
@@ -27,6 +34,13 @@ export function annotateSubagentLineage(requests, semantics = {}) {
   return requests;
 }
 
+function lineageSpawnPrompts(state) {
+  if (!state || !(state.spawnByPromptKey instanceof Map)) {
+    throw new TypeError("subagent lineage state.spawnByPromptKey must be a Map");
+  }
+  return state.spawnByPromptKey;
+}
+
 export function buildSubagentGraph(requests, semantics = {}) {
   assertSemantics(semantics);
   const requestById = new Map((requests || []).map((request) => [request.id, request]));
@@ -42,7 +56,7 @@ export function buildSubagentGraph(requests, semantics = {}) {
     }
     for (const call of responseToolCalls(request)) {
       if (!isAgentSpawnTool(call.name)) continue;
-      const key = promptKey(spawnPrompt(call), semantics.normalizePrompt);
+      const key = spawnPromptKey(call, semantics.normalizePrompt);
       const spawn = spawnRecord(call, request, spawnCalls.length, semantics);
       spawnCalls.push(spawn);
       if (key && !spawnByPromptKey.has(key)) spawnByPromptKey.set(key, spawn);
@@ -121,6 +135,13 @@ function collectSpawnPrompts(requests, semantics) {
       if (!isAgentSpawnTool(call.name)) continue;
       const key = promptKey(spawnPrompt(call), semantics.normalizePrompt);
       if (!key || spawnByPromptKey.has(key)) continue;
+      call.trace ||= {};
+      call.trace.agent_spawn = {
+        prompt_key: key,
+        description: call.arguments?.description || call.arguments?.taskName || "",
+        subagent_type: spawnType(call),
+        prompt_preview: semantics.previewText(spawnPrompt(call), 220),
+      };
       spawnByPromptKey.set(key, {
         subagent_type: spawnType(call),
         description: call.arguments?.description || call.arguments?.taskName || "",
@@ -149,6 +170,7 @@ function collectParentReturns(requests, spawnCalls, semantics) {
 }
 
 function spawnRecord(call, request, order, semantics) {
+  const traceSpawn = call.trace?.agent_spawn || null;
   return {
     id: call.id || `spawn-${request.request_index}-${order + 1}`,
     name: call.name || "Agent",
@@ -156,8 +178,11 @@ function spawnRecord(call, request, order, semantics) {
     parent_request_index: request.request_index,
     order,
     label: spawnLabel(call),
-    description: semantics.previewText(call.arguments?.description || call.arguments?.taskName || call.arguments?.subagent_type || "", 120),
-    prompt_preview: semantics.previewText(spawnPrompt(call), 220),
+    description: semantics.previewText(
+      traceSpawn?.description || call.arguments?.description || call.arguments?.taskName || call.arguments?.subagent_type || "",
+      120,
+    ),
+    prompt_preview: traceSpawn?.prompt_preview || semantics.previewText(spawnPrompt(call), 220),
     subagent_type: spawnType(call),
     raw_arguments: call.arguments ?? null,
   };
@@ -262,12 +287,17 @@ function spawnPrompt(call) {
 }
 
 function spawnType(call) {
-  return call.arguments?.subagent_type || call.arguments?.agentType || call.arguments?.type || null;
+  return call.trace?.agent_spawn?.subagent_type || call.arguments?.subagent_type || call.arguments?.agentType || call.arguments?.type || null;
 }
 
 function spawnLabel(call) {
+  const traceSpawn = call.trace?.agent_spawn || null;
   const args = call.arguments || {};
-  return args.description || args.taskName || args.subagent_type || call.name || "Agent";
+  return traceSpawn?.description || args.description || args.taskName || traceSpawn?.subagent_type || args.subagent_type || call.name || "Agent";
+}
+
+function spawnPromptKey(call, normalizePrompt) {
+  return call.trace?.agent_spawn?.prompt_key || promptKey(spawnPrompt(call), normalizePrompt);
 }
 
 function isAgentSpawnTool(name) {

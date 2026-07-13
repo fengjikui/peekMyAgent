@@ -58,6 +58,8 @@ import {
 } from "../server/source-metadata.mjs";
 import { SOURCE_TEXT_LIMITS, sanitizeSourceText } from "../server/source-text.mjs";
 import { TRACE_BUNDLE_LIMITS, TraceBundleService } from "../server/trace-bundle-service.mjs";
+import { TimelineCursorService } from "../server/timeline-cursor-service.mjs";
+import { TimelinePageAssembler } from "../server/timeline-page-assembler.mjs";
 import { projectTimelineViewerData } from "../server/timeline-view-projector.mjs";
 import { resolveViewerStaticAsset } from "../server/viewer-static-assets.mjs";
 import {
@@ -166,42 +168,43 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
             store?.updateWatchStatus(watch.watch_id, watch.status);
           },
         });
+  const runtimeOptions = {
+    cwd,
+    host,
+    unsafeAllowRemote,
+    demo,
+    evidencePath,
+    watches,
+    otelBodyEvents,
+    sourceMeta,
+    sourceMetaPath,
+    store,
+    importsDir,
+    sharedCaptureProxy,
+    requestShutdown() {
+      const forceExitTimer = exitOnShutdown
+        ? setTimeout(() => {
+            process.exit(0);
+          }, 1500)
+        : null;
+      forceExitTimer?.unref?.();
+      setImmediate(() => {
+        closeViewer()
+          .then(() => {
+            if (forceExitTimer) clearTimeout(forceExitTimer);
+            if (exitOnShutdown) process.exit(0);
+          })
+          .catch((error) => {
+            if (forceExitTimer) clearTimeout(forceExitTimer);
+            console.error(`peekMyAgent daemon shutdown failed: ${error.message}`);
+            if (exitOnShutdown) process.exit(1);
+          });
+      });
+    },
+  };
   const server = http.createServer(async (req, res) => {
     try {
-      await handleRequest(req, res, {
-        cwd,
-        host,
-        unsafeAllowRemote,
-        demo,
-        evidencePath,
-        watches,
-        otelBodyEvents,
-        sourceMeta,
-        sourceMetaPath,
-        store,
-        importsDir,
-        sharedCaptureProxy,
-        requestShutdown() {
-          const forceExitTimer = exitOnShutdown
-            ? setTimeout(() => {
-                process.exit(0);
-              }, 1500)
-            : null;
-          forceExitTimer?.unref?.();
-          setImmediate(() => {
-            closeViewer()
-              .then(() => {
-                if (forceExitTimer) clearTimeout(forceExitTimer);
-                if (exitOnShutdown) process.exit(0);
-              })
-              .catch((error) => {
-                if (forceExitTimer) clearTimeout(forceExitTimer);
-                console.error(`peekMyAgent daemon shutdown failed: ${error.message}`);
-                if (exitOnShutdown) process.exit(1);
-              });
-          });
-        },
-      });
+      await handleRequest(req, res, runtimeOptions);
     } catch (error) {
       writeJson(res, error.statusCode || 500, { error: error.message });
     }
@@ -347,11 +350,20 @@ async function handleRequest(req, res, options) {
     if (rejectWrongMethod(req, res, "GET")) return;
     const requestedSource = sanitizeApiLookupId(url.searchParams.get("source"), { limit: MAX_API_SOURCE_ID_CHARS });
     const sourceId = requestedSource || options.demo || null;
+    const compact = url.searchParams.get("compact") === "1";
+    const cursor = sanitizeApiLookupId(url.searchParams.get("cursor"), { limit: 128 });
+    if (compact && (url.searchParams.get("initial") === "1" || cursor)) {
+      const limit = boundedPositiveInt(url.searchParams.get("limit"), INITIAL_VIEW_REQUEST_LIMIT, INITIAL_VIEW_REQUEST_LIMIT_MAX);
+      const data = cursor
+        ? timelineCursorService(options).next({ sourceId, cursor, limit })
+        : timelineCursorService(options).start({ sourceId, limit });
+      return writeJson(res, 200, data);
+    }
     const data = loadViewerData(sourceId, options, {
       requireSource: Boolean(requestedSource),
       initialLimit: initialViewLimit(url.searchParams),
     });
-    return writeJson(res, 200, url.searchParams.get("compact") === "1" ? projectTimelineViewerData(data) : data);
+    return writeJson(res, 200, compact ? projectTimelineViewerData(data) : data);
   }
   if (url.pathname === "/api/request") {
     if (rejectWrongMethod(req, res, "GET")) return;
@@ -492,6 +504,35 @@ function sourceCaptureReader(options) {
     runtime: { capturesForWatch, commandForWatch: liveWatchCommand },
     errors: { requestNotFound: (requestId) => httpError(404, `Request not found: ${requestId}`) },
   });
+}
+
+function timelineCursorService(options) {
+  if (options.timelineCursorService) return options.timelineCursorService;
+  options.timelineCursorService = new TimelineCursorService({
+    resolveSource(sourceId) {
+      return viewerSourceRepository(options).resolve(sourceId, { requireSource: Boolean(sourceId) });
+    },
+    readPage(source, page) {
+      return sourceCaptureReader(options).readPage(source, page);
+    },
+    createAssembler() {
+      return new TimelinePageAssembler({
+        summarizeCapture,
+        contextSemantics: contextDeltaSemantics(),
+        lineageSemantics: subagentGraphSemantics(),
+        buildTurns: buildTurnTimeline,
+        buildStats(requests, agentTrace, { source, page, loadedCount } = {}) {
+          return viewerStatsWithSourceTotals(buildStats(requests, agentTrace), source, {
+            has_more: Boolean(page?.has_more),
+            loaded_request_count: loadedCount,
+            total_request_count: page?.total_count,
+          });
+        },
+        buildWorkbench: buildWorkbenchSummary,
+      });
+    },
+  });
+  return options.timelineCursorService;
 }
 
 function persistedSources({ store, watches, sourceMeta }) {
@@ -917,7 +958,12 @@ function touchWatchFromSkippedCapture(watch) {
 
 async function updateSource(req, options) {
   const input = await readJsonBody(req);
-  return sourceLifecycleService(options).update(input);
+  const result = await sourceLifecycleService(options).update(input);
+  const cursorService = options.timelineCursorService;
+  if (cursorService) {
+    for (const sourceId of [input.id, ...(result.affected_ids || [])].filter(Boolean)) cursorService.clearSource(sourceId);
+  }
+  return result;
 }
 
 function sourceLifecycleService(options) {
@@ -1655,7 +1701,7 @@ function buildWorkbenchSummary(source, requests, command) {
   const first = requests[0] || {};
   const watchIds = uniqueValues([...requests.map((request) => request.watch_id), source.live_watch_id]);
   const conversationIds = uniqueValues([...requests.map((request) => request.conversation_id), source.conversation_id]);
-  const workspaces = uniqueValues([...requests.map((request) => request.raw?.workspace || request.raw?.body?.workspace), command?.cwd]);
+  const workspaces = uniqueValues([source.workspace, ...requests.map((request) => request.raw?.workspace || request.raw?.body?.workspace), command?.cwd]);
   const agentProfiles = uniqueValues(requests.map((request) => request.agent_profile || source.agent));
   const sourceKinds = uniqueValues([...requests.map((request) => request.source_kind), source.kind]);
   return {

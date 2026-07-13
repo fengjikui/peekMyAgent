@@ -91,6 +91,16 @@ try {
     const persisted = sources.find((source) => source.id === sourceIdForWatch(watchId));
     assert.ok(persisted, "persisted source should be listed after viewer restart");
     assert.equal(persisted.request_count, 2);
+    const persistedStore = openPersistenceStore(storePath);
+    try {
+      assert.deepEqual(
+        persistedStore.loadCapturePage(watchId, { offset: 1, limit: 1 }).map((capture) => capture.request_index),
+        [2],
+        "SQLite capture pages hydrate only the requested ordered window",
+      );
+    } finally {
+      persistedStore.close();
+    }
 
     const persistedView = await getJson(`${secondViewer.url}/api/view?source=${encodeURIComponent(persisted.id)}`);
     assert.equal(persistedView.stats.request_count, 2);

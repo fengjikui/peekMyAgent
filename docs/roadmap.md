@@ -12,7 +12,7 @@
 - **Trace 分享**：支持 Trace 导出、导入和静态查看，方便把一次 Agent 调试证据包分享给他人复盘。
 - **会话管理**：支持会话隐藏/归档、删除、清理、暂停、恢复、停止和 dashboard 侧发送消息。
 - **分块缓存存储**：新捕获的请求默认按 system / tool schema / message / tool result 分块入库，Raw 读取时可从 content blobs 无损重建，并支持 `pma compact` 压缩旧数据。
-- **大 Trace 渐进加载**：点击大型会话时先渲染首批请求，后台补齐完整 compact Trace，减少左侧切换后的空白等待。
+- **大 Trace cursor 渐进加载**：live/SQLite 会话首屏只读取首批请求，后续按 cursor 合并 request、Turn 和 Agent 实体增量；Raw/detail 按 request 懒加载，不再后台下载整条 compact Trace。
 
 ## 近期发布打磨
 

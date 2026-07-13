@@ -4,6 +4,7 @@ import {
   annotateSubagentLineage,
   attachSubagentGraphToTurns,
   buildSubagentGraph,
+  createSubagentLineageState,
 } from "../src/trace/subagent-graph.mjs";
 
 const prompts = {
@@ -93,6 +94,21 @@ assert.match(requests[2].trace.claude_agent_id, /^body:[a-f0-9]{12}$/, "body-onl
 assert.equal(requests[2].trace.claude_agent_id, requests[4].trace.claude_agent_id, "body-only rounds sharing the initial prompt share one instance");
 assert.equal(requests[2].subagent_type, "general-purpose", "body-only child inherits type from its parent spawn");
 assert.equal(requests[6].is_subagent, false, "metadata request is never promoted to a child branch");
+
+const pagedRequests = [
+  request(1, { response: response("parent-spawn", "tool_use", { tool_calls: spawns, text: "Launching two agents." }) }),
+  request(2, { messages: [{ role: "user", content: prompts.body }], response: response("body-read", "end_turn", { text: "done" }) }),
+];
+const lineageState = createSubagentLineageState();
+annotateSubagentLineage(pagedRequests.slice(0, 1), semantics, { state: lineageState });
+annotateSubagentLineage(pagedRequests.slice(1), semantics, { state: lineageState });
+assert.match(pagedRequests[1].trace.claude_agent_id, /^body:[a-f0-9]{12}$/, "a body-only child can match a spawn from an earlier page");
+assert.equal(pagedRequests[1].subagent_type, "general-purpose");
+assert.equal(lineageState.spawnByPromptKey.size, 2);
+assert.throws(
+  () => annotateSubagentLineage([], semantics, { state: { spawnByPromptKey: {} } }),
+  /spawnByPromptKey must be a Map/,
+);
 
 const graph = buildSubagentGraph(requests, semantics);
 assert.equal(graph.version, 1);

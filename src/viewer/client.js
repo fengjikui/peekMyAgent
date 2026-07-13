@@ -5,6 +5,7 @@ import {
   renderMessagesSection as renderMessagesSectionView,
 } from "./messages-renderer.js";
 import { ViewerApiClient } from "./api-client.js";
+import { mergeTimelinePage } from "./timeline-page-merge.js";
 import { ViewerClientStore } from "./client-store.js";
 import { AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView } from "./agent-graph-model.js";
 import { renderAgentGraph as renderAgentGraphView } from "./agent-graph-renderer.js";
@@ -111,6 +112,7 @@ const TARGET_TRANSLATION_LANGUAGE_KEY = "peekmyagent.targetTranslationLanguage";
 const RAW_MESSAGES_MODE_KEY = "peekmyagent.rawMessagesMode";
 const DEFAULT_TRANSLATION_LANGUAGE = "zh-CN";
 const INITIAL_SOURCE_REQUEST_LIMIT = 32;
+const CURSOR_PAGE_REQUEST_LIMIT = 100;
 const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
 const SUPPORTED_UI_LANGUAGES = [
   { value: "zh-CN", label: "中文" },
@@ -702,7 +704,7 @@ async function loadSource(sourceId, { preserveScroll = false } = {}) {
   if (loadSeq !== state.sourceLoadSeq) return;
   applyLoadedSourceData(initialData, { preserveScroll, scrollTop });
   if (progressive && initialData.partial?.has_more) {
-    loadFullSourceInBackground(sourceId, { loadSeq });
+    loadSourcePagesInBackground(sourceId, initialData, { loadSeq });
     return;
   }
   loadTranslationsForSourceLoad(loadSeq);
@@ -754,7 +756,24 @@ async function refreshLiveData({ force = false } = {}) {
 
 async function refreshActiveSource(activeSource) {
   const previousData = state.data;
-  const nextData = requestDetailCache.mergeIntoData(await fetchViewerData(activeSource.id));
+  const loadSeq = state.sourceLoadSeq;
+  let nextData;
+  if (previousData?.source?.id === activeSource.id && previousData.partial?.refresh_cursor) {
+    try {
+      nextData = await continueTimelineCursor(activeSource.id, previousData, {
+        cursor: previousData.partial.refresh_cursor,
+        loadSeq,
+      });
+    } catch (error) {
+      console.warn("peekMyAgent timeline refresh cursor expired; rebuilding the compact timeline", error);
+      nextData = await fetchCompleteTimeline(activeSource.id, { loadSeq });
+    }
+  } else if (Number(activeSource.request_count || 0) >= PROGRESSIVE_SOURCE_MIN_REQUESTS) {
+    nextData = await fetchCompleteTimeline(activeSource.id, { loadSeq });
+  } else {
+    nextData = requestDetailCache.mergeIntoData(await fetchViewerData(activeSource.id));
+  }
+  if (!nextData || loadSeq !== state.sourceLoadSeq || state.activeSourceId !== activeSource.id) return;
   if (!shouldRenderRefreshedData(previousData, nextData)) return;
 
   const wasNearBottom = isMainPanelNearBottom();
@@ -800,21 +819,55 @@ function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } =
   turnRailController.scheduleActiveSync();
 }
 
-async function loadFullSourceInBackground(sourceId, { loadSeq } = {}) {
-  window.setTimeout(async () => {
-    try {
-      const fullData = requestDetailCache.mergeIntoData(await fetchViewerData(sourceId));
-      if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== fullData.source.id) return;
-      const scrollTop = els.mainPanel.scrollTop;
-      applyLoadedSourceData(fullData, { preserveScroll: true, scrollTop });
-      loadTranslationsForSourceLoad(loadSeq);
-    } catch (error) {
-      if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== sourceId) return;
-      state.progressiveLoadError = error.message;
-      renderAll();
-      console.warn("peekMyAgent full trace background load failed", error);
-    }
-  }, 40);
+async function loadSourcePagesInBackground(sourceId, initialData, { loadSeq } = {}) {
+  try {
+    const mergedData = await continueTimelineCursor(sourceId, initialData, {
+      cursor: initialData.partial?.next_cursor,
+      loadSeq,
+      onPage(data) {
+        const scrollTop = els.mainPanel.scrollTop;
+        applyLoadedSourceData(data, { preserveScroll: true, scrollTop });
+      },
+    });
+    if (!mergedData) return;
+    loadTranslationsForSourceLoad(loadSeq);
+  } catch (error) {
+    if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== sourceId) return;
+    state.progressiveLoadError = error.message;
+    renderAll();
+    console.warn("peekMyAgent timeline cursor load failed", error);
+  }
+}
+
+async function fetchCompleteTimeline(sourceId, { loadSeq } = {}) {
+  const initialData = requestDetailCache.mergeIntoData(
+    await fetchViewerData(sourceId, { initial: true, limit: INITIAL_SOURCE_REQUEST_LIMIT }),
+  );
+  if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== sourceId) return null;
+  return continueTimelineCursor(sourceId, initialData, {
+    cursor: initialData.partial?.next_cursor,
+    loadSeq,
+  });
+}
+
+async function continueTimelineCursor(sourceId, initialData, { cursor, loadSeq, onPage = null } = {}) {
+  let mergedData = initialData;
+  let nextCursor = cursor || null;
+  while (nextCursor) {
+    await backgroundPageYield();
+    const page = requestDetailCache.mergeIntoData(
+      await fetchViewerData(sourceId, { cursor: nextCursor, limit: CURSOR_PAGE_REQUEST_LIMIT }),
+    );
+    if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== sourceId) return null;
+    mergedData = mergeTimelinePage(mergedData, page);
+    onPage?.(mergedData);
+    nextCursor = mergedData.partial?.has_more ? mergedData.partial.next_cursor : null;
+  }
+  return mergedData;
+}
+
+function backgroundPageYield() {
+  return new Promise((resolve) => window.setTimeout(resolve, 24));
 }
 
 async function loadTranslationsForSourceLoad(loadSeq) {
@@ -835,8 +888,8 @@ function shouldUseProgressiveSourceLoad(sourceId, { preserveScroll = false } = {
   return Number(source?.request_count || 0) >= PROGRESSIVE_SOURCE_MIN_REQUESTS;
 }
 
-function fetchViewerData(sourceId, { initial = false, limit = INITIAL_SOURCE_REQUEST_LIMIT } = {}) {
-  return api.viewSource(sourceId, { initial, limit });
+function fetchViewerData(sourceId, { initial = false, cursor = null, limit = INITIAL_SOURCE_REQUEST_LIMIT } = {}) {
+  return api.viewSource(sourceId, { initial, cursor, limit });
 }
 
 function currentRequestById(requestId) {

@@ -103,7 +103,7 @@
 - Raw Messages 的“整理”视图对单个文本块设置 Markdown 渲染上限，长文本只展示预览并提示切换原文查看完整 JSON，避免压缩摘要或长工具结果造成右侧面板卡顿。
 - SQLite capture 默认使用分块缓存存储：新请求不再重复保存完整 `raw_body_json`，而是通过 ordered request tree + content blobs 重建 Raw；system、单个 tool schema、单条 message/tool_result 都可按 hash 复用。
 - `pma compact` 可清理旧 store 中已经有 request tree 的重复 `raw_body_json`，并默认执行 SQLite `VACUUM` 回收文件空间。
-- 大 Trace 会话切换采用渐进加载：前端先请求 `/api/view?compact=1&initial=1&limit=32` 渲染首屏，再后台拉完整 compact view 补齐剩余 turns，避免用户点击左侧会话后长时间空白。
+- 大 Trace 会话切换采用 cursor 渐进加载：前端先请求 `/api/view?compact=1&initial=1&limit=32` 渲染首屏，再用 Source 绑定的不透明 cursor 分页接收 request、Turn 和 Agent entity delta；live Source 到达尾部后通过 refresh cursor 只续读新增 capture，不再后台下载整条 compact Trace。
 
 ## 新增/扩展的自动验证
 
@@ -128,7 +128,7 @@
 - `npm run smoke:platform`
   - 覆盖跨平台 browser opener 命令。
 - `npm run smoke:package`
-  - 覆盖 npm 包内容边界，拒绝把 `docs/`、`tmp/`、handover/private/resume/memory 草稿、`.env`、数据库、日志、压缩包和录屏/截图素材打进发布包；同时约束文件总数、压缩体积和解压体积，避免模块化重构被单一文件数阈值误判。
+  - 覆盖 npm 包内容边界，使用发布路径 allowlist 并拒绝把 `docs/`、`tmp/`、handover/private/resume/memory 草稿、`.env`、数据库、日志、压缩包和录屏/截图素材打进发布包；同时约束带模块化余量的文件数安全天花板、压缩体积和解压体积，避免合理拆分被旧的精确文件数预算误判。
 - `npm run smoke:timeline-window`
   - 覆盖长 Trace 主时间线窗口渲染和 Raw Messages 整理视图截断，防止前端回退到大 DOM 全量渲染。
 - `npm run smoke:markdown-safety`
@@ -144,7 +144,7 @@
 
 - 本机恶意进程仍可直接访问本地 loopback 服务。若以后支持更强安全模型，可增加一次性 session token、Unix domain socket 或浏览器端 nonce。
 - Trace 导出已经默认脱敏常见 secret/token pattern，但仍可能包含私有提示词、源码片段、文件路径、工具输出或业务数据；后续可增加导出前预览、风险扫描和可配置脱敏规则。
-- `/api/view` 仍会加载选中会话的完整 compact 视图，这是“用户点开详情”时的预期行为；未来可继续拆成真正分页的 turn endpoint，以及 lazy raw/tree endpoints。
+- cursor Server 为保持跨页 Turn 和多 Agent 语义，仍会在内存中保留已加载的 compact prefix 并重建派生实体；网络传输已经增量化，后续还需引入 normalized entity/page store，把 Server CPU 和 Client 重绘成本也收敛到受影响实体。
 - Markdown 渲染、翻译和 Raw JSON 展示应继续避免一次性渲染超大 DOM；新增展示区时要补大样本 fixture 或 smoke。
 - 如果未来支持远程访问 dashboard，应设计成明确的远程模式，而不是简单开放 host：需要认证、CSRF token、CORS 策略、TLS/反代建议和更明确的隐私提示。
 

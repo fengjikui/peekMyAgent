@@ -44,7 +44,7 @@ pma CLI / adapter
 | Source 列表、读取、重命名/归档/删除 | `src/server/source-*` provider/repository/service | HTTP route 直接操作文件或 SQLite |
 | 左侧 Source/项目导航与菜单 | `src/viewer/session-navigator-*`；应用副作用在 `client.js` | 每次渲染重新绑定按钮或 renderer 直接调用 API |
 | Trace 导入导出与脱敏 | `src/server/trace-bundle-service.mjs`、`src/core/redaction.mjs` | 浏览器自行拼 bundle |
-| 大 Trace 首屏/时间线 compact DTO、截断和遗漏标记 | `src/server/timeline-view-projector.mjs`、`docs/timeline-view-projection-contract.md` | 在 HTTP route、Client renderer 或 Trace Domain 各自裁剪字段 |
+| 大 Trace 首屏、cursor 续读、跨页语义和 Client 合并 | `source-capture-reader.mjs`、`timeline-cursor-service.mjs`、`timeline-page-assembler.mjs`、`timeline-view-projector.mjs`、`timeline-page-merge.js`、[分页契约](timeline-pagination-contract.md) | 在 route 暴露 reader offset、每页重复完整 Turn/Agent 图，或重新下载整条 compact Trace |
 | Viewer HTTP 安全和 API | `src/server/http.mjs`、`src/viewer/server.mjs`、`src/viewer/api-client.js` | feature renderer 发 `fetch` |
 | 中栏 Timeline、请求卡、多 Agent 看板、上行详情 | `trace-timeline-*`、`request-card-renderer.js`、`agent-graph-*`、`upstream-detail-*` | renderer 读取全局 `state` 或 DOM |
 | Raw、Messages、翻译展示 | `raw-*`、`message-*`、`translation-*` | `client.js` 新增长段领域 HTML |

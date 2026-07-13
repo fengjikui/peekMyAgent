@@ -52,6 +52,8 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/server/source-capture-reader.mjs` | live/SQLite/file 的首屏、请求窗口与导出 captures 统一读取协议 |
 | `src/server/trace-bundle-service.mjs` | Trace 导出脱敏压缩、导入验证、provenance 和私有落盘边界 |
 | `src/server/timeline-view-projector.mjs` | 完整 Viewer Trace DTO 到首屏/时间线轻量 DTO 的纯投影、截断和遗漏元数据契约 |
+| `src/server/timeline-cursor-service.mjs` | Source 绑定不透明 cursor、TTL/session 上限、分页 reader 生命周期和 live tail 续读 |
+| `src/server/timeline-page-assembler.mjs` | 跨页 Context/Agent 状态、compact request、Turn patch 和 Agent entity delta 组装 |
 | `src/trace/content-parts.mjs` | 上行/下行共用的 content、thinking、tool use 与 tool result 最小协议原语 |
 | `src/trace/message-semantics.mjs` | 真实用户输入、命令、Harness 注入、工具结果与任务/子 Agent 回流语义 |
 | `src/trace/request-profile.mjs` | System 提取、协议/provider 能力画像以及 main/subagent/parent-spawn/metadata 来源提示 |
@@ -93,6 +95,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/viewer/translation-view-model.js` | 翻译材料分组、结构化搜索排序、缓存命中统计与展示 DTO |
 | `src/viewer/translation-renderer.js` | 翻译工具栏、System/Harness 块、工具组和参数汇总的依赖注入 HTML renderer |
 | `src/viewer/request-detail-cache.js` | compact request 的完整详情按需加载、并发去重、错误和 source 生命周期缓存 |
+| `src/viewer/timeline-page-merge.js` | cursor 页面中的 request/Turn/Agent 稳定实体合并与原子 annotation patch |
 | `src/viewer/turn-rail.js` | Turn Rail 可见窗口、悬停层级、跳转和滚动激活控制器 |
 | `src/server/viewer-static-assets.mjs` | Viewer 浏览器资源白名单、文件解析与 content type manifest |
 | `src/viewer/markdown.js` | 受限、安全的 Markdown 渲染 |
@@ -172,15 +175,20 @@ sequenceDiagram
     UI->>API: GET /api/view?initial=1&compact=1
     API->>Store: 读取 source manifest 和首批 capture
     API-->>UI: 首屏 compact Trace
-    UI->>API: GET /api/view?compact=1
-    API->>Store: 读取完整 compact Trace
-    API-->>UI: 完整时间线
+    loop cursor 有下一页
+        UI->>API: GET /api/view?cursor=opaque&compact=1
+        API->>Store: 只 hydrate 当前 capture 页面
+        API-->>UI: request + Turn/Agent entity delta
+    end
+    UI->>UI: 按稳定 id 合并 compact 时间线
     UI->>API: GET /api/request?id=...
     API->>Store: 当前 capture + 必要前序上下文
     API-->>UI: Raw/detail DTO
 ```
 
-首屏默认只取前 32 个请求；随后客户端在短延迟后加载完整 compact Trace。时间线超过阈值时只渲染一个窗口，点开 Raw/细节再按 request 获取详细内容。
+达到渐进加载门限的 Source 首屏默认只取前 32 个请求，后续以最多 100 条为一页继续读取，不再后台下载一份完整 compact Trace。Server cursor 保留跨页 Context Delta、Turn 和子 Agent 血缘所需状态；后续页只发送新增 request、旧 request annotation patch、变化的 Turn 和 Agent entity。live Source 到达当前尾部后保留 refresh cursor，新增 capture 只续读增量。时间线超过阈值时只渲染一个窗口，点开 Raw/细节再按 request 获取详细内容。
+
+cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 session 数量上限；它不是持久化 id，也不向浏览器暴露 SQLite offset。完整协议、失效回退和当前 file backend 限制见 [Timeline Cursor 分页契约](timeline-pagination-contract.md)。旧 `/api/view?compact=1` 完整响应继续保留兼容。
 
 `compact=1` 的 DTO 由 `timeline-view-projector.mjs` 从完整 Viewer Trace DTO 纯投影得到。它集中管理预览长度、历史/Raw/完整 Response 的省略规则和 `*_omitted` 元数据，不拥有 Trace 语义、Source 读取或 HTTP 生命周期；完整详情仍以 `/api/request` 为事实源。详细边界见 [Timeline 轻量投影契约](timeline-view-projection-contract.md)。
 
@@ -214,7 +222,7 @@ Raw Inspector 按数据方向组织证据：请求卡和上行视图只展示 Sy
 
 Raw Inspector 的结构化翻译视图已经拆为纯 View Model 和 Renderer。View Model 只接收显式材料、查询词和译文 lookup 回调，负责工具分组、命中排序、缓存统计与展示 DTO；Renderer 只接收 DTO、i18n、Markdown/Pre renderer 和 action id 注册回调。缓存 Map、网络请求、活动 request/section 与动作生命周期仍由 `client.js` 装配，因此新模块不会重复翻译 hash，也不会隐藏副作用。详细边界见 [Viewer 翻译视图契约](translation-view-renderer-contract.md)。
 
-这改善了首屏和 DOM 成本，但不等于真正分页：后台仍会读取、传输和解释完整 Trace，并触发第二次整体渲染。最小 client store 已建立状态所有权，但尚未成为 normalized entity store。大 Trace 的下一阶段优化仍应围绕 turn/cursor API、分页实体合并和 Raw DOM 懒展开。
+大 Trace 已使用真正的 cursor 增量读取：live/SQLite Source 首屏后不会再下载整条 compact Trace，后续页面通过稳定 request、Turn 和 Agent 实体合并进入时间线，Raw/detail 仍按 request 懒加载。当前边界是 Client 尚未形成完整的 normalized entity/page store，file/import Source 也仍会先完整 parse 再切页；搜索后台索引、浏览器峰值内存 gate 和更细粒度的局部重绘继续属于下一阶段优化。
 
 ## Trace 解释模型
 

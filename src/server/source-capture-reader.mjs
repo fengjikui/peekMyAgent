@@ -21,6 +21,15 @@ export class SourceCaptureReader {
     return this.read(source, { includeCompanions: false });
   }
 
+  readPage(source, { cursor = 0, limit = 32, includeCompanions = true } = {}) {
+    this.assertAvailable(source);
+    const offset = pageOffset(cursor);
+    const pageLimit = pageSize(limit);
+    if (source.live_watch_id) return this.readLivePage(source, { offset, limit: pageLimit, includeCompanions });
+    if (source.kind === "persisted_capture") return this.readPersistedPage(source, { offset, limit: pageLimit });
+    return this.readFilePage(source, { offset, limit: pageLimit, includeCompanions });
+  }
+
   readRequestWindow(source, requestId, { previousCount = 1 } = {}) {
     this.assertAvailable(source);
     if (source.live_watch_id) return this.readLiveWindow(source, requestId, { previousCount });
@@ -65,6 +74,42 @@ export class SourceCaptureReader {
       totalCount: allCaptures.length,
       startIndex: 0,
     };
+  }
+
+  readLivePage(source, { offset, limit, includeCompanions }) {
+    const watch = this.resolveWatch(source);
+    const allCaptures = this.capturesForWatch(watch);
+    return pageResult({
+      captures: allCaptures.slice(offset, offset + limit),
+      totalCount: allCaptures.length,
+      offset,
+      limit,
+      command: includeCompanions && offset === 0 ? this.runtime.commandForWatch?.(watch) || null : null,
+    });
+  }
+
+  readPersistedPage(source, { offset, limit }) {
+    const captures = this.store?.loadCapturePage(this.persistedWatchId(source), { offset, limit }) || [];
+    return pageResult({
+      captures,
+      totalCount: Math.max(Number(source.request_count) || 0, offset + captures.length),
+      offset,
+      limit,
+    });
+  }
+
+  readFilePage(source, { offset, limit, includeCompanions }) {
+    const allCaptures = this.readJson(path.join(source.path, "proxy-captures.json"));
+    const captures = allCaptures.slice(offset, offset + limit);
+    const debugSources = includeCompanions ? this.readOptionalJson(path.join(source.path, "debug-api-sources.json")) || [] : [];
+    return pageResult({
+      captures,
+      debugSources: debugSources.slice(offset, offset + captures.length),
+      command: includeCompanions && offset === 0 ? this.readOptionalJson(path.join(source.path, "command.json")) : null,
+      totalCount: allCaptures.length,
+      offset,
+      limit,
+    });
   }
 
   readLiveWindow(source, requestId, { previousCount }) {
@@ -147,4 +192,39 @@ function captureMatchesRequestId(capture, requestId) {
 function captureStartIndex(captures) {
   const requestIndex = Number(captures[0]?.request_index);
   return Number.isFinite(requestIndex) && requestIndex > 0 ? requestIndex - 1 : 0;
+}
+
+function pageResult({ captures, debugSources = [], command = null, totalCount, offset, limit }) {
+  const loadedCount = captures.length;
+  const nextOffset = offset + loadedCount;
+  const hasMore = nextOffset < totalCount;
+  return {
+    captures,
+    debugSources,
+    command,
+    totalCount,
+    startIndex: offset,
+    page: {
+      cursor: String(offset),
+      next_cursor: hasMore ? String(nextOffset) : null,
+      offset,
+      limit,
+      loaded_count: loadedCount,
+      total_count: totalCount,
+      has_more: hasMore,
+    },
+  };
+}
+
+function pageOffset(cursor) {
+  if (cursor === null || cursor === undefined || cursor === "") return 0;
+  const value = Number(cursor);
+  if (!Number.isSafeInteger(value) || value < 0) throw new TypeError("capture page cursor must be a non-negative integer");
+  return value;
+}
+
+function pageSize(limit) {
+  const value = Number(limit) || 32;
+  if (!Number.isSafeInteger(value) || value < 1) throw new TypeError("capture page limit must be a positive integer");
+  return Math.min(100, value);
 }

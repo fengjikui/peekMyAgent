@@ -64,8 +64,33 @@ try {
     assert.ok(initialByteLength < byteLength / 4, "initial view payload should be materially smaller than full compact view");
     assert.ok(initialElapsedMs < maxElapsedMs, `initial view should return within ${maxElapsedMs}ms; got ${Math.round(initialElapsedMs)}ms`);
 
+    let cursor = initialView.partial.next_cursor;
+    let loadedRequests = initialView.requests.length;
+    let pagedBytes = initialByteLength;
+    let pageCount = 1;
+    let largestTailPage = 0;
+    while (cursor) {
+      const pageResponse = await fetch(
+        `${viewer.url}/api/view?source=custom&compact=1&cursor=${encodeURIComponent(cursor)}&limit=100`,
+      );
+      const pageText = await pageResponse.text();
+      assert.equal(pageResponse.ok, true, pageText);
+      const page = JSON.parse(pageText);
+      const pageBytes = Buffer.byteLength(pageText);
+      assert.equal("turns" in page, false, "tail pages must not repeat the complete loaded Turn prefix");
+      assert.equal("agent_trace" in page, false, "tail pages must not repeat the complete Agent graph");
+      loadedRequests += page.requests.length;
+      pagedBytes += pageBytes;
+      largestTailPage = Math.max(largestTailPage, pageBytes);
+      pageCount += 1;
+      cursor = page.partial.has_more ? page.partial.next_cursor : null;
+    }
+    assert.equal(loadedRequests, requestCount, "cursor pages cover every request exactly once");
+    assert.ok(pagedBytes < byteLength * 1.8, "cursor transfer should remain linear rather than repeat the loaded prefix");
+    assert.ok(largestTailPage < byteLength / 2, "a tail page should remain bounded independently of total Trace size");
+
     console.log(
-      `compact-view-performance smoke passed (${requestCount} requests, full ${byteLength} bytes/${Math.round(elapsedMs)}ms, initial ${initialByteLength} bytes/${Math.round(initialElapsedMs)}ms)`,
+      `compact-view-performance smoke passed (${requestCount} requests, full ${byteLength} bytes/${Math.round(elapsedMs)}ms, cursor ${pagedBytes} bytes/${pageCount} pages, initial ${initialByteLength} bytes/${Math.round(initialElapsedMs)}ms)`,
     );
   } finally {
     await viewer.close();

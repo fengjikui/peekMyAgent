@@ -27,12 +27,17 @@
 
 `compact=0` 或省略 `compact` 的旧完整 Viewer API 保持兼容。轻量 DTO 不能被持久化或当作完整 Trace 重新导出。
 
+投影与分页是两个独立边界：projector 决定“单个 compact request 保留哪些字段”，cursor/assembler 决定“当前 HTTP 页面发送哪些 request 和实体变化”。分页协议见 [Timeline Cursor 分页契约](timeline-pagination-contract.md)。
+
 ## 验证
 
 直接契约：
 
 ```bash
 npm run smoke:timeline-view-projector-contract
+npm run smoke:timeline-page-merge-contract
+npm run smoke:timeline-cursor-service-contract
+npm run smoke:timeline-cursor-http
 ```
 
 HTTP、完整详情恢复和大 Trace 性能：

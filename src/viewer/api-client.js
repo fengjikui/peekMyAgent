@@ -9,12 +9,15 @@ export class ViewerApiClient {
     return this.getJson("/api/sources");
   }
 
-  viewSource(sourceId, { initial = false, limit = 32 } = {}) {
+  viewSource(sourceId, { initial = false, cursor = null, limit = 32 } = {}) {
     const url = new URL("/api/view", this.origin);
     url.searchParams.set("source", sourceId);
     url.searchParams.set("compact", "1");
     if (initial) {
       url.searchParams.set("initial", "1");
+      url.searchParams.set("limit", String(limit));
+    } else if (cursor) {
+      url.searchParams.set("cursor", cursor);
       url.searchParams.set("limit", String(limit));
     }
     return this.getJson(`${url.pathname}${url.search}`);

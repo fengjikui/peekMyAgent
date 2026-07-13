@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { annotateRequestContextChanges, requestContextChainKey } from "../src/trace/context-delta.mjs";
+import { annotateRequestContextChanges, createContextDeltaState, requestContextChainKey } from "../src/trace/context-delta.mjs";
 
 const user = (text) => ({ role: "user", content: text });
 const toolUse = { role: "assistant", content: [{ type: "tool_use", id: "call-1", name: "Bash", input: { command: "pwd" } }] };
@@ -49,6 +49,26 @@ assert.equal(requestContextChainKey(requests[2]), "agent:conversation-1:agent-a"
 assert.equal(requests[1].summary.history_stack[0].context_status, "reused");
 assert.equal(requests[1].summary.history_stack[1].context_status, "new");
 
+const pagedRequests = [
+  request(1, [user("hello")]),
+  request(2, [user("hello"), toolUse, toolResult]),
+  request(3, [user("child task")], { agentId: "agent-a" }),
+  request(4, [user("child task"), { role: "assistant", content: "done" }], { agentId: "agent-a" }),
+];
+const pagedState = createContextDeltaState();
+annotateRequestContextChanges(pagedRequests.slice(0, 3), semantics, { state: pagedState });
+annotateRequestContextChanges(pagedRequests.slice(3), semantics, { state: pagedState });
+assert.deepEqual(
+  pagedRequests.map(contextSnapshot),
+  requests.map(contextSnapshot),
+  "shared context state must make paged annotation equivalent to one-pass annotation",
+);
+assert.equal(pagedState.previousByContextKey.size, 2, "state retains only the latest request for each main/subagent context chain");
+assert.throws(
+  () => annotateRequestContextChanges([], semantics, { state: { previousByContextKey: {} } }),
+  /previousByContextKey must be a Map/,
+);
+
 console.log("context delta contract smoke passed");
 
 function request(index, messages, { agentId = "" } = {}) {
@@ -67,5 +87,15 @@ function request(index, messages, { agentId = "" } = {}) {
       tool_results: [],
       history_stack: messages.map((message, messageIndex) => ({ index: messageIndex + 1, role: message.role })),
     },
+  };
+}
+
+function contextSnapshot(item) {
+  return {
+    request_index: item.request_index,
+    changes: item.changes,
+    context_delta: item.context_delta,
+    current_tool_calls: item.summary.current_tool_calls,
+    current_tool_results: item.summary.current_tool_results,
   };
 }

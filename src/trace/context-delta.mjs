@@ -1,8 +1,12 @@
 import { commonMessagePrefixLength } from "./message-equivalence.mjs";
 
-export function annotateRequestContextChanges(requests, semantics = {}) {
+export function createContextDeltaState() {
+  return { previousByContextKey: new Map() };
+}
+
+export function annotateRequestContextChanges(requests, semantics = {}, { state = createContextDeltaState() } = {}) {
   assertSemantics(semantics);
-  const previousByContextKey = new Map();
+  const previousByContextKey = contextPreviousRequests(state);
   for (const request of requests || []) {
     const contextKey = requestContextChainKey(request);
     const previous = previousByContextKey.get(contextKey) || null;
@@ -19,6 +23,13 @@ export function annotateRequestContextChanges(requests, semantics = {}) {
     previousByContextKey.set(contextKey, request);
   }
   return requests;
+}
+
+function contextPreviousRequests(state) {
+  if (!state || !(state.previousByContextKey instanceof Map)) {
+    throw new TypeError("context delta state.previousByContextKey must be a Map");
+  }
+  return state.previousByContextKey;
 }
 
 export function requestContextChainKey(request) {

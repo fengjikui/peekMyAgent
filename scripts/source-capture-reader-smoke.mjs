@@ -30,6 +30,10 @@ const reader = new SourceCaptureReader({
       storeCalls.push(["all", watchId]);
       return captures;
     },
+    loadCapturePage(watchId, { offset, limit }) {
+      storeCalls.push(["page", watchId, offset, limit]);
+      return captures.slice(offset, offset + limit);
+    },
     loadCaptureWindow(watchId, requestId, { previousCount }) {
       storeCalls.push(["window", watchId, requestId, previousCount]);
       return captures.slice(1, 3);
@@ -63,6 +67,18 @@ try {
   const liveWindow = reader.readRequestWindow(liveSource, "capture-3");
   assert.deepEqual(liveWindow.captures.map((capture) => capture.request_index), [2, 3]);
   assert.equal(liveWindow.startIndex, 1);
+  const livePage = reader.readPage(liveSource, { cursor: "1", limit: 1 });
+  assert.deepEqual(livePage.captures.map((capture) => capture.request_index), [2]);
+  assert.deepEqual(livePage.page, {
+    cursor: "1",
+    next_cursor: "2",
+    offset: 1,
+    limit: 1,
+    loaded_count: 1,
+    total_count: 3,
+    has_more: true,
+  });
+  assert.equal(livePage.command, null, "companion command is emitted only on the first page");
 
   const persistedSource = { id: "stored-watch-1", store_watch_id: "watch-1", kind: "persisted_capture", available: true, request_count: 3 };
   assert.deepEqual(reader.read(persistedSource, { limit: 1 }).captures.map((capture) => capture.request_index), [1]);
@@ -70,10 +86,15 @@ try {
   const persistedWindow = reader.readRequestWindow(persistedSource, "capture-3");
   assert.deepEqual(persistedWindow.captures.map((capture) => capture.request_index), [2, 3]);
   assert.equal(persistedWindow.startIndex, 1);
+  const persistedPage = reader.readPage(persistedSource, { cursor: "1", limit: 2 });
+  assert.deepEqual(persistedPage.captures.map((capture) => capture.request_index), [2, 3]);
+  assert.equal(persistedPage.page.next_cursor, null);
+  assert.equal(persistedPage.page.has_more, false);
   assert.deepEqual(storeCalls, [
     ["initial", "watch-1", 1],
     ["all", "watch-1"],
     ["window", "watch-1", "capture-3", 1],
+    ["page", "watch-1", 1, 2],
   ]);
 
   const fileSource = { id: "file-source", path: tmpDir, kind: "fixture", available: true };
@@ -85,11 +106,23 @@ try {
   assert.equal(fileAll.captures.length, 3);
   assert.deepEqual(fileAll.debugSources, [], "full export read skips debug companion data");
   assert.equal(fileAll.command, null, "full export read skips command companion data");
+  const firstFilePage = reader.readPage(fileSource, { limit: 2 });
+  assert.deepEqual(firstFilePage.captures.map((capture) => capture.request_index), [1, 2]);
+  assert.deepEqual(firstFilePage.debugSources.map((item) => item.request_index), [1, 2]);
+  assert.deepEqual(firstFilePage.command, { argv: ["claude"] });
+  assert.equal(firstFilePage.page.next_cursor, "2");
+  const lastFilePage = reader.readPage(fileSource, { cursor: firstFilePage.page.next_cursor, limit: 2 });
+  assert.deepEqual(lastFilePage.captures.map((capture) => capture.request_index), [3]);
+  assert.deepEqual(lastFilePage.debugSources.map((item) => item.request_index), [3]);
+  assert.equal(lastFilePage.page.next_cursor, null);
+  assert.equal(lastFilePage.command, null);
   const fileWindow = reader.readRequestWindow(fileSource, "3");
   assert.deepEqual(fileWindow.captures.map((capture) => capture.request_index), [2, 3]);
   assert.deepEqual(fileWindow.debugSources.map((item) => item.request_index), [2, 3]);
 
   assert.throws(() => reader.readRequestWindow(fileSource, "missing"), (error) => error.statusCode === 404);
+  assert.throws(() => reader.readPage(fileSource, { cursor: "not-a-cursor" }), /cursor must be a non-negative integer/);
+  assert.throws(() => reader.readPage(fileSource, { limit: -1 }), /limit must be a positive integer/);
   assert.throws(() => reader.read({ ...fileSource, available: false }), /Evidence not found/);
 
   console.log("source capture reader smoke passed");

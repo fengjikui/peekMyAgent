@@ -9,7 +9,7 @@ Viewer 首屏使用 compact request DTO；只有用户展开上行、Raw、Syste
 - 同一请求的并发展开只发送一次 HTTP 请求。
 - 失败后清理 in-flight Promise，允许用户重试，同时保留错误供界面展示。
 - source 切换时一次性清空详情、Promise 和错误。
-- 后台完整 Trace 刷新后，把已缓存详情重新覆盖到 compact DTO。
+- cursor 页面、live tail 或兼容的完整 Trace 刷新合并后，把已缓存详情重新覆盖到 compact DTO。
 
 应用装配层通过 `onLoaded` 在首次成功时合并详情并重建翻译索引，通过 `onCached` 在命中时只合并详情。缓存本身不依赖 DOM、全局 state 或翻译实现。
 

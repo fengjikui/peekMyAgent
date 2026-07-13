@@ -23,6 +23,10 @@ responses.push(jsonResponse({ source: { id: "source/a" } }));
 await api.viewSource("source/a", { initial: true, limit: 24 });
 assert.equal(calls.at(-1).path, "/api/view?source=source%2Fa&compact=1&initial=1&limit=24");
 
+responses.push(jsonResponse({ source: { id: "source/a" } }));
+await api.viewSource("source/a", { cursor: "opaque cursor", limit: 100 });
+assert.equal(calls.at(-1).path, "/api/view?source=source%2Fa&compact=1&cursor=opaque+cursor&limit=100");
+
 responses.push(jsonResponse({ request: { id: "request 1" } }));
 await api.requestDetail("source/a", "request 1");
 assert.equal(calls.at(-1).path, "/api/request?source=source%2Fa&request=request%201");

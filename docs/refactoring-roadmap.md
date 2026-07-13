@@ -23,7 +23,7 @@
 | CLI | `bin/peekmyagent.mjs` 包含命令解析和几乎全部命令实现 | 新命令继续扩大入口文件，wrapper 生命周期难单测 |
 | 协议 | provenance 与 translation block 已有共享契约；其余 request/detail DTO 仍由 Server 和 Client 分别解释 | 字段漂移、展示歧义和重复修复 |
 | 数据库 | 内容寻址和 migration runner 已落地；repository 仍集中在 `PersistenceStore` | 后续领域拆分仍受单体 store 约束 |
-| 性能 | 首屏渐进、折叠区与搜索结果已按需生成；后台仍读取完整 compact Trace | 网络、解释和内存成本仍随会话线性上升 |
+| 性能 | live/SQLite 已使用 cursor 增量读取和实体 delta；Client/Server 仍累计 compact 实体，file/import 仍先完整 parse | 首屏网络成本已受控，但超长会话的常驻内存和 file/import 解析成本仍随会话增长 |
 | 测试 | smoke 丰富，但基础设施重复，部分 UI 仅正则检查源码 | 维护成本高，真实交互回归覆盖不足 |
 | 发布 | `0.0.0`、无稳定版本/变更记录流程 | 用户难判断兼容性，npm 发布不可追踪 |
 
@@ -215,6 +215,16 @@ src/
 - 1,500 request / 100 MiB Trace 首屏不依赖完整 Trace 传输。
 - 打开 source 后，后台不自动下载全部 Raw response。
 - 时间线滚动、选择 turn 和展开 Raw 没有可感知的长主线程阻塞。
+
+当前进展（2026-07-14）：
+
+- 已建立 `SourceCaptureReader.readPage` 和 SQLite `loadCapturePage`，live/SQLite 只 hydrate 当前 capture 页面；file/import 仍待 sidecar index。
+- 已建立 daemon 内存中的 Source 绑定 opaque cursor，包含 TTL、session 上限、错源/过期错误和 live tail 续读；Source 生命周期变更会清理 session。
+- Context Delta 与 body-only 子 Agent lineage 已支持显式跨页状态，不再错误地按全局上一行比较或丢失早页 spawn。
+- 已建立 `TimelinePageAssembler`：首屏返回 compact 基线，后续只返回 request patch、Turn entity update 和 Agent graph entity delta。
+- Client 已按稳定实体 id 合并页面；大 Source 首屏后不再请求完整 compact Trace，live 自动刷新优先从 refresh cursor 续读。
+- 420-request 性能 fixture 已验证分页覆盖所有请求、累计网络载荷保持线性，真实 HTTP smoke 覆盖跨页父/子 Agent/回流和 live 增量。
+- 尚未完成 normalized entity/page store、file/import sidecar、可取消搜索索引、system diff 上限、增量 blob refcount 和浏览器内存/长任务 gate，因此阶段 4 仍保持进行中。
 
 ## 阶段 5：适配器 SDK 与更多 Agent
 

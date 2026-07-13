@@ -54,6 +54,7 @@ for (const required of [
   "src/viewer/raw-view-model.js",
   "src/viewer/request-card-renderer.js",
   "src/viewer/request-detail-cache.js",
+  "src/viewer/timeline-page-merge.js",
   "src/viewer/session-navigator-controller.js",
   "src/viewer/session-navigator-model.js",
   "src/viewer/session-navigator-renderer.js",
@@ -80,6 +81,8 @@ for (const required of [
   "src/server/source-text.mjs",
   "src/server/trace-bundle-service.mjs",
   "src/server/timeline-view-projector.mjs",
+  "src/server/timeline-cursor-service.mjs",
+  "src/server/timeline-page-assembler.mjs",
   "src/server/viewer-static-assets.mjs",
   "src/trace/message-equivalence.mjs",
   "src/trace/context-delta.mjs",
@@ -136,7 +139,19 @@ const deniedPatterns = [
 const deniedFiles = packageFiles.filter((file) => deniedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(deniedFiles, [], `npm package includes release-unsafe files: ${deniedFiles.join(", ")}`);
 
-const MAX_PACKAGE_ENTRIES = 100;
+const allowedPatterns = [
+  /^(?:LICENSE|README\.md|README\.zh-CN\.md|package\.json)$/,
+  /^bin\//,
+  /^src\//,
+  /^integrations\//,
+  /^fixtures\//,
+  /^scripts\/(?:install|uninstall|extract-translation-materials|translate-materials-zh)\.mjs$/,
+  /^scripts\/lib\/source-script-common\.mjs$/,
+];
+const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pattern) => pattern.test(file)));
+assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);
+
+const MAX_PACKAGE_ENTRIES = 140;
 const MAX_PACKED_BYTES = 250_000;
 const MAX_UNPACKED_BYTES = 1_100_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);

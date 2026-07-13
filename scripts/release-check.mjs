@@ -34,6 +34,8 @@ const coreCommands = [
   ["npm", "run", "smoke:request-profile-contract"],
   ["npm", "run", "smoke:request-composition-contract"],
   ["npm", "run", "smoke:timeline-view-projector-contract"],
+  ["npm", "run", "smoke:timeline-cursor-service-contract"],
+  ["npm", "run", "smoke:timeline-cursor-http"],
   ["npm", "run", "smoke:model-response-normalizer-contract"],
   ["npm", "run", "smoke:turn-timeline-contract"],
   ["npm", "run", "smoke:subagent-graph-contract"],
@@ -65,6 +67,7 @@ const coreCommands = [
 ];
 const viewerCommands = [
   ["npm", "run", "smoke:viewer-api-client-contract"],
+  ["npm", "run", "smoke:timeline-page-merge-contract"],
   ["npm", "run", "smoke:viewer-client-store-contract"],
   ["npm", "run", "smoke:pane-layout-controller-contract"],
   ["npm", "run", "smoke:request-detail-cache-contract"],
