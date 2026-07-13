@@ -35,6 +35,8 @@ for (const required of [
   "src/viewer/server.mjs",
   "src/viewer/agent-graph-model.js",
   "src/viewer/agent-graph-renderer.js",
+  "src/viewer/upstream-detail-model.js",
+  "src/viewer/upstream-detail-renderer.js",
   "src/viewer/api-client.js",
   "src/viewer/client-store.js",
   "src/viewer/client.js",

@@ -59,6 +59,8 @@ import {
   renderTraceQueryBar as renderTraceQueryBarView,
   renderTurnTimeline as renderTurnTimelineView,
 } from "./trace-timeline-renderer.js";
+import { buildUpstreamDetailView } from "./upstream-detail-model.js";
+import { renderUpstreamDetail as renderUpstreamDetailView } from "./upstream-detail-renderer.js";
 import {
   extractTranslationSchemaDescriptions as extractSchemaDescriptionsForTranslation,
   isSkippableTranslationMaterial,
@@ -2815,37 +2817,6 @@ function renderRequestAgentBranchStat(request) {
   return `<span class="stat-chip subagent" title="${title}">${text}</span>`;
 }
 
-function aggregateProviderUsage(requests) {
-  return requests.reduce(
-    (stats, request) => {
-      const usage = request.summary?.response?.usage || {};
-      const hasPromptTokens = usage.prompt_tokens != null;
-      const input = Number(usage.prompt_tokens ?? usage.input_tokens ?? 0);
-      const output = Number(usage.completion_tokens ?? usage.output_tokens ?? 0);
-      const cache = Number(usage.prompt_tokens_details?.cached_tokens ?? usage.cache_read_input_tokens ?? 0);
-      stats.input += input;
-      stats.output += output;
-      stats.cache += cache;
-      stats.actual_input += Math.max(0, hasPromptTokens ? input - cache : input);
-      stats.total += hasPromptTokens ? input : input + cache;
-      if (hasPromptTokens) {
-        stats.input_title = "OpenAI-compatible usage.prompt_tokens aggregate. cached_tokens is a subset.";
-        stats.cache_title = "OpenAI-compatible usage.prompt_tokens_details.cached_tokens aggregate.";
-      }
-      return stats;
-    },
-    {
-      input: 0,
-      output: 0,
-      cache: 0,
-      actual_input: 0,
-      total: 0,
-      input_title: "Provider usage.input_tokens aggregate.",
-      cache_title: "Provider usage.cache_read_input_tokens aggregate.",
-    },
-  );
-}
-
 function renderUpstreamEntry(request) {
   const expanded = state.upstreamExpanded.has(request.id);
   const showInlineContent = shouldShowTimelineRequestContent(request);
@@ -2894,30 +2865,6 @@ function shouldShowTimelineRequestContent(request) {
   if ((request.summary?.current_tool_results?.length || 0) > 0) return false;
   if ((request.summary?.current_tool_calls?.length || 0) > 0) return false;
   return Boolean(cleanDisplayText(request.summary?.current_user || ""));
-}
-
-function renderUpstreamBadges(request) {
-  return [
-    renderConfidenceBadge(request.confidence),
-    request.is_subagent ? `<span class="badge subagent">${escapeHtml(t("subagentBadge"))}</span>` : "",
-    request.source_hint.type === "parent_spawn" ? `<span class="badge subagent">${escapeHtml(t("parentSpawnBadge"))}</span>` : "",
-    request.summary?.command_message ? `<span class="badge command" title="${escapeHtml(t("slashCommandTitle"))}">${escapeHtml(commandMessageLabel(request.summary.command_message))}</span>` : "",
-    request.redaction_count ? `<span class="badge risk" title="${escapeHtml(t("redactedBadgeTitle", { count: request.redaction_count }))}">${escapeHtml(t("redactedBadge", { count: request.redaction_count }))}</span>` : "",
-    ...renderChangeBadges(request),
-  ]
-    .filter(Boolean)
-    .join("");
-}
-
-function renderUpstreamDetailMeta(request) {
-  const badges = renderUpstreamBadges(request);
-  if (!badges) return "";
-  return `
-    <section class="upstream-detail-meta">
-      <p class="block-title">${escapeHtml(t("captureAndChanges"))}</p>
-      <div class="upstream-detail-badges">${badges}</div>
-    </section>
-  `;
 }
 
 // A turn-starting message the user actually sent — real input or a slash
@@ -2992,8 +2939,6 @@ function renderTurnRequest(request, turnInput = null) {
 }
 
 function renderRequestCard(request, options = {}) {
-  const toolNames = request.summary.tool_names.slice(0, 18);
-  const moreTools = Math.max(0, request.summary.tool_names.length - toolNames.length);
   const showInlineContent = shouldShowTimelineRequestContent(request);
   const assistantResponse = shouldShowTimelineAssistantResponse(request) ? renderAssistantResponse(request) : "";
   const toolExchange = showInlineContent ? renderToolExchange(request) : "";
@@ -3003,7 +2948,7 @@ function renderRequestCard(request, options = {}) {
     requestIndex: request.request_index,
     upstreamOpen,
     upstreamEntryHtml: options.turnInput ? renderTurnInputEntry(request, options.turnInput) : renderUpstreamEntry(request),
-    upstreamBodyHtml: upstreamOpen ? renderUpstreamDetailsBody(request, toolNames, moreTools) : renderCollapsedUpstreamPlaceholder(request),
+    upstreamBodyHtml: upstreamOpen ? renderUpstreamDetailsBody(request) : renderCollapsedUpstreamPlaceholder(request),
     toolExchangeHtml: toolExchange,
     assistantResponseHtml: assistantResponse,
     translate: t,
@@ -3011,7 +2956,7 @@ function renderRequestCard(request, options = {}) {
   });
 }
 
-function renderUpstreamDetailsBody(request, toolNames, moreTools) {
+function renderUpstreamDetailsBody(request) {
   if (requestNeedsDetail(request)) {
     const error = requestDetailCache.errorFor(request.id);
     return `
@@ -3020,33 +2965,20 @@ function renderUpstreamDetailsBody(request, toolNames, moreTools) {
       </div>
     `;
   }
-  return `
-    <div class="request-body">
-      <details>
-        <summary class="metric-summary">
-          <span>${escapeHtml(t("systemSummary", { count: request.counts.system }))}</span>
-          ${renderCompositionSectionStat(request, "system")}
-        </summary>
-        <div class="details-body">${renderPre(request.summary.system_preview || t("noSystemSummary"))}</div>
-      </details>
-      <details>
-        <summary class="metric-summary">
-          <span>${escapeHtml(t("toolsCount", { count: request.counts.tools }))}</span>
-          ${renderCompositionSectionStat(request, "tools")}
-        </summary>
-        <div class="details-body">
-          <div class="tool-list">
-            ${toolNames.map((name) => `<span class="tool-chip">${escapeHtml(name)}</span>`).join("")}
-            ${moreTools ? `<span class="tool-chip">+${moreTools}</span>` : ""}
-          </div>
-        </div>
-      </details>
-      ${renderHistoryStack(request)}
-      ${renderInternalRequestBlock(request)}
-      ${renderCurrentMessageDelta(request)}
-      ${renderContextComposition(request)}
-    </div>
-  `;
+  return renderUpstreamDetailView(buildUpstreamDetailView(request, { cleanText: cleanDisplayText }), {
+    translate: t,
+    escapeHtml,
+    renderPre,
+    renderMarkdown: renderSafeMarkdown,
+    formatBytes,
+    formatCharCount,
+    formatCompactNumber,
+    formatPercent,
+    shortId,
+    shortPreview,
+    commandMessageLabel,
+    messageKindLabel,
+  });
 }
 
 function renderCollapsedUpstreamPlaceholder(request) {
@@ -3092,250 +3024,6 @@ function shouldShowTimelineAssistantResponse(request) {
   return Boolean(response.text || response.preview || response.thinking || (response.tool_calls || []).length);
 }
 
-function renderHistoryStack(request) {
-  const stack = request.summary.history_stack || [];
-  const roleSummary = request.summary.roles.join(" -> ");
-  return `
-    <details>
-      <summary class="metric-summary">
-        <span>${escapeHtml(t("historyStack", { count: stack.length || request.counts.messages }))}</span>
-        ${renderCompositionSectionStat(request, "history_context")}
-      </summary>
-      <div class="details-body">
-        <div class="history-stack-meta">
-          <span>roles: ${escapeHtml(roleSummary || "empty")}</span>
-          <span>history=${escapeHtml(String(request.counts.history))}</span>
-          <span>raw=${escapeHtml(formatBytes(request.counts.raw_body_bytes))}</span>
-        </div>
-        ${
-          stack.length
-            ? `<div class="history-stack">${stack.map(renderHistoryStackItem).join("")}</div>`
-            : `<div class="empty-box">${escapeHtml(t("noHistoryMessages"))}</div>`
-        }
-      </div>
-    </details>
-  `;
-}
-
-function renderHistoryStackItem(item) {
-  const toolCalls = item.tool_calls || [];
-  const toolResults = item.tool_results || [];
-  if (item.kind === "framework_reminder") return renderFrameworkReminderHistoryItem(item);
-  const chips = [
-    `<span class="history-chip role">role: ${escapeHtml(item.role || "unknown")}</span>`,
-    renderHistoryContextChip(item.context_status),
-    item.is_current_user ? `<span class="history-chip current">${escapeHtml(t("currentUserInput"))}</span>` : "",
-    item.command_message ? `<span class="history-chip command">${escapeHtml(commandMessageLabel(item.command_message))}</span>` : "",
-    ...toolCalls.map((call) => `<span class="history-chip tool">call ${escapeHtml(call.name || "unknown")}${call.id ? ` · ${escapeHtml(shortId(call.id))}` : ""}</span>`),
-    ...toolResults.map((result) => `<span class="history-chip result">result${result.id ? ` · ${escapeHtml(shortId(result.id))}` : ""}</span>`),
-  ].join("");
-  return `
-    <article class="history-stack-item ${escapeHtml(item.kind || "message")} role-${escapeHtml(item.role || "unknown")}">
-      <header>
-        <span class="history-index">#${escapeHtml(String(item.index || ""))}</span>
-        <strong>${escapeHtml(item.label || messageKindLabel(item.kind, item.role))}</strong>
-        <div class="history-chips">${chips}</div>
-      </header>
-      ${item.text ? `<p>${escapeHtml(item.text)}</p>` : `<p class="muted">${escapeHtml(t("noTextContent"))}</p>`}
-      ${toolCalls.length ? `<div class="history-tool-detail">${toolCalls.map((call) => renderPre(`${t("argumentsLabel")} ${call.name || "unknown"}${call.id ? ` (${call.id})` : ""}\n${call.arguments_preview || "(empty)"}`)).join("")}</div>` : ""}
-      ${toolResults.length ? `<div class="history-tool-detail">${toolResults.map((result) => renderPre(`${t("resultLabel")}${result.id ? ` (${result.id})` : ""}\n${result.content || "(empty)"}`)).join("")}</div>` : ""}
-    </article>
-  `;
-}
-
-function renderHistoryContextChip(status) {
-  if (status === "reused") return `<span class="history-chip reused">${escapeHtml(t("historyReused"))}</span>`;
-  if (status === "new") return `<span class="history-chip new">${escapeHtml(t("historyNew"))}</span>`;
-  if (status === "baseline") return `<span class="history-chip baseline">${escapeHtml(t("baseline"))}</span>`;
-  return "";
-}
-
-function renderFrameworkReminderHistoryItem(item) {
-  return `
-    <article class="history-stack-item framework_reminder role-${escapeHtml(item.role || "unknown")}">
-      <details>
-        <summary>
-          <span class="history-index">#${escapeHtml(String(item.index || ""))}</span>
-          <strong>${escapeHtml(item.label || t("frameworkReminder"))}</strong>
-          <span class="history-chip framework">${escapeHtml(t("frameworkAutoAdded"))}</span>
-          ${item.char_count ? `<span class="history-chip">${escapeHtml(formatCharCount(item.char_count))}</span>` : ""}
-        </summary>
-        <div class="history-framework-body">
-          ${renderPre(item.full_text || item.text || "(empty)")}
-        </div>
-      </details>
-    </article>
-  `;
-}
-
-function renderContextDelta(request) {
-  const delta = request.context_delta;
-  if (!delta) return "";
-  const fixed = delta.fixed_context || {};
-  const fixedParts = [
-    ["System", fixed.system],
-    ["Tools", fixed.tools],
-    ["Params", fixed.params],
-  ];
-  const roleText = formatRoleCounts(delta.new_roles || {});
-  const reuseText = delta.baseline
-    ? t("baselineRequestSummary", { count: delta.total_messages || request.counts.messages })
-    : t("reuseSummary", { reused: delta.reused_messages || 0, total: delta.total_messages || 0, added: delta.new_messages || 0 });
-  return `
-    <section class="summary-block context-delta-block">
-      <p class="block-title">${escapeHtml(t("contextReuse"))}</p>
-      <div class="context-delta-grid">
-        <span><strong>${escapeHtml(reuseText)}</strong></span>
-        <span>${fixedParts.map(([label, status]) => `${label}: ${contextStatusLabel(status)}`).join(" · ")}</span>
-        <span>${escapeHtml(roleText || t("noNewRoles"))}</span>
-      </div>
-      ${renderMessageDeltaDetails(delta)}
-    </section>
-  `;
-}
-
-function renderMessageDeltaDetails(delta) {
-  const previews = delta.previews || [];
-  if (!previews.length) return "";
-  return `
-    <details class="message-delta-details">
-      <summary>${escapeHtml(t("newMessageDetails", { count: delta.new_messages || previews.length }))}</summary>
-      <div class="message-delta-list">
-        ${previews
-          .map(
-            (item) => `
-              <article class="message-delta-item">
-                <span>${escapeHtml(messageKindLabel(item.kind, item.role))}</span>
-                <p>${escapeHtml(item.text || "(empty)")}</p>
-              </article>
-            `,
-          )
-          .join("")}
-      </div>
-    </details>
-  `;
-}
-
-function renderCurrentMessageDelta(request) {
-  const delta = request.context_delta || {};
-  const previews = delta.previews || [];
-  if (request.summary?.entry?.kind === "subagent_result") return renderSubagentResultDelta(request);
-  if (!previews.length) return "";
-  return `
-    <section class="summary-block message-delta-block">
-      <div class="block-title-row">
-        <p class="block-title">${escapeHtml(t("currentRoundMessages"))}</p>
-        <span class="block-title-meta">
-          ${renderCompositionSectionStat(request, "current_user", t("currentUser"))}
-          <span class="message-delta-count">${escapeHtml(t("itemCount", { count: delta.new_messages || previews.length }))}</span>
-        </span>
-      </div>
-      <div class="message-delta-list">
-        ${previews
-          .map(
-            (item) => `
-              <article class="message-delta-item">
-                <span>${escapeHtml(messageKindLabel(item.kind, item.role))}</span>
-                <p>${escapeHtml(item.text || "(empty)")}</p>
-              </article>
-            `,
-          )
-          .join("")}
-      </div>
-    </section>
-  `;
-}
-
-function renderSubagentResultDelta(request) {
-  const entry = request.summary?.entry || {};
-  const subagent = entry.subagent || {};
-  const fallbackText = cleanDisplayText(subagent.preview || entry.text || request.summary?.current_user || "");
-  const markdownText = cleanDisplayText(subagent.result || fallbackText);
-  if (!markdownText) return "";
-  const name = cleanDisplayText(subagent.name || t("subagentFallback", { index: "" }).trim());
-  const status = cleanDisplayText(subagent.status || "");
-  return `
-    <section class="summary-block message-delta-block subagent-result-event">
-      <div class="block-title-row">
-        <p class="block-title">${escapeHtml(t("currentResultEvent"))}</p>
-        <span class="block-title-meta">
-          ${name ? `<span class="message-delta-count">${escapeHtml(name)}${status ? ` · ${escapeHtml(status)}` : ""}</span>` : ""}
-        </span>
-      </div>
-      <div class="subagent-result-markdown assistant-response-markdown" title="${escapeHtml(fallbackText || markdownText)}">
-        ${renderSafeMarkdown(markdownText)}
-      </div>
-    </section>
-  `;
-}
-
-function renderContextComposition(request) {
-  const composition = request.summary?.composition;
-  if (!composition?.total_payload_chars) return "";
-  const usage = aggregateProviderUsage([request]);
-  const actualRatio = usage.total ? usage.actual_input / usage.total : 0;
-  const cacheRatio = usage.total ? usage.cache / usage.total : 0;
-  const tokenStats = [
-    usage.input ? ["input", formatCompactNumber(usage.input), t("providerInputTokenTitle")] : null,
-    usage.cache ? ["cache", `${formatCompactNumber(usage.cache)} · ${formatPercent(cacheRatio)}`, t("cacheHitTokenTitle")] : null,
-    usage.cache ? ["actual", formatPercent(actualRatio), t("nonCacheInputTitle")] : null,
-    usage.output ? ["output", formatCompactNumber(usage.output), t("providerOutputTokenTitle")] : null,
-  ].filter(Boolean);
-  return `
-    <section class="summary-block composition-block">
-      <div class="block-title-row">
-        <div class="composition-heading">
-          <p class="block-title">${escapeHtml(t("providerTokenStats"))}</p>
-          ${tokenStats.map(([label, value, title]) => renderCompositionMetric(label, value, title)).join("")}
-        </div>
-        <span class="composition-total">${escapeHtml(t("actualUpstream", { count: formatCharCount(composition.total_payload_chars) }))}</span>
-      </div>
-    </section>
-  `;
-}
-
-function renderCompositionSectionStat(request, key, label) {
-  const item = request.summary?.composition?.sections?.[key];
-  if (!item || !item.chars) return "";
-  return `
-    <span class="composition-metric ${escapeHtml(compositionSectionClass(key))}">
-      ${label ? `<em>${escapeHtml(label)}</em>` : ""}
-      <strong>${escapeHtml(formatPercent(item.ratio))}</strong>
-      <small>${escapeHtml(formatCharCount(item.chars))}</small>
-    </span>
-  `;
-}
-
-function compositionSectionClass(key) {
-  if (key === "current_user") return "user";
-  if (key === "history_context") return "history";
-  if (key === "tool_result") return "tool";
-  return key || "params";
-}
-
-function renderCompositionMetric(label, value, title) {
-  return `
-    <span class="composition-token" title="${escapeHtml(title || "")}">
-      <em>${escapeHtml(label)}</em>
-      <strong>${escapeHtml(value)}</strong>
-    </span>
-  `;
-}
-
-function formatRoleCounts(counts) {
-  return Object.entries(counts)
-    .filter(([, count]) => Number(count) > 0)
-    .map(([role, count]) => `${messageKindLabel(role, role)} ${count}`)
-    .join(" · ");
-}
-
-function contextStatusLabel(status) {
-  if (status === "reused") return t("reused");
-  if (status === "changed") return t("changed");
-  if (status === "baseline") return t("baselineStatus");
-  return t("unknown");
-}
-
 function messageKindLabel(kind, role) {
   if (kind === "compact") return t("compactMessage");
   if (kind === "context_count") return t("contextCountMessage");
@@ -3351,16 +3039,6 @@ function messageKindLabel(kind, role) {
   return role || kind || "Message";
 }
 
-function renderInternalRequestBlock(request) {
-  if (request.source_hint.type !== "metadata" || !request.summary.internal_request_preview) return "";
-  return `
-    <details class="internal-request">
-      <summary>${escapeHtml(t("agentInternalRequest", { preview: shortPreview(request.summary.internal_request_preview, 72) }))}</summary>
-      <div class="details-body">${renderPre(request.summary.internal_request_preview)}</div>
-    </details>
-  `;
-}
-
 function shortPreview(value, limit) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   if (text.length <= limit) return text;
@@ -3371,48 +3049,6 @@ function markdownPreview(value, limit) {
   const text = cleanDisplayText(value);
   if (text.length <= limit) return text;
   return `${text.slice(0, limit).trimEnd()}...`;
-}
-
-function renderChangeBadges(request) {
-  if (request.request_index === 1) return [`<span class="badge muted" title="${escapeHtml(t("baselineRequestTitle"))}">${escapeHtml(t("baselineRequestBadge"))}</span>`];
-  const badges = [];
-  if (request.changes.system_changed) {
-    badges.push(
-      `<button class="badge changed badge-button" type="button" data-system-diff="${escapeHtml(request.id)}" title="${escapeHtml(t("systemChangedTitle"))}">${escapeHtml(t("systemChanged"))}</button>`,
-    );
-  }
-  if (request.changes.tools_changed) badges.push(`<span class="badge changed" title="${escapeHtml(t("toolsChangedTitle"))}">${escapeHtml(t("toolsChanged"))}</span>`);
-  if (request.changes.params_changed) badges.push(`<span class="badge muted" title="${escapeHtml(t("paramsChangedTitle"))}">${escapeHtml(t("paramsChanged"))}</span>`);
-  return badges;
-}
-
-function renderStructureStrip(request) {
-  const currentToolCalls = request.summary.current_tool_calls?.length ?? request.counts.tool_calls;
-  const currentToolResults = request.summary.current_tool_results?.length ?? request.counts.tool_results;
-  const cells = [
-    ["Messages", request.counts.messages, signedDelta(request.changes.messages_delta), "messages"],
-    ["System", request.counts.system, request.changes.system_changed ? "changed" : "", "system"],
-    ["Tools", request.counts.tools, signedDelta(request.changes.tools_delta), "tools"],
-    ["Tool use", currentToolCalls, currentToolCalls === request.counts.tool_calls ? "" : t("cumulative", { count: request.counts.tool_calls }), "upstream_tool_calls"],
-    ["Tool result", currentToolResults, currentToolResults === request.counts.tool_results ? "" : t("cumulative", { count: request.counts.tool_results }), "tool_results"],
-    ["Raw", formatBytes(request.counts.raw_body_bytes), signedBytes(request.changes.raw_bytes_delta), "full"],
-  ];
-  return `
-    <section class="structure-strip" aria-label="${escapeHtml(t("upstreamStructureAria"))}">
-      ${cells
-        .map(
-          ([label, value, delta, section]) => `
-            <button class="structure-cell" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="${escapeHtml(section)}" title="${escapeHtml(t("viewRawTitle", { label }))}">
-              <span>${escapeHtml(label)}</span>
-              <strong>${escapeHtml(value)}</strong>
-              ${delta ? `<em>${escapeHtml(delta)}</em>` : ""}
-              <small class="structure-raw-chip">Raw</small>
-            </button>
-          `,
-        )
-        .join("")}
-    </section>
-  `;
 }
 
 function renderToolExchange(request) {
@@ -4660,11 +4296,6 @@ function cleanDisplayText(value) {
     .trim();
 }
 
-function renderConfidenceBadge(confidence) {
-  const exact = confidence === "exact";
-  return `<span class="badge ${exact ? "exact" : "partial"}" title="${escapeHtml(exact ? t("exactCaptureTitle") : t("partialCaptureTitle"))}">${escapeHtml(exact ? t("exactCapture") : t("partialCapture"))}</span>`;
-}
-
 function captureLabelText(label) {
   if (label === "exact proxy capture") return t("exactProxyCapture");
   if (label === "otel raw body") return t("otelRawBody");
@@ -4769,18 +4400,6 @@ function joinUnique(values, fallback = t("emptyNotRecorded")) {
   if (!unique.length) return fallback;
   if (unique.length <= 2) return unique.join(" / ");
   return `${unique.slice(0, 2).join(" / ")} +${unique.length - 2}`;
-}
-
-function signedDelta(value) {
-  const number = Number(value || 0);
-  if (!number) return "";
-  return number > 0 ? `+${number}` : String(number);
-}
-
-function signedBytes(value) {
-  const number = Number(value || 0);
-  if (!number) return "";
-  return `${number > 0 ? "+" : "-"}${formatBytes(Math.abs(number))}`;
 }
 
 function stableJson(value) {

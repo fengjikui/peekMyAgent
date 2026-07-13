@@ -39,7 +39,7 @@ pma CLI / adapter
 | Source 列表、读取、重命名/归档/删除 | `src/server/source-*` provider/repository/service | HTTP route 直接操作文件或 SQLite |
 | Trace 导入导出与脱敏 | `src/server/trace-bundle-service.mjs`、`src/core/redaction.mjs` | 浏览器自行拼 bundle |
 | Viewer HTTP 安全和 API | `src/server/http.mjs`、`src/viewer/server.mjs`、`src/viewer/api-client.js` | feature renderer 发 `fetch` |
-| 中栏 Timeline、请求卡、多 Agent 看板 | `trace-timeline-*`、`request-card-renderer.js`、`agent-graph-*` | renderer 读取全局 `state` 或 DOM |
+| 中栏 Timeline、请求卡、多 Agent 看板、上行详情 | `trace-timeline-*`、`request-card-renderer.js`、`agent-graph-*`、`upstream-detail-*` | renderer 读取全局 `state` 或 DOM |
 | Raw、Messages、翻译展示 | `raw-*`、`message-*`、`translation-*` | `client.js` 新增长段领域 HTML |
 | UI 状态与交互动作 | `client-store.js`、feature controller、`client.js` 装配层 | model/renderer 写全局状态 |
 | 中英文 UI 文案 | `client.js` 当前 i18n 资源和 `scripts/i18n-smoke.mjs` | 只改一种语言 |

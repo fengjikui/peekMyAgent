@@ -2,6 +2,8 @@ import fs from "node:fs";
 import assert from "node:assert/strict";
 
 const clientSource = fs.readFileSync(new URL("../src/viewer/client.js", import.meta.url), "utf8");
+const agentGraphModelSource = fs.readFileSync(new URL("../src/viewer/agent-graph-model.js", import.meta.url), "utf8");
+const agentGraphRendererSource = fs.readFileSync(new URL("../src/viewer/agent-graph-renderer.js", import.meta.url), "utf8");
 const markdownSource = fs.readFileSync(new URL("../src/viewer/markdown.js", import.meta.url), "utf8");
 const messageViewModelSource = fs.readFileSync(new URL("../src/viewer/message-view-model.js", import.meta.url), "utf8");
 const messagesRendererSource = fs.readFileSync(new URL("../src/viewer/messages-renderer.js", import.meta.url), "utf8");
@@ -13,8 +15,13 @@ const stylesSource = fs.readFileSync(new URL("../src/viewer/styles.css", import.
 
 assert.match(timelineModelSource, /export const TIMELINE_WINDOW_THRESHOLD = 180;/, "timeline window threshold should be explicit");
 assert.match(timelineModelSource, /export const TIMELINE_WINDOW_SIZE = 120;/, "timeline window size should be explicit");
-assert.match(clientSource, /const AGENT_BRANCH_PAGE_SIZE = 24;/, "large multi-agent views should page branches");
-assert.match(clientSource, /const AGENT_EVENT_LIMIT = 80;/, "large multi-agent views should cap the initial event strip");
+assert.match(agentGraphModelSource, /export const AGENT_BRANCH_PAGE_SIZE = 24;/, "large multi-agent views should page branches");
+assert.match(
+  clientSource,
+  /import \{ AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView \} from "\.\/agent-graph-model\.js";/,
+  "the viewer shell should consume the Agent Graph paging contract",
+);
+assert.match(agentGraphModelSource, /export const AGENT_EVENT_LIMIT = 80;/, "large multi-agent views should cap the initial event strip");
 assert.match(timelineModelSource, /export function buildTraceTimelineView\(/, "the Timeline View Model should be directly testable");
 assert.match(
   clientSource,
@@ -36,10 +43,10 @@ assert.match(messagesRendererSource, /renderMarkdown\(block\.textPreview\.text\)
 assert.match(markdownSource, /export function renderSafeMarkdown\(text\)/, "safe markdown renderer should be testable as a module");
 assert.match(messagesRendererSource, /messageTextTruncated/, "organized Messages truncation should be visible to users");
 assert.match(clientSource, /state\.openSupportingTimelines\.has\(turnId\)/, "supporting timelines should only render after they are opened");
-assert.match(clientSource, /const dashboardBody = dashboardOpen/, "multi-agent dashboard details should only render after opening");
-assert.match(clientSource, /collapsed\s*\?\s*""\s*:\s*`<div class="agent-branch-body">/, "collapsed subagent branches should not render hidden detail DOM");
-assert.match(clientSource, /events\.slice\(0, AGENT_EVENT_LIMIT\)/, "agent event rendering should obey the explicit cap");
-assert.match(clientSource, /data-agent-status-filter/, "large multi-agent views should support status-first filtering");
+assert.match(agentGraphRendererSource, /view\.dashboardOpen \? renderAgentDashboard\(view,/, "multi-agent dashboard details should only render after opening");
+assert.match(agentGraphRendererSource, /expanded\s*\?\s*`<div class="agent-branch-body">[\s\S]*?\s*:\s*""/, "collapsed subagent branches should not render hidden detail DOM");
+assert.match(agentGraphModelSource, /events: allEvents\.slice\(0, AGENT_EVENT_LIMIT\)/, "agent event rendering should obey the explicit cap");
+assert.match(agentGraphRendererSource, /data-agent-status-filter/, "large multi-agent views should support status-first filtering");
 assert.match(clientSource, /state\.agentBranchFilters\.set\(turnId, filter\)/, "agent status filters should update explicit viewer state");
 assert.match(timelineModelSource, /export function filterTraceTurns\(/, "Trace search should filter at the turn-story level");
 assert.match(timelineModelSource, /export function traceRequestHasIssue\(request\)/, "Trace search should expose an issue entry point");
