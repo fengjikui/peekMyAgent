@@ -220,6 +220,7 @@ Use a GitHub issue, pull request, or other shared tracker for this report. Do no
 ## 11. Documentation Discipline
 
 - `docs/architecture.md` describes current behavior.
+- `docs/codebase-map.md` is the short navigation entry for Coding Agents and must track current ownership boundaries.
 - `docs/refactoring-roadmap.md` describes intended evolution.
 - Audit, experiment, and retrospective documents preserve evidence and reasoning.
 - Do not present planned behavior as implemented behavior.

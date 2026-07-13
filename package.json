@@ -72,6 +72,7 @@
     "smoke:message-semantics-contract": "node scripts/message-semantics-contract-smoke.mjs",
     "smoke:request-profile-contract": "node scripts/request-profile-contract-smoke.mjs",
     "smoke:request-composition-contract": "node scripts/request-composition-contract-smoke.mjs",
+    "smoke:timeline-view-projector-contract": "node scripts/timeline-view-projector-contract-smoke.mjs",
     "smoke:model-response-normalizer-contract": "node scripts/model-response-normalizer-contract-smoke.mjs",
     "smoke:response-capture": "node scripts/response-capture-smoke.mjs",
     "smoke:watch-pause-resume": "node scripts/watch-pause-resume-smoke.mjs",

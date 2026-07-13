@@ -58,6 +58,7 @@ import {
 } from "../server/source-metadata.mjs";
 import { SOURCE_TEXT_LIMITS, sanitizeSourceText } from "../server/source-text.mjs";
 import { TRACE_BUNDLE_LIMITS, TraceBundleService } from "../server/trace-bundle-service.mjs";
+import { projectTimelineViewerData } from "../server/timeline-view-projector.mjs";
 import { resolveViewerStaticAsset } from "../server/viewer-static-assets.mjs";
 import {
   normalizeTranslationSourceText,
@@ -122,22 +123,6 @@ const MAX_OTEL_EVENT_WATCHES = 32;
 const MAX_OTEL_EVENTS_PER_WATCH = 2400;
 const OTEL_WATCH_ID_HEADER = "x-peekmyagent-watch-id";
 const VIEWER_RESPONSE_BODY_TEXT_INLINE_BYTES = 16 * 1024;
-const TIMELINE_RESPONSE_TEXT_CHARS = 700;
-const TIMELINE_RESPONSE_THINKING_CHARS = 360;
-const TIMELINE_TOOL_ARGUMENT_CHARS = 360;
-const TIMELINE_CURRENT_USER_CHARS = 520;
-const TIMELINE_SYSTEM_PREVIEW_CHARS = 320;
-const TIMELINE_ASSISTANT_PREVIEW_CHARS = 320;
-const TIMELINE_INTERNAL_PREVIEW_CHARS = 320;
-const TIMELINE_ENTRY_TEXT_CHARS = 320;
-const TIMELINE_SUBAGENT_RESULT_CHARS = 700;
-const TIMELINE_RESPONSE_PREVIEW_CHARS = 240;
-const TIMELINE_THINKING_PREVIEW_CHARS = 160;
-const TIMELINE_COMPOSITION_SECTION_KEYS = ["current_user", "history_context", "system", "tools", "tool_result", "params"];
-const TIMELINE_ROLE_LIMIT = 48;
-const TIMELINE_TOOL_NAME_LIMIT = 24;
-const TIMELINE_CONTEXT_PREVIEW_LIMIT = 4;
-const TIMELINE_CONTEXT_PREVIEW_CHARS = 140;
 const INITIAL_VIEW_REQUEST_LIMIT = 32;
 const INITIAL_VIEW_REQUEST_LIMIT_MAX = 120;
 
@@ -366,7 +351,7 @@ async function handleRequest(req, res, options) {
       requireSource: Boolean(requestedSource),
       initialLimit: initialViewLimit(url.searchParams),
     });
-    return writeJson(res, 200, url.searchParams.get("compact") === "1" ? compactViewerDataForTimeline(data) : data);
+    return writeJson(res, 200, url.searchParams.get("compact") === "1" ? projectTimelineViewerData(data) : data);
   }
   if (url.pathname === "/api/request") {
     if (rejectWrongMethod(req, res, "GET")) return;
@@ -576,186 +561,6 @@ function summarizeRequestDetailWindow(captures, source, requestId, { startIndex 
   if (!request) throw httpError(404, `Request not found: ${requestId}`);
   request.detail_scope = "request_window";
   return request;
-}
-
-function compactViewerDataForTimeline(data) {
-  return {
-    ...data,
-    requests: (data.requests || []).map(compactRequestForTimeline),
-  };
-}
-
-function compactRequestForTimeline(request) {
-  const summary = request.summary || {};
-  const historyStack = Array.isArray(summary.history_stack) ? summary.history_stack : [];
-  const { history_stack, tool_calls, tool_results, roles, tool_names, ...summaryWithoutHeavyFields } = summary;
-  return {
-    ...request,
-    context_delta: compactContextDeltaForTimeline(request.context_delta),
-    summary: {
-      ...summaryWithoutHeavyFields,
-      history_stack: [],
-      history_stack_omitted: {
-        count: historyStack.length,
-      },
-      roles: compactArrayForTimeline(roles, TIMELINE_ROLE_LIMIT),
-      roles_omitted: Array.isArray(roles) && roles.length > TIMELINE_ROLE_LIMIT ? { count: roles.length - TIMELINE_ROLE_LIMIT, total: roles.length } : undefined,
-      tool_names: compactArrayForTimeline(tool_names, TIMELINE_TOOL_NAME_LIMIT),
-      tool_names_omitted: Array.isArray(tool_names) && tool_names.length > TIMELINE_TOOL_NAME_LIMIT ? { count: tool_names.length - TIMELINE_TOOL_NAME_LIMIT, total: tool_names.length } : undefined,
-      current_user: textPreview(summary.current_user || "", TIMELINE_CURRENT_USER_CHARS),
-      system_preview: textPreview(summary.system_preview || "", TIMELINE_SYSTEM_PREVIEW_CHARS),
-      assistant_preview: textPreview(summary.assistant_preview || "", TIMELINE_ASSISTANT_PREVIEW_CHARS),
-      internal_request_preview: textPreview(summary.internal_request_preview || "", TIMELINE_INTERNAL_PREVIEW_CHARS),
-      entry: compactEntryForTimeline(summary.entry),
-      composition: compactCompositionForTimeline(summary.composition),
-      tool_calls_omitted: Array.isArray(tool_calls) ? { count: tool_calls.length } : undefined,
-      tool_results_omitted: Array.isArray(tool_results) ? { count: tool_results.length } : undefined,
-      current_tool_calls: (summary.current_tool_calls || []).map(compactToolCallForTimeline),
-      current_tool_results: (summary.current_tool_results || []).map(compactToolResultForTimeline),
-      response: compactResponseSummaryForTimeline(summary.response),
-    },
-    raw: compactRawCaptureForTimeline(request.raw),
-    detail_omitted: true,
-  };
-}
-
-function compactArrayForTimeline(value, limit) {
-  return Array.isArray(value) ? value.slice(0, limit) : [];
-}
-
-function compactContextDeltaForTimeline(delta) {
-  if (!delta || typeof delta !== "object") return delta || null;
-  return {
-    ...delta,
-    previews: (delta.previews || []).slice(0, TIMELINE_CONTEXT_PREVIEW_LIMIT).map((preview) => ({
-      role: preview?.role || "unknown",
-      kind: preview?.kind || "message",
-      text: textPreview(preview?.text || "", TIMELINE_CONTEXT_PREVIEW_CHARS),
-    })),
-    previews_omitted: Array.isArray(delta.previews) && delta.previews.length > TIMELINE_CONTEXT_PREVIEW_LIMIT
-      ? { count: delta.previews.length - TIMELINE_CONTEXT_PREVIEW_LIMIT, total: delta.previews.length }
-      : undefined,
-  };
-}
-
-function compactCompositionForTimeline(composition) {
-  if (!composition || typeof composition !== "object") return composition || null;
-  const sections = {};
-  for (const key of TIMELINE_COMPOSITION_SECTION_KEYS) {
-    if (composition.sections?.[key]) sections[key] = composition.sections[key];
-  }
-  return {
-    unit: composition.unit,
-    total_payload_chars: composition.total_payload_chars,
-    input_chars: composition.input_chars,
-    sections,
-  };
-}
-
-function compactEntryForTimeline(entry) {
-  if (!entry || typeof entry !== "object") return entry || null;
-  const output = { ...entry };
-  if (typeof output.text === "string") output.text = textPreview(output.text, TIMELINE_ENTRY_TEXT_CHARS);
-  if (output.value && typeof output.value === "string") output.value = textPreview(output.value, TIMELINE_ENTRY_TEXT_CHARS);
-  if (output.subagent && typeof output.subagent === "object") output.subagent = compactSubagentEntryForTimeline(output.subagent);
-  return output;
-}
-
-function compactSubagentEntryForTimeline(subagent) {
-  return {
-    ...subagent,
-    preview: textPreview(subagent.preview || "", TIMELINE_ENTRY_TEXT_CHARS),
-    result: textPreview(subagent.result || "", TIMELINE_SUBAGENT_RESULT_CHARS),
-  };
-}
-
-function compactResponseSummaryForTimeline(response) {
-  if (!response || typeof response !== "object") return response || null;
-  const { complete_response, preview: _preview, ...rest } = response;
-  return {
-    ...rest,
-    text: textPreview(response.text || "", TIMELINE_RESPONSE_TEXT_CHARS),
-    thinking: textPreview(response.thinking || "", TIMELINE_RESPONSE_THINKING_CHARS),
-    thinking_preview: textPreview(response.thinking_preview || "", TIMELINE_THINKING_PREVIEW_CHARS),
-    tool_calls: (response.tool_calls || []).map(compactToolCallForTimeline),
-    ...(complete_response ? { complete_response_omitted: true } : {}),
-  };
-}
-
-function compactToolCallForTimeline(call) {
-  if (!call || typeof call !== "object") return call;
-  return {
-    ...call,
-    arguments: compactPreviewValue(call.arguments),
-  };
-}
-
-function compactToolResultForTimeline(result) {
-  if (!result || typeof result !== "object") return result;
-  return {
-    ...result,
-    content: textPreview(result.content || "", Math.min(800, TIMELINE_TOOL_ARGUMENT_CHARS)),
-  };
-}
-
-function compactPreviewValue(value) {
-  const serialized = stableJson(value ?? null);
-  if (serialized.length <= TIMELINE_TOOL_ARGUMENT_CHARS) return value;
-  return {
-    preview: textPreview(serialized, TIMELINE_TOOL_ARGUMENT_CHARS),
-    omitted: {
-      reason: "compact_view",
-      chars: serialized.length,
-    },
-  };
-}
-
-function compactRawCaptureForTimeline(raw) {
-  if (!raw || typeof raw !== "object") return raw || null;
-  const body = raw.body && typeof raw.body === "object" ? raw.body : null;
-  const response = raw.response && typeof raw.response === "object" ? raw.response : null;
-  return {
-    body_source: raw.body_source || "original",
-    body: compactRawBodyMetadata(body),
-    body_omitted: body
-      ? {
-          messages: Array.isArray(body.messages) ? body.messages.length : 0,
-          tools: Array.isArray(body.tools) ? body.tools.length : 0,
-          system: Array.isArray(body.system) ? body.system.length : body.system ? 1 : 0,
-          raw_body_length: raw.raw_body_length || byteLength(body),
-        }
-      : null,
-    response: compactRawResponseMetadata(response),
-    detail_omitted: true,
-  };
-}
-
-function compactRawBodyMetadata(body) {
-  if (!body || typeof body !== "object") return null;
-  const output = {};
-  for (const key of ["model", "stream", "max_tokens", "temperature", "top_p"]) {
-    if (body[key] !== undefined) output[key] = body[key];
-  }
-  return output;
-}
-
-function compactRawResponseMetadata(response) {
-  if (!response || typeof response !== "object") return response || null;
-  const output = {};
-  for (const key of ["status", "received_at", "duration_ms", "raw_body_length", "captured_body_length", "truncated", "body_text_omitted"]) {
-    if (response[key] !== undefined) output[key] = response[key];
-  }
-  if (response.body_json !== undefined && response.body_json !== null) output.body_json_omitted = true;
-  if (typeof response.body_text === "string") {
-    output.body_text_omitted =
-      response.body_text_omitted || {
-        reason: "compact_view",
-        byte_size: Buffer.byteLength(response.body_text, "utf8"),
-        raw_body_length: response.raw_body_length || Buffer.byteLength(response.body_text, "utf8"),
-        captured_body_length: response.captured_body_length || Buffer.byteLength(response.body_text, "utf8"),
-      };
-  }
-  return output;
 }
 
 // Ingest Claude Code OTel raw-body dumps (subscription/OAuth path). The wrapper
