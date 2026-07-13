@@ -17,6 +17,8 @@
 ## 近期发布打磨
 
 - **README 演示媒体**：补充一个短 GIF 或视频，展示真实 Claude Code Trace、Raw 分段、多 Agent 信息流、翻译能力以及 Trace 导出/导入。
+- **多语言文档入口**：以英文 README 为功能事实源，保留简体中文，并逐步增加日语、韩语、西班牙语、法语、德语和葡萄牙语短版 README。每个版本都必须包含产品用途、安装、三分钟快速开始、隐私边界和故障排查入口，不能只翻译宣传语。
+- **Agent 可读说明**：增加仓库级 `llms.txt` 和稳定的 Agent quickstart，向 Codex、Claude Code、OpenClaw 等自动化读者说明 peekMyAgent 做什么、如何安装/启动/验证、哪些命令会修改本机状态，以及应该从哪些文档读取当前架构与贡献规范。所有语言 README 指向同一份 Agent 入口，避免复制多套会漂移的机器说明。
 - **首次使用引导**：当 dashboard 为空时，直接告诉用户如何通过 peekMyAgent 启动 Claude Code 或 OpenClaw，而不是要求先读完整 README。
 - **故障排查文档**：整理启动失败、端口占用、provider 配置、Windows 权限、模型不可用等常见问题，给出明确命令和恢复步骤。
 - **文案与国际化检查**：每次新增或修改 UI 文案时，同步检查 `zh-CN` 和 `en-US` 的 i18n 字典。
@@ -41,6 +43,8 @@
 ## 分发
 
 - **跨平台安装器**：继续打磨 macOS、Linux、Windows 上的 install、doctor、uninstall 和 state path 行为。
+- **可审计的便捷更新**：在建立真实版本号和稳定分发源后提供 `pma update --check` 与 `pma update`。更新必须显示当前/目标版本、来源和计划，复用安装器的跨平台 prefix/权限处理，更新后运行 `pma doctor`，失败时保留旧版本或给出明确恢复命令。源码工作区不得在脏树上自动 `git pull`，也不得默认执行未经版本标记的远程脚本。未来 dashboard 更新入口只能调用同一 update service，不能维护第二套更新逻辑。
+- **发布通道与频率**：日常 `main` 推送不等于要求所有用户当天升级。先建立 `stable` 版本和可选 `edge` 通道；安全修复可明确提示升级，普通重构按批次发布，避免频繁更新打断用户。
 - **Homebrew 或包管理器分发**：源码安装路径稳定后，再考虑 Homebrew 等分发方式。
 - **签名二进制或应用包**：当用户群超出 CLI-first 开发者后，再评估签名包、桌面应用和自动更新。
 - **卸载可信度**：让 `pma uninstall --remove-data` 和未来 UI 卸载路径可预测、可审计、足够保守。
