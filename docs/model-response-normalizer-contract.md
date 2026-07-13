@@ -2,7 +2,7 @@
 
 更新时间：2026-07-14
 
-`src/trace/model-response-normalizer.mjs` 把捕获层保存的 JSON 或 SSE 模型回复转换成 Viewer 与 Trace Domain 共用的下行 DTO。它属于协议归一化边界，不属于 HTTP Server，也不负责页面渲染。
+`src/trace/model-response-normalizer.mjs` 把捕获层保存的 JSON 或 SSE 模型回复转换成 Viewer 与 Trace Domain 共用的下行 DTO。它属于协议归一化边界，不属于 HTTP Server，也不负责页面渲染；content/tool block 基础解析复用 [Trace Content Parts 契约](content-parts-contract.md)。
 
 ## 所有权
 

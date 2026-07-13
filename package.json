@@ -68,6 +68,7 @@
     "smoke:current-entry": "node scripts/current-entry-smoke.mjs",
     "smoke:harness-translation": "node scripts/harness-translation-smoke.mjs",
     "smoke:subagent-otel": "node scripts/subagent-otel-smoke.mjs",
+    "smoke:content-parts-contract": "node scripts/content-parts-contract-smoke.mjs",
     "smoke:model-response-normalizer-contract": "node scripts/model-response-normalizer-contract-smoke.mjs",
     "smoke:response-capture": "node scripts/response-capture-smoke.mjs",
     "smoke:watch-pause-resume": "node scripts/watch-pause-resume-smoke.mjs",

@@ -149,6 +149,7 @@ src/
 - 已迁移 Turn Timeline：用户轮次边界、内部请求暂存以及工具/context 统计由独立模块管理，避免子 Agent 或 metadata 产生幽灵 Turn。
 - 已迁移 Subagent Graph：Header 强实例关联、OTel prompt 回配、spawn/return 配对、分支步骤和 Turn 归属由独立 Trace Domain 管理。
 - 已迁移模型下行回复归一化：Anthropic/OpenAI-compatible JSON/SSE 的 text、thinking、分片 tool use、usage 与 stop reason 由独立 Trace Domain 模块组装为统一 DTO，Viewer Server 不再拥有 provider-specific response parser。
+- 已建立 Trace Content Parts 原语层：上行与下行共用可见文本、thinking、Anthropic/OpenAI tool call 和 tool result 提取，避免协议块解释分叉。
 - 已迁移 Trace Bundle Service：Raw 快路径导出、递归脱敏、gzip/数量边界、provenance 补全与安全导入目录由独立服务管理。
 - 已建立共享 Translation Material Collector：Viewer 局部/整段刷新与离线提取统一使用 system/tool/schema hash、去重、occurrence 和限额协议。
 - 已迁移 Translation Service：材料/manifest 私有落盘、缓存 alias、并发/force 参数、脚本编排和公开响应边界不再由 Viewer Server 所有。

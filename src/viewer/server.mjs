@@ -68,8 +68,9 @@ import { annotateRequestContextChanges } from "../trace/context-delta.mjs";
 import {
   extractContentText,
   extractToolCalls,
-  summarizeModelResponse,
-} from "../trace/model-response-normalizer.mjs";
+  extractToolResults,
+} from "../trace/content-parts.mjs";
+import { summarizeModelResponse } from "../trace/model-response-normalizer.mjs";
 import { buildTurnTimeline as buildTraceTurnTimeline } from "../trace/turn-timeline.mjs";
 import {
   annotateSubagentLineage as annotateTraceSubagentLineage,
@@ -2018,22 +2019,6 @@ function extractSystemParts(body, messages) {
     if (message.role === "system") output.push({ source: "messages.system", text: extractContentText(message.content) });
   }
   return output.filter((part) => part.text);
-}
-
-function extractToolResults(messages) {
-  const results = [];
-  for (const message of messages) {
-    if (message.role === "tool") {
-      results.push({ id: message.tool_call_id || null, content: extractContentText(message.content) });
-    }
-    const parts = Array.isArray(message.content) ? message.content : [];
-    for (const part of parts) {
-      if (part?.type === "tool_result") {
-        results.push({ id: part.tool_use_id || null, content: extractContentText(part.content) });
-      }
-    }
-  }
-  return results;
 }
 
 function analyzeRequestComposition(body, messages, systemParts, tools, currentUser, responseSummary, rawBodyLength = 0) {

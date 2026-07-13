@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { extractContentText, extractToolCalls } from "../src/trace/content-parts.mjs";
 import {
-  extractContentText,
-  extractToolCalls,
   summarizeJsonResponse,
   summarizeModelResponse,
   summarizeSseResponse,

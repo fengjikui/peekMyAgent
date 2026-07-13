@@ -82,6 +82,7 @@ for (const required of [
   "src/server/viewer-static-assets.mjs",
   "src/trace/message-equivalence.mjs",
   "src/trace/context-delta.mjs",
+  "src/trace/content-parts.mjs",
   "src/trace/model-response-normalizer.mjs",
   "src/trace/turn-timeline.mjs",
   "src/trace/subagent-graph.mjs",
