@@ -46,6 +46,8 @@ for (const required of [
   "src/viewer/markdown.js",
   "src/viewer/message-view-model.js",
   "src/viewer/messages-renderer.js",
+  "src/viewer/pane-layout-controller.js",
+  "src/viewer/pane-layout-model.js",
   "src/viewer/raw-inspector-renderer.js",
   "src/viewer/raw-search-controller.js",
   "src/viewer/raw-search-model.js",

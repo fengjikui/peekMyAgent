@@ -169,6 +169,7 @@ src/
 - 已迁移 Agent Composer View：source 能力、发送目标/警示与结果文案成为纯 View Model，表单成为纯 Renderer；长生命周期 Controller 按 source 隔离草稿和发送状态，并管理 Enter/IME、detached resume 与 source 刷新，不再依赖全局 client state 或逐次事件绑定。
 - 已迁移 Session Navigator View：Source 的 Agent/项目分组、跨平台项目名、活动/可用状态成为纯 View Model，项目组和会话菜单成为纯 Renderer；长生命周期 Controller 管理根事件委派、菜单互斥和折叠持久化，归档/删除等副作用继续由应用层编排。
 - 已迁移 Viewer UI i18n 资源：中英文词典、默认语言、fallback 与占位符插值从 `client.js` 抽为纯模块；新增键集合、占位符、静态引用、发布文件和浏览器资源契约。
+- 已迁移 Pane Layout：三栏几何约束和内容占比成为纯 Model，折叠、偏好、ARIA、键盘/指针拖动和窗口变化由长生命周期 Controller 管理；Store 继续拥有布局状态，应用层只注入写入与重绘端口。
 
 ## 阶段 3：拆分 Viewer Client
 

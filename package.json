@@ -98,6 +98,7 @@
     "smoke:viewer-http-contract": "node scripts/viewer-http-contract-smoke.mjs",
     "smoke:viewer-api-client-contract": "node scripts/viewer-api-client-contract-smoke.mjs",
     "smoke:viewer-client-store-contract": "node scripts/viewer-client-store-contract-smoke.mjs",
+    "smoke:pane-layout-controller-contract": "node scripts/pane-layout-controller-contract-smoke.mjs",
     "smoke:request-detail-cache-contract": "node scripts/request-detail-cache-contract-smoke.mjs",
     "smoke:raw-view-model-contract": "node scripts/raw-view-model-contract-smoke.mjs",
     "smoke:raw-search-model-contract": "node scripts/raw-search-model-contract-smoke.mjs",

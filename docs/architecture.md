@@ -61,6 +61,8 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/viewer/client.js` | 浏览器应用装配、共享状态、数据加载和尚未迁出的 feature renderer |
 | `src/viewer/api-client.js` | 浏览器 `/api/*` URL、method、intent header、body 与错误协议门面 |
 | `src/viewer/client-store.js` | source/Turn/request、Raw、语言、布局和 latest-only 的最小可订阅状态边界 |
+| `src/viewer/pane-layout-model.js` | 三栏宽度上下限、可用空间和内容占比的纯几何模型 |
+| `src/viewer/pane-layout-controller.js` | 三栏折叠、宽度偏好、键盘/指针拖动和窗口变化的长期 DOM Controller |
 | `src/viewer/ui-i18n.js` | Viewer 中英文 UI 资源、默认语言、fallback 与占位符插值纯函数 |
 | `src/viewer/trace-timeline-model.js` | Trace 查询分类、命中 Turn、结果上限、latest-only 与中栏窗口的纯 View Model |
 | `src/viewer/trace-timeline-renderer.js` | Trace 查询栏、空状态、窗口边界和 Turn 容器编排的依赖注入 HTML renderer |
@@ -189,6 +191,8 @@ Turn Rail 已作为首个 Viewer Client feature 从全局脚本迁出。`client.
 Viewer 的浏览器请求统一通过 `ViewerApiClient`。它集中定义 source/view/request/translation/import/export/send/watch API 的 URL 编码、method、Content-Type、intent 和错误传播；它不持有界面状态，也不操作 DOM。Server 继续承担最终的 loopback 与请求意图校验。
 
 Viewer 的核心选择和偏好状态已经由最小 `ViewerClientStore` 所有。当前涵盖 source/Turn/request 选择、Raw section/mode、UI 与目标翻译语言、三栏开关/宽度和 latest-only。Store 只提供原子 patch、领域写入约束和带 `changedKeys` 的订阅通知，不访问 DOM、网络或 `localStorage`；`client.js` 暂时复用同一 state 引用读取，并继续装配副作用。受管字段禁止再直接赋值；活动 Turn/request 已由 Store 通知统一同步 DOM 和 Turn Rail。详细契约见 [Viewer Client Store 契约](viewer-client-store-contract.md)。
+
+三栏布局的状态仍由 `ViewerClientStore` 所有，宽度约束和内容占比由纯 `pane-layout-model.js` 计算，`PaneLayoutController` 只长期管理折叠按钮、resizer、ARIA、CSS 变量和 `localStorage` 偏好。应用层注入 Store 写入端口、翻译函数以及 Turn Rail/窗口回调；Controller 不访问网络或全局 state。折叠左栏时 Raw 栏按中间内容区占比重新分配，指针、鼠标和键盘调整共享同一宽度入口，窗口变化会重新钳制两侧宽度。详细边界见 [Viewer Pane Layout Controller 契约](pane-layout-controller-contract.md)。
 
 Viewer UI 文案由纯 `ui-i18n.js` 集中所有，当前支持 `zh-CN` 与 `en-US`。应用层的 `t()` 只委托语言选择、fallback 和占位符插值，不再持有资源表。`viewer-i18n-contract-smoke.mjs` 检查两种语言键集合与占位符完全一致、值非空，并扫描 Viewer JavaScript 与 HTML 中的静态 key 引用。目标翻译语言仍是另一套独立产品设置，不与 UI 语言资源混用。详细契约见 [Viewer UI 国际化契约](viewer-i18n-contract.md)。
 

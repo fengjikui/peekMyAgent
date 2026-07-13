@@ -28,6 +28,7 @@ import {
 } from "./raw-search-model.js";
 import { RawSearchController } from "./raw-search-controller.js";
 import { SessionNavigatorController } from "./session-navigator-controller.js";
+import { PaneLayoutController } from "./pane-layout-controller.js";
 import { DEFAULT_UI_LANGUAGE, translateUi } from "./ui-i18n.js";
 import {
   renderRawDetail as renderRawDetailView,
@@ -270,14 +271,6 @@ const SUPPORTED_TRANSLATION_LANGUAGES = [
   { value: "yo", label: "Yoruba" },
   { value: "zu", label: "Zulu" },
 ];
-const RAW_WIDTH_KEY = "peekmyagent.rawWidth";
-const RAW_WIDTH_MIN = 320;
-const RAW_WIDTH_MAX = 760;
-const SIDEBAR_WIDTH_KEY = "peekmyagent.sidebarWidth";
-const SIDEBAR_WIDTH_MIN = 220;
-const SIDEBAR_WIDTH_MAX = 420;
-const MAIN_PANEL_MIN = 520;
-const RESIZER_WIDTH = 6;
 const els = {
   appShell: document.querySelector(".app-shell"),
   toggleSidebar: document.querySelector("#toggleSidebar"),
@@ -421,6 +414,22 @@ const agentComposerController = new AgentComposerController({
   cleanText: cleanDisplayText,
   shortPreview,
 });
+const paneLayoutController = new PaneLayoutController({
+  appShell: els.appShell,
+  rawPanel: els.rawPanel,
+  rawResizer: els.rawResizer,
+  rawToggle: els.rawToggle,
+  sidebarResizer: els.sidebarResizer,
+  sidebarToggle: els.toggleSidebar,
+  documentTarget: document,
+  windowTarget: window,
+  storage: localStorage,
+  getLayoutState: () => state,
+  setLayout: (patch, options) => clientStore.setLayout(patch, options),
+  translate: t,
+  onLayoutChanged: () => turnRailController.scheduleActiveSync(),
+  onWindowResize: renderTurnRail,
+});
 clientStore.subscribe((change) => {
   if (change.changedKeys.includes("activeId")) syncActiveTurnDom(change.state.activeId);
   if (change.changedKeys.includes("activeRequestId")) syncActiveRequestDom(change.state.activeRequestId);
@@ -544,6 +553,7 @@ async function setUiLanguage(value) {
   clientStore.setLanguage({ uiLanguage: normalizeUiLanguage(value) }, { reason: "set-ui-language" });
   localStorage.setItem(UI_LANGUAGE_KEY, state.uiLanguage);
   applyStaticI18n();
+  paneLayoutController.refreshLabels();
   if (state.data) renderAll();
   if (state.activeRequestId) showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
 }
@@ -577,20 +587,14 @@ async function setTargetTranslationLanguageFromSelect() {
 }
 
 async function init() {
-  const rawOpen = localStorage.getItem("peekmyagent.rawOpen") !== "false";
-  const rawWidth = readRawPanelWidth();
-  const sidebarOpen = localStorage.getItem("peekmyagent.sidebarOpen") !== "false";
-  const sidebarWidth = readSidebarWidth();
+  const layoutPreferences = paneLayoutController.readPreferences();
   const storedTargetLanguage = localStorage.getItem(TARGET_TRANSLATION_LANGUAGE_KEY);
   const targetTranslationLanguage = storedTargetLanguage
     ? normalizeTranslationLanguage(storedTargetLanguage)
     : defaultTranslationLanguage();
   clientStore.update(
     {
-      rawOpen,
-      rawWidth,
-      sidebarOpen,
-      sidebarWidth,
+      ...layoutPreferences,
       latestOnly: localStorage.getItem(LATEST_ONLY_KEY) === "true",
       rawMessagesMode: normalizeMessagesMode(localStorage.getItem(RAW_MESSAGES_MODE_KEY)),
       uiLanguage: normalizeUiLanguage(localStorage.getItem(UI_LANGUAGE_KEY)),
@@ -599,12 +603,9 @@ async function init() {
     },
     { reason: "hydrate-preferences", silent: true },
   );
-  if (state.rawWidth) applyRawPanelWidth(state.rawWidth);
   applyStaticI18n();
   renderLanguageSelectors();
-  if (state.sidebarWidth) applySidebarWidth(state.sidebarWidth);
-  setRawPanelOpen(state.rawOpen);
-  setSidebarOpen(state.sidebarOpen);
+  paneLayoutController.applyCurrentState({ persist: false });
   state.sources = await api.listSources();
   renderSessionNav();
   const requestedSource = new URLSearchParams(window.location.search).get("source");
@@ -613,8 +614,6 @@ async function init() {
     state.sources.find((source) => source.available) ||
     state.sources[0];
   if (first) await loadSource(first.id);
-  els.rawToggle.addEventListener("click", () => setRawPanelOpen(!state.rawOpen));
-  els.toggleSidebar.addEventListener("click", () => setSidebarOpen(!state.sidebarOpen));
   els.traceImportButton?.addEventListener("click", () => els.traceImportInput?.click());
   els.traceImportInput?.addEventListener("change", importTraceFromFile);
   els.uiLanguageSelect?.addEventListener("change", (event) => {
@@ -674,14 +673,7 @@ async function init() {
     retranslateTranslationBlock(retranslateButton.dataset.translationRetranslate);
   });
   turnRailController.bind();
-  bindSidebarResizer();
-  bindRawResizer();
-  window.addEventListener("resize", () => {
-    if (state.sidebarWidth) setSidebarWidth(state.sidebarWidth, { persist: false });
-    if (state.rawWidth) setRawPanelWidth(state.rawWidth, { persist: false });
-    renderTurnRail();
-    scheduleActiveSync();
-  });
+  paneLayoutController.bind();
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refreshLiveData({ force: true });
   });
@@ -784,7 +776,7 @@ async function refreshActiveSource(activeSource) {
   } else {
     els.mainPanel.scrollTop = previousScrollTop;
   }
-  scheduleActiveSync();
+  turnRailController.scheduleActiveSync();
 }
 
 function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } = {}) {
@@ -805,7 +797,7 @@ function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } =
   renderAll();
   if (preserveScroll) els.mainPanel.scrollTop = scrollTop;
   else els.mainPanel.scrollTop = 0;
-  scheduleActiveSync();
+  turnRailController.scheduleActiveSync();
 }
 
 async function loadFullSourceInBackground(sourceId, { loadSeq } = {}) {
@@ -2352,254 +2344,6 @@ function syncActiveRequestDom(id) {
   traceTimelineController.syncActiveRequest(id);
 }
 
-function setRawPanelOpen(open) {
-  clientStore.setLayout({ rawOpen: open }, { reason: "set-raw-panel-open" });
-  if (open) {
-    if (state.rawWidth) applyRawPanelWidth(state.rawWidth);
-    else els.appShell.style.removeProperty("--raw-width");
-  } else {
-    els.appShell.style.setProperty("--raw-width", "0px");
-  }
-  els.appShell.classList.toggle("raw-collapsed", !open);
-  els.rawToggle.classList.toggle("active", open);
-  els.rawToggle.title = open ? t("toggleRawTitle") : t("expandRawTitle");
-  els.rawToggle.setAttribute("aria-pressed", String(open));
-  localStorage.setItem("peekmyagent.rawOpen", String(open));
-  scheduleActiveSync();
-}
-
-function bindRawResizer() {
-  if (!els.rawResizer) return;
-  els.rawResizer.addEventListener("pointerdown", (event) => {
-    if (window.matchMedia("(max-width: 1080px)").matches) return;
-    event.preventDefault();
-    setRawPanelOpen(true);
-    els.appShell.classList.add("resizing-raw");
-    els.rawResizer.setPointerCapture(event.pointerId);
-    updateRawPanelWidthFromPointer(event.clientX, { persist: false });
-  });
-  els.rawResizer.addEventListener("mousedown", (event) => {
-    if (els.appShell.classList.contains("resizing-raw")) return;
-    if (window.matchMedia("(max-width: 1080px)").matches) return;
-    event.preventDefault();
-    setRawPanelOpen(true);
-    els.appShell.classList.add("resizing-raw");
-    updateRawPanelWidthFromPointer(event.clientX, { persist: false });
-  });
-  els.rawResizer.addEventListener("pointermove", (event) => {
-    if (!els.appShell.classList.contains("resizing-raw")) return;
-    updateRawPanelWidthFromPointer(event.clientX, { persist: false });
-  });
-  document.addEventListener("mousemove", (event) => {
-    if (!els.appShell.classList.contains("resizing-raw")) return;
-    updateRawPanelWidthFromPointer(event.clientX, { persist: false });
-  });
-  els.rawResizer.addEventListener("pointerup", (event) => finishRawResize(event));
-  els.rawResizer.addEventListener("pointercancel", (event) => finishRawResize(event));
-  document.addEventListener("mouseup", (event) => finishRawResize(event));
-  els.rawResizer.addEventListener("keydown", (event) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    event.preventDefault();
-    setRawPanelOpen(true);
-    const step = event.shiftKey ? 80 : 24;
-    const direction = event.key === "ArrowLeft" ? 1 : -1;
-    setRawPanelWidth((state.rawWidth || currentRawPanelWidth()) + direction * step);
-  });
-}
-
-function finishRawResize(event) {
-  if (!els.appShell.classList.contains("resizing-raw")) return;
-  els.appShell.classList.remove("resizing-raw");
-  try {
-    els.rawResizer.releasePointerCapture(event.pointerId);
-  } catch {
-    // Pointer capture can already be released by the browser on cancel.
-  }
-  if (state.rawWidth) localStorage.setItem(RAW_WIDTH_KEY, String(state.rawWidth));
-  scheduleActiveSync();
-}
-
-function updateRawPanelWidthFromPointer(clientX, { persist = true } = {}) {
-  const shellRect = els.appShell.getBoundingClientRect();
-  const width = shellRect.right - clientX;
-  setRawPanelWidth(width, { persist });
-}
-
-function setRawPanelWidth(width, { persist = true } = {}) {
-  const nextWidth = clampRawPanelWidth(width);
-  clientStore.setLayout({ rawWidth: nextWidth }, { reason: "set-raw-panel-width" });
-  applyRawPanelWidth(nextWidth);
-  if (persist) localStorage.setItem(RAW_WIDTH_KEY, String(nextWidth));
-  scheduleActiveSync();
-}
-
-function applyRawPanelWidth(width) {
-  els.appShell.style.setProperty("--raw-width", `${Math.round(width)}px`);
-  els.rawResizer?.setAttribute("aria-valuenow", String(Math.round(width)));
-  els.rawResizer?.setAttribute("aria-valuemin", String(RAW_WIDTH_MIN));
-  els.rawResizer?.setAttribute("aria-valuemax", String(Math.round(maxRawPanelWidth())));
-}
-
-function readRawPanelWidth() {
-  const stored = Number(localStorage.getItem(RAW_WIDTH_KEY));
-  return Number.isFinite(stored) && stored > 0 ? clampRawPanelWidth(stored) : 0;
-}
-
-function currentRawPanelWidth() {
-  return els.rawPanel.getBoundingClientRect().width || Math.min(Math.max(window.innerWidth * 0.34, 380), 560);
-}
-
-function clampRawPanelWidth(width) {
-  return Math.round(Math.min(Math.max(Number(width) || RAW_WIDTH_MIN, RAW_WIDTH_MIN), maxRawPanelWidth()));
-}
-
-function maxRawPanelWidth() {
-  const shellWidth = els.appShell.getBoundingClientRect().width || window.innerWidth;
-  const sidebarWidth = state.sidebarOpen ? state.sidebarWidth || currentSidebarWidth() : 0;
-  const sidebarResizerWidth = state.sidebarOpen ? RESIZER_WIDTH : 0;
-  const roomForRaw = shellWidth - sidebarWidth - sidebarResizerWidth - MAIN_PANEL_MIN - RESIZER_WIDTH;
-  return Math.max(RAW_WIDTH_MIN, Math.min(RAW_WIDTH_MAX, roomForRaw));
-}
-
-function setSidebarOpen(open) {
-  const rawShare = rawPanelContentShare();
-  clientStore.setLayout({ sidebarOpen: open }, { reason: "set-sidebar-open" });
-  if (open) {
-    if (state.sidebarWidth) applySidebarWidth(state.sidebarWidth);
-    else els.appShell.style.removeProperty("--sidebar-width");
-  } else {
-    els.appShell.style.setProperty("--sidebar-width", "0px");
-  }
-  els.appShell.classList.toggle("sidebar-collapsed", !open);
-  els.toggleSidebar.title = open ? t("toggleSidebarTitle") : t("expandSidebarTitle");
-  els.toggleSidebar.classList.toggle("active", open);
-  els.toggleSidebar.setAttribute("aria-pressed", String(open));
-  localStorage.setItem("peekmyagent.sidebarOpen", String(open));
-  if (state.rawOpen && state.rawWidth) setRawPanelWidthFromContentShare(rawShare, { persist: false });
-  scheduleActiveSync();
-}
-
-function rawPanelContentShare() {
-  if (!state.rawOpen) return 0;
-  const contentWidth = currentContentWidth();
-  if (!contentWidth) return 0;
-  return currentRawPanelWidth() / contentWidth;
-}
-
-function setRawPanelWidthFromContentShare(share, { persist = true } = {}) {
-  if (!share) {
-    setRawPanelWidth(state.rawWidth || currentRawPanelWidth(), { persist });
-    return;
-  }
-  setRawPanelWidth(currentContentWidth() * share, { persist });
-}
-
-function currentContentWidth() {
-  const shellWidth = els.appShell.getBoundingClientRect().width || window.innerWidth;
-  const sidebarWidth = state.sidebarOpen ? state.sidebarWidth || currentSidebarWidth() : 0;
-  const sidebarResizerWidth = state.sidebarOpen ? RESIZER_WIDTH : 0;
-  const rawResizerWidth = state.rawOpen ? RESIZER_WIDTH : 0;
-  return Math.max(0, shellWidth - sidebarWidth - sidebarResizerWidth - rawResizerWidth);
-}
-
-function bindSidebarResizer() {
-  if (!els.sidebarResizer) return;
-  els.sidebarResizer.addEventListener("pointerdown", (event) => {
-    if (window.matchMedia("(max-width: 1080px)").matches) return;
-    event.preventDefault();
-    setSidebarOpen(true);
-    els.appShell.classList.add("resizing-sidebar");
-    els.sidebarResizer.setPointerCapture(event.pointerId);
-    updateSidebarWidthFromPointer(event.clientX, { persist: false });
-  });
-  els.sidebarResizer.addEventListener("mousedown", (event) => {
-    if (els.appShell.classList.contains("resizing-sidebar")) return;
-    if (window.matchMedia("(max-width: 1080px)").matches) return;
-    event.preventDefault();
-    setSidebarOpen(true);
-    els.appShell.classList.add("resizing-sidebar");
-    updateSidebarWidthFromPointer(event.clientX, { persist: false });
-  });
-  els.sidebarResizer.addEventListener("pointermove", (event) => {
-    if (!els.appShell.classList.contains("resizing-sidebar")) return;
-    updateSidebarWidthFromPointer(event.clientX, { persist: false });
-  });
-  document.addEventListener("mousemove", (event) => {
-    if (!els.appShell.classList.contains("resizing-sidebar")) return;
-    updateSidebarWidthFromPointer(event.clientX, { persist: false });
-  });
-  els.sidebarResizer.addEventListener("pointerup", (event) => finishSidebarResize(event));
-  els.sidebarResizer.addEventListener("pointercancel", (event) => finishSidebarResize(event));
-  document.addEventListener("mouseup", (event) => finishSidebarResize(event));
-  els.sidebarResizer.addEventListener("keydown", (event) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    event.preventDefault();
-    setSidebarOpen(true);
-    const step = event.shiftKey ? 80 : 24;
-    const direction = event.key === "ArrowRight" ? 1 : -1;
-    setSidebarWidth((state.sidebarWidth || currentSidebarWidth()) + direction * step);
-  });
-}
-
-function finishSidebarResize(event) {
-  if (!els.appShell.classList.contains("resizing-sidebar")) return;
-  els.appShell.classList.remove("resizing-sidebar");
-  try {
-    els.sidebarResizer.releasePointerCapture(event.pointerId);
-  } catch {
-    // Pointer capture can already be released by the browser on cancel.
-  }
-  if (state.sidebarWidth) localStorage.setItem(SIDEBAR_WIDTH_KEY, String(state.sidebarWidth));
-  scheduleActiveSync();
-}
-
-function updateSidebarWidthFromPointer(clientX, { persist = true } = {}) {
-  const shellRect = els.appShell.getBoundingClientRect();
-  const width = clientX - shellRect.left;
-  setSidebarWidth(width, { persist });
-}
-
-function setSidebarWidth(width, { persist = true } = {}) {
-  const nextWidth = clampSidebarWidth(width);
-  clientStore.setLayout({ sidebarWidth: nextWidth }, { reason: "set-sidebar-width" });
-  applySidebarWidth(nextWidth);
-  if (persist) localStorage.setItem(SIDEBAR_WIDTH_KEY, String(nextWidth));
-  if (state.rawOpen && state.rawWidth) setRawPanelWidth(state.rawWidth, { persist: false });
-  scheduleActiveSync();
-}
-
-function applySidebarWidth(width) {
-  els.appShell.style.setProperty("--sidebar-width", `${Math.round(width)}px`);
-  els.sidebarResizer?.setAttribute("aria-valuenow", String(Math.round(width)));
-  els.sidebarResizer?.setAttribute("aria-valuemin", String(SIDEBAR_WIDTH_MIN));
-  els.sidebarResizer?.setAttribute("aria-valuemax", String(Math.round(maxSidebarWidth())));
-}
-
-function readSidebarWidth() {
-  const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
-  return Number.isFinite(stored) && stored > 0 ? clampSidebarWidth(stored) : 0;
-}
-
-function currentSidebarWidth() {
-  return Number.parseFloat(getComputedStyle(els.appShell).getPropertyValue("--sidebar-width")) || SIDEBAR_WIDTH_MIN;
-}
-
-function clampSidebarWidth(width) {
-  return Math.round(Math.min(Math.max(Number(width) || SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MIN), maxSidebarWidth()));
-}
-
-function maxSidebarWidth() {
-  const shellWidth = els.appShell.getBoundingClientRect().width || window.innerWidth;
-  const rawWidth = state.rawOpen ? state.rawWidth || currentRawPanelWidth() : 0;
-  const rawResizerWidth = state.rawOpen ? RESIZER_WIDTH : 0;
-  const roomForSidebar = shellWidth - rawWidth - rawResizerWidth - MAIN_PANEL_MIN - RESIZER_WIDTH;
-  return Math.max(SIDEBAR_WIDTH_MIN, Math.min(SIDEBAR_WIDTH_MAX, roomForSidebar));
-}
-
-function scheduleActiveSync() {
-  turnRailController.scheduleActiveSync();
-}
-
 async function showRaw(id, section = "full", { mode = "request" } = {}) {
   const request = state.data.requests.find((item) => item.id === id);
   if (!request) return;
@@ -2611,7 +2355,7 @@ async function showRaw(id, section = "full", { mode = "request" } = {}) {
     { reason: "show-raw" },
   );
   markActiveRequest(id, false);
-  setRawPanelOpen(true);
+  paneLayoutController.setRawOpen(true);
   els.rawTitle.textContent = `Request ${request.request_index} · ${mode === "response" ? responseRawSectionLabel(section) : rawSectionLabel(section)}`;
   els.rawTree.className = "raw-tree";
   if (requestNeedsDetail(request)) {
