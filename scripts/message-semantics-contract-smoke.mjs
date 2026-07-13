@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  classifyMessageKind,
   classifyCurrentEntry,
   cleanTitleText,
   compactInjectionText,
@@ -25,6 +26,7 @@ const taskNotification = `<task-notification>
 </task-notification>`;
 
 assert.equal(classifyCurrentEntry([{ role: "user", content: "你好" }]).kind, "user_input");
+assert.equal(classifyMessageKind({ role: "user", content: "你好" }), "message");
 assert.equal(
   classifyCurrentEntry([
     { role: "user", content: "真正的问题" },
@@ -50,11 +52,13 @@ const compactMessage = {
   ],
 };
 assert.equal(classifyCurrentEntry([compactMessage]).kind, "compact");
+assert.equal(classifyMessageKind(compactMessage), "compact");
 assert.equal(compactInjectionText(compactMessage), compactPrompt);
 assert.equal(realUserVisibleText(compactMessage), "");
 
 const skillMessage = { role: "user", content: "Base directory for this skill: /tmp/example\n\n# Example Skill" };
 assert.equal(classifyCurrentEntry([skillMessage]).kind, "harness_injection");
+assert.equal(classifyMessageKind(skillMessage), "harness_injection");
 assert.equal(realUserVisibleText(skillMessage), "");
 
 const toolResult = {
@@ -66,6 +70,7 @@ const toolResult = {
 };
 assert.equal(isToolResultMessage(toolResult), true);
 assert.equal(classifyCurrentEntry([toolResult]).kind, "tool_result");
+assert.equal(classifyMessageKind(toolResult), "tool_result");
 assert.equal(realUserVisibleText(toolResult), "");
 
 const mixedCommand = {
@@ -85,6 +90,10 @@ const commandOnly = { role: "user", content: "<command-name>/context</command-na
 assert.equal(parseCommandMessage(commandOnly).command, "/context");
 assert.equal(userVisibleText(commandOnly), "Command /context");
 assert.equal(classifyCurrentEntry([commandOnly]).kind, "command");
+assert.equal(classifyMessageKind(commandOnly), "command_message");
+
+const toolUse = { role: "assistant", content: [{ type: "tool_use", id: "call-3", name: "Read", input: { file_path: "/tmp/a" } }] };
+assert.equal(classifyMessageKind(toolUse), "tool_use");
 
 const suggestion = { role: "user", content: "[SUGGESTION MODE: suggest what the user might type next]" };
 assert.equal(isSuggestionModeMessage(suggestion), true);

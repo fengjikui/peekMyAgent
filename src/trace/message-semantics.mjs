@@ -75,6 +75,20 @@ export function isToolResultMessage(message) {
   return content?.type === "tool_result";
 }
 
+export function classifyMessageKind(message) {
+  if (isTaskNotificationMessage(message)) return taskNotificationSummary(message).subagent ? "subagent_result" : "task_notification";
+  if (isFrameworkReminderMessage(message)) return "framework_reminder";
+  if (isSuggestionModeMessage(message)) return "agent_internal";
+  if (isCompactInjectionMessage(message)) return "compact";
+  if (isSkillInjectionMessage(message)) return "harness_injection";
+  if (message?.role === "user" && realUserVisibleText(message)) return "message";
+  if (parseCommandMessage(message)) return "command_message";
+  if (isToolResultMessage(message)) return "tool_result";
+  const parts = Array.isArray(message?.content) ? message.content : [];
+  if (parts.some((part) => part?.type === "tool_use")) return "tool_use";
+  return "message";
+}
+
 export function classifyCurrentEntry(messages) {
   const list = Array.isArray(messages) ? messages : [];
   for (let index = list.length - 1; index >= 0; index -= 1) {

@@ -84,6 +84,8 @@ for (const required of [
   "src/trace/context-delta.mjs",
   "src/trace/content-parts.mjs",
   "src/trace/message-semantics.mjs",
+  "src/trace/request-profile.mjs",
+  "src/trace/request-composition.mjs",
   "src/trace/model-response-normalizer.mjs",
   "src/trace/turn-timeline.mjs",
   "src/trace/subagent-graph.mjs",
@@ -133,7 +135,7 @@ const deniedPatterns = [
 const deniedFiles = packageFiles.filter((file) => deniedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(deniedFiles, [], `npm package includes release-unsafe files: ${deniedFiles.join(", ")}`);
 
-const MAX_PACKAGE_ENTRIES = 98;
+const MAX_PACKAGE_ENTRIES = 99;
 const MAX_PACKED_BYTES = 250_000;
 const MAX_UNPACKED_BYTES = 1_100_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
