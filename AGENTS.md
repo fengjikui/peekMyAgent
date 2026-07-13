@@ -60,7 +60,9 @@ git rev-parse origin/main
 ### Continuous automated validation
 
 - Every pull request and every push to `main` or `codex/**` MUST run the GitHub Actions macOS, Windows, and Linux matrix.
-- Hosted CI runs for every change. Do not batch CI until several large changes have accumulated.
+- Low-risk local commits MAY be grouped into one push, but a batch MUST NOT exceed three consecutive low-risk code commits since the last successful full host-platform profile.
+- High-risk changes, unexplained failures, handoffs, and release checkpoints MUST NOT wait for a later batch.
+- Documentation-only commits MAY share a later push with the next code batch. Every pushed batch still runs hosted CI.
 
 ### Real-machine validation
 
@@ -115,7 +117,36 @@ Viewer-only JavaScript, CSS, copy, or documentation changes still use hosted CI,
 
 ## 7. Required Validation
 
-Run the smallest focused checks while developing, then the platform profile before handoff:
+Validation effort follows the risk and accumulated blast radius. The detailed policy lives in [the tiered validation strategy](docs/validation-strategy.md).
+
+### Level 0: documentation and non-runtime metadata
+
+Use Level 0 only when runtime code, package contents, workflows, schemas, and user-facing behavior are unchanged.
+
+- Run `git diff --check`.
+- Run the nearest documentation or governance smoke when one exists.
+- A full local platform profile is not required solely for this level.
+- Level 0 commits do not increment the low-risk code counter.
+
+### Level 1: isolated low-risk code
+
+Examples include a pure helper extraction, a narrow Viewer renderer change, or a focused regression fix that does not cross a platform, security, persistence, capture, or public API boundary.
+
+- Run syntax/type checks and the smallest deterministic contract or integration smokes that cover the changed path.
+- Viewer interaction changes SHOULD include the narrowest representative browser scenario.
+- Commit the change when focused evidence is green; do not defer focused tests until the batch ends.
+- After three consecutive Level 1 code commits since the last successful full host-platform profile, run Level 2 before starting a fourth code commit or pushing the batch.
+
+### Level 2: full checkpoint
+
+Run the current host's full platform profile when any of these conditions is true:
+
+1. the change is high platform risk under Section 4;
+2. three Level 1 code commits have accumulated since the last successful full profile;
+3. code is about to be pushed, handed off, proposed for merge, or released;
+4. a focused test exposes an unexplained failure, shared-contract uncertainty, or a wider blast radius than expected.
+
+Run the smallest focused checks while developing, then the matching platform profile at the checkpoint:
 
 ```bash
 npm install
@@ -125,6 +156,8 @@ npm run release:check:linux
 ```
 
 Run only the profile matching the current host. The other profile commands can be listed from any host with their `:list` variants.
+
+A successful full profile resets the Level 1 counter only for the exact tested branch HEAD. Any later runtime-code commit starts a new counter. Documentation-only batches may be pushed without a fresh local full profile, but the hosted three-platform matrix still applies to the push.
 
 Real Agent tests belong to the [manual integration smoke matrix](docs/manual-integration-smoke-matrix.md). Use a non-sensitive test project and temporary state whenever possible.
 

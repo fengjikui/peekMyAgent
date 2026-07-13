@@ -4,6 +4,7 @@ import fs from "node:fs";
 const requiredFiles = [
   "CONTRIBUTING.md",
   "SECURITY.md",
+  "docs/validation-strategy.md",
   ".github/ISSUE_TEMPLATE/bug_report.yml",
   ".github/ISSUE_TEMPLATE/agent_adapter_request.yml",
   ".github/ISSUE_TEMPLATE/trace_display_bug.yml",
@@ -20,6 +21,14 @@ assert.match(contributing, /Node\.js 24/i);
 assert.match(contributing, /release:check/);
 assert.match(contributing, /Do not commit captured sessions/i);
 assert.match(contributing, /Adapter Contributions/);
+assert.match(contributing, /tiered validation strategy/i);
+
+const validationStrategy = fs.readFileSync("docs/validation-strategy.md", "utf8");
+assert.match(validationStrategy, /Level 0/);
+assert.match(validationStrategy, /Level 1/);
+assert.match(validationStrategy, /Level 2/);
+assert.match(validationStrategy, /最多 3 个低风险代码提交/);
+assert.match(validationStrategy, /推送后仍由 GitHub Actions 运行 macOS、Windows、Linux 三平台矩阵/);
 
 const security = fs.readFileSync("SECURITY.md", "utf8");
 assert.match(security, /Do not post secrets/i);

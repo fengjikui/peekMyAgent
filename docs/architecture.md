@@ -242,6 +242,8 @@ Server 的主要路由包括 source/view/request、translation、watch 控制、
 
 需要真实账号、provider、Claude Code、OpenClaw 或 Codex 的实验单独列在 [手动集成 smoke 矩阵](manual-integration-smoke-matrix.md)，避免让发布门禁依赖外部状态。
 
+日常开发按 [分级测试与批次检查策略](validation-strategy.md) 执行：低风险改动逐次运行聚焦测试，最多累计 3 个代码提交；达到阈值、高风险改动或准备推送时，运行当前平台完整 profile。每次推送仍由 GitHub Actions 执行三平台矩阵。
+
 ## 维护约定
 
 - 改动数据结构前先更新数据库迁移设计。
