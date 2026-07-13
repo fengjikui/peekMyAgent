@@ -82,6 +82,7 @@ const viewerCommands = [
   ["npm", "run", "smoke:agent-graph-view-contract"],
   ["npm", "run", "smoke:upstream-detail-view-contract"],
   ["npm", "run", "smoke:agent-composer-view-contract"],
+  ["npm", "run", "smoke:session-navigator-view-contract"],
   ["npm", "run", "smoke:viewer-timeline-surface-contract"],
   ["npm", "run", "smoke:turn-rail-contract"],
   ["npm", "run", "smoke:markdown-safety"],

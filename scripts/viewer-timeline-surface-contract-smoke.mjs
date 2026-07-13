@@ -10,6 +10,7 @@ const agentGraphRendererSource = fs.readFileSync(new URL("../src/viewer/agent-gr
 const upstreamDetailModelSource = fs.readFileSync(new URL("../src/viewer/upstream-detail-model.js", import.meta.url), "utf8");
 const upstreamDetailRendererSource = fs.readFileSync(new URL("../src/viewer/upstream-detail-renderer.js", import.meta.url), "utf8");
 const agentComposerControllerSource = fs.readFileSync(new URL("../src/viewer/agent-composer-controller.js", import.meta.url), "utf8");
+const sessionNavigatorControllerSource = fs.readFileSync(new URL("../src/viewer/session-navigator-controller.js", import.meta.url), "utf8");
 
 assert.match(source, /import \{[\s\S]*?buildTraceTimelineView,[\s\S]*?from "\.\/trace-timeline-model\.js";/);
 assert.match(source, /import \{ TraceTimelineController \} from "\.\/trace-timeline-controller\.js";/);
@@ -23,6 +24,7 @@ assert.match(source, /import \{ renderAgentGraph as renderAgentGraphView \} from
 assert.match(source, /import \{ buildUpstreamDetailView \} from "\.\/upstream-detail-model\.js";/);
 assert.match(source, /import \{ renderUpstreamDetail as renderUpstreamDetailView \} from "\.\/upstream-detail-renderer\.js";/);
 assert.match(source, /import \{ AgentComposerController \} from "\.\/agent-composer-controller\.js";/);
+assert.match(source, /import \{ SessionNavigatorController \} from "\.\/session-navigator-controller\.js";/);
 assert.match(source, /function renderAll\(\) \{[\s\S]*?renderHeaderSurface\(\);[\s\S]*?renderTimelineSurface\(\{ updateViewControls: false \}\);[\s\S]*?renderComposerSurface\(\);/);
 assert.match(
   functionSource("renderTimelineSurface"),
@@ -61,6 +63,13 @@ assert.doesNotMatch(source, /function renderAgentComposer\(/);
 assert.doesNotMatch(source, /function bindAgentComposer\(/);
 assert.doesNotMatch(source, /function sendAgentComposerMessage\(/);
 assert.doesNotMatch(agentComposerControllerSource, /\bdocument\b|\bwindow\b|\bfetch\s*\(|\bstate\./);
+assert.match(source, /const sessionNavigatorController = new SessionNavigatorController\(/);
+assert.match(functionSource("renderSessionNav"), /sessionNavigatorController\.render\(\{[\s\S]*?sources: state\.sources,[\s\S]*?activeSourceId: state\.activeSourceId/);
+assert.doesNotMatch(source, /function renderSourceGroups\(/);
+assert.doesNotMatch(source, /function renderProjectGroup\(/);
+assert.doesNotMatch(source, /function renderSessionItem\(/);
+assert.doesNotMatch(source, /function closeNavMenuOnce\(/);
+assert.doesNotMatch(sessionNavigatorControllerSource, /\bwindow\b|\blocalStorage\b|\bfetch\s*\(|\bstate\./);
 
 for (const functionName of [
   "jumpToTurn",

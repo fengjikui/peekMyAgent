@@ -27,6 +27,7 @@ import {
   rawSearchSnippetSegments,
 } from "./raw-search-model.js";
 import { RawSearchController } from "./raw-search-controller.js";
+import { SessionNavigatorController } from "./session-navigator-controller.js";
 import {
   renderRawDetail as renderRawDetailView,
   renderRawSearchControls as renderRawSearchControlsView,
@@ -98,13 +99,10 @@ const state = Object.assign(clientStore.state, {
   traceQuery: "",
   traceFilter: "all",
   traceResultLimit: 24,
-  openSourceMenuId: null,
-  openProjectMenuKey: null,
 });
 
 const LIVE_REFRESH_MS = 1200;
 const LATEST_ONLY_KEY = "peekmyagent.latestOnly";
-const PROJECT_COLLAPSE_KEY = "peekmyagent.collapsedProjects";
 const TRANSLATION_MODE_KEY = "peekmyagent.translationMode";
 const UI_LANGUAGE_KEY = "peekmyagent.uiLanguage";
 const TARGET_TRANSLATION_LANGUAGE_KEY = "peekmyagent.targetTranslationLanguage";
@@ -1118,6 +1116,20 @@ const rawSearchController = new RawSearchController({
     showRaw(requestId, section, { mode });
   },
 });
+const sessionNavigatorController = new SessionNavigatorController({
+  element: els.sessionNav,
+  documentTarget: document,
+  storage: localStorage,
+  translate: t,
+  escapeHtml,
+  projectNameFromWorkspace,
+  projectGroupKey,
+  displaySourceLabel,
+  shortId,
+  onSourceSelect: loadSource,
+  onSourceAction: ({ action, source }) => handleSourceAction(action, source),
+  onProjectAction: ({ action, projectGroup }) => handleProjectAction(action, projectGroup),
+});
 const agentComposerController = new AgentComposerController({
   element: els.agentComposer,
   sendMessage: (payload) => api.sendAgent(payload),
@@ -1963,159 +1975,25 @@ function isMainPanelNearBottom() {
 }
 
 function renderSessionNav() {
-  els.sessionNav.innerHTML = renderSourceGroups(state.sources);
-  document.querySelectorAll("[data-project-toggle]").forEach((button) => {
-    button.addEventListener("click", () => toggleProjectGroup(button.dataset.projectToggle));
+  sessionNavigatorController.render({
+    sources: state.sources,
+    activeSourceId: state.activeSourceId,
   });
-  document.querySelectorAll("[data-project-action]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      handleProjectAction(button.dataset.projectAction, button.dataset.projectKey);
-    });
-  });
-  document.querySelectorAll("[data-source]").forEach((button) => {
-    button.addEventListener("click", () => loadSource(button.dataset.source));
-  });
-  document.querySelectorAll("[data-source-action]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      handleSourceAction(button.dataset.sourceAction, button.dataset.sourceId);
-    });
-  });
-  document.removeEventListener("click", closeNavMenuOnce);
-  document.addEventListener("click", closeNavMenuOnce);
 }
 
-function renderSourceGroups(sources) {
-  const collapsed = readCollapsedProjects();
-  const agentGroups = groupSourcesByAgentAndProject(sources);
-  return agentGroups
-    .map(
-      (agentGroup) => `
-        <section class="source-agent-group">
-          <p class="source-agent-title">${escapeHtml(agentGroup.agent)}</p>
-          ${agentGroup.projects.map((projectGroup) => renderProjectGroup(projectGroup, collapsed)).join("")}
-        </section>
-      `,
-    )
-    .join("");
-}
-
-function renderProjectGroup(projectGroup, collapsed) {
-  const isCollapsed = collapsed[projectGroup.key] === true;
-  const menuOpen = state.openProjectMenuKey === projectGroup.key;
-  return `
-    <section class="source-project-group ${isCollapsed ? "collapsed" : ""} ${menuOpen ? "menu-open" : ""}">
-      <div class="source-project-header">
-        <button class="source-project-toggle" type="button" data-project-toggle="${escapeHtml(projectGroup.key)}" aria-expanded="${String(!isCollapsed)}" title="${escapeHtml(projectGroup.workspace || projectGroup.project)}">
-          <span class="source-project-chevron" aria-hidden="true">›</span>
-          <span class="source-project-name">${escapeHtml(projectGroup.project)}</span>
-          <span class="source-project-count">${projectGroup.sources.length}</span>
-        </button>
-        <span class="source-project-actions" aria-label="${escapeHtml(t("projectActionsAria"))}">
-          <button class="session-action menu-trigger" type="button" data-project-action="menu" data-project-key="${escapeHtml(projectGroup.key)}" title="${escapeHtml(t("moreActions"))}" aria-haspopup="menu" aria-expanded="${String(menuOpen)}">⋯</button>
-        </span>
-        ${
-          menuOpen
-            ? `<div class="session-menu project-menu" role="menu">
-                <button type="button" role="menuitem" data-project-action="archive" data-project-key="${escapeHtml(projectGroup.key)}">${escapeHtml(t("archiveProject"))}</button>
-                <button class="danger" type="button" role="menuitem" data-project-action="delete" data-project-key="${escapeHtml(projectGroup.key)}">${escapeHtml(t("deleteProjectData"))}</button>
-              </div>`
-            : ""
-        }
-      </div>
-      ${isCollapsed ? "" : `<div class="source-project-sessions">${projectGroup.sources.map(renderSessionItem).join("")}</div>`}
-    </section>
-  `;
-}
-
-function groupSourcesByAgentAndProject(sources) {
-  const agentMap = new Map();
-  for (const source of sources || []) {
-    const agent = source.agent || "Unknown Agent";
-    const project = source.project || projectNameFromWorkspace(source.workspace) || t("unassignedProject");
-    const workspace = source.workspace || "";
-    const projectKey = projectGroupKey(agent, workspace || project);
-    if (!agentMap.has(agent)) agentMap.set(agent, { agent, projectMap: new Map() });
-    const agentGroup = agentMap.get(agent);
-    if (!agentGroup.projectMap.has(projectKey)) agentGroup.projectMap.set(projectKey, { key: projectKey, agent, workspace, project, sources: [] });
-    agentGroup.projectMap.get(projectKey).sources.push(source);
-  }
-  return [...agentMap.values()].map((agentGroup) => ({
-    agent: agentGroup.agent,
-    projects: [...agentGroup.projectMap.values()],
-  }));
-}
-
-function toggleProjectGroup(key) {
-  const collapsed = readCollapsedProjects();
-  collapsed[key] = !collapsed[key];
-  writeCollapsedProjects(collapsed);
-  renderSessionNav();
-}
-
-function projectGroupByKey(key) {
-  return groupSourcesByAgentAndProject(state.sources)
-    .flatMap((agentGroup) => agentGroup.projects)
-    .find((projectGroup) => projectGroup.key === key);
-}
-
-function renderSessionItem(source) {
-  const active = source.id === state.activeSourceId ? "active" : "";
-  const disabled = source.available ? "" : "disabled";
-  const status = source.live_watch_id ? source.live_status || "stopped" : "static";
-  const subtitle = source.conversation_id ? shortId(source.conversation_id) : source.agent;
-  const label = displaySourceLabel(source.label);
-  const menuOpen = state.openSourceMenuId === source.id;
-  return `
-    <div class="session-item ${active} ${source.pinned ? "pinned" : ""} ${menuOpen ? "menu-open" : ""}" data-status="${escapeHtml(status)}">
-      <button class="session-main" type="button" data-source="${escapeHtml(source.id)}" title="${escapeHtml(label)}" ${disabled}>
-        <span class="session-dot" aria-hidden="true"></span>
-        <span class="session-copy">
-          <span class="session-title">${escapeHtml(label)}</span>
-          <span class="session-subtitle">${escapeHtml(subtitle)} · ${escapeHtml(t("requestUnit", { count: source.request_count || 0 }))}</span>
-        </span>
-      </button>
-      <span class="session-actions" aria-label="${escapeHtml(t("sessionActionsAria"))}">
-        <button class="session-action menu-trigger" type="button" data-source-action="menu" data-source-id="${escapeHtml(source.id)}" title="${escapeHtml(t("moreActions"))}" aria-haspopup="menu" aria-expanded="${String(menuOpen)}">⋯</button>
-      </span>
-      ${
-        menuOpen
-          ? `<div class="session-menu" role="menu">
-              <button type="button" role="menuitem" data-source-action="pin" data-source-id="${escapeHtml(source.id)}">${escapeHtml(source.pinned ? t("unpin") : t("pin"))}</button>
-              <button type="button" role="menuitem" data-source-action="rename" data-source-id="${escapeHtml(source.id)}">${escapeHtml(t("rename"))}</button>
-              <button type="button" role="menuitem" data-source-action="export" data-source-id="${escapeHtml(source.id)}">${escapeHtml(t("exportTrace"))}</button>
-              <button type="button" role="menuitem" data-source-action="archive" data-source-id="${escapeHtml(source.id)}">${escapeHtml(t("archive"))}</button>
-              <button class="danger" type="button" role="menuitem" data-source-action="delete" data-source-id="${escapeHtml(source.id)}">${escapeHtml(t("deleteData"))}</button>
-            </div>`
-          : ""
-      }
-    </div>
-  `;
-}
-
-async function handleSourceAction(action, sourceId) {
-  const source = state.sources.find((item) => item.id === sourceId);
-  if (!source) return;
-  if (action === "menu") {
-    state.openSourceMenuId = state.openSourceMenuId === sourceId ? null : sourceId;
-    state.openProjectMenuKey = null;
-    renderSessionNav();
-    return;
-  }
-  state.openSourceMenuId = null;
+async function handleSourceAction(action, source) {
   if (action === "pin") {
-    await updateSourceMeta(sourceId, { pinned: !source.pinned });
+    await updateSourceMeta(source.id, { pinned: !source.pinned });
     return;
   }
   if (action === "rename") {
     const title = window.prompt(t("renameSessionPrompt"), source.user_title || source.label);
     if (title == null) return;
-    await updateSourceMeta(sourceId, { title });
+    await updateSourceMeta(source.id, { title });
     return;
   }
   if (action === "export") {
-    exportTraceSource(sourceId);
+    exportTraceSource(source.id);
     return;
   }
   if (action === "archive" || action === "remove") {
@@ -2124,7 +2002,7 @@ async function handleSourceAction(action, sourceId) {
         ? t("archiveLiveConfirm")
         : t("archiveStaticConfirm");
     if (!window.confirm(message)) return;
-    await updateSourceMeta(sourceId, { archive: true });
+    await updateSourceMeta(source.id, { archive: true });
     return;
   }
   if (action === "delete") {
@@ -2133,20 +2011,11 @@ async function handleSourceAction(action, sourceId) {
         ? t("deleteLiveConfirm")
         : t("deleteStaticConfirm");
     if (!window.confirm(message)) return;
-    await updateSourceMeta(sourceId, { delete: true });
+    await updateSourceMeta(source.id, { delete: true });
   }
 }
 
-async function handleProjectAction(action, projectKey) {
-  const projectGroup = projectGroupByKey(projectKey);
-  if (!projectGroup) return;
-  if (action === "menu") {
-    state.openProjectMenuKey = state.openProjectMenuKey === projectKey ? null : projectKey;
-    state.openSourceMenuId = null;
-    renderSessionNav();
-    return;
-  }
-  state.openProjectMenuKey = null;
+async function handleProjectAction(action, projectGroup) {
   const count = projectGroup.sources.length;
   const project = projectGroup.project;
   if (action === "archive") {
@@ -2191,14 +2060,6 @@ async function importTraceFromFile(event) {
   } catch (error) {
     window.alert(t("importTraceFailed", { message: error.message }));
   }
-}
-
-function closeNavMenuOnce(event) {
-  if (!state.openSourceMenuId && !state.openProjectMenuKey) return;
-  if (event.target?.closest?.("[data-source-action], [data-project-action], .session-menu")) return;
-  state.openSourceMenuId = null;
-  state.openProjectMenuKey = null;
-  renderSessionNav();
 }
 
 async function updateSourceMeta(sourceId, payload) {
@@ -2250,18 +2111,6 @@ async function updateProjectSources(projectGroup, payload) {
     return;
   }
   renderSessionNav();
-}
-
-function readCollapsedProjects() {
-  try {
-    return JSON.parse(localStorage.getItem(PROJECT_COLLAPSE_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function writeCollapsedProjects(collapsed) {
-  localStorage.setItem(PROJECT_COLLAPSE_KEY, JSON.stringify(collapsed));
 }
 
 function renderAll() {
@@ -4164,8 +4013,8 @@ function displaySourceLabel(label) {
 
 function projectNameFromWorkspace(workspace) {
   if (!workspace) return "";
-  const normalized = String(workspace).replace(/\/+$/, "");
-  return normalized.split("/").filter(Boolean).at(-1) || normalized || "";
+  const normalized = String(workspace).replace(/[\\/]+$/, "");
+  return normalized.split(/[\\/]/).filter(Boolean).at(-1) || normalized || "";
 }
 
 function projectGroupKey(agent, project) {
