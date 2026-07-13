@@ -43,6 +43,7 @@ for (const required of [
   "src/viewer/raw-search-controller.js",
   "src/viewer/raw-search-model.js",
   "src/viewer/raw-view-model.js",
+  "src/viewer/request-card-renderer.js",
   "src/viewer/request-detail-cache.js",
   "src/viewer/translation-renderer.js",
   "src/viewer/translation-view-model.js",

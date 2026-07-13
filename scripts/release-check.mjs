@@ -78,6 +78,7 @@ const viewerCommands = [
   ["npm", "run", "smoke:trace-timeline-model-contract"],
   ["npm", "run", "smoke:trace-timeline-renderer-contract"],
   ["npm", "run", "smoke:trace-timeline-controller-contract"],
+  ["npm", "run", "smoke:request-card-renderer-contract"],
   ["npm", "run", "smoke:viewer-timeline-surface-contract"],
   ["npm", "run", "smoke:turn-rail-contract"],
   ["npm", "run", "smoke:markdown-safety"],

@@ -4,10 +4,15 @@ import fs from "node:fs";
 const source = fs.readFileSync(new URL("../src/viewer/client.js", import.meta.url), "utf8");
 const controllerSource = fs.readFileSync(new URL("../src/viewer/trace-timeline-controller.js", import.meta.url), "utf8");
 const rendererSource = fs.readFileSync(new URL("../src/viewer/trace-timeline-renderer.js", import.meta.url), "utf8");
+const requestCardRendererSource = fs.readFileSync(new URL("../src/viewer/request-card-renderer.js", import.meta.url), "utf8");
 
 assert.match(source, /import \{[\s\S]*?buildTraceTimelineView,[\s\S]*?from "\.\/trace-timeline-model\.js";/);
 assert.match(source, /import \{ TraceTimelineController \} from "\.\/trace-timeline-controller\.js";/);
 assert.match(source, /renderTurnTimeline as renderTurnTimelineView,[\s\S]*?from "\.\/trace-timeline-renderer\.js";/);
+assert.match(
+  source,
+  /renderTimelineAssistantResponse as renderTimelineAssistantResponseView,[\s\S]*?renderTimelineRequestCard as renderTimelineRequestCardView,[\s\S]*?from "\.\/request-card-renderer\.js";/,
+);
 assert.match(source, /function renderAll\(\) \{[\s\S]*?renderHeaderSurface\(\);[\s\S]*?renderTimelineSurface\(\{ updateViewControls: false \}\);[\s\S]*?renderComposerSurface\(\);/);
 assert.match(
   functionSource("renderTimelineSurface"),
@@ -19,6 +24,14 @@ assert.doesNotMatch(source, /function bindTraceQueryEvents\(/, "query events sho
 assert.match(controllerSource, /timelineElement\.addEventListener\("click"/);
 assert.match(controllerSource, /queryElement\.addEventListener\("compositionstart"/);
 assert.match(rendererSource, /export function renderTurnTimeline/);
+assert.match(requestCardRendererSource, /export function renderTimelineRequestCard/);
+assert.match(requestCardRendererSource, /export function renderTimelineAssistantResponse/);
+assert.match(source, /renderTimelineRequestCardView\(/);
+assert.match(source, /renderTimelineAssistantResponseView\(/);
+assert.doesNotMatch(source, /function renderAssistantToolCalls\(/);
+assert.doesNotMatch(source, /function renderAssistantThinking\(/);
+assert.doesNotMatch(source, /function renderToolExchangeItem\(/);
+assert.doesNotMatch(requestCardRendererSource, /\bdocument\b|\bwindow\b|\bfetch\s*\(|\bstate\./);
 
 for (const functionName of [
   "jumpToTurn",

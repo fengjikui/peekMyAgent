@@ -7,6 +7,13 @@ import { ViewerApiClient } from "./api-client.js";
 import { ViewerClientStore } from "./client-store.js";
 import { RequestDetailCache, requestNeedsDetail } from "./request-detail-cache.js";
 import {
+  renderTimelineAssistantResponse as renderTimelineAssistantResponseView,
+  renderTimelineRequestCard as renderTimelineRequestCardView,
+  renderTimelineToolExchange as renderTimelineToolExchangeView,
+  renderTimelineUpstreamEntry as renderTimelineUpstreamEntryView,
+  renderTimelineUpstreamQuickActions as renderTimelineUpstreamQuickActionsView,
+} from "./request-card-renderer.js";
+import {
   rawResponseSectionValue,
   rawSectionData as buildRawSectionData,
   rawUpstreamRequestValue,
@@ -3084,45 +3091,38 @@ function renderUpstreamEntry(request) {
   const entryPreview = cleanDisplayText(request.summary?.entry?.text || "");
   const showPreview = showInlineContent || Boolean(entryPreview);
   const meta = renderProviderUsageStats(request);
-  return `
-    <section class="upstream-entry ${escapeHtml(upstreamKindClass(request))} ${isUserTurnEntry(request) ? "user-turn" : ""} ${showInlineContent ? "" : "compact"}">
-      <div class="upstream-entry-row">
-        <div class="upstream-entry-title">
-          <span class="request-index">#${escapeHtml(request.request_index)}</span>
-          <span class="upstream-label">${escapeHtml(upstreamEntryLabel(request))}</span>
-        </div>
-        ${meta ? `<div class="upstream-entry-meta" aria-label="${escapeHtml(t("ownerAria"))}">${meta}</div>` : ""}
-        <div class="upstream-entry-actions">
-          ${renderUpstreamQuickActions(request, expanded)}
-        </div>
-      </div>
-      ${showPreview ? `<div class="upstream-entry-preview">${escapeHtml(upstreamEntryPreview(request))}</div>` : ""}
-    </section>
-  `;
+  return renderTimelineUpstreamEntryView({
+    entry: {
+      requestIndex: request.request_index,
+      kindClass: upstreamKindClass(request),
+      userTurn: isUserTurnEntry(request),
+      compact: !showInlineContent,
+      label: upstreamEntryLabel(request),
+      preview: showPreview ? upstreamEntryPreview(request) : "",
+      ownerAria: t("ownerAria"),
+      metaHtml: meta,
+      actionsHtml: renderUpstreamQuickActions(request, expanded),
+    },
+    escapeHtml,
+  });
 }
 
 function renderUpstreamQuickActions(request, expanded) {
   const hasUpstreamToolCalls = (request.summary?.current_tool_calls || []).length > 0;
   const hasToolResults = (request.summary?.current_tool_results || []).length > 0;
   const upstreamSections = [
-    ["system", "System"],
-    ["tools", "Tools"],
-    ...(hasUpstreamToolCalls ? [["upstream_tool_calls", "tool_use"]] : []),
-    ...(hasToolResults ? [["tool_results", "tool_result"]] : []),
+    { section: "system", label: "System" },
+    { section: "tools", label: "Tools" },
+    ...(hasUpstreamToolCalls ? [{ section: "upstream_tool_calls", label: "tool_use" }] : []),
+    ...(hasToolResults ? [{ section: "tool_results", label: "tool_result" }] : []),
   ];
-  return `
-    <button class="inspect-button upstream-toggle-button" type="button" data-upstream-toggle="${escapeHtml(request.id)}" aria-expanded="${expanded ? "true" : "false"}">
-      <span class="toggle-label">${escapeHtml(expanded ? t("collapseUpstream") : t("expandUpstream"))}</span>
-    </button>
-    ${upstreamSections
-      .map(
-        ([section, label]) => `
-          <button class="raw-section-button" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="${escapeHtml(section)}">${escapeHtml(label)}</button>
-        `,
-      )
-      .join("")}
-    <button class="raw-button compact" type="button" data-raw="${escapeHtml(request.id)}" title="${escapeHtml(t("fullCaptureTitle"))}">Raw</button>
-  `;
+  return renderTimelineUpstreamQuickActionsView({
+    requestId: request.id,
+    expanded,
+    sections: upstreamSections,
+    translate: t,
+    escapeHtml,
+  });
 }
 
 function shouldShowTimelineRequestContent(request) {
@@ -3237,17 +3237,17 @@ function renderRequestCard(request, options = {}) {
   const assistantResponse = shouldShowTimelineAssistantResponse(request) ? renderAssistantResponse(request) : "";
   const toolExchange = showInlineContent ? renderToolExchange(request) : "";
   const upstreamOpen = state.upstreamExpanded.has(request.id);
-  return `
-    <article class="request-card" id="${escapeHtml(request.id)}" data-card="${escapeHtml(request.id)}">
-      ${options.turnInput ? renderTurnInputEntry(request, options.turnInput) : renderUpstreamEntry(request)}
-      <details class="request-upstream-details request-upstream-panel" data-upstream-panel="${escapeHtml(request.id)}" ${upstreamOpen ? "open" : ""}>
-        <summary class="upstream-panel-summary">${escapeHtml(t("upstreamDetails", { index: request.request_index }))}</summary>
-        ${upstreamOpen ? renderUpstreamDetailsBody(request, toolNames, moreTools) : renderCollapsedUpstreamPlaceholder(request)}
-      </details>
-      ${toolExchange}
-      ${assistantResponse}
-    </article>
-  `;
+  return renderTimelineRequestCardView({
+    requestId: request.id,
+    requestIndex: request.request_index,
+    upstreamOpen,
+    upstreamEntryHtml: options.turnInput ? renderTurnInputEntry(request, options.turnInput) : renderUpstreamEntry(request),
+    upstreamBodyHtml: upstreamOpen ? renderUpstreamDetailsBody(request, toolNames, moreTools) : renderCollapsedUpstreamPlaceholder(request),
+    toolExchangeHtml: toolExchange,
+    assistantResponseHtml: assistantResponse,
+    translate: t,
+    escapeHtml,
+  });
 }
 
 function renderUpstreamDetailsBody(request, toolNames, moreTools) {
@@ -3309,21 +3309,19 @@ function renderTurnInputEntry(request, turn) {
     turn.command_message ? commandMessagePreview(turn.command_message) : turn.user_input || entry?.text || turn.title || "",
   );
   const meta = renderProviderUsageStats(request);
-  return `
-    <section class="upstream-entry ${escapeHtml(kindClass)} ${isUserTurnEntry(request) ? "user-turn" : ""}">
-      <div class="upstream-entry-row">
-        <div class="upstream-entry-title">
-          <span class="request-index">#${escapeHtml(request.request_index)}</span>
-          <span class="upstream-label">${escapeHtml(label)}</span>
-        </div>
-        ${meta ? `<div class="upstream-entry-meta" aria-label="${escapeHtml(t("ownerAria"))}">${meta}</div>` : ""}
-        <div class="upstream-entry-actions">
-          ${renderUpstreamQuickActions(request, expanded)}
-        </div>
-      </div>
-      ${inputText ? `<div class="upstream-entry-preview">${escapeHtml(inputText)}</div>` : ""}
-    </section>
-  `;
+  return renderTimelineUpstreamEntryView({
+    entry: {
+      requestIndex: request.request_index,
+      kindClass,
+      userTurn: isUserTurnEntry(request),
+      label,
+      preview: inputText,
+      ownerAria: t("ownerAria"),
+      metaHtml: meta,
+      actionsHtml: renderUpstreamQuickActions(request, expanded),
+    },
+    escapeHtml,
+  });
 }
 
 function shouldShowTimelineAssistantResponse(request) {
@@ -3660,23 +3658,19 @@ function renderToolExchange(request) {
   const calls = request.summary.current_tool_calls || [];
   const results = request.summary.current_tool_results || [];
   if (!calls.length && !results.length) return "";
-  const pairs = pairToolEvents(calls, results);
-  return `
-    <section class="summary-block">
-      <p class="block-title">${escapeHtml(t("currentToolExchange", { calls: calls.length, results: results.length }))}</p>
-      <div class="tool-exchange-list">
-        ${pairs
-          .map((pair) => renderToolExchangeItem(pair))
-          .join("")}
-      </div>
-    </section>
-  `;
+  return renderTimelineToolExchangeView({
+    pairs: pairToolEvents(calls, results),
+    counts: { calls: calls.length, results: results.length },
+    translate: t,
+    escapeHtml,
+    renderPre,
+    serializeArguments: (value) => JSON.stringify(value, null, 2),
+  });
 }
 
 function renderAssistantResponse(request) {
   const response = request.summary.response;
   if (!response?.captured) return "";
-  const responseToolUseCount = response.tool_calls?.length || 0;
   const responseText = response.text || response.preview || "";
   const longResponse = cleanDisplayText(responseText).length > 200;
   const expanded = state.responseExpanded.has(request.id);
@@ -3687,56 +3681,28 @@ function renderAssistantResponse(request) {
     response.truncated ? t("truncated") : "",
     ...formatResponseUsageMeta(response.usage),
   ].filter(Boolean);
-  return `
-    <section class="summary-block assistant-response-block ${expanded ? "expanded" : ""}">
-      <div class="block-title-row">
-        <div class="response-heading">
-          <p class="block-title">${escapeHtml(t("assistantReply"))}</p>
-          <div class="response-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
-        </div>
-        <div class="response-actions">
-          ${
-            responseToolUseCount
-              ? `<button class="mini-raw-button" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="tool_calls" data-raw-mode="response">Tool use · ${escapeHtml(String(responseToolUseCount))}</button>`
-              : ""
-          }
-          ${
-            longResponse
-              ? `<button class="mini-raw-button response-toggle-button" type="button" data-response-toggle="${escapeHtml(request.id)}">${escapeHtml(expanded ? t("collapse") : t("viewAll"))}</button>`
-              : ""
-          }
-          <button class="mini-raw-button" type="button" data-raw="${escapeHtml(request.id)}" data-raw-section="response" data-raw-mode="response">Raw</button>
-        </div>
-      </div>
-      ${renderAssistantThinking(response, request)}
-      ${renderAssistantToolCalls(response.tool_calls || [])}
-      ${
-        visibleText
-          ? `<div class="text-box assistant-response-text assistant-response-markdown ${longResponse && !expanded ? "collapsed" : ""}">${renderSafeMarkdown(visibleText)}</div>`
-          : (response.tool_calls || []).length
-            ? ""
-            : `<div class="empty-box">${escapeHtml(t("responseNoText"))}</div>`
-      }
-      ${longResponse ? `<p class="response-hint">${escapeHtml(expanded ? t("responseExpandedHint") : t("responseCollapsedHint"))}</p>` : ""}
-    </section>
-  `;
+  return renderTimelineAssistantResponseView({
+    view: {
+      requestId: request.id,
+      expanded,
+      longResponse,
+      visibleText,
+      meta,
+      toolCalls: response.tool_calls || [],
+      thinking: buildAssistantThinkingView(response, request),
+    },
+    translate: t,
+    escapeHtml,
+    renderMarkdown: renderSafeMarkdown,
+    renderTranslationMarkdown: renderMarkdownPreview,
+    renderPre,
+    serialize: stableJson,
+  });
 }
 
-function renderAssistantToolCalls(toolCalls) {
-  if (!toolCalls.length) return "";
-  return `
-    <section class="assistant-tool-calls">
-      <p class="block-title">${escapeHtml(t("assistantToolUse", { count: toolCalls.length }))}</p>
-      <div class="assistant-tool-list">
-        ${toolCalls.map((call) => renderPre(`tool_use ${call.name || "unknown"}${call.id ? ` (${call.id})` : ""}\n${stableJson(call.arguments ?? null)}`)).join("")}
-      </div>
-    </section>
-  `;
-}
-
-function renderAssistantThinking(response, request) {
+function buildAssistantThinkingView(response, request) {
   const thinking = response?.thinking || "";
-  if (!thinking) return "";
+  if (!thinking) return null;
   const preview = response.thinking_preview || shortPreview(thinking, 120);
   const translation = translatedTextFor("assistant_thinking", thinking);
   const actionId = registerTranslationAction({
@@ -3747,22 +3713,15 @@ function renderAssistantThinking(response, request) {
     surface: "timeline",
     metadata: { source: "response.thinking" },
   });
-  return `
-    <details class="assistant-thinking">
-      <summary>
-        <span>Thinking</span>
-        <em>${escapeHtml(formatCharCount(thinking.length))}</em>
-        <small>${escapeHtml(preview)}</small>
-      </summary>
-      <div class="details-body">
-        <div class="thinking-translation-toolbar">
-          <button type="button" class="translation-inline-button" data-translation-retranslate="${escapeHtml(actionId)}" ${state.translationGenerate.loading ? "disabled" : ""}>${escapeHtml(translation ? t("retranslateThinking") : t("translateThinking"))}</button>
-        </div>
-        ${translation ? `<div class="thinking-translation">${renderMarkdownPreview(translation)}</div>` : ""}
-        ${renderPre(thinking)}
-      </div>
-    </details>
-  `;
+  return {
+    text: thinking,
+    charCount: formatCharCount(thinking.length),
+    preview,
+    translation,
+    actionId,
+    actionLabel: translation ? t("retranslateThinking") : t("translateThinking"),
+    translationLoading: state.translationGenerate.loading,
+  };
 }
 
 function formatResponseUsageMeta(usage) {
@@ -3793,37 +3752,6 @@ function pairToolEvents(calls, results) {
   });
   for (const result of remainingResults) pairs.push({ call: null, result, confidence: "result_only" });
   return pairs;
-}
-
-function renderToolExchangeItem({ call, result, confidence }) {
-  const title = call?.name || result?.id || "tool_result";
-  const confidenceLabel = confidence === "id" ? t("pairedById") : confidence === "call_only" ? t("waitingToolResult") : t("unpairedToolResult");
-  return `
-    <article class="tool-exchange">
-      <header>
-        <span class="tool-exchange-kind">${call ? "Tool use" : "Tool result"}</span>
-        <strong>${escapeHtml(title)}</strong>
-        ${call?.id || result?.id ? `<code>${escapeHtml(call?.id || result?.id)}</code>` : ""}
-        <em>${escapeHtml(confidenceLabel)}</em>
-      </header>
-      ${
-        call
-          ? `<div class="tool-event tool-use">
-              <p>${escapeHtml(t("argumentsLabel"))}</p>
-              ${renderPre(JSON.stringify(call.arguments, null, 2))}
-            </div>`
-          : ""
-      }
-      ${
-        result
-          ? `<div class="tool-event tool-result">
-              <p>${escapeHtml(t("resultLabel"))}</p>
-              ${renderPre(result.content || "(empty)")}
-            </div>`
-          : `<div class="tool-event empty-tool-result">${escapeHtml(t("noMatchedToolResult"))}</div>`
-      }
-    </article>
-  `;
 }
 
 function rawSectionData(request, section) {
