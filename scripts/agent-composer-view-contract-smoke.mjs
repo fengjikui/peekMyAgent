@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { AgentComposerController } from "../src/viewer/agent-composer-controller.js";
 import { buildAgentComposerView, canSendToAgentSource } from "../src/viewer/agent-composer-model.js";
 import { renderAgentComposer } from "../src/viewer/agent-composer-renderer.js";
+import { UI_I18N } from "../src/viewer/ui-i18n.js";
 
 const translations = {
   composerPlaceholder: "Type a message",
@@ -175,7 +176,11 @@ for (const moduleSource of [controllerSource, modelSource, rendererSource]) {
 assert.match(controllerSource, /event\.key !== "Enter" \|\| event\.shiftKey \|\| event\.isComposing/);
 assert.match(controllerSource, /this\.element\.addEventListener\("submit"/);
 assert.match(controllerSource, /this\.element\.addEventListener\("input"/);
-assert.equal([...clientSource.matchAll(/sentRefreshFailed:/g)].length, 2, "refresh failure copy must exist in both UI languages");
+assert.equal(
+  Object.values(UI_I18N).filter((dictionary) => typeof dictionary.sentRefreshFailed === "string").length,
+  Object.keys(UI_I18N).length,
+  "refresh failure copy must exist in every UI language",
+);
 
 controller.destroy();
 failureController.destroy();

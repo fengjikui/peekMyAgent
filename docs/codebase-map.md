@@ -43,7 +43,7 @@ pma CLI / adapter
 | 中栏 Timeline、请求卡、多 Agent 看板、上行详情 | `trace-timeline-*`、`request-card-renderer.js`、`agent-graph-*`、`upstream-detail-*` | renderer 读取全局 `state` 或 DOM |
 | Raw、Messages、翻译展示 | `raw-*`、`message-*`、`translation-*` | `client.js` 新增长段领域 HTML |
 | UI 状态与交互动作 | `client-store.js`、feature controller、`session-navigator-*`、`agent-composer-*`、`client.js` 装配层 | model/renderer 写全局状态 |
-| 中英文 UI 文案 | `client.js` 当前 i18n 资源和 `scripts/i18n-smoke.mjs` | 只改一种语言 |
+| 中英文 UI 文案 | `src/viewer/ui-i18n.js` 和 `scripts/viewer-i18n-contract-smoke.mjs` | 只改一种语言或在 feature 内另建词典 |
 
 ## Viewer Feature 约定
 
@@ -62,7 +62,7 @@ pma CLI / adapter
 - Level 1 低风险代码累计到 3 个提交、准备推送代码批次或出现跨模块不确定性时，运行当前主机完整 release profile。
 - CLI、进程、路径、端口、安装、SQLite 和 provider 配置属于高平台风险，必须按 `docs/validation-strategy.md` 执行 Level 2。
 - 当前行为变化同步更新 `docs/architecture.md`；未来计划只写入 roadmap；复杂修复保留 evidence/retrospective。
-- 新增 UI 文案必须同步更新中英文 key，并运行 i18n 检查。
+- 新增 UI 文案必须同步更新 `ui-i18n.js` 的中英文 key，并运行 `npm run smoke:viewer-i18n-contract`；该门禁同时检查占位符和源码/HTML 的静态 key 引用。
 
 查看可用 smoke：
 

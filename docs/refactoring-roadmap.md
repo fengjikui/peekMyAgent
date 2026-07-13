@@ -168,6 +168,7 @@ src/
 - 已迁移 Upstream Detail View：System/Tools、历史消息、当前新增消息/子 Agent 回流和 provider token 口径成为纯 View Model；上行详情 HTML 成为纯 Renderer，compact detail 懒加载、缓存与展开状态仍由应用层所有；同时删除已无调用方的旧 context/badge/structure 渲染分支。
 - 已迁移 Agent Composer View：source 能力、发送目标/警示与结果文案成为纯 View Model，表单成为纯 Renderer；长生命周期 Controller 按 source 隔离草稿和发送状态，并管理 Enter/IME、detached resume 与 source 刷新，不再依赖全局 client state 或逐次事件绑定。
 - 已迁移 Session Navigator View：Source 的 Agent/项目分组、跨平台项目名、活动/可用状态成为纯 View Model，项目组和会话菜单成为纯 Renderer；长生命周期 Controller 管理根事件委派、菜单互斥和折叠持久化，归档/删除等副作用继续由应用层编排。
+- 已迁移 Viewer UI i18n 资源：中英文词典、默认语言、fallback 与占位符插值从 `client.js` 抽为纯模块；新增键集合、占位符、静态引用、发布文件和浏览器资源契约。
 
 ## 阶段 3：拆分 Viewer Client
 
@@ -179,7 +180,7 @@ src/
 2. 抽出 API client 和 request-detail cache。已完成。
 3. 建立最小 client store，明确 source、timeline window、selected request、language 和 pane layout。已完成第一阶段：核心选择/偏好已迁移，timeline window 的 normalized entity/page 状态留待阶段 4。
 4. 按 timeline、raw inspector、translation、agent graph、composer 拆 feature renderer。
-5. 将硬编码文案移入中英文资源表；增加缺失 key 检查。
+5. 将硬编码文案移入中英文资源表；增加缺失 key 检查。已完成现有 357 个 UI key 的资源迁移和契约门禁，后续 feature 继续复用该资源。
 6. 删除确认无调用的函数和 CSS，再按 component/feature 拆样式。
 
 验收：
@@ -228,6 +229,8 @@ src/
 任务：
 
 - 建立 semver、CHANGELOG、release notes 和 npm provenance。
+- 提供可诊断、可回滚的用户更新入口；`pma update` 的行为必须区分 npm 全局安装、源码开发和不受管理的安装方式，并通过三平台安装生命周期测试。
+- 在英文与简体中文 README 稳定后，按真实用户覆盖补充少量常见语言 README；所有版本共享同一安装、快速开始和 Agent 可读说明，并建立链接/命令漂移检查。
 - 给 archive 增加历史列表和恢复入口；实现明确的 retention 设置后再宣称默认策略。
 - 增加导出前风险预览和可配置脱敏。
 - 评估本机 session token、Unix socket/Named Pipe 或一次性控制令牌，以加强同机边界。

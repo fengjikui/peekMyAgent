@@ -83,6 +83,7 @@
     "smoke:upstream-detail-view-contract": "node scripts/upstream-detail-view-contract-smoke.mjs",
     "smoke:agent-composer-view-contract": "node scripts/agent-composer-view-contract-smoke.mjs",
     "smoke:session-navigator-view-contract": "node scripts/session-navigator-view-contract-smoke.mjs",
+    "smoke:viewer-i18n-contract": "node scripts/viewer-i18n-contract-smoke.mjs",
     "smoke:viewer-timeline-surface-contract": "node scripts/viewer-timeline-surface-contract-smoke.mjs",
     "smoke:turn-rail-contract": "node scripts/turn-rail-contract-smoke.mjs",
     "smoke:markdown-safety": "node scripts/markdown-safety-smoke.mjs",

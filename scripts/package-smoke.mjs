@@ -60,6 +60,7 @@ for (const required of [
   "src/viewer/trace-timeline-controller.js",
   "src/viewer/trace-timeline-model.js",
   "src/viewer/trace-timeline-renderer.js",
+  "src/viewer/ui-i18n.js",
   "src/viewer/turn-rail.js",
   "src/core/platform.mjs",
   "src/core/otel-events.mjs",
