@@ -14,6 +14,10 @@ const sessionNavigatorControllerSource = fs.readFileSync(new URL("../src/viewer/
 
 assert.match(source, /import \{[\s\S]*?buildTraceTimelineView,[\s\S]*?from "\.\/trace-timeline-model\.js";/);
 assert.match(source, /import \{ TraceTimelineController \} from "\.\/trace-timeline-controller\.js";/);
+assert.match(source, /import \{ TimelineEntityStore \} from "\.\/timeline-entity-store\.js";/);
+assert.match(source, /let timelineEntityStore = new TimelineEntityStore\(\);/);
+assert.match(source, /function createTimelineEntityStore\(/);
+assert.doesNotMatch(source, /\bmergeTimelinePage\(/, "application code should use the persistent normalized entity store");
 assert.match(source, /renderTurnTimeline as renderTurnTimelineView,[\s\S]*?from "\.\/trace-timeline-renderer\.js";/);
 assert.match(
   source,

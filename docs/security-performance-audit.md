@@ -144,7 +144,7 @@
 
 - 本机恶意进程仍可直接访问本地 loopback 服务。若以后支持更强安全模型，可增加一次性 session token、Unix domain socket 或浏览器端 nonce。
 - Trace 导出已经默认脱敏常见 secret/token pattern，但仍可能包含私有提示词、源码片段、文件路径、工具输出或业务数据；后续可增加导出前预览、风险扫描和可配置脱敏规则。
-- cursor Server 为保持跨页 Turn 和多 Agent 语义，仍会在内存中保留已加载的 compact prefix 并重建派生实体；网络传输已经增量化，后续还需引入 normalized entity/page store，把 Server CPU 和 Client 重绘成本也收敛到受影响实体。
+- cursor Server 为保持跨页 Turn 和多 Agent 语义，仍会在内存中保留已加载的 compact prefix 并重建派生实体；Client 已使用 normalized entity store 避免每页重建 map，但仍会物化兼容数组并重绘 Timeline window。后续需增加 Server 增量派生与 Client page eviction/细粒度订阅，把 CPU、常驻内存和重绘成本继续收敛到受影响实体。
 - Markdown 渲染、翻译和 Raw JSON 展示应继续避免一次性渲染超大 DOM；新增展示区时要补大样本 fixture 或 smoke。
 - 如果未来支持远程访问 dashboard，应设计成明确的远程模式，而不是简单开放 host：需要认证、CSRF token、CORS 策略、TLS/反代建议和更明确的隐私提示。
 

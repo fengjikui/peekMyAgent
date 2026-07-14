@@ -9,9 +9,11 @@ export class RequestDetailCache {
     this.details = new Map();
     this.promises = new Map();
     this.errors = new Map();
+    this.generation = 0;
   }
 
   clear() {
+    this.generation += 1;
     this.details.clear();
     this.promises.clear();
     this.errors.clear();
@@ -21,12 +23,8 @@ export class RequestDetailCache {
     return this.errors.get(requestId) || null;
   }
 
-  mergeIntoData(data) {
-    if (!data?.requests?.length || !this.details.size) return data;
-    return {
-      ...data,
-      requests: data.requests.map((request) => this.details.get(request.id) || request),
-    };
+  detailFor(requestId) {
+    return this.details.get(requestId) || null;
   }
 
   ensure(sourceId, request) {
@@ -36,19 +34,21 @@ export class RequestDetailCache {
     if (this.details.has(requestId)) return Promise.resolve(this.onCached(this.details.get(requestId)));
     if (this.promises.has(requestId)) return this.promises.get(requestId);
 
+    const generation = this.generation;
     const promise = Promise.resolve(this.loadDetail(sourceId, requestId))
       .then((detail) => normalizeRequestDetail(detail))
       .then(async (detail) => {
+        if (generation !== this.generation) return detail;
         this.details.set(requestId, detail);
         this.errors.delete(requestId);
         return this.onLoaded(detail);
       })
       .catch((error) => {
-        this.errors.set(requestId, error);
+        if (generation === this.generation) this.errors.set(requestId, error);
         throw error;
       })
       .finally(() => {
-        this.promises.delete(requestId);
+        if (this.promises.get(requestId) === promise) this.promises.delete(requestId);
       });
     this.promises.set(requestId, promise);
     return promise;

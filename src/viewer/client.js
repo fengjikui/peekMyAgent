@@ -5,7 +5,7 @@ import {
   renderMessagesSection as renderMessagesSectionView,
 } from "./messages-renderer.js";
 import { ViewerApiClient } from "./api-client.js";
-import { mergeTimelinePage } from "./timeline-page-merge.js";
+import { TimelineEntityStore } from "./timeline-entity-store.js";
 import { ViewerClientStore } from "./client-store.js";
 import { AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView } from "./agent-graph-model.js";
 import { renderAgentGraph as renderAgentGraphView } from "./agent-graph-renderer.js";
@@ -78,6 +78,7 @@ import {
 
 const api = new ViewerApiClient();
 const clientStore = new ViewerClientStore();
+let timelineEntityStore = new TimelineEntityStore();
 const state = Object.assign(clientStore.state, {
   sources: [],
   data: null,
@@ -698,13 +699,16 @@ async function loadSource(sourceId, { preserveScroll = false } = {}) {
     state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
   }
   state.progressiveLoadError = "";
-  const initialData = requestDetailCache.mergeIntoData(
-    await fetchViewerData(sourceId, progressive ? { initial: true, limit: INITIAL_SOURCE_REQUEST_LIMIT } : {}),
+  const initialPage = await fetchViewerData(
+    sourceId,
+    progressive ? { initial: true, limit: INITIAL_SOURCE_REQUEST_LIMIT } : {},
   );
   if (loadSeq !== state.sourceLoadSeq) return;
-  applyLoadedSourceData(initialData, { preserveScroll, scrollTop });
+  const sourceStore = createTimelineEntityStore(initialPage);
+  const initialData = sourceStore.snapshot();
+  applyLoadedSourceData(initialData, { preserveScroll, scrollTop, store: sourceStore });
   if (progressive && initialData.partial?.has_more) {
-    loadSourcePagesInBackground(sourceId, initialData, { loadSeq });
+    loadSourcePagesInBackground(sourceId, initialData, { loadSeq, store: sourceStore });
     return;
   }
   loadTranslationsForSourceLoad(loadSeq);
@@ -758,26 +762,34 @@ async function refreshActiveSource(activeSource) {
   const previousData = state.data;
   const loadSeq = state.sourceLoadSeq;
   let nextData;
+  let nextStore = timelineEntityStore;
   if (previousData?.source?.id === activeSource.id && previousData.partial?.refresh_cursor) {
     try {
       nextData = await continueTimelineCursor(activeSource.id, previousData, {
         cursor: previousData.partial.refresh_cursor,
         loadSeq,
+        store: timelineEntityStore,
       });
     } catch (error) {
       console.warn("peekMyAgent timeline refresh cursor expired; rebuilding the compact timeline", error);
-      nextData = await fetchCompleteTimeline(activeSource.id, { loadSeq });
+      const rebuilt = await fetchCompleteTimeline(activeSource.id, { loadSeq });
+      nextData = rebuilt?.data || null;
+      nextStore = rebuilt?.store || nextStore;
     }
   } else if (Number(activeSource.request_count || 0) >= PROGRESSIVE_SOURCE_MIN_REQUESTS) {
-    nextData = await fetchCompleteTimeline(activeSource.id, { loadSeq });
+    const rebuilt = await fetchCompleteTimeline(activeSource.id, { loadSeq });
+    nextData = rebuilt?.data || null;
+    nextStore = rebuilt?.store || nextStore;
   } else {
-    nextData = requestDetailCache.mergeIntoData(await fetchViewerData(activeSource.id));
+    nextStore = createTimelineEntityStore(await fetchViewerData(activeSource.id));
+    nextData = nextStore.snapshot();
   }
   if (!nextData || loadSeq !== state.sourceLoadSeq || state.activeSourceId !== activeSource.id) return;
   if (!shouldRenderRefreshedData(previousData, nextData)) return;
 
   const wasNearBottom = isMainPanelNearBottom();
   const previousScrollTop = els.mainPanel.scrollTop;
+  timelineEntityStore = nextStore;
   state.data = nextData;
   await loadTranslationsForActiveSource();
   const turnIds = activeTurnIds(nextData);
@@ -798,7 +810,8 @@ async function refreshActiveSource(activeSource) {
   turnRailController.scheduleActiveSync();
 }
 
-function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } = {}) {
+function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0, store = null } = {}) {
+  if (store) timelineEntityStore = store;
   state.data = data;
   const turnIds = activeTurnIds(data);
   const activeId = preserveScroll && turnIds.includes(state.activeId) ? state.activeId : turnIds[0] || null;
@@ -819,14 +832,15 @@ function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } =
   turnRailController.scheduleActiveSync();
 }
 
-async function loadSourcePagesInBackground(sourceId, initialData, { loadSeq } = {}) {
+async function loadSourcePagesInBackground(sourceId, initialData, { loadSeq, store } = {}) {
   try {
     const mergedData = await continueTimelineCursor(sourceId, initialData, {
       cursor: initialData.partial?.next_cursor,
       loadSeq,
+      store,
       onPage(data) {
         const scrollTop = els.mainPanel.scrollTop;
-        applyLoadedSourceData(data, { preserveScroll: true, scrollTop });
+        applyLoadedSourceData(data, { preserveScroll: true, scrollTop, store });
       },
     });
     if (!mergedData) return;
@@ -840,30 +854,50 @@ async function loadSourcePagesInBackground(sourceId, initialData, { loadSeq } = 
 }
 
 async function fetchCompleteTimeline(sourceId, { loadSeq } = {}) {
-  const initialData = requestDetailCache.mergeIntoData(
-    await fetchViewerData(sourceId, { initial: true, limit: INITIAL_SOURCE_REQUEST_LIMIT }),
-  );
+  const initialPage = await fetchViewerData(sourceId, { initial: true, limit: INITIAL_SOURCE_REQUEST_LIMIT });
   if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== sourceId) return null;
-  return continueTimelineCursor(sourceId, initialData, {
+  const store = createTimelineEntityStore(initialPage);
+  const initialData = store.snapshot();
+  const data = await continueTimelineCursor(sourceId, initialData, {
     cursor: initialData.partial?.next_cursor,
     loadSeq,
+    store,
   });
+  return data ? { data, store } : null;
 }
 
-async function continueTimelineCursor(sourceId, initialData, { cursor, loadSeq, onPage = null } = {}) {
+async function continueTimelineCursor(sourceId, initialData, { cursor, loadSeq, store, onPage = null } = {}) {
   let mergedData = initialData;
   let nextCursor = cursor || null;
+  const entityStore = store || timelineEntityStore;
   while (nextCursor) {
     await backgroundPageYield();
-    const page = requestDetailCache.mergeIntoData(
-      await fetchViewerData(sourceId, { cursor: nextCursor, limit: CURSOR_PAGE_REQUEST_LIMIT }),
-    );
+    const page = await fetchViewerData(sourceId, { cursor: nextCursor, limit: CURSOR_PAGE_REQUEST_LIMIT });
     if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== sourceId) return null;
-    mergedData = mergeTimelinePage(mergedData, page);
+    mergedData = applyTimelinePage(entityStore, page);
     onPage?.(mergedData);
     nextCursor = mergedData.partial?.has_more ? mergedData.partial.next_cursor : null;
   }
   return mergedData;
+}
+
+function createTimelineEntityStore(data) {
+  const store = new TimelineEntityStore(data);
+  overlayCachedRequestDetails(store, data?.requests);
+  return store;
+}
+
+function applyTimelinePage(store, page) {
+  store.applyPage(page);
+  overlayCachedRequestDetails(store, page?.requests);
+  return store.snapshot();
+}
+
+function overlayCachedRequestDetails(store, requests) {
+  for (const request of requests || []) {
+    const detail = requestDetailCache.detailFor(request.id);
+    if (detail) store.mergeRequestDetail(detail);
+  }
 }
 
 function backgroundPageYield() {
@@ -893,6 +927,7 @@ function fetchViewerData(sourceId, { initial = false, cursor = null, limit = INI
 }
 
 function currentRequestById(requestId) {
+  if (timelineEntityStore.sourceId === state.data?.source?.id) return timelineEntityStore.request(requestId);
   return (state.data?.requests || []).find((item) => item.id === requestId) || null;
 }
 
@@ -913,22 +948,9 @@ async function ensureDetailsForRawSection(request, section) {
 }
 
 function mergeRequestDetail(fullRequest) {
-  if (!fullRequest?.id || !state.data?.requests) return fullRequest;
-  const index = state.data.requests.findIndex((request) => request.id === fullRequest.id);
-  if (index === -1) return fullRequest;
-  const previous = state.data.requests[index];
-  const merged = {
-    ...previous,
-    ...fullRequest,
-    changes: previous.changes || fullRequest.changes,
-    context_delta: previous.context_delta || fullRequest.context_delta,
-    trace: {
-      ...(fullRequest.trace || {}),
-      context_chain_key: previous.trace?.context_chain_key || fullRequest.trace?.context_chain_key || null,
-      previous_context_request_index: previous.trace?.previous_context_request_index || fullRequest.trace?.previous_context_request_index || null,
-    },
-  };
-  state.data.requests[index] = merged;
+  if (!fullRequest?.id || !timelineEntityStore.hasRequest(fullRequest.id)) return fullRequest;
+  const merged = timelineEntityStore.mergeRequestDetail(fullRequest);
+  state.data = timelineEntityStore.snapshot();
   return merged;
 }
 

@@ -67,7 +67,7 @@ const coreCommands = [
 ];
 const viewerCommands = [
   ["npm", "run", "smoke:viewer-api-client-contract"],
-  ["npm", "run", "smoke:timeline-page-merge-contract"],
+  ["npm", "run", "smoke:timeline-entity-store-contract"],
   ["npm", "run", "smoke:viewer-client-store-contract"],
   ["npm", "run", "smoke:pane-layout-controller-contract"],
   ["npm", "run", "smoke:request-detail-cache-contract"],

@@ -95,7 +95,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/viewer/translation-view-model.js` | 翻译材料分组、结构化搜索排序、缓存命中统计与展示 DTO |
 | `src/viewer/translation-renderer.js` | 翻译工具栏、System/Harness 块、工具组和参数汇总的依赖注入 HTML renderer |
 | `src/viewer/request-detail-cache.js` | compact request 的完整详情按需加载、并发去重、错误和 source 生命周期缓存 |
-| `src/viewer/timeline-page-merge.js` | cursor 页面中的 request/Turn/Agent 稳定实体合并与原子 annotation patch |
+| `src/viewer/timeline-entity-store.js` | `TimelineEntityStore`：cursor 页面中的 request/Turn/Agent normalized map、缓存快照、详情覆盖与原子 annotation patch |
 | `src/viewer/turn-rail.js` | Turn Rail 可见窗口、悬停层级、跳转和滚动激活控制器 |
 | `src/server/viewer-static-assets.mjs` | Viewer 浏览器资源白名单、文件解析与 content type manifest |
 | `src/viewer/markdown.js` | 受限、安全的 Markdown 渲染 |
@@ -222,7 +222,7 @@ Raw Inspector 按数据方向组织证据：请求卡和上行视图只展示 Sy
 
 Raw Inspector 的结构化翻译视图已经拆为纯 View Model 和 Renderer。View Model 只接收显式材料、查询词和译文 lookup 回调，负责工具分组、命中排序、缓存统计与展示 DTO；Renderer 只接收 DTO、i18n、Markdown/Pre renderer 和 action id 注册回调。缓存 Map、网络请求、活动 request/section 与动作生命周期仍由 `client.js` 装配，因此新模块不会重复翻译 hash，也不会隐藏副作用。详细边界见 [Viewer 翻译视图契约](translation-view-renderer-contract.md)。
 
-大 Trace 已使用真正的 cursor 增量读取：live/SQLite Source 首屏后不会再下载整条 compact Trace，后续页面通过稳定 request、Turn 和 Agent 实体合并进入时间线，Raw/detail 仍按 request 懒加载。当前边界是 Client 尚未形成完整的 normalized entity/page store，file/import Source 也仍会先完整 parse 再切页；搜索后台索引、浏览器峰值内存 gate 和更细粒度的局部重绘继续属于下一阶段优化。
+大 Trace 已使用真正的 cursor 增量读取：live/SQLite Source 首屏后不会再下载整条 compact Trace，后续页面由 `TimelineEntityStore` 合并进 request、Turn 和 Agent 的 normalized map，Raw/detail 仍按 request 懒加载。Store 在状态未变化时复用兼容快照，完整详情只能覆盖对应证据字段，不能反向覆盖 cursor 已确认的 Turn、Context 或 Agent 归属。当前边界是 Store 仍需为旧 View Model 物化完整 compact 数组，尚未实现 page eviction/细粒度订阅；file/import Source 也仍会先完整 parse 再切页。搜索后台索引、浏览器峰值内存 gate 和更细粒度的局部重绘继续属于下一阶段优化。
 
 ## Trace 解释模型
 

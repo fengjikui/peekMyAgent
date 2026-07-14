@@ -185,7 +185,7 @@ src/
 
 1. 抽出低耦合交互 feature，验证依赖注入和直接契约测试模式。Turn Rail 已完成。
 2. 抽出 API client 和 request-detail cache。已完成。
-3. 建立最小 client store，明确 source、timeline window、selected request、language 和 pane layout。已完成第一阶段：核心选择/偏好已迁移，timeline window 的 normalized entity/page 状态留待阶段 4。
+3. 建立最小 client store，明确 source、timeline window、selected request、language 和 pane layout。核心选择/偏好已迁移；阶段 4 已增加 `TimelineEntityStore` 持有 request/Turn/Agent normalized map，page eviction 与细粒度订阅仍待完成。
 4. 按 timeline、raw inspector、translation、agent graph、composer 拆 feature renderer。
 5. 将硬编码文案移入中英文资源表；增加缺失 key 检查。已完成现有 357 个 UI key 的资源迁移和契约门禁，后续 feature 继续复用该资源。
 6. 删除确认无调用的函数和 CSS，再按 component/feature 拆样式。
@@ -222,9 +222,9 @@ src/
 - 已建立 daemon 内存中的 Source 绑定 opaque cursor，包含 TTL、session 上限、错源/过期错误和 live tail 续读；Source 生命周期变更会清理 session。
 - Context Delta 与 body-only 子 Agent lineage 已支持显式跨页状态，不再错误地按全局上一行比较或丢失早页 spawn。
 - 已建立 `TimelinePageAssembler`：首屏返回 compact 基线，后续只返回 request patch、Turn entity update 和 Agent graph entity delta。
-- Client 已按稳定实体 id 合并页面；大 Source 首屏后不再请求完整 compact Trace，live 自动刷新优先从 refresh cursor 续读。
-- 420-request 性能 fixture 已验证分页覆盖所有请求、累计网络载荷保持线性，真实 HTTP smoke 覆盖跨页父/子 Agent/回流和 live 增量。
-- 尚未完成 normalized entity/page store、file/import sidecar、可取消搜索索引、system diff 上限、增量 blob refcount 和浏览器内存/长任务 gate，因此阶段 4 仍保持进行中。
+- Client 已由持久的 `TimelineEntityStore` 按稳定 id 管理 request/Turn/Agent map，页面合并不再从完整数组重建临时 map；完整 detail 覆盖也统一经过该边界。大 Source 首屏后不再请求完整 compact Trace，live 自动刷新优先从 refresh cursor 续读。
+- 420-request 性能 fixture 已验证分页覆盖所有请求、Client normalized merge、累计网络载荷保持线性；真实 HTTP smoke 覆盖跨页父/子 Agent/回流和 live 增量。
+- 尚未完成 page eviction/细粒度订阅、file/import sidecar、可取消搜索索引、system diff 上限、增量 blob refcount 和浏览器内存/长任务 gate，因此阶段 4 仍保持进行中。
 
 ## 阶段 5：适配器 SDK 与更多 Agent
 

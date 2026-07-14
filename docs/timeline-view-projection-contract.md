@@ -35,7 +35,7 @@
 
 ```bash
 npm run smoke:timeline-view-projector-contract
-npm run smoke:timeline-page-merge-contract
+npm run smoke:timeline-entity-store-contract
 npm run smoke:timeline-cursor-service-contract
 npm run smoke:timeline-cursor-http
 ```

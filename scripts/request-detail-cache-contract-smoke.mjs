@@ -67,10 +67,8 @@ const cached = await cache.ensure("source-1", compactRequest);
 assert.equal(cached.merged, "cache-hit");
 assert.equal(cachedCount, 1);
 assert.equal(loadCount, 1);
-
-const mergedData = cache.mergeIntoData({ requests: [compactRequest, { id: "request-2" }] });
-assert.equal(mergedData.requests[0].raw.body.system, "full");
-assert.equal(mergedData.requests[1].id, "request-2");
+assert.equal(cache.detailFor("request-1").raw.body.system, "full");
+assert.equal(cache.detailFor("missing"), null);
 
 let failCount = 0;
 const failure = new Error("detail unavailable");
@@ -86,5 +84,32 @@ await assert.rejects(() => failingCache.ensure("source-1", compactRequest), /det
 assert.equal(failCount, 2, "a failed request should be retryable after its in-flight promise clears");
 failingCache.clear();
 assert.equal(failingCache.errorFor("request-1"), null);
+assert.equal(failingCache.detailFor("request-1"), null);
+
+const pendingResolvers = [];
+let generationLoads = 0;
+let generationMerges = 0;
+const generationCache = new RequestDetailCache({
+  loadDetail: async () => {
+    generationLoads += 1;
+    return new Promise((resolve) => pendingResolvers.push(resolve));
+  },
+  onLoaded(detail) {
+    generationMerges += 1;
+    return detail;
+  },
+});
+const staleLoad = generationCache.ensure("source-old", compactRequest);
+generationCache.clear();
+const freshLoad = generationCache.ensure("source-new", compactRequest);
+pendingResolvers[0]({ id: "request-1", raw: { body: { system: "stale" } } });
+await staleLoad;
+assert.equal(generationCache.detailFor("request-1"), null, "a cleared generation must not repopulate the cache");
+const sharedFreshLoad = generationCache.ensure("source-new", compactRequest);
+assert.equal(generationLoads, 2, "a stale finally handler must not delete the fresh in-flight promise");
+pendingResolvers[1]({ id: "request-1", raw: { body: { system: "fresh" } } });
+assert.deepEqual(await sharedFreshLoad, await freshLoad);
+assert.equal(generationCache.detailFor("request-1").raw.body.system, "fresh");
+assert.equal(generationMerges, 1, "only the active source generation may update application state");
 
 console.log("request detail cache contract smoke passed");

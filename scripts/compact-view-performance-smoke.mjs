@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { startViewerServer } from "../src/viewer/server.mjs";
+import { TimelineEntityStore } from "../src/viewer/timeline-entity-store.js";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peek-compact-view-performance-"));
 const evidenceDir = path.join(tmpDir, "evidence");
@@ -69,6 +70,8 @@ try {
     let pagedBytes = initialByteLength;
     let pageCount = 1;
     let largestTailPage = 0;
+    let clientMergeMs = 0;
+    const timelineStore = new TimelineEntityStore(initialView);
     while (cursor) {
       const pageResponse = await fetch(
         `${viewer.url}/api/view?source=custom&compact=1&cursor=${encodeURIComponent(cursor)}&limit=100`,
@@ -83,14 +86,20 @@ try {
       pagedBytes += pageBytes;
       largestTailPage = Math.max(largestTailPage, pageBytes);
       pageCount += 1;
+      const mergeStarted = performance.now();
+      timelineStore.applyPage(page);
+      clientMergeMs += performance.now() - mergeStarted;
       cursor = page.partial.has_more ? page.partial.next_cursor : null;
     }
     assert.equal(loadedRequests, requestCount, "cursor pages cover every request exactly once");
+    assert.equal(timelineStore.snapshot().requests.length, requestCount, "normalized Client store covers every request");
+    assert.equal("turn_updates" in timelineStore.snapshot(), false, "Client state must not retain wire-only deltas");
+    assert.ok(clientMergeMs < 1000, `Client entity merge should stay below 1000ms; got ${Math.round(clientMergeMs)}ms`);
     assert.ok(pagedBytes < byteLength * 1.8, "cursor transfer should remain linear rather than repeat the loaded prefix");
     assert.ok(largestTailPage < byteLength / 2, "a tail page should remain bounded independently of total Trace size");
 
     console.log(
-      `compact-view-performance smoke passed (${requestCount} requests, full ${byteLength} bytes/${Math.round(elapsedMs)}ms, cursor ${pagedBytes} bytes/${pageCount} pages, initial ${initialByteLength} bytes/${Math.round(initialElapsedMs)}ms)`,
+      `compact-view-performance smoke passed (${requestCount} requests, full ${byteLength} bytes/${Math.round(elapsedMs)}ms, cursor ${pagedBytes} bytes/${pageCount} pages, initial ${initialByteLength} bytes/${Math.round(initialElapsedMs)}ms, client merge ${Math.round(clientMergeMs)}ms)`,
     );
   } finally {
     await viewer.close();

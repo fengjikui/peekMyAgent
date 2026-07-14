@@ -30,7 +30,7 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/trace-timeline-controller.js", javascriptAsset("trace-timeline-controller.js")],
   ["/trace-timeline-model.js", javascriptAsset("trace-timeline-model.js")],
   ["/trace-timeline-renderer.js", javascriptAsset("trace-timeline-renderer.js")],
-  ["/timeline-page-merge.js", javascriptAsset("timeline-page-merge.js")],
+  ["/timeline-entity-store.js", javascriptAsset("timeline-entity-store.js")],
   ["/ui-i18n.js", javascriptAsset("ui-i18n.js")],
   ["/upstream-detail-model.js", javascriptAsset("upstream-detail-model.js")],
   ["/upstream-detail-renderer.js", javascriptAsset("upstream-detail-renderer.js")],
