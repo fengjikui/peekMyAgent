@@ -201,7 +201,8 @@ src/
 
 - 已抽出 `RawInspectorController`：request/section/mode 选择、右栏打开、compact detail 懒加载、loading/error/content 提交与搜索装饰由单一生命周期控制器串联。
 - Raw 异步渲染增加 operation id 与 Store context 双重失效检查，快速切换请求或区块时，旧详情和旧错误不能覆盖当前面板。
-- 翻译动作、Raw section View Model、Renderer 和搜索 Controller 保持独立；`client.js` 只装配这些端口，未把领域语义重新聚合进一个大控制器。
+- 已抽出 `TranslationCacheController`：Source/目标语言缓存身份、Agent 候选探测、lookup dirty 重建、自动刷新 timer/attempt 去重和异步失效成为独立生命周期；request detail 即使在 hash 计算期间补载也会在提交前重算，生成副作用通过 operation token 拒绝旧 Source/语言，旧上下文结果不能覆盖当前缓存或 UI。
+- 翻译生成、复制/重译动作、Raw section View Model、Renderer 和搜索 Controller 保持独立；`client.js` 只装配这些端口，未把不同生命周期重新聚合进一个大控制器。
 
 验收：
 
@@ -252,6 +253,7 @@ src/
 - 协议标准化。
 - session/conversation/subagent 身份提示。
 - 能力声明：proxy、OTel、resume、composer、tool schema、thinking。
+- Harness 注入面声明：System、`<system-reminder>`、项目 memory、Skill 和 hook 内容必须记录其真实 request 位置与证据来源；Claude Code 项目 memory 的实际加载位置仍待按[手动集成矩阵](manual-integration-smoke-matrix.md#claude-code-project-memory-injection-check)验证，不能先写成已实现事实。
 - fixture 和确定性 contract test。
 
 完成这一步后，再按真实用户需求评估 Codex、OpenCode、Hermes 等适配优先级。

@@ -62,6 +62,8 @@ for (const required of [
   "src/viewer/session-navigator-renderer.js",
   "src/viewer/system-diff-model.js",
   "src/viewer/system-diff-renderer.js",
+  "src/viewer/translation-cache-controller.js",
+  "src/viewer/translation-generation-operation.js",
   "src/viewer/translation-renderer.js",
   "src/viewer/translation-view-model.js",
   "src/viewer/trace-timeline-controller.js",
@@ -164,7 +166,7 @@ const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pat
 assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);
 
 const MAX_PACKAGE_ENTRIES = 140;
-const MAX_PACKED_BYTES = 255_000;
+const MAX_PACKED_BYTES = 256_000;
 const MAX_UNPACKED_BYTES = 1_100_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);

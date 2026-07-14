@@ -11,6 +11,12 @@ import { renderAgentGraph as renderAgentGraphView } from "./agent-graph-renderer
 import { RequestDetailCache, requestNeedsDetail } from "./request-detail-cache.js";
 import { SourceTimelineController } from "./source-timeline-controller.js";
 import {
+  buildTranslationLookup as buildTranslationLookupView,
+  TranslationCacheController,
+  translationAgentCandidatesForData,
+} from "./translation-cache-controller.js";
+import { runTranslationGenerationOperation } from "./translation-generation-operation.js";
+import {
   renderTimelineAssistantResponse as renderTimelineAssistantResponseView,
   renderTimelineRequestCard as renderTimelineRequestCardView,
   renderTimelineToolExchange as renderTimelineToolExchangeView,
@@ -89,10 +95,7 @@ const state = Object.assign(clientStore.state, {
   sessionInfoControlsBound: false,
   responseExpanded: new Set(),
   upstreamExpanded: new Set(),
-  translations: null,
-  translationLookup: new Map(),
   translationGenerate: { loading: false, error: "", message: "" },
-  translationAutoRefresh: new Set(),
   translationActionItems: new Map(),
   nextTranslationActionId: 1,
   expandedAgentBranches: new Set(),
@@ -372,6 +375,7 @@ const traceTimelineController = new TraceTimelineController({
   onSystemDiff: showSystemDiff,
 });
 let requestDetailCache;
+let translationGenerationSequence = 0;
 const sourceTimelineController = new SourceTimelineController({
   loadView: (sourceId, options) => api.viewSource(sourceId, options),
   detailFor: (requestId) => requestDetailCache?.detailFor(requestId) || null,
@@ -379,6 +383,26 @@ const sourceTimelineController = new SourceTimelineController({
   initialLimit: INITIAL_SOURCE_REQUEST_LIMIT,
   cursorLimit: CURSOR_PAGE_REQUEST_LIMIT,
   progressiveThreshold: PROGRESSIVE_SOURCE_MIN_REQUESTS,
+  onWarning: (message, error) => console.warn(`peekMyAgent ${message}`, error),
+});
+const translationCacheController = new TranslationCacheController({
+  loadCache: (agent, targetLanguage) => api.translations(agent, targetLanguage),
+  buildLookup: (requests, translations) =>
+    buildTranslationLookupView({
+      requests,
+      translations,
+      collectMaterials: collectTranslationMaterials,
+      hashMaterial: window.crypto?.subtle ? materialHash : null,
+      lookupKey: translationLookupKey,
+      normalizeText: normalizeTranslationText,
+    }),
+  schedule: (callback) => window.setTimeout(callback, 0),
+  onAutoRefresh: (context) => {
+    generateTranslationsForActiveSource(state.activeRawSection || "tools", { automatic: true, ...context }).catch((error) => {
+      console.warn("peekMyAgent auto translation refresh failed", error);
+    });
+  },
+  isGenerationBusy: () => state.translationGenerate.loading,
   onWarning: (message, error) => console.warn(`peekMyAgent ${message}`, error),
 });
 requestDetailCache = new RequestDetailCache({
@@ -604,11 +628,12 @@ async function setTargetTranslationLanguage(value) {
     renderLanguageSelectors();
     return;
   }
+  invalidateTranslationGeneration();
   clientStore.setLanguage(
     { targetTranslationLanguage: next, translationMode: next },
     { reason: "set-translation-language" },
   );
-  state.translationAutoRefresh.clear();
+  translationCacheController.clearAutoRefreshAttempts();
   localStorage.setItem(TARGET_TRANSLATION_LANGUAGE_KEY, next);
   localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
   await loadTranslationsForActiveSource();
@@ -727,6 +752,8 @@ async function loadSource(sourceId, { preserveScroll = false } = {}) {
   if (state.activeSourceId && state.activeSourceId !== sourceId) {
     rawInspectorController.invalidate();
     requestDetailCache.clear();
+    invalidateTranslationGeneration();
+    translationCacheController.invalidate();
     state.openSupportingTimelines.clear();
     state.openAgentDashboards.clear();
     state.expandedAgentBranches.clear();
@@ -894,103 +921,122 @@ async function ensureDetailsForRawSection(request, section) {
 }
 
 async function rebuildTranslationLookupForCurrentData() {
-  if (!state.translations?.available) return;
-  state.translationLookup = await buildTranslationLookup(state.data?.requests || [], state.translations);
+  await translationCacheController.refreshLookup(state.data?.requests || []);
 }
 
 async function loadTranslationsForActiveSource({ autoRefresh = true } = {}) {
-  const agents = translationAgentCandidatesForData(state.data);
-  const targetLanguage = currentTargetLanguage();
-  if (!agents.length) {
-    state.translations = null;
-    state.translationLookup = new Map();
-    return;
-  }
-  try {
-    const attempts = [];
-    for (const agent of agents) {
-      const translations = await api.translations(agent, targetLanguage);
-      attempts.push(translations);
-      if (translations.available) {
-        state.translations = translations;
-        await rebuildTranslationLookupForCurrentData();
-        return;
-      }
-    }
-    state.translations = attempts[0] || { available: false, target_language: targetLanguage, entries: {} };
-    state.translationLookup = new Map();
-    if (autoRefresh) maybeAutoRefreshTranslations(agents[0] || "OpenClaw");
-  } catch (error) {
-    console.warn("peekMyAgent translation cache unavailable", error);
-    state.translations = { available: false, error: error.message, target_language: targetLanguage, entries: {} };
-    state.translationLookup = new Map();
-  }
+  return translationCacheController.loadContext(
+    {
+      sourceId: state.data?.source?.id || state.activeSourceId || "",
+      targetLanguage: currentTargetLanguage(),
+      agents: translationAgentCandidatesForData(state.data),
+      requests: state.data?.requests || [],
+      getRequests: () => state.data?.requests || [],
+    },
+    { autoRefresh },
+  );
 }
 
-function maybeAutoRefreshTranslations(agent) {
+function beginTranslationGeneration({ sourceId, targetLanguage, agent }) {
+  const cacheOperation = translationCacheController.captureOperation({ sourceId, targetLanguage, agent });
+  if (!cacheOperation) return null;
+  return {
+    sequence: ++translationGenerationSequence,
+    cacheOperation,
+    sourceId,
+    targetLanguage,
+    agent,
+  };
+}
+
+function isTranslationGenerationCurrent(operation) {
+  if (!operation || operation.sequence !== translationGenerationSequence) return false;
   const sourceId = state.data?.source?.id || state.activeSourceId || "";
-  const key = `${sourceId}\0${agent}\0${currentTargetLanguage()}`;
-  if (!sourceId || state.translationAutoRefresh.has(key) || state.translationGenerate.loading) return;
-  state.translationAutoRefresh.add(key);
-  setTimeout(() => {
-    generateTranslationsForActiveSource(state.activeRawSection || "tools", { automatic: true, agent }).catch((error) => {
-      console.warn("peekMyAgent auto translation refresh failed", error);
-    });
-  }, 0);
+  return (
+    operation.sourceId === sourceId &&
+    operation.targetLanguage === currentTargetLanguage() &&
+    translationCacheController.isOperationCurrent(operation.cacheOperation)
+  );
 }
 
-async function generateTranslationsForActiveSource(section, { automatic = false, agent = null } = {}) {
+function abandonTranslationGeneration(operation) {
+  if (operation?.sequence === translationGenerationSequence) invalidateTranslationGeneration();
+}
+
+function invalidateTranslationGeneration() {
+  translationGenerationSequence += 1;
+  state.translationGenerate = { loading: false, error: "", message: "" };
+}
+
+async function generateTranslationsForActiveSource(
+  section,
+  { automatic = false, agent = null, sourceId: expectedSourceId = "", targetLanguage: expectedTargetLanguage = "" } = {},
+) {
   if (state.translationGenerate.loading) return;
+  const sourceId = state.data?.source?.id || state.activeSourceId || "";
+  const targetLanguage = currentTargetLanguage();
+  if ((expectedSourceId && expectedSourceId !== sourceId) || (expectedTargetLanguage && expectedTargetLanguage !== targetLanguage)) return;
   const selectedAgent = agent || translationAgentCandidatesForData(state.data)[0] || "Claude Code";
   const activeSection = section || state.activeRawSection || "system";
-  if (state.activeRequestId) {
-    try {
-      await ensureRequestDetailLoaded(state.activeRequestId);
-    } catch (error) {
-      console.warn("peekMyAgent request detail unavailable before translation", error);
-    }
-  }
-  const activeRequest = (state.data?.requests || []).find((request) => request.id === state.activeRequestId);
-  const targetLanguage = currentTargetLanguage();
+  const requestId = state.activeRequestId || "";
+  const operation = beginTranslationGeneration({ sourceId, targetLanguage, agent: selectedAgent });
+  if (!operation) return;
   const languageLabel = currentTargetLanguageLabel();
   state.translationGenerate = {
     loading: true,
     error: "",
     message: automatic ? t("autoTranslating", { language: languageLabel }) : t("translatingSection"),
   };
-  if (state.activeRequestId) rawInspectorController.show(state.activeRequestId, activeSection, { mode: state.activeRawMode || "request" });
-  try {
-    const result = await api.generateTranslations({
-      agent: selectedAgent,
-      source_id: state.data?.source?.id || state.activeSourceId || "",
-      request_id: state.activeRequestId || "",
-      section: activeSection,
-      force: !automatic,
-      target_language: targetLanguage,
-    });
-    await loadTranslationsForActiveSource({ autoRefresh: false });
-    const translated = Number(result.translate?.translated || 0);
-    const remaining = Number(result.translate?.remaining || 0);
-    const stats = activeRequest ? translationSectionStats(activeRequest, activeSection) : { total: 0, hit: 0, missing: 0 };
-    const cacheAvailable = Boolean(state.translations?.available);
-    const message = translationGenerateMessage({ cacheAvailable, translated, remaining, stats });
-    state.translationGenerate = {
-      loading: false,
-      error: "",
-      message: automatic && message === t("translationCacheLatest", { language: languageLabel }) ? t("translationAutoUpdated") : message,
-    };
-    if (cacheAvailable && stats.hit > 0) {
-      clientStore.setLanguage({ translationMode: targetLanguage }, { reason: "translation-generated" });
-      localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
-    }
-  } catch (error) {
-    state.translationGenerate = {
-      loading: false,
-      error: error.message,
-      message: "",
-    };
+  if (requestId) rawInspectorController.show(requestId, activeSection, { mode: state.activeRawMode || "request" });
+  const outcome = await runTranslationGenerationOperation({
+    prepare: async () => {
+      if (!requestId) return;
+      try {
+        await ensureRequestDetailLoaded(requestId);
+      } catch (error) {
+        console.warn("peekMyAgent request detail unavailable before translation", error);
+      }
+    },
+    generate: () =>
+      api.generateTranslations({
+        agent: selectedAgent,
+        source_id: sourceId,
+        request_id: requestId,
+        section: activeSection,
+        force: !automatic,
+        target_language: targetLanguage,
+      }),
+    reloadCache: () => loadTranslationsForActiveSource({ autoRefresh: false }),
+    isCurrent: () => isTranslationGenerationCurrent(operation),
+    onStale: () => abandonTranslationGeneration(operation),
+    onSuccess: (result) => {
+      const translated = Number(result.translate?.translated || 0);
+      const remaining = Number(result.translate?.remaining || 0);
+      const activeRequest = (state.data?.requests || []).find((request) => request.id === requestId);
+      const stats = activeRequest ? translationSectionStats(activeRequest, activeSection) : { total: 0, hit: 0, missing: 0 };
+      const cacheAvailable = translationCacheController.available;
+      const message = translationGenerateMessage({ cacheAvailable, translated, remaining, stats });
+      state.translationGenerate = {
+        loading: false,
+        error: "",
+        message: automatic && message === t("translationCacheLatest", { language: languageLabel }) ? t("translationAutoUpdated") : message,
+      };
+      if (cacheAvailable && stats.hit > 0) {
+        clientStore.setLanguage({ translationMode: targetLanguage }, { reason: "translation-generated" });
+        localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
+      }
+    },
+    onError: (error) => {
+      state.translationGenerate = {
+        loading: false,
+        error: error.message,
+        message: "",
+      };
+    },
+  });
+  if (outcome.status !== "stale" && isTranslationGenerationCurrent(operation) && state.activeRequestId === requestId) {
+    rawInspectorController.show(requestId, activeSection, { mode: state.activeRawMode || "request" });
   }
-  if (state.activeRequestId) rawInspectorController.show(state.activeRequestId, activeSection, { mode: state.activeRawMode || "request" });
 }
 
 function flashButtonLabel(button, text) {
@@ -1093,41 +1139,52 @@ async function retranslateTranslationBlock(actionId) {
         },
       ];
   const targetLanguage = currentTargetLanguage();
+  const sourceId = state.data?.source?.id || state.activeSourceId || "";
+  const requestId = item.requestId || state.activeRequestId || "";
+  const operation = beginTranslationGeneration({ sourceId, targetLanguage, agent: selectedAgent });
+  if (!operation) return;
   state.translationGenerate = { loading: true, error: "", message: materials.length > 1 ? t("translatingParameterGroup") : t("retranslatingBlock") };
-  if (item.surface === "raw" && state.activeRequestId) rawInspectorController.show(state.activeRequestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
-  try {
-    const result = await api.generateTranslations({
-      agent: selectedAgent,
-      source_id: state.data?.source?.id || state.activeSourceId || "",
-      request_id: item.requestId || state.activeRequestId || "",
-      target_language: targetLanguage,
-      force: true,
-      materials,
-    });
-    await loadTranslationsForActiveSource({ autoRefresh: false });
-    const translated = Number(result.translate?.translated || 0);
-    state.translationGenerate = {
-      loading: false,
-      error: "",
-      message: translated
-        ? materials.length > 1
-          ? t("retranslatedParametersDone", { count: translated })
-          : t("retranslatedBlockDone")
-        : t("translationCacheLatest", { language: currentTargetLanguageLabel() }),
-    };
-    clientStore.setLanguage({ translationMode: targetLanguage }, { reason: "translation-block-generated" });
-    localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
-  } catch (error) {
-    state.translationGenerate = {
-      loading: false,
-      error: error.message,
-      message: "",
-    };
-  }
+  if (item.surface === "raw" && requestId) rawInspectorController.show(requestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
+  const outcome = await runTranslationGenerationOperation({
+    generate: () =>
+      api.generateTranslations({
+        agent: selectedAgent,
+        source_id: sourceId,
+        request_id: requestId,
+        target_language: targetLanguage,
+        force: true,
+        materials,
+      }),
+    reloadCache: () => loadTranslationsForActiveSource({ autoRefresh: false }),
+    isCurrent: () => isTranslationGenerationCurrent(operation),
+    onStale: () => abandonTranslationGeneration(operation),
+    onSuccess: (result) => {
+      const translated = Number(result.translate?.translated || 0);
+      state.translationGenerate = {
+        loading: false,
+        error: "",
+        message: translated
+          ? materials.length > 1
+            ? t("retranslatedParametersDone", { count: translated })
+            : t("retranslatedBlockDone")
+          : t("translationCacheLatest", { language: currentTargetLanguageLabel() }),
+      };
+      clientStore.setLanguage({ translationMode: targetLanguage }, { reason: "translation-block-generated" });
+      localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
+    },
+    onError: (error) => {
+      state.translationGenerate = {
+        loading: false,
+        error: error.message,
+        message: "",
+      };
+    },
+  });
+  if (outcome.status === "stale" || !isTranslationGenerationCurrent(operation)) return;
   if (item.surface === "timeline") {
     renderTimelineSurface();
-  } else if (item.surface === "raw" && state.activeRequestId) {
-    rawInspectorController.show(state.activeRequestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
+  } else if (item.surface === "raw" && state.activeRequestId === requestId) {
+    rawInspectorController.show(requestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
   }
 }
 
@@ -1141,48 +1198,6 @@ function translationGenerateMessage({ cacheAvailable, translated, remaining, sta
   }
   if (translated) return t("translationSectionCompletedWithTranslated", { translated, language: languageLabel, hit: stats.hit, total: stats.total });
   return stats.total ? t("translationSectionLatest", { language: languageLabel, hit: stats.hit, total: stats.total }) : t("translationCacheLatest", { language: languageLabel });
-}
-
-function translationAgentCandidatesForData(data) {
-  const values = [];
-  add(data?.source?.agent);
-  add(data?.source?.id);
-  add(data?.source?.store_watch_id);
-  for (const request of data?.requests || []) {
-    add(request.agent_profile);
-    add(request.raw?.agent_profile);
-    add(request.watch_id);
-    add(request.raw?.watch_id);
-    add(request.raw?.body?.metadata?.agent);
-  }
-  if (values.some((value) => /claude-code|claude|anthropic|\bcc\b/i.test(value))) add("Claude Code");
-  if (values.some((value) => /trae-cn|trae/i.test(value))) add("Trae CN");
-  return values;
-
-  function add(value) {
-    const normalized = String(value || "").trim();
-    if (normalized && !values.includes(normalized)) values.push(normalized);
-  }
-}
-
-async function buildTranslationLookup(requests, translations) {
-  const entries = translations?.entries || {};
-  if (!translations?.available || !Object.keys(entries).length || !window.crypto?.subtle) return new Map();
-  const unique = new Map();
-  for (const request of requests) {
-    for (const item of collectTranslationMaterials(request)) {
-      const sourceText = normalizeTranslationText(item.source_text);
-      if (sourceText) unique.set(translationLookupKey(item.kind, sourceText), { ...item, source_text: sourceText });
-    }
-  }
-  const pairs = await Promise.all(
-    [...unique.values()].map(async (item) => {
-      const hash = await materialHash(item.kind, item.source_text);
-      const entry = entries[hash];
-      return entry?.translated_text ? [translationLookupKey(item.kind, item.source_text), entry] : null;
-    }),
-  );
-  return new Map(pairs.filter(Boolean));
 }
 
 function setTranslationMode(mode, section) {
@@ -2515,7 +2530,7 @@ function highlightSearchSnippet(text, query) {
 
 function renderRawSectionContent(request, section, sectionData) {
   if (section === "messages") return renderMessagesSection(sectionData.value);
-  if (state.translationMode === currentTargetLanguage() && state.translations?.available) {
+  if (state.translationMode === currentTargetLanguage() && translationCacheController.available) {
     if (["system", "tools", "harness"].includes(section)) return renderTranslatedSection(request, section);
   }
   if (normalizedRawSearchQuery()) return renderRawSearchResults(request, section, state.activeRawMode || "request");
@@ -2527,7 +2542,7 @@ function usesTranslatedStructuredSearch(section, mode = state.activeRawMode || "
     (mode === "request" || (mode === "response" && section === "tools")) &&
     ["system", "tools", "harness"].includes(section) &&
     state.translationMode === currentTargetLanguage() &&
-    Boolean(state.translations?.available)
+    translationCacheController.available
   );
 }
 
@@ -2550,7 +2565,7 @@ function renderMessagesSection(messagesValue) {
 
 function renderTranslationControls(request, section) {
   const stats = translationSectionStats(request, section);
-  const cache = state.translations;
+  const cache = translationCacheController.translations;
   const generating = Boolean(state.translationGenerate.loading);
   const targetLanguage = currentTargetLanguage();
   const languageLabel = currentTargetLanguageLabel();
@@ -2649,7 +2664,7 @@ function translationSectionStats(request, section) {
 
 function translatedTextFor(kind, sourceText) {
   const source = normalizeTranslationText(sourceText);
-  return source ? state.translationLookup.get(translationLookupKey(kind, source))?.translated_text || "" : "";
+  return source ? translationCacheController.translationLookup.get(translationLookupKey(kind, source))?.translated_text || "" : "";
 }
 
 function rawSectionLabel(section) {

@@ -12,15 +12,29 @@ const upstreamDetailRendererSource = fs.readFileSync(new URL("../src/viewer/upst
 const agentComposerControllerSource = fs.readFileSync(new URL("../src/viewer/agent-composer-controller.js", import.meta.url), "utf8");
 const sessionNavigatorControllerSource = fs.readFileSync(new URL("../src/viewer/session-navigator-controller.js", import.meta.url), "utf8");
 const sourceTimelineControllerSource = fs.readFileSync(new URL("../src/viewer/source-timeline-controller.js", import.meta.url), "utf8");
+const translationCacheControllerSource = fs.readFileSync(new URL("../src/viewer/translation-cache-controller.js", import.meta.url), "utf8");
+const translationGenerationOperationSource = fs.readFileSync(new URL("../src/viewer/translation-generation-operation.js", import.meta.url), "utf8");
 
 assert.match(source, /import \{[\s\S]*?buildTraceTimelineView,[\s\S]*?from "\.\/trace-timeline-model\.js";/);
 assert.match(source, /import \{ TraceTimelineController \} from "\.\/trace-timeline-controller\.js";/);
 assert.match(source, /import \{ SourceTimelineController \} from "\.\/source-timeline-controller\.js";/);
 assert.match(source, /const sourceTimelineController = new SourceTimelineController\(/);
+assert.match(source, /TranslationCacheController,[\s\S]*?translationAgentCandidatesForData,[\s\S]*?from "\.\/translation-cache-controller\.js";/);
+assert.match(source, /const translationCacheController = new TranslationCacheController\(/);
+assert.match(source, /import \{ runTranslationGenerationOperation \} from "\.\/translation-generation-operation\.js";/);
 assert.doesNotMatch(source, /TimelineEntityStore|sourceLoadSeq|function continueTimelineCursor\(/);
+assert.doesNotMatch(source, /state\.(?:translations|translationLookup|translationAutoRefresh)/);
+assert.doesNotMatch(source, /function (?:translationAgentCandidatesForData|buildTranslationLookup|maybeAutoRefreshTranslations)\(/);
+assert.match(source, /onAutoRefresh: \(context\) => \{[\s\S]*?automatic: true, \.\.\.context/);
+assert.match(functionSource("isTranslationGenerationCurrent"), /translationCacheController\.isOperationCurrent/);
+assert.match(functionSource("generateTranslationsForActiveSource"), /source_id: sourceId,[\s\S]*?target_language: targetLanguage/);
+assert.match(functionSource("generateTranslationsForActiveSource"), /runTranslationGenerationOperation\(\{[\s\S]*?isCurrent:[\s\S]*?onStale:/);
+assert.match(functionSource("retranslateTranslationBlock"), /runTranslationGenerationOperation\(\{[\s\S]*?isCurrent:[\s\S]*?onStale:/);
 assert.match(sourceTimelineControllerSource, /import \{ TimelineEntityStore \} from "\.\/timeline-entity-store\.js";/);
 assert.match(sourceTimelineControllerSource, /this\.store = new TimelineEntityStore\(\)/);
 assert.doesNotMatch(sourceTimelineControllerSource, /\bdocument\b|\bwindow\b|\blocalStorage\b|\bstate\./);
+assert.doesNotMatch(translationCacheControllerSource, /\bdocument\b|\bwindow\b|\blocalStorage\b|\bfetch\s*\(|\bstate\./);
+assert.doesNotMatch(translationGenerationOperationSource, /\bdocument\b|\bwindow\b|\blocalStorage\b|\bfetch\s*\(|\bstate\./);
 assert.doesNotMatch(source, /\bmergeTimelinePage\(/, "application code should use the persistent normalized entity store");
 assert.match(source, /renderTurnTimeline as renderTurnTimelineView,[\s\S]*?from "\.\/trace-timeline-renderer\.js";/);
 assert.match(
