@@ -54,7 +54,7 @@ import { buildSystemDiffModel } from "./system-diff-model.js";
 import { renderSystemDiffView } from "./system-diff-renderer.js";
 import { SessionNavigatorController } from "./session-navigator-controller.js";
 import { PaneLayoutController } from "./pane-layout-controller.js";
-import { DEFAULT_UI_LANGUAGE, translateUi } from "./ui-i18n.js";
+import { LanguagePreferencesController } from "./language-preferences-controller.js";
 import {
   renderRawDetail as renderRawDetailView,
   renderRawSearchControls as renderRawSearchControlsView,
@@ -122,173 +122,10 @@ const state = Object.assign(clientStore.state, {
 
 const LIVE_REFRESH_MS = 1200;
 const LATEST_ONLY_KEY = "peekmyagent.latestOnly";
-const TRANSLATION_MODE_KEY = "peekmyagent.translationMode";
-const UI_LANGUAGE_KEY = "peekmyagent.uiLanguage";
-const TARGET_TRANSLATION_LANGUAGE_KEY = "peekmyagent.targetTranslationLanguage";
 const RAW_MESSAGES_MODE_KEY = "peekmyagent.rawMessagesMode";
-const DEFAULT_TRANSLATION_LANGUAGE = "zh-CN";
 const INITIAL_SOURCE_REQUEST_LIMIT = 32;
 const CURSOR_PAGE_REQUEST_LIMIT = 100;
 const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
-const SUPPORTED_UI_LANGUAGES = [
-  { value: "zh-CN", label: "中文" },
-  { value: "en-US", label: "English" },
-];
-const SUPPORTED_TRANSLATION_LANGUAGES = [
-  { value: "aa", label: "Afar" },
-  { value: "af", label: "Afrikaans" },
-  { value: "sq", label: "Albanian" },
-  { value: "am", label: "Amharic" },
-  { value: "ar", label: "Arabic" },
-  { value: "hy", label: "Armenian" },
-  { value: "as", label: "Assamese" },
-  { value: "ay", label: "Aymara" },
-  { value: "az", label: "Azerbaijani" },
-  { value: "bm", label: "Bambara" },
-  { value: "eu", label: "Basque" },
-  { value: "be", label: "Belarusian" },
-  { value: "bn", label: "Bengali" },
-  { value: "bho", label: "Bhojpuri" },
-  { value: "brx", label: "Bodo" },
-  { value: "bs", label: "Bosnian" },
-  { value: "bg", label: "Bulgarian" },
-  { value: "my", label: "Burmese" },
-  { value: "ca", label: "Catalan" },
-  { value: "ceb", label: "Cebuano" },
-  { value: "hne", label: "Chhattisgarhi" },
-  { value: "zh-CN", label: "中文（简体）", aliases: ["Chinese", "Chinese Simplified", "Simplified Chinese", "zh", "zh-Hans"] },
-  { value: "zh-TW", label: "中文（繁體）", aliases: ["Traditional Chinese", "Chinese Traditional", "zh-Hant", "zh-HK", "zh-MO"] },
-  { value: "co", label: "Corsican" },
-  { value: "hr", label: "Croatian" },
-  { value: "cs", label: "Czech" },
-  { value: "da", label: "Danish" },
-  { value: "dv", label: "Dhivehi" },
-  { value: "doi", label: "Dogri" },
-  { value: "nl", label: "Dutch" },
-  { value: "en", label: "English", aliases: ["en-US", "en-GB"] },
-  { value: "eo", label: "Esperanto" },
-  { value: "et", label: "Estonian" },
-  { value: "ee", label: "Ewe" },
-  { value: "fil", label: "Filipino" },
-  { value: "fi", label: "Finnish" },
-  { value: "fr", label: "French" },
-  { value: "ff", label: "Fulfulde" },
-  { value: "gl", label: "Galician" },
-  { value: "gbm", label: "Garhwali" },
-  { value: "ka", label: "Georgian" },
-  { value: "de", label: "German" },
-  { value: "el", label: "Greek" },
-  { value: "gu", label: "Gujarati" },
-  { value: "gn", label: "Guarani" },
-  { value: "ht", label: "Haitian Creole" },
-  { value: "bgc", label: "Haryanvi" },
-  { value: "ha", label: "Hausa" },
-  { value: "haw", label: "Hawaiian" },
-  { value: "he", label: "Hebrew" },
-  { value: "hi", label: "Hindi" },
-  { value: "hmn", label: "Hmong" },
-  { value: "hu", label: "Hungarian" },
-  { value: "is", label: "Icelandic" },
-  { value: "ig", label: "Igbo" },
-  { value: "ilo", label: "Ilocano" },
-  { value: "id", label: "Indonesian" },
-  { value: "ga", label: "Irish" },
-  { value: "it", label: "Italian" },
-  { value: "ja", label: "日本語", aliases: ["Japanese", "ja-JP"] },
-  { value: "jv", label: "Javanese" },
-  { value: "kl", label: "Kalaallisut" },
-  { value: "kn", label: "Kannada" },
-  { value: "ks", label: "Kashmiri" },
-  { value: "kk", label: "Kazakh" },
-  { value: "km", label: "Khmer" },
-  { value: "rw", label: "Kinyarwanda" },
-  { value: "gom", label: "Konkani (Goan)" },
-  { value: "ko", label: "한국어", aliases: ["Korean", "ko-KR"] },
-  { value: "kri", label: "Krio" },
-  { value: "ku", label: "Kurdish" },
-  { value: "ckb", label: "Kurdish (Sorani)" },
-  { value: "ky", label: "Kyrgyz" },
-  { value: "lmn", label: "Lambadi" },
-  { value: "lo", label: "Lao" },
-  { value: "la", label: "Latin" },
-  { value: "lv", label: "Latvian" },
-  { value: "ln", label: "Lingala" },
-  { value: "lt", label: "Lithuanian" },
-  { value: "lg", label: "Luganda" },
-  { value: "lb", label: "Luxembourgish" },
-  { value: "mk", label: "Macedonian" },
-  { value: "mag", label: "Magahi" },
-  { value: "mai", label: "Maithili" },
-  { value: "mg", label: "Malagasy" },
-  { value: "ms", label: "Malay" },
-  { value: "ml", label: "Malayalam" },
-  { value: "mt", label: "Maltese" },
-  { value: "mi", label: "Maori" },
-  { value: "mr", label: "Marathi" },
-  { value: "mwr", label: "Marwari" },
-  { value: "mni", label: "Meiteilon (Manipuri)" },
-  { value: "min", label: "Minangkabau" },
-  { value: "lus", label: "Mizo" },
-  { value: "mn", label: "Mongolian" },
-  { value: "ne", label: "Nepali" },
-  { value: "no", label: "Norwegian" },
-  { value: "ny", label: "Nyanja" },
-  { value: "or", label: "Odia" },
-  { value: "om", label: "Oromo" },
-  { value: "ps", label: "Pashto" },
-  { value: "fa", label: "Persian" },
-  { value: "pl", label: "Polish" },
-  { value: "pt", label: "Portuguese" },
-  { value: "pa", label: "Punjabi" },
-  { value: "qu", label: "Quechua" },
-  { value: "ro", label: "Romanian" },
-  { value: "ru", label: "Russian" },
-  { value: "sck", label: "Sadri" },
-  { value: "sgs", label: "Samogitian" },
-  { value: "sm", label: "Samoan" },
-  { value: "sa", label: "Sanskrit" },
-  { value: "sat", label: "Santali" },
-  { value: "gd", label: "Scots Gaelic" },
-  { value: "nso", label: "Sepedi" },
-  { value: "sr", label: "Serbian" },
-  { value: "hbs", label: "Serbocroatian" },
-  { value: "st", label: "Sesotho" },
-  { value: "sn", label: "Shona" },
-  { value: "sd", label: "Sindhi" },
-  { value: "si", label: "Sinhala" },
-  { value: "sk", label: "Slovak" },
-  { value: "sl", label: "Slovenian" },
-  { value: "so", label: "Somali" },
-  { value: "es", label: "Spanish" },
-  { value: "su", label: "Sundanese" },
-  { value: "sjp", label: "Surjapuri" },
-  { value: "sw", label: "Swahili" },
-  { value: "sv", label: "Swedish" },
-  { value: "tg", label: "Tajik" },
-  { value: "zgh", label: "Tamazight" },
-  { value: "ta", label: "Tamil" },
-  { value: "tt", label: "Tatar" },
-  { value: "te", label: "Telugu" },
-  { value: "th", label: "Thai" },
-  { value: "bo", label: "Tibetan" },
-  { value: "ti", label: "Tigrinya" },
-  { value: "ts", label: "Tsonga" },
-  { value: "tw", label: "Twi" },
-  { value: "tr", label: "Turkish" },
-  { value: "tk", label: "Turkmen" },
-  { value: "ug", label: "Uighur" },
-  { value: "uk", label: "Ukrainian" },
-  { value: "ur", label: "Urdu" },
-  { value: "uz", label: "Uzbek" },
-  { value: "vah", label: "Varhadi" },
-  { value: "vi", label: "Vietnamese" },
-  { value: "cy", label: "Welsh" },
-  { value: "fy", label: "Western Frisian" },
-  { value: "xh", label: "Xhosa" },
-  { value: "yi", label: "Yiddish" },
-  { value: "yo", label: "Yoruba" },
-  { value: "zu", label: "Zulu" },
-];
 const els = {
   appShell: document.querySelector(".app-shell"),
   toggleSidebar: document.querySelector("#toggleSidebar"),
@@ -315,6 +152,31 @@ const els = {
   rawTitle: document.querySelector("#rawTitle"),
   rawTree: document.querySelector("#rawTree"),
 };
+
+const languagePreferencesController = new LanguagePreferencesController({
+  store: clientStore,
+  storage: localStorage,
+  documentTarget: document,
+  navigatorTarget: navigator,
+  uiSelect: els.uiLanguageSelect,
+  translationSelect: els.translationLanguageSelect,
+  escapeHtml,
+  async onUiLanguageChanged() {
+    paneLayoutController.refreshLabels();
+    if (state.data) renderAll();
+    if (state.activeRequestId) rawInspectorController.refresh();
+  },
+  onTargetLanguageChanging() {
+    translationActionController.invalidate();
+    translationCacheController.clearAutoRefreshAttempts();
+  },
+  async onTargetLanguageChanged() {
+    await loadTranslationsForActiveSource();
+    if (state.data) renderAll();
+    if (state.activeRequestId) rawInspectorController.refresh();
+  },
+  onWarning: (message, error) => console.warn(`peekMyAgent ${message}`, error),
+});
 
 const turnRailController = new TurnRailController({
   element: els.turnRail,
@@ -469,8 +331,7 @@ translationActionController = new TranslationActionController({
     renderRaw: (requestId, section, mode) => rawInspectorController.show(requestId, section, { mode }),
     renderTimeline: () => renderTimelineSurface(),
     setTranslationMode: (mode, { reason }) => {
-      clientStore.setLanguage({ translationMode: mode }, { reason });
-      localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
+      languagePreferencesController.setTranslationMode(mode, { reason });
     },
     warn: (message, error) => console.warn(`peekMyAgent ${message}`, error),
   },
@@ -557,175 +418,35 @@ clientStore.subscribe((change) => {
 
 init();
 
-function normalizeUiLanguage(value) {
-  return SUPPORTED_UI_LANGUAGES.some((language) => language.value === value) ? value : DEFAULT_UI_LANGUAGE;
-}
-
-function normalizeTranslationLanguage(value, fallback = DEFAULT_TRANSLATION_LANGUAGE) {
-  const matched = resolveTranslationLanguage(value);
-  if (matched) return matched.value;
-  const fallbackMatched = resolveTranslationLanguage(fallback);
-  return fallbackMatched?.value || DEFAULT_TRANSLATION_LANGUAGE;
-}
-
 function normalizeMessagesMode(value) {
   return value === "source" ? "source" : "organized";
 }
 
 function currentTargetLanguage() {
-  return normalizeTranslationLanguage(state.targetTranslationLanguage);
+  return languagePreferencesController.currentTargetLanguage();
 }
 
 function currentTargetLanguageLabel() {
-  const language = currentTargetLanguage();
-  return SUPPORTED_TRANSLATION_LANGUAGES.find((item) => item.value === language)?.label || language;
-}
-
-function defaultTranslationLanguage() {
-  return recommendedSystemTranslationLanguage() || DEFAULT_TRANSLATION_LANGUAGE;
-}
-
-function recommendedSystemTranslationLanguage() {
-  const browserLanguages = Array.isArray(navigator.languages) && navigator.languages.length ? navigator.languages : [navigator.language];
-  for (const language of browserLanguages) {
-    const normalized = String(language || "").trim();
-    if (!normalized) continue;
-    if (/^zh($|-)/i.test(normalized)) {
-      if (/-(tw|hk|mo)|hant/i.test(normalized)) return "zh-TW";
-      return "zh-CN";
-    }
-    const exact = resolveTranslationLanguage(normalized);
-    if (exact) return exact.value;
-    const primary = normalized.split("-")[0];
-    const primaryMatch = resolveTranslationLanguage(primary);
-    if (primaryMatch) return primaryMatch.value;
-  }
-  return "";
-}
-
-function languageSearchValue(option) {
-  return `${option.label} · ${option.value}`;
-}
-
-function resolveTranslationLanguage(value) {
-  const normalized = normalizeLanguageSearchValue(value);
-  if (!normalized) return null;
-  const codeSuffix = normalized.match(/(?:^|\s)([a-z]{2,3}(?:-[a-z0-9]{2,8})?)$/i)?.[1];
-  if (codeSuffix) {
-    const codeMatch = SUPPORTED_TRANSLATION_LANGUAGES.find((language) => normalizeLanguageSearchValue(language.value) === codeSuffix);
-    if (codeMatch) return codeMatch;
-  }
-  return (
-    SUPPORTED_TRANSLATION_LANGUAGES.find((language) => {
-      const candidates = [language.value, language.label, languageSearchValue(language), ...(language.aliases || [])];
-      return candidates.some((candidate) => normalizeLanguageSearchValue(candidate) === normalized);
-    }) ||
-    SUPPORTED_TRANSLATION_LANGUAGES.find((language) => {
-      const candidates = [language.value, language.label, ...(language.aliases || [])];
-      return candidates.some((candidate) => normalizeLanguageSearchValue(candidate).startsWith(`${normalized}-`));
-    }) ||
-    null
-  );
-}
-
-function normalizeLanguageSearchValue(value) {
-  return String(value || "")
-    .trim()
-    .replace(/\s*·\s*/g, " ")
-    .replace(/\s+/g, " ")
-    .toLowerCase();
+  return languagePreferencesController.currentTargetLanguageLabel();
 }
 
 function t(key, vars = {}) {
-  return translateUi(state.uiLanguage, key, vars);
-}
-
-function renderLanguageOptions(options, selected) {
-  return options
-    .map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === selected ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
-    .join("");
-}
-
-function renderLanguageSelectors() {
-  if (els.uiLanguageSelect) {
-    els.uiLanguageSelect.innerHTML = renderLanguageOptions(SUPPORTED_UI_LANGUAGES, state.uiLanguage);
-  }
-  if (els.translationLanguageSelect) {
-    els.translationLanguageSelect.innerHTML = renderLanguageOptions(SUPPORTED_TRANSLATION_LANGUAGES, currentTargetLanguage());
-    els.translationLanguageSelect.title = t("translationLanguageSearchPlaceholder");
-  }
-}
-
-function applyStaticI18n() {
-  document.documentElement.lang = state.uiLanguage;
-  document.querySelectorAll("[data-i18n]").forEach((node) => {
-    node.textContent = t(node.dataset.i18n);
-  });
-  document.querySelectorAll("[data-i18n-title]").forEach((node) => {
-    node.setAttribute("title", t(node.dataset.i18nTitle));
-  });
-  document.querySelectorAll("[data-i18n-aria-label]").forEach((node) => {
-    node.setAttribute("aria-label", t(node.dataset.i18nAriaLabel));
-  });
-}
-
-async function setUiLanguage(value) {
-  clientStore.setLanguage({ uiLanguage: normalizeUiLanguage(value) }, { reason: "set-ui-language" });
-  localStorage.setItem(UI_LANGUAGE_KEY, state.uiLanguage);
-  applyStaticI18n();
-  paneLayoutController.refreshLabels();
-  if (state.data) renderAll();
-  if (state.activeRequestId) rawInspectorController.refresh();
-}
-
-async function setTargetTranslationLanguage(value) {
-  const next = normalizeTranslationLanguage(value);
-  if (next === currentTargetLanguage()) {
-    renderLanguageSelectors();
-    return;
-  }
-  translationActionController.invalidate();
-  clientStore.setLanguage(
-    { targetTranslationLanguage: next, translationMode: next },
-    { reason: "set-translation-language" },
-  );
-  translationCacheController.clearAutoRefreshAttempts();
-  localStorage.setItem(TARGET_TRANSLATION_LANGUAGE_KEY, next);
-  localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
-  await loadTranslationsForActiveSource();
-  renderLanguageSelectors();
-  if (state.data) renderAll();
-  if (state.activeRequestId) rawInspectorController.refresh();
-}
-
-async function setTargetTranslationLanguageFromSelect() {
-  const resolved = resolveTranslationLanguage(els.translationLanguageSelect?.value);
-  if (!resolved) {
-    renderLanguageSelectors();
-    return;
-  }
-  await setTargetTranslationLanguage(resolved.value);
+  return languagePreferencesController.translate(key, vars);
 }
 
 async function init() {
   const layoutPreferences = paneLayoutController.readPreferences();
-  const storedTargetLanguage = localStorage.getItem(TARGET_TRANSLATION_LANGUAGE_KEY);
-  const targetTranslationLanguage = storedTargetLanguage
-    ? normalizeTranslationLanguage(storedTargetLanguage)
-    : defaultTranslationLanguage();
   clientStore.update(
     {
       ...layoutPreferences,
+      ...languagePreferencesController.readPreferences(),
       latestOnly: localStorage.getItem(LATEST_ONLY_KEY) === "true",
       rawMessagesMode: normalizeMessagesMode(localStorage.getItem(RAW_MESSAGES_MODE_KEY)),
-      uiLanguage: normalizeUiLanguage(localStorage.getItem(UI_LANGUAGE_KEY)),
-      targetTranslationLanguage,
-      translationMode: localStorage.getItem(TRANSLATION_MODE_KEY) === targetTranslationLanguage ? targetTranslationLanguage : "source",
     },
     { reason: "hydrate-preferences", silent: true },
   );
-  applyStaticI18n();
-  renderLanguageSelectors();
+  languagePreferencesController.applyStaticI18n();
+  languagePreferencesController.renderSelectors();
   paneLayoutController.applyCurrentState({ persist: false });
   state.sources = await api.listSources();
   renderSessionNav();
@@ -737,12 +458,7 @@ async function init() {
   if (first) await loadSource(first.id);
   els.traceImportButton?.addEventListener("click", () => els.traceImportInput?.click());
   els.traceImportInput?.addEventListener("change", importTraceFromFile);
-  els.uiLanguageSelect?.addEventListener("change", (event) => {
-    setUiLanguage(event.target.value);
-  });
-  els.translationLanguageSelect?.addEventListener("change", () => {
-    setTargetTranslationLanguageFromSelect();
-  });
+  languagePreferencesController.bind();
   rawSearchController.bind();
   traceTimelineController.bind();
   els.rawTree.addEventListener("click", (event) => {
@@ -1032,13 +748,8 @@ function sectionTranslationMaterials(request, section) {
 }
 
 function setTranslationMode(mode, section) {
-  const targetLanguage = currentTargetLanguage();
-  clientStore.setLanguage(
-    { translationMode: mode === targetLanguage ? targetLanguage : "source" },
-    { reason: "set-translation-mode" },
-  );
+  languagePreferencesController.setTranslationMode(mode);
   rawSearchController.modeChanged();
-  localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
   if (state.activeRequestId) rawInspectorController.show(state.activeRequestId, section || state.activeRawSection || "full", { mode: state.activeRawMode || "request" });
 }
 

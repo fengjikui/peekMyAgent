@@ -59,9 +59,11 @@ const missingReferences = [...referencedKeys.entries()]
 assert.deepEqual(missingReferences, [], `static Viewer i18n references must exist:\n${missingReferences.join("\n")}`);
 
 const clientSource = fs.readFileSync(path.join(viewerDir, "client.js"), "utf8");
-assert.match(clientSource, /import\s+\{\s*DEFAULT_UI_LANGUAGE,\s*translateUi\s*\}\s+from\s+["']\.\/ui-i18n\.js["']/);
+const languageControllerSource = fs.readFileSync(path.join(viewerDir, "language-preferences-controller.js"), "utf8");
+assert.match(clientSource, /import\s+\{\s*LanguagePreferencesController\s*\}\s+from\s+["']\.\/language-preferences-controller\.js["']/);
+assert.match(languageControllerSource, /import\s+\{\s*translateUi\s*\}\s+from\s+["']\.\/ui-i18n\.js["']/);
 assert.doesNotMatch(clientSource, /\bconst\s+I18N\s*=/, "the application assembly must not own the UI resource dictionary");
-assert.match(clientSource, /function\s+t\(key,\s*vars\s*=\s*\{\}\)\s*\{\s*return\s+translateUi\(state\.uiLanguage,\s*key,\s*vars\);\s*\}/s);
+assert.match(clientSource, /function\s+t\(key,\s*vars\s*=\s*\{\}\)\s*\{\s*return\s+languagePreferencesController\.translate\(key,\s*vars\);\s*\}/s);
 
 const translateSource = translateUi.toString();
 assert.doesNotMatch(translateSource, /\bdocument\b|\bwindow\b|\bfetch\s*\(|\bstate\./);

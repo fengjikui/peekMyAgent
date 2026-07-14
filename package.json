@@ -108,6 +108,7 @@
     "smoke:viewer-router-contract": "node scripts/viewer-router-contract-smoke.mjs",
     "smoke:viewer-api-client-contract": "node scripts/viewer-api-client-contract-smoke.mjs",
     "smoke:viewer-client-store-contract": "node scripts/viewer-client-store-contract-smoke.mjs",
+    "smoke:language-preferences-controller-contract": "node scripts/language-preferences-controller-contract-smoke.mjs",
     "smoke:pane-layout-controller-contract": "node scripts/pane-layout-controller-contract-smoke.mjs",
     "smoke:request-detail-cache-contract": "node scripts/request-detail-cache-contract-smoke.mjs",
     "smoke:source-timeline-controller-contract": "node scripts/source-timeline-controller-contract-smoke.mjs",

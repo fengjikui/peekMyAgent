@@ -47,7 +47,7 @@ pma CLI / adapter
 | 左侧 Source/项目导航与菜单 | `src/viewer/session-navigator-*`；应用副作用在 `client.js` | 每次渲染重新绑定按钮或 renderer 直接调用 API |
 | Trace 导入导出与脱敏 | `src/server/trace-bundle-service.mjs`、`src/core/redaction.mjs` | 浏览器自行拼 bundle |
 | Viewer 翻译刷新、Harness 提示词材料与 occurrence | `src/server/viewer-translation-adapter.mjs`、`src/translation/*`、[Adapter 契约](viewer-translation-adapter-contract.md) | 在 HTTP route 或浏览器重写 Harness marker、直接调用翻译脚本 |
-| Viewer 翻译缓存、用户动作、生成异步阶段和语言/Source 竞态 | `translation-cache-controller.js`、`translation-action-controller.js`、`translation-action-model.js`、`translation-generation-operation.js`、[Cache Controller 契约](translation-cache-controller-contract.md)、[Action Controller 契约](translation-action-controller-contract.md) | 在 `client.js` 恢复第二份 cache/action registry/复制格式/生成序列，绕过 operation runner 直接串 provider/cache 副作用，或让任一控制器拥有 HTML |
+| Viewer 翻译缓存、用户动作、语言偏好、生成异步阶段和语言/Source 竞态 | `translation-cache-controller.js`、`translation-action-controller.js`、`translation-action-model.js`、`translation-generation-operation.js`、`translation-language-catalog.js`、`language-preferences-controller.js`、[Cache Controller 契约](translation-cache-controller-contract.md)、[Action Controller 契约](translation-action-controller-contract.md)、[语言偏好契约](language-preferences-controller-contract.md) | 在 `client.js` 恢复第二份语言目录、localStorage key、cache/action registry、复制格式或生成序列，绕过 operation runner 直接串 provider/cache 副作用，或让任一控制器拥有其他 feature 的 HTML |
 | 大 Trace 首屏、file sidecar、cursor 续读、跨页语义和 Client normalized store | `json-array-file-index.mjs`、`source-capture-reader.mjs`、`timeline-cursor-service.mjs`、`timeline-page-assembler.mjs`、`timeline-view-projector.mjs`、`source-timeline-controller.js`、`TimelineEntityStore`（`timeline-entity-store.js`）、[文件索引契约](json-array-file-index-contract.md)、[分页契约](timeline-pagination-contract.md)、[Source Timeline Controller 契约](source-timeline-controller-contract.md) | 修改原始 Trace、在 route 暴露 reader offset、每页重复完整 Turn/Agent 图，在 `client.js` 维护第二份 generation/cursor/Store，绕过控制器改 `state.data`，或重新下载整条 compact Trace |
 | Capture 到 Viewer request/Turn/Agent/stats DTO | `viewer-trace-projector.mjs`、`src/trace/*`、[投影器契约](viewer-trace-projector-contract.md) | 在 HTTP route、Source provider、详情或 cursor 路径分别拼 DTO |
 | Viewer HTTP 安全和 API | `viewer-api-contract.mjs`、`http.mjs`、`viewer-router.mjs`、[Router 契约](viewer-router-contract.md)、`src/viewer/api-client.js` | 在 `server.mjs` 重新写 URL/method/intent 分支，或让 feature renderer 发 `fetch` |
@@ -56,7 +56,7 @@ pma CLI / adapter
 | System 提示词变化与大文本退化 | `system-diff-model.js`、`system-diff-renderer.js`、[System Diff 契约](system-diff-view-contract.md) | 在 `client.js` 重建无上限 LCS 矩阵，或把块摘要称作精确行 diff |
 | 三栏折叠、宽度与拖动 | `pane-layout-model.js`、`pane-layout-controller.js`；状态在 `client-store.js` | 在 `client.js` 直接读写 CSS 变量或重复绑定 resizer |
 | UI 状态与交互动作 | `client-store.js`、feature controller、`session-navigator-*`、`agent-composer-*`、`client.js` 装配层 | model/renderer 写全局状态 |
-| 中英文 UI 文案 | `src/viewer/ui-i18n.js` 和 `scripts/viewer-i18n-contract-smoke.mjs` | 只改一种语言或在 feature 内另建词典 |
+| 中英文 UI 文案、UI/翻译目标语言偏好 | `src/viewer/ui-i18n.js`、`translation-language-catalog.js`、`language-preferences-controller.js`、对应 contract smoke | 只改一种 UI 语言、在 feature 内另建词典，或绕过语言控制器直接写持久化偏好 |
 
 ## Viewer Feature 约定
 
