@@ -53,6 +53,7 @@ for (const required of [
   "src/viewer/raw-search-controller.js",
   "src/viewer/raw-search-model.js",
   "src/viewer/raw-view-model.js",
+  "src/viewer/request-card-model.js",
   "src/viewer/request-card-renderer.js",
   "src/viewer/request-detail-cache.js",
   "src/viewer/source-timeline-controller.js",
@@ -115,9 +116,6 @@ for (const required of [
   "src/translation/service.mjs",
   "integrations/claude-code/commands/peekmyagent.md",
   "integrations/openclaw/skills/peek-watch/SKILL.md",
-  "scripts/install.mjs",
-  "scripts/lib/source-script-common.mjs",
-  "scripts/uninstall.mjs",
   "scripts/extract-translation-materials.mjs",
   "scripts/translate-materials-zh.mjs",
 ]) {
@@ -136,6 +134,9 @@ for (const excluded of [
   "scripts/source-uninstall-smoke.mjs",
   "scripts/global-install-smoke.mjs",
   "scripts/run-claude-wrapper-smoke.mjs",
+  "scripts/install.mjs",
+  "scripts/lib/source-script-common.mjs",
+  "scripts/uninstall.mjs",
 ]) {
   assert.equal(files.has(excluded), false, `did not expect ${excluded} in npm package`);
 }
@@ -158,9 +159,7 @@ const allowedPatterns = [
   /^bin\//,
   /^src\//,
   /^integrations\//,
-  /^fixtures\//,
-  /^scripts\/(?:install|uninstall|extract-translation-materials|translate-materials-zh)\.mjs$/,
-  /^scripts\/lib\/source-script-common\.mjs$/,
+  /^scripts\/(?:extract-translation-materials|translate-materials-zh)\.mjs$/,
 ];
 const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);

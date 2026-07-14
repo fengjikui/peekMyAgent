@@ -24,6 +24,21 @@ import {
   renderTimelineUpstreamQuickActions as renderTimelineUpstreamQuickActionsView,
 } from "./request-card-renderer.js";
 import {
+  buildTimelineAssistantResponseView,
+  buildTimelineRequestIdentity,
+  buildTimelineToolExchangeView,
+  buildTimelineTurnInputView,
+  buildTimelineUpstreamView,
+  commandMessageLabel as timelineCommandMessageLabel,
+  commandMessagePreview as timelineCommandMessagePreview,
+  isPrimaryTimelineRequest,
+  isTimelineResponseRequest,
+  shouldShowTimelineAssistantResponse,
+  shouldShowTimelineRequestContent as requestShowsTimelineContent,
+  timelineMessageKindLabel,
+  timelineUpstreamQuickSections,
+} from "./request-card-model.js";
+import {
   rawResponseSectionValue,
   rawSectionData as buildRawSectionData,
   rawUpstreamRequestValue,
@@ -1663,26 +1678,30 @@ function renderSummaryMetric(label, value) {
 }
 
 function requestDisplayTitle(request) {
-  if (request.source_hint.type === "metadata") return request.source_hint.label || t("metadataRequest");
-  if (request.summary?.command_message) return commandMessageLabel(request.summary.command_message);
-  return request.is_subagent ? t("subagentRequest") : request.source_hint.type === "parent_spawn" ? t("parentSpawnRequest") : t("mainAgentRequest");
+  return buildTimelineRequestIdentity(request, {
+    translate: t,
+    cleanText: cleanDisplayText,
+    preview: shortPreview,
+  }).title;
 }
 
 function requestExcerpt(request) {
-  if (request.summary?.command_message) return commandMessagePreview(request.summary.command_message);
-  return request.source_hint.type === "metadata"
-    ? request.summary.internal_request_preview || request.summary.current_user || request.summary.assistant_preview || t("noTextSummary")
-    : request.summary.current_user || request.summary.assistant_preview || t("noTextSummary");
+  return buildTimelineRequestIdentity(request, {
+    translate: t,
+    cleanText: cleanDisplayText,
+    preview: shortPreview,
+  }).excerpt;
 }
 
 function commandMessageLabel(commandMessage) {
-  return `Command ${commandMessage?.command || ""}`.trim();
+  return timelineCommandMessageLabel(commandMessage);
 }
 
 function commandMessagePreview(commandMessage) {
-  const command = commandMessage?.command || "/command";
-  const body = cleanDisplayText(commandMessage?.body || commandMessage?.preview || "");
-  return body ? `${command} · ${shortPreview(body, 180)}` : `Command ${command}`;
+  return timelineCommandMessagePreview(commandMessage, {
+    cleanText: cleanDisplayText,
+    preview: shortPreview,
+  });
 }
 
 function renderTurnRail() {
@@ -1773,16 +1792,11 @@ function renderTurnGroup(turn, requestMap) {
 }
 
 function isPrimaryTurnRequest(request) {
-  if (request.source_hint?.type === "metadata") return false;
-  if (request.is_subagent) return false;
-  if ((request.summary?.current_tool_results?.length || 0) > 0) return false;
-  return shouldShowTimelineRequestContent(request) || Boolean(request.summary?.command_message);
+  return isPrimaryTimelineRequest(request, { cleanText: cleanDisplayText });
 }
 
 function isTurnResponseRequest(request) {
-  if (request.source_hint?.type === "metadata") return false;
-  if (request.is_subagent) return false;
-  return shouldShowTimelineAssistantResponse(request);
+  return isTimelineResponseRequest(request);
 }
 
 function renderSupportingRequests(requests, turnId) {
@@ -1854,18 +1868,16 @@ function renderRequestAgentBranchStat(request) {
 
 function renderUpstreamEntry(request) {
   const expanded = state.upstreamExpanded.has(request.id);
-  const showInlineContent = shouldShowTimelineRequestContent(request);
-  const entryPreview = cleanDisplayText(request.summary?.entry?.text || "");
-  const showPreview = showInlineContent || Boolean(entryPreview);
   const meta = renderProviderUsageStats(request);
+  const view = buildTimelineUpstreamView(request, {
+    translate: t,
+    cleanText: cleanDisplayText,
+    preview: shortPreview,
+    serialize: stableJson,
+  });
   return renderTimelineUpstreamEntryView({
     entry: {
-      requestIndex: request.request_index,
-      kindClass: upstreamKindClass(request),
-      userTurn: isUserTurnEntry(request),
-      compact: !showInlineContent,
-      label: upstreamEntryLabel(request),
-      preview: showPreview ? upstreamEntryPreview(request) : "",
+      ...view,
       ownerAria: t("ownerAria"),
       metaHtml: meta,
       actionsHtml: renderUpstreamQuickActions(request, expanded),
@@ -1875,98 +1887,17 @@ function renderUpstreamEntry(request) {
 }
 
 function renderUpstreamQuickActions(request, expanded) {
-  const hasUpstreamToolCalls = (request.summary?.current_tool_calls || []).length > 0;
-  const hasToolResults = (request.summary?.current_tool_results || []).length > 0;
-  const upstreamSections = [
-    { section: "system", label: "System" },
-    { section: "tools", label: "Tools" },
-    ...(hasUpstreamToolCalls ? [{ section: "upstream_tool_calls", label: "tool_use" }] : []),
-    ...(hasToolResults ? [{ section: "tool_results", label: "tool_result" }] : []),
-  ];
   return renderTimelineUpstreamQuickActionsView({
     requestId: request.id,
     expanded,
-    sections: upstreamSections,
+    sections: timelineUpstreamQuickSections(request),
     translate: t,
     escapeHtml,
   });
 }
 
 function shouldShowTimelineRequestContent(request) {
-  if (request.source_hint?.type === "metadata") return false;
-  if (request.summary?.command_message) return false;
-  if (request.is_subagent) return false;
-  if (request.source_hint?.type === "parent_spawn") return false;
-  if ((request.summary?.current_tool_results?.length || 0) > 0) return false;
-  if ((request.summary?.current_tool_calls?.length || 0) > 0) return false;
-  return Boolean(cleanDisplayText(request.summary?.current_user || ""));
-}
-
-// A turn-starting message the user actually sent — real input or a slash
-// command — gets a prominent tint so a new turn is obvious at a glance.
-function isUserTurnEntry(request) {
-  if (request.summary?.command_message) return true;
-  return request.summary?.entry?.kind === "user_input";
-}
-
-function upstreamKindClass(request) {
-  if (request.source_hint?.type === "metadata") return "metadata";
-  if (request.summary?.command_message) return "command-message";
-  if (request.summary?.entry?.kind === "subagent_result") return "subagent-result";
-  if ((request.summary?.current_tool_results?.length || 0) > 0) return "tool-result";
-  if ((request.summary?.current_tool_calls?.length || 0) > 0) return "tool-use";
-  return "user";
-}
-
-function upstreamEntryLabel(request) {
-  if (request.source_hint?.type === "metadata") return requestDisplayTitle(request);
-  if (request.summary?.command_message) return commandMessageLabel(request.summary.command_message);
-  const entry = request.summary?.entry;
-  // Harness injections (compact prompt, task notification) frequently ride in
-  // the same message as the prior turn's tool_results — they must win over the
-  // incidental generic tool_result label.
-  const knownEntryLabel = localizedEntryLabel(entry);
-  if (knownEntryLabel) return knownEntryLabel;
-  if ((request.summary?.current_tool_results?.length || 0) > 0) return t("toolResultUpstream");
-  if ((request.summary?.current_tool_calls?.length || 0) > 0) return t("toolUseUpstream");
-  if (request.is_subagent) return "Subagent input";
-  // Distinguish other harness-injected continuations from genuine user input
-  // instead of labeling everything "User input".
-  if (entry?.kind && entry.kind !== "user_input" && entry.kind !== "unknown" && entry.label) return entry.label;
-  return "User input";
-}
-
-function localizedEntryLabel(entry) {
-  if (!entry?.kind) return "";
-  if (entry.kind === "compact" || entry.kind === "task_notification" || entry.kind === "subagent_result" || entry.kind === "framework_reminder" || entry.kind === "agent_internal") {
-    return messageKindLabel(entry.kind, entry.role);
-  }
-  return "";
-}
-
-function upstreamEntryPreview(request) {
-  if (request.source_hint?.type === "metadata") {
-    const frameworkReminder = [...(request.summary?.history_stack || [])].reverse().find((item) => item.kind === "framework_reminder");
-    return shortPreview(request.summary.internal_request_preview || frameworkReminder?.text || requestDisplayTitle(request), 260);
-  }
-  if (request.summary?.command_message) return commandMessagePreview(request.summary.command_message);
-  const entry = request.summary?.entry;
-  // Harness injections riding alongside tool_results win over the generic
-  // result-return preview.
-  if ((entry?.kind === "compact" || entry?.kind === "task_notification" || entry?.kind === "subagent_result") && entry.text) {
-    return shortPreview(cleanDisplayText(entry.text), 420);
-  }
-  const toolResults = request.summary?.current_tool_results || [];
-  if (toolResults.length) {
-    return t("resultReturnPreview", { count: toolResults.length });
-  }
-  const toolCalls = request.summary?.current_tool_calls || [];
-  if (toolCalls.length) {
-    const text = toolCalls.map((call) => `${call.name || "unknown"} ${stableJson(call.arguments ?? null)}`).join("\n");
-    if (text) return shortPreview(text, 320);
-  }
-  if (entry?.text) return shortPreview(cleanDisplayText(entry.text), 420);
-  return shortPreview(cleanDisplayText(request.summary.current_user || requestExcerpt(request)), 420);
+  return requestShowsTimelineContent(request, { cleanText: cleanDisplayText });
 }
 
 function renderTurnRequest(request, turnInput = null) {
@@ -2026,24 +1957,15 @@ function renderCollapsedUpstreamPlaceholder(request) {
 
 function renderTurnInputEntry(request, turn) {
   const expanded = state.upstreamExpanded.has(request.id);
-  const entry = request.summary?.entry;
-  const kindClass = upstreamKindClass(request);
-  const knownEntryLabel = localizedEntryLabel(entry);
-  let label = "User input";
-  if (turn.command_message) label = commandMessageLabel(turn.command_message);
-  else if (knownEntryLabel) label = knownEntryLabel;
-  else if (entry?.kind && entry.kind !== "user_input" && entry.kind !== "unknown" && entry.label) label = entry.label;
-  const inputText = cleanDisplayText(
-    turn.command_message ? commandMessagePreview(turn.command_message) : turn.user_input || entry?.text || turn.title || "",
-  );
   const meta = renderProviderUsageStats(request);
+  const view = buildTimelineTurnInputView(request, turn, {
+    translate: t,
+    cleanText: cleanDisplayText,
+    preview: shortPreview,
+  });
   return renderTimelineUpstreamEntryView({
     entry: {
-      requestIndex: request.request_index,
-      kindClass,
-      userTurn: isUserTurnEntry(request),
-      label,
-      preview: inputText,
+      ...view,
       ownerAria: t("ownerAria"),
       metaHtml: meta,
       actionsHtml: renderUpstreamQuickActions(request, expanded),
@@ -2052,26 +1974,8 @@ function renderTurnInputEntry(request, turn) {
   });
 }
 
-function shouldShowTimelineAssistantResponse(request) {
-  if (request.source_hint?.type === "metadata") return false;
-  const response = request.summary?.response;
-  if (!response?.captured) return false;
-  return Boolean(response.text || response.preview || response.thinking || (response.tool_calls || []).length);
-}
-
 function messageKindLabel(kind, role) {
-  if (kind === "compact") return t("compactMessage");
-  if (kind === "context_count") return t("contextCountMessage");
-  if (kind === "subagent_result") return t("subagentResult");
-  if (kind === "task_notification") return t("taskNotification");
-  if (kind === "framework_reminder") return t("frameworkReminder");
-  if (kind === "agent_internal") return t("agentInternal");
-  if (kind === "tool_result") return "Tool result";
-  if (kind === "tool_use") return "Tool use";
-  if (kind === "assistant") return "Assistant";
-  if (kind === "user") return "User";
-  if (kind === "system") return "System";
-  return role || kind || "Message";
+  return timelineMessageKindLabel(kind, role, t);
 }
 
 function shortPreview(value, limit) {
@@ -2087,12 +1991,11 @@ function markdownPreview(value, limit) {
 }
 
 function renderToolExchange(request) {
-  const calls = request.summary.current_tool_calls || [];
-  const results = request.summary.current_tool_results || [];
-  if (!calls.length && !results.length) return "";
+  const view = buildTimelineToolExchangeView(request);
+  if (!view) return "";
   return renderTimelineToolExchangeView({
-    pairs: pairToolEvents(calls, results),
-    counts: { calls: calls.length, results: results.length },
+    pairs: view.pairs,
+    counts: view.counts,
     translate: t,
     escapeHtml,
     renderPre,
@@ -2101,27 +2004,21 @@ function renderToolExchange(request) {
 }
 
 function renderAssistantResponse(request) {
-  const response = request.summary.response;
-  if (!response?.captured) return "";
-  const responseText = response.text || response.preview || "";
-  const longResponse = cleanDisplayText(responseText).length > 200;
   const expanded = state.responseExpanded.has(request.id);
-  const visibleText = longResponse && !expanded ? markdownPreview(responseText, 200) : responseText;
-  const meta = [
-    response.latency_ms != null ? `${response.latency_ms}ms` : "",
-    response.finish_reason ? `finish: ${response.finish_reason}` : "",
-    response.truncated ? t("truncated") : "",
-    ...formatResponseUsageMeta(response.usage),
-  ].filter(Boolean);
+  const view = buildTimelineAssistantResponseView(request, {
+    expanded,
+    translate: t,
+    cleanText: cleanDisplayText,
+    preview: shortPreview,
+    markdownPreview,
+    formatCompactNumber,
+    formatCharCount,
+  });
+  if (!view) return "";
   return renderTimelineAssistantResponseView({
     view: {
-      requestId: request.id,
-      expanded,
-      longResponse,
-      visibleText,
-      meta,
-      toolCalls: response.tool_calls || [],
-      thinking: buildAssistantThinkingView(response, request),
+      ...view,
+      thinking: buildAssistantThinkingView(view.thinking, request),
     },
     translate: t,
     escapeHtml,
@@ -2132,58 +2029,24 @@ function renderAssistantResponse(request) {
   });
 }
 
-function buildAssistantThinkingView(response, request) {
-  const thinking = response?.thinking || "";
-  if (!thinking) return null;
-  const preview = response.thinking_preview || shortPreview(thinking, 120);
-  const translation = translatedTextFor("assistant_thinking", thinking);
+function buildAssistantThinkingView(thinking, request) {
+  if (!thinking?.text) return null;
+  const translation = translatedTextFor("assistant_thinking", thinking.text);
   const actionId = registerTranslationAction({
     kind: "assistant_thinking",
-    sourceText: thinking,
+    sourceText: thinking.text,
     section: "response",
     requestId: request.id,
     surface: "timeline",
     metadata: { source: "response.thinking" },
   });
   return {
-    text: thinking,
-    charCount: formatCharCount(thinking.length),
-    preview,
+    ...thinking,
     translation,
     actionId,
     actionLabel: translation ? t("retranslateThinking") : t("translateThinking"),
     translationLoading: state.translationGenerate.loading,
   };
-}
-
-function formatResponseUsageMeta(usage) {
-  if (!usage || typeof usage !== "object") return [];
-  const input = usage.input_tokens ?? usage.prompt_tokens;
-  const output = usage.output_tokens ?? usage.completion_tokens;
-  const cache = usage.cache_read_input_tokens ?? usage.prompt_tokens_details?.cached_tokens;
-  const total = usage.total_tokens;
-  const items = [
-    input != null ? `input ${formatCompactNumber(Number(input))}` : "",
-    cache != null ? `cache ${formatCompactNumber(Number(cache))}` : "",
-    output != null ? `output ${formatCompactNumber(Number(output))}` : "",
-    total != null ? `total ${formatCompactNumber(Number(total))}` : "",
-  ].filter(Boolean);
-  if (items.length) return items;
-  return Object.entries(usage)
-    .filter(([, value]) => value != null && typeof value !== "object")
-    .slice(0, 4)
-    .map(([key, value]) => `${key} ${String(value)}`);
-}
-
-function pairToolEvents(calls, results) {
-  const remainingResults = [...results];
-  const pairs = calls.map((call) => {
-    const matchIndex = remainingResults.findIndex((result) => result.id && call.id && result.id === call.id);
-    const result = matchIndex >= 0 ? remainingResults.splice(matchIndex, 1)[0] : null;
-    return { call, result, confidence: result ? "id" : "call_only" };
-  });
-  for (const result of remainingResults) pairs.push({ call: null, result, confidence: "result_only" });
-  return pairs;
 }
 
 function rawSectionData(request, section) {

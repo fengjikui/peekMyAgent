@@ -31,10 +31,6 @@
     "bin/",
     "src/",
     "integrations/",
-    "fixtures/",
-    "scripts/install.mjs",
-    "scripts/lib/source-script-common.mjs",
-    "scripts/uninstall.mjs",
     "scripts/extract-translation-materials.mjs",
     "scripts/translate-materials-zh.mjs"
   ],
@@ -89,6 +85,7 @@
     "smoke:trace-timeline-model-contract": "node scripts/trace-timeline-model-contract-smoke.mjs",
     "smoke:trace-timeline-renderer-contract": "node scripts/trace-timeline-renderer-contract-smoke.mjs",
     "smoke:trace-timeline-controller-contract": "node scripts/trace-timeline-controller-contract-smoke.mjs",
+    "smoke:request-card-model-contract": "node scripts/request-card-model-contract-smoke.mjs",
     "smoke:request-card-renderer-contract": "node scripts/request-card-renderer-contract-smoke.mjs",
     "smoke:agent-graph-view-contract": "node scripts/agent-graph-view-contract-smoke.mjs",
     "smoke:upstream-detail-view-contract": "node scripts/upstream-detail-view-contract-smoke.mjs",

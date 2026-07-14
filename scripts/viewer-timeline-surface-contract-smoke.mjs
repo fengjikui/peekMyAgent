@@ -4,6 +4,7 @@ import fs from "node:fs";
 const source = fs.readFileSync(new URL("../src/viewer/client.js", import.meta.url), "utf8");
 const controllerSource = fs.readFileSync(new URL("../src/viewer/trace-timeline-controller.js", import.meta.url), "utf8");
 const rendererSource = fs.readFileSync(new URL("../src/viewer/trace-timeline-renderer.js", import.meta.url), "utf8");
+const requestCardModelSource = fs.readFileSync(new URL("../src/viewer/request-card-model.js", import.meta.url), "utf8");
 const requestCardRendererSource = fs.readFileSync(new URL("../src/viewer/request-card-renderer.js", import.meta.url), "utf8");
 const agentGraphModelSource = fs.readFileSync(new URL("../src/viewer/agent-graph-model.js", import.meta.url), "utf8");
 const agentGraphRendererSource = fs.readFileSync(new URL("../src/viewer/agent-graph-renderer.js", import.meta.url), "utf8");
@@ -41,6 +42,10 @@ assert.match(
   source,
   /renderTimelineAssistantResponse as renderTimelineAssistantResponseView,[\s\S]*?renderTimelineRequestCard as renderTimelineRequestCardView,[\s\S]*?from "\.\/request-card-renderer\.js";/,
 );
+assert.match(
+  source,
+  /buildTimelineAssistantResponseView,[\s\S]*?buildTimelineRequestIdentity,[\s\S]*?buildTimelineToolExchangeView,[\s\S]*?buildTimelineTurnInputView,[\s\S]*?buildTimelineUpstreamView,[\s\S]*?from "\.\/request-card-model\.js";/,
+);
 assert.match(source, /import \{ AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView \} from "\.\/agent-graph-model\.js";/);
 assert.match(source, /import \{ renderAgentGraph as renderAgentGraphView \} from "\.\/agent-graph-renderer\.js";/);
 assert.match(source, /import \{ buildUpstreamDetailView \} from "\.\/upstream-detail-model\.js";/);
@@ -65,6 +70,12 @@ assert.match(source, /renderTimelineAssistantResponseView\(/);
 assert.doesNotMatch(source, /function renderAssistantToolCalls\(/);
 assert.doesNotMatch(source, /function renderAssistantThinking\(/);
 assert.doesNotMatch(source, /function renderToolExchangeItem\(/);
+assert.doesNotMatch(
+  source,
+  /function (?:upstreamKindClass|upstreamEntryLabel|upstreamEntryPreview|formatResponseUsageMeta|pairToolEvents|shouldShowTimelineAssistantResponse)\(/,
+  "request-card presentation semantics should be owned by the pure View Model",
+);
+assert.doesNotMatch(requestCardModelSource, /\bdocument\b|\bwindow\b|\blocalStorage\b|\bfetch\s*\(|\bstate\./);
 assert.doesNotMatch(requestCardRendererSource, /\bdocument\b|\bwindow\b|\bfetch\s*\(|\bstate\./);
 assert.match(source, /const view = buildAgentGraphView\(/);
 assert.match(source, /return renderAgentGraphView\(view,/);

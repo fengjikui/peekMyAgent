@@ -22,6 +22,7 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/raw-search-model.js", javascriptAsset("raw-search-model.js")],
   ["/raw-view-model.js", javascriptAsset("raw-view-model.js")],
   ["/request-card-renderer.js", javascriptAsset("request-card-renderer.js")],
+  ["/request-card-model.js", javascriptAsset("request-card-model.js")],
   ["/request-detail-cache.js", javascriptAsset("request-detail-cache.js")],
   ["/session-navigator-controller.js", javascriptAsset("session-navigator-controller.js")],
   ["/session-navigator-model.js", javascriptAsset("session-navigator-model.js")],

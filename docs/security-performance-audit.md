@@ -134,7 +134,7 @@
 - `npm run smoke:platform`
   - 覆盖跨平台 browser opener 命令。
 - `npm run smoke:package`
-  - 覆盖 npm 包内容边界，使用发布路径 allowlist 并拒绝把 `docs/`、`tmp/`、handover/private/resume/memory 草稿、`.env`、数据库、日志、压缩包和录屏/截图素材打进发布包；同时约束带模块化余量的文件数安全天花板、压缩体积和解压体积，避免合理拆分被旧的精确文件数预算误判。
+  - 覆盖 npm 包内容边界，使用发布路径 allowlist 并拒绝把 `docs/`、`tmp/`、handover/private/resume/memory 草稿、`.env`、数据库、日志、压缩包和录屏/截图素材打进发布包；仓库测试 fixtures、源码安装/卸载脚本及其 helper 保留在 Git 仓库中但不随 npm 运行时包分发，npm 用户使用全局安装和 `pma uninstall`，翻译生成所需的两个运行时脚本继续随包提供。门禁同时约束带模块化余量的文件数安全天花板、压缩体积和解压体积，避免合理拆分被旧的精确文件数预算误判。
 - `npm run smoke:timeline-window`
   - 覆盖长 Trace 主时间线窗口渲染和 Raw Messages 整理视图截断，防止前端回退到大 DOM 全量渲染。
 - `npm run smoke:markdown-safety`

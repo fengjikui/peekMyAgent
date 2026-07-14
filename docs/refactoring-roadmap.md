@@ -203,6 +203,7 @@ src/
 - Raw 异步渲染增加 operation id 与 Store context 双重失效检查，快速切换请求或区块时，旧详情和旧错误不能覆盖当前面板。
 - 已抽出 `TranslationCacheController`：Source/目标语言缓存身份、Agent 候选探测、lookup dirty 重建、自动刷新 timer/attempt 去重和异步失效成为独立生命周期；request detail 即使在 hash 计算期间补载也会在提交前重算，生成副作用通过 operation token 拒绝旧 Source/语言，旧上下文结果不能覆盖当前缓存或 UI。
 - 翻译生成、复制/重译动作、Raw section View Model、Renderer 和搜索 Controller 保持独立；`client.js` 只装配这些端口，未把不同生命周期重新聚合进一个大控制器。
+- 已抽出 `request-card-model.js`：请求身份、上行类别/标签/预览、快捷 section、工具事件配对和 Assistant response metadata/折叠成为可直接验证的纯 View Model；`client.js` 只注入当前展开状态、格式化依赖和 Thinking 翻译动作，`request-card-renderer.js` 只生成安全 HTML。
 
 验收：
 
