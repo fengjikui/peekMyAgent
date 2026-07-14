@@ -28,6 +28,8 @@ import {
   rawSearchSnippetSegments,
 } from "./raw-search-model.js";
 import { RawSearchController } from "./raw-search-controller.js";
+import { buildSystemDiffModel } from "./system-diff-model.js";
+import { renderSystemDiffView } from "./system-diff-renderer.js";
 import { SessionNavigatorController } from "./session-navigator-controller.js";
 import { PaneLayoutController } from "./pane-layout-controller.js";
 import { DEFAULT_UI_LANGUAGE, translateUi } from "./ui-i18n.js";
@@ -2770,31 +2772,13 @@ function renderSystemDiff(request) {
   }
   const before = systemTextFromRequest(previous);
   const after = systemTextFromRequest(request);
-  const diffRows = createLineDiff(before, after);
-  const compactRows = compactDiffRows(diffRows, 4);
-  const added = diffRows.filter((row) => row.type === "add").length;
-  const removed = diffRows.filter((row) => row.type === "remove").length;
-  const changed = added || removed;
-  return `
-    <section class="system-diff">
-      <div class="diff-summary">
-        <div>
-          <h3>System prompt diff</h3>
-          <p>#${escapeHtml(previous.request_index)} → #${escapeHtml(request.request_index)} · ${escapeHtml(changed ? t("diffRowsChanged", { added, removed }) : t("noVisibleLineChanges"))}</p>
-        </div>
-        <div class="diff-legend" aria-label="${escapeHtml(t("diffLegendAria"))}">
-          <span class="legend-remove">${escapeHtml(t("diffRemove"))}</span>
-          <span class="legend-add">${escapeHtml(t("diffAdd"))}</span>
-          <span class="legend-context">${escapeHtml(t("diffContext"))}</span>
-        </div>
-      </div>
-      ${
-        changed
-          ? `<div class="diff-lines">${compactRows.map(renderDiffRow).join("")}</div>`
-          : `<div class="empty-box">${escapeHtml(t("noDiffRows"))}</div>`
-      }
-    </section>
-  `;
+  return renderSystemDiffView({
+    model: buildSystemDiffModel(before, after),
+    previousIndex: previous.request_index,
+    currentIndex: request.request_index,
+    translate: t,
+    escapeHtml,
+  });
 }
 
 function previousRequest(request) {
@@ -2975,87 +2959,6 @@ function extractContentText(content) {
     return JSON.stringify(content);
   }
   return "";
-}
-
-function createLineDiff(before, after) {
-  const beforeLines = splitDiffLines(before);
-  const afterLines = splitDiffLines(after);
-  const table = Array.from({ length: beforeLines.length + 1 }, () => Array(afterLines.length + 1).fill(0));
-  for (let row = beforeLines.length - 1; row >= 0; row -= 1) {
-    for (let col = afterLines.length - 1; col >= 0; col -= 1) {
-      table[row][col] =
-        beforeLines[row] === afterLines[col] ? table[row + 1][col + 1] + 1 : Math.max(table[row + 1][col], table[row][col + 1]);
-    }
-  }
-  const rows = [];
-  let oldIndex = 0;
-  let newIndex = 0;
-  while (oldIndex < beforeLines.length && newIndex < afterLines.length) {
-    if (beforeLines[oldIndex] === afterLines[newIndex]) {
-      rows.push({ type: "context", oldLine: oldIndex + 1, newLine: newIndex + 1, text: beforeLines[oldIndex] });
-      oldIndex += 1;
-      newIndex += 1;
-    } else if (table[oldIndex + 1][newIndex] >= table[oldIndex][newIndex + 1]) {
-      rows.push({ type: "remove", oldLine: oldIndex + 1, newLine: "", text: beforeLines[oldIndex] });
-      oldIndex += 1;
-    } else {
-      rows.push({ type: "add", oldLine: "", newLine: newIndex + 1, text: afterLines[newIndex] });
-      newIndex += 1;
-    }
-  }
-  while (oldIndex < beforeLines.length) {
-    rows.push({ type: "remove", oldLine: oldIndex + 1, newLine: "", text: beforeLines[oldIndex] });
-    oldIndex += 1;
-  }
-  while (newIndex < afterLines.length) {
-    rows.push({ type: "add", oldLine: "", newLine: newIndex + 1, text: afterLines[newIndex] });
-    newIndex += 1;
-  }
-  return rows;
-}
-
-function splitDiffLines(text) {
-  const normalized = String(text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  return normalized ? normalized.split("\n") : [];
-}
-
-function compactDiffRows(rows, contextSize) {
-  const changedIndexes = rows.flatMap((row, index) => (row.type === "context" ? [] : [index]));
-  if (!changedIndexes.length) return rows;
-  const keep = new Set();
-  for (const index of changedIndexes) {
-    const start = Math.max(0, index - contextSize);
-    const end = Math.min(rows.length - 1, index + contextSize);
-    for (let cursor = start; cursor <= end; cursor += 1) keep.add(cursor);
-  }
-  const output = [];
-  let skipped = 0;
-  rows.forEach((row, index) => {
-    if (keep.has(index)) {
-      if (skipped) {
-        output.push({ type: "skip", count: skipped });
-        skipped = 0;
-      }
-      output.push(row);
-    } else {
-      skipped += 1;
-    }
-  });
-  if (skipped) output.push({ type: "skip", count: skipped });
-  return output;
-}
-
-function renderDiffRow(row) {
-  if (row.type === "skip") return `<div class="diff-skip">${escapeHtml(t("diffSkip", { count: row.count }))}</div>`;
-  const marker = row.type === "add" ? "+" : row.type === "remove" ? "-" : " ";
-  return `
-    <div class="diff-line ${escapeHtml(row.type)}">
-      <span class="diff-marker">${marker}</span>
-      <span class="diff-line-number">${escapeHtml(row.oldLine)}</span>
-      <span class="diff-line-number">${escapeHtml(row.newLine)}</span>
-      <code>${escapeHtml(row.text || " ")}</code>
-    </div>
-  `;
 }
 
 function renderJson(value, key) {

@@ -91,6 +91,8 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/viewer/raw-search-model.js` | Raw 搜索条目构建、过滤、摘要命中分段与导航索引的纯模型 |
 | `src/viewer/raw-search-controller.js` | Raw 搜索输入法生命周期、延迟重绘、当前命中、高亮和滚动控制器 |
 | `src/viewer/raw-inspector-renderer.js` | Raw 请求/响应导航、搜索控件与结果、详情状态和来源提示的纯 HTML renderer |
+| `src/viewer/system-diff-model.js` | System 文本的精确行级 diff 门限、块级退化策略与有界 View DTO |
+| `src/viewer/system-diff-renderer.js` | System diff 行/块摘要的双语、安全 HTML renderer |
 | `src/viewer/message-view-model.js` | Messages role/content/block 的规范化、结构化判定和长文本截断 DTO |
 | `src/viewer/messages-renderer.js` | Messages 原文/整理切换、安全 Markdown、类型标记和结构化 Raw renderer |
 | `src/viewer/translation-view-model.js` | 翻译材料分组、结构化搜索排序、缓存命中统计与展示 DTO |
@@ -200,6 +202,8 @@ cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 ses
 Raw Inspector 的分类标签、当前区块搜索和原文/翻译操作组成同一个粘性控制区。原文模式只搜索原始 JSON 路径和值；整理/翻译模式只搜索当前可见的结构化 system、harness 或工具文本，并筛选原有块和工具组。匹配计数以可见关键词的实际出现次数为准，上一个/下一个按钮逐词循环定位并强化当前高亮。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属。
 
 搜索的递归条目、大小写无关过滤、特殊字符转义、摘要窗口、高亮分段和循环索引由 `raw-search-model.js` 统一；DOM 层只负责把纯模型结果渲染为 `mark` 并滚动到当前可见命中。这样搜索语义可以脱离浏览器直接做契约测试。
+
+System diff 只在用户按需打开时计算。小输入由 `system-diff-model.js` 使用有总行数、矩阵单元、字符数和单行长度上限的精确行级 LCS；任一上限被触发后，模型线性确认共同前后缀，并在至多 256 个动态内容块上计算指纹摘要，避免大 System 提示词在浏览器创建无界 `行数 × 行数` 矩阵或数千个 DOM 行。Renderer 只消费显式 DTO，并明确区分“行变化”和“内容块变化”；原始结构仍以 System 原文为证据。完整门限和退化语义见 [System Diff View 契约](system-diff-view-contract.md)。
 
 顶部 Trace 搜索和 Raw 区块搜索均遵守浏览器 IME composition 生命周期：中文、日文、韩文等输入法组词期间不替换输入框 DOM，只有选词完成后才触发过滤和重绘。
 

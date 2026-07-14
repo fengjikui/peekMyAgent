@@ -1,6 +1,6 @@
 # 发布前安全与性能审计纪要
 
-更新时间：2026-07-04
+更新时间：2026-07-14
 
 本文记录 peekMyAgent 面向公开发布前的安全与性能检查结果。它不是一次性的“安全认证”，而是维护者后续改动时需要持续回看的工程边界。
 
@@ -105,6 +105,7 @@
 - `pma compact` 可清理旧 store 中已经有 request tree 的重复 `raw_body_json`，并默认执行 SQLite `VACUUM` 回收文件空间。
 - 大 Trace 会话切换采用 cursor 渐进加载：前端先请求 `/api/view?compact=1&initial=1&limit=32` 渲染首屏，再用 Source 绑定的不透明 cursor 分页接收 request、Turn 和 Agent entity delta；live Source 到达尾部后通过 refresh cursor 只续读新增 capture，不再后台下载整条 compact Trace。
 - file/demo/import Trace 使用应用私有 JSON array sidecar 记录对象 byte range；原始证据目录保持只读，分页和 request detail 只 hydrate 对应对象。sidecar 绑定 size/mtime/ctime/头尾样本指纹，内容不保存原路径、prompt 或 response，缓存不可写时退化为进程内索引。
+- System diff 的精确行级 LCS 同时限制总行数、总字符、单行字符和矩阵单元；超限后只在线性共同前后缀与至多 256 个动态内容块上生成指纹摘要，避免大 System 提示词在浏览器主线程创建无界二维数组或数千个 DOM 行。
 
 ## 新增/扩展的自动验证
 
@@ -118,6 +119,8 @@
   - 构造一个 manifest-backed 大 Trace，故意让 `proxy-captures.json` 不可解析；同时构造 SQLite 通用标题会话并禁止 `loadCaptures()`；`/api/sources` 仍应能列出它们，防止会话列表退回全量解析慢路径或覆盖用户重命名标题。
 - `npm run smoke:json-array-file-index` / `npm run smoke:source-capture-reader`
   - 覆盖跨 chunk JSON object boundary、字符串转义、sidecar 指纹失效和私有权限、只读原始 Trace、不可写缓存降级、request window 定位，以及文件分页不再调用全量 capture `readJson`。
+- `npm run smoke:system-diff-view-contract`
+  - 覆盖小输入精确行 diff、换行归一化、上下文折叠、大输入块级退化、输出数量上限、移动后块行号、双语文案和恶意 HTML 转义。
 - `npm run smoke:maintenance`
   - 覆盖 `clear --all-sessions`、`uninstall --remove-data` 和 helper 清理路径；额外覆盖目录形态 `PEEKMYAGENT_STORE_PATH` 必须被拒绝，防止误配置导致递归删除。
 - `npm run smoke:persistence-store`

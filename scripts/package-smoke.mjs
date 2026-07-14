@@ -58,6 +58,8 @@ for (const required of [
   "src/viewer/session-navigator-controller.js",
   "src/viewer/session-navigator-model.js",
   "src/viewer/session-navigator-renderer.js",
+  "src/viewer/system-diff-model.js",
+  "src/viewer/system-diff-renderer.js",
   "src/viewer/translation-renderer.js",
   "src/viewer/translation-view-model.js",
   "src/viewer/trace-timeline-controller.js",

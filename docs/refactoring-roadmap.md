@@ -23,7 +23,7 @@
 | CLI | `bin/peekmyagent.mjs` 包含命令解析和几乎全部命令实现 | 新命令继续扩大入口文件，wrapper 生命周期难单测 |
 | 协议 | provenance 与 translation block 已有共享契约；其余 request/detail DTO 仍由 Server 和 Client 分别解释 | 字段漂移、展示歧义和重复修复 |
 | 数据库 | 内容寻址和 migration runner 已落地；repository 仍集中在 `PersistenceStore` | 后续领域拆分仍受单体 store 约束 |
-| 性能 | live/SQLite/file/import 已使用 cursor 增量读取和实体 delta；文件后端使用私有 sidecar byte range，Client/Server 仍累计 compact 实体 | 首屏网络和文件 hydrate 成本已受控，但超长会话的常驻 compact 实体仍随会话增长 |
+| 性能 | live/SQLite/file/import 已使用 cursor 增量读取和实体 delta；文件后端使用私有 sidecar byte range；System diff 已有精确门限和块级退化；Client/Server 仍累计 compact 实体 | 首屏网络、文件 hydrate 和大 System diff 成本已受控，但超长会话的常驻 compact 实体仍随会话增长 |
 | 测试 | smoke 丰富，但基础设施重复，部分 UI 仅正则检查源码 | 维护成本高，真实交互回归覆盖不足 |
 | 发布 | `0.0.0`、无稳定版本/变更记录流程 | 用户难判断兼容性，npm 发布不可追踪 |
 
@@ -224,7 +224,8 @@ src/
 - 已建立 `TimelinePageAssembler`：首屏返回 compact 基线，后续只返回 request patch、Turn entity update 和 Agent graph entity delta。
 - Client 已由持久的 `TimelineEntityStore` 按稳定 id 管理 request/Turn/Agent map，页面合并不再从完整数组重建临时 map；完整 detail 覆盖也统一经过该边界。大 Source 首屏后不再请求完整 compact Trace，live 自动刷新优先从 refresh cursor 续读。
 - 420-request 性能 fixture 已验证分页覆盖所有请求、Client normalized merge、累计网络载荷保持线性；真实 HTTP smoke 覆盖跨页父/子 Agent/回流和 live 增量。
-- 尚未完成 page eviction/细粒度订阅、可取消文件/搜索读取、持久化 deep-link identity、system diff 上限、增量 blob refcount 和浏览器内存/长任务 gate，因此阶段 4 仍保持进行中。
+- System diff 已迁移为纯 Model/Renderer：小输入运行有矩阵/字符上限的精确行级 LCS，大输入退化为共同前后缀加至多 256 个动态内容块的指纹摘要，不再在主线程创建无界二维数组。
+- 尚未完成 page eviction/细粒度订阅、可取消文件/搜索读取、持久化 deep-link identity、增量 blob refcount 和浏览器内存/长任务 gate，因此阶段 4 仍保持进行中。
 
 ## 阶段 5：适配器 SDK 与更多 Agent
 

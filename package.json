@@ -112,6 +112,7 @@
     "smoke:raw-view-model-contract": "node scripts/raw-view-model-contract-smoke.mjs",
     "smoke:raw-search-model-contract": "node scripts/raw-search-model-contract-smoke.mjs",
     "smoke:raw-search-controller-contract": "node scripts/raw-search-controller-contract-smoke.mjs",
+    "smoke:system-diff-view-contract": "node scripts/system-diff-view-contract-smoke.mjs",
     "smoke:raw-inspector-renderer-contract": "node scripts/raw-inspector-renderer-contract-smoke.mjs",
     "smoke:message-view-renderer-contract": "node scripts/message-view-renderer-contract-smoke.mjs",
     "smoke:translation-view-renderer-contract": "node scripts/translation-view-renderer-contract-smoke.mjs",

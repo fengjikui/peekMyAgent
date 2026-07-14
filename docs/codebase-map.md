@@ -48,6 +48,7 @@ pma CLI / adapter
 | Viewer HTTP 安全和 API | `src/server/http.mjs`、`src/viewer/server.mjs`、`src/viewer/api-client.js` | feature renderer 发 `fetch` |
 | 中栏 Timeline、请求卡、多 Agent 看板、上行详情 | `trace-timeline-*`、`request-card-renderer.js`、`agent-graph-*`、`upstream-detail-*` | renderer 读取全局 `state` 或 DOM |
 | Raw、Messages、翻译展示 | `raw-*`、`message-*`、`translation-*` | `client.js` 新增长段领域 HTML |
+| System 提示词变化与大文本退化 | `system-diff-model.js`、`system-diff-renderer.js`、[System Diff 契约](system-diff-view-contract.md) | 在 `client.js` 重建无上限 LCS 矩阵，或把块摘要称作精确行 diff |
 | 三栏折叠、宽度与拖动 | `pane-layout-model.js`、`pane-layout-controller.js`；状态在 `client-store.js` | 在 `client.js` 直接读写 CSS 变量或重复绑定 resizer |
 | UI 状态与交互动作 | `client-store.js`、feature controller、`session-navigator-*`、`agent-composer-*`、`client.js` 装配层 | model/renderer 写全局状态 |
 | 中英文 UI 文案 | `src/viewer/ui-i18n.js` 和 `scripts/viewer-i18n-contract-smoke.mjs` | 只改一种语言或在 feature 内另建词典 |
