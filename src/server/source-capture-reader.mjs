@@ -172,6 +172,10 @@ export class SourceCaptureReader {
   }
 
   resolveWatch(source) {
+    if (typeof this.runtime.resolveWatch === "function") {
+      const watch = this.runtime.resolveWatch(source);
+      if (watch) return watch;
+    }
     const watch = [...(this.watches?.values() || [])].find((item) => item.watch_id === source.live_watch_id || item.id === source.id);
     if (!watch) throw new Error(`Live watch not found: ${source.live_watch_id || source.id}`);
     return watch;

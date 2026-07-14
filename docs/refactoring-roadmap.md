@@ -134,7 +134,7 @@ src/
 - Server route 只做输入校验、调用 service 和序列化输出。
 - 所有现有安全 smoke 与 Trace fixture 输出不变。
 
-当前进展（2026-07-12）：
+当前进展（2026-07-14）：
 
 - 已抽出 `src/server/http.mjs`，集中管理 method 表、loopback/Origin/Fetch Metadata 防护、Content-Type、intent、body parser、CSP 和 JSON/静态响应。
 - 已增加不启动 daemon 的 HTTP contract smoke，并继续以真实 Viewer security smoke 锁定校验顺序和响应行为。
@@ -162,6 +162,8 @@ src/
 - 已迁移 Viewer Translation Adapter：整条 Source/单 Request/显式材料刷新、occurrence 和 Harness 注入提取通过同步数据端口组装，Viewer Server 不再拥有翻译材料语义或 message marker。
 - 已迁移 OTel Ingest Service：每 watch 事件缓冲、incremental/final 配对策略、连续 request index、watch DTO 和迟到 response 幂等更新不再由 Viewer Server 所有；纯事件/文件解析继续留在 `core/otel-*`。
 - 已迁移 Agent Send Service：页面消息限制、Claude/OpenClaw detached 命令、workspace 回退、跨平台进程执行、诊断参数脱敏和临时 settings 清理不再由 Viewer Server 所有；active/persisted watch 恢复继续通过显式端口注入。
+- 已迁移 Watch Runtime Service：active registry、new/reuse/restore、pause/resume/stop、共享/独立代理、稳定 Agent route、Capture 回调和幂等关闭不再由 Viewer Server 所有；Source Reader/Lifecycle 与 Agent Send 通过窄 runtime 端口协作。
+- Watch 生命周期扩展字段持久化、persisted-only 控制面、shared per-watch cache 清理和大 watch 流式恢复仍需独立 schema/proxy 协议阶段，不属于本次抽离的已实现行为。
 - 已迁移首个 Viewer Client feature：Turn Rail 的窗口策略、悬停、点击跳转和滚动激活由独立控制器管理，并有直接契约测试。
 - 已建立 Viewer API Client：source/view/request/translation/import/export/send/watch 的浏览器协议与错误处理不再散落在全局脚本。
 - 已迁移 request-detail cache：compact request 的详情判定、并发去重、错误重试和 source 生命周期由独立对象管理。

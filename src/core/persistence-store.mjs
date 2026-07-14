@@ -233,6 +233,81 @@ export class PersistenceStore {
     return Math.max(1, Number(row?.next_index) || 1);
   }
 
+  loadWatch(watchId) {
+    const normalized = normalizeWatchId(watchId);
+    if (!normalized) return null;
+    return this.watchRecordFromRow(
+      this.db
+        .prepare(
+          `
+            SELECT
+              w.*,
+              COUNT(r.request_id) AS request_count,
+              COALESCE(MAX(r.request_index), 0) AS last_request_index
+            FROM watches w
+            LEFT JOIN model_requests r ON r.watch_id = w.watch_id
+            WHERE w.watch_id = ?
+            GROUP BY w.watch_id
+            LIMIT 1
+          `,
+        )
+        .get(normalized),
+    );
+  }
+
+  findReusableWatch({ agent, mode, workspace, conversationId } = {}) {
+    if (!agent || !workspace) return null;
+    const clauses = ["w.agent = ?", "w.workspace = ?"];
+    const params = [agent, workspace];
+    if (mode) {
+      clauses.push("(w.mode = ? OR w.mode IS NULL)");
+      params.push(mode);
+    }
+    if (conversationId) {
+      clauses.push("w.conversation_id = ?");
+      params.push(conversationId);
+    }
+    return this.watchRecordFromRow(
+      this.db
+        .prepare(
+          `
+            SELECT
+              w.*,
+              COUNT(r.request_id) AS request_count,
+              COALESCE(MAX(r.request_index), 0) AS last_request_index
+            FROM watches w
+            LEFT JOIN model_requests r ON r.watch_id = w.watch_id
+            WHERE ${clauses.join(" AND ")}
+            GROUP BY w.watch_id
+            ORDER BY COALESCE(w.last_seen, w.created_at) DESC, w.updated_at DESC
+            LIMIT 1
+          `,
+        )
+        .get(...params),
+    );
+  }
+
+  watchRecordFromRow(row) {
+    if (!row) return null;
+    return {
+      watch_id: row.watch_id,
+      label: row.label || null,
+      title: row.title || null,
+      agent: row.agent || null,
+      mode: row.mode || null,
+      confidence: row.confidence || "exact",
+      kind: row.kind || "proxy_capture",
+      workspace: row.workspace || null,
+      conversation_id: row.conversation_id || null,
+      status: row.status || "stored",
+      created_at: row.created_at || null,
+      updated_at: row.updated_at || null,
+      last_seen: row.last_seen || null,
+      request_count: Number(row.request_count) || 0,
+      last_request_index: Number(row.last_request_index) || 0,
+    };
+  }
+
   updateCaptureResponse(capture) {
     if (!capture?.capture_id || !this.hasRequest(capture.capture_id)) return { updated: false };
     const row = this.db.prepare("SELECT capture_json FROM model_requests WHERE request_id = ?").get(capture.capture_id);
@@ -654,6 +729,13 @@ export class PersistenceStore {
 
 function byteLength(value) {
   return Buffer.byteLength(JSON.stringify(value ?? null));
+}
+
+function normalizeWatchId(value) {
+  const text = String(value || "");
+  if (text.startsWith("stored-")) return text.slice("stored-".length);
+  if (text.startsWith("live-")) return text.slice("live-".length);
+  return text;
 }
 
 function hashPayload(kind, value) {

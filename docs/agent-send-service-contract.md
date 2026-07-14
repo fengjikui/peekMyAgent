@@ -12,7 +12,7 @@ Agent Composer
   -> POST /api/agent/send + agent-send intent
   -> ViewerRouter                 HTTP 安全与 body 校验
   -> AgentSendService             输入、命令、执行、脱敏响应
-  -> resolveWatch(source_id)      active/persisted watch 查找与恢复端口
+  -> resolveWatch(source_id)      WatchRuntimeService.resolveForSend 端口
   -> Claude Code / OpenClaw CLI   detached 本机进程
 ```
 
@@ -29,7 +29,7 @@ Router 继续拥有 loopback、Origin/Fetch Metadata、method、Content-Type、i
 - 对公开响应中的长命令参数做截断；
 - 无论执行成功或失败都清理 Claude 临时 settings。
 
-watch runtime 继续拥有 active watch 查找、SQLite watch 恢复、Capture Proxy 和 Store 写入。该依赖通过 `resolveWatch(sourceId)` 注入，因此 Agent Send Service 可以不启动 daemon 直接测试，也不会反向拥有 watch 生命周期。
+`WatchRuntimeService` 继续拥有 active watch 查找、SQLite watch 恢复、Capture Proxy 和 Store 写入。该依赖通过 `resolveWatch(sourceId)` 注入，因此 Agent Send Service 可以不启动 daemon 直接测试，也不会反向拥有 watch 生命周期。
 
 ## 关键不变量
 

@@ -90,10 +90,10 @@ export class SourceLifecycleService {
 
   async applyLifecycle(id, { wantsArchive, wantsDelete } = {}) {
     if (!wantsArchive && !wantsDelete) return null;
-    const liveWatch = this.runtime.watches?.get?.(id) || null;
+    const liveWatch = this.runtimeWatch(id);
     if (wantsDelete && liveWatch) {
       await this.runtime.closeWatch?.(liveWatch);
-      this.runtime.watches.delete(id);
+      this.removeRuntimeWatch(id);
       this.deleteMetadata(sourceMetaKeysForSourceId(id, { liveWatch }));
       this.store?.deleteWatch?.(liveWatch.watch_id);
       return { removed: true, deleted: true };
@@ -102,7 +102,7 @@ export class SourceLifecycleService {
       await this.runtime.closeWatch?.(liveWatch);
       liveWatch.status = "stopped";
       this.store?.updateWatchStatus?.(liveWatch.watch_id, liveWatch.status);
-      this.runtime.watches.delete(id);
+      this.removeRuntimeWatch(id);
       this.setMetadata(sourceMetaKeysForSourceId(id, { liveWatch }), { hidden: true });
       return { archived: true };
     }
@@ -131,7 +131,7 @@ export class SourceLifecycleService {
   }
 
   resolveContext(id, resolved = {}) {
-    const liveWatch = this.runtime.watches?.get?.(id) || null;
+    const liveWatch = this.runtimeWatch(id);
     const persistedSource = resolved.persistedSource || this.resolvePersistedSource(id);
     const importedSource = resolved.importedSource || this.resolveImportedSource(id);
     const liveSource = liveWatch && typeof this.runtime.sourceForWatch === "function" ? this.runtime.sourceForWatch(liveWatch) : null;
@@ -153,7 +153,7 @@ export class SourceLifecycleService {
   isDeletableSource(source) {
     if (!source) return false;
     if (source.live_watch_id || source.store_watch_id || source.kind === "persisted_capture" || source.kind === "imported_trace") return true;
-    if (this.runtime.watches?.has?.(source.id)) return true;
+    if (this.hasRuntimeWatch(source.id)) return true;
     return Boolean(this.resolvePersistedSource(source.id));
   }
 
@@ -188,9 +188,29 @@ export class SourceLifecycleService {
     if (!agent || !conversationId) return;
     const cleanTitle = this.sanitizeTitle(title);
     this.store?.updateConversationTitle?.(agent, conversationId, cleanTitle);
-    for (const watch of this.runtime.watches?.values?.() || []) {
+    for (const watch of this.runtimeWatchValues()) {
       if (watch.agent === agent && watch.conversation_id === conversationId) watch.title = cleanTitle || null;
     }
+  }
+
+  runtimeWatch(id) {
+    if (typeof this.runtime.getWatch === "function") return this.runtime.getWatch(id) || null;
+    return this.runtime.watches?.get?.(id) || null;
+  }
+
+  hasRuntimeWatch(id) {
+    if (typeof this.runtime.hasWatch === "function") return Boolean(this.runtime.hasWatch(id));
+    return Boolean(this.runtime.watches?.has?.(id));
+  }
+
+  removeRuntimeWatch(id) {
+    if (typeof this.runtime.removeWatch === "function") return this.runtime.removeWatch(id);
+    return this.runtime.watches?.delete?.(id) || false;
+  }
+
+  runtimeWatchValues() {
+    if (typeof this.runtime.watchValues === "function") return this.runtime.watchValues() || [];
+    return this.runtime.watches?.values?.() || [];
   }
 
   updateImportedTraceTitle(dir, title) {

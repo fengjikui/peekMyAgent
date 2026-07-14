@@ -93,6 +93,20 @@ try {
     assert.equal(persisted.request_count, 2);
     const persistedStore = openPersistenceStore(storePath);
     try {
+      const runtimeWatch = persistedStore.loadWatch(`stored-${watchId}`);
+      assert.equal(runtimeWatch.watch_id, watchId, "runtime watch lookup accepts persisted source ids");
+      assert.equal(runtimeWatch.kind, "proxy_capture", "runtime lookup preserves the stored watch kind");
+      assert.equal(runtimeWatch.last_request_index, 2);
+      assert.equal(
+        persistedStore.findReusableWatch({
+          agent: "Claude Code",
+          mode: "single_session",
+          workspace: cwd,
+          conversationId: "persisted-smoke-session",
+        })?.watch_id,
+        watchId,
+        "runtime reuse lookup returns the latest lossless watch record",
+      );
       assert.deepEqual(
         persistedStore.loadCapturePage(watchId, { offset: 1, limit: 1 }).map((capture) => capture.request_index),
         [2],

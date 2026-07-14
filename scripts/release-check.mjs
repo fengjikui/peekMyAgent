@@ -56,6 +56,7 @@ const coreCommands = [
   ["npm", "run", "smoke:maintenance"],
   ["npm", "run", "smoke:dashboard-open"],
   ["npm", "run", "smoke:watch-current"],
+  ["npm", "run", "smoke:watch-runtime-service-contract"],
   ["npm", "run", "smoke:watch-pause-resume"],
   ["npm", "run", "smoke:claude-settings-env"],
   ["npm", "run", "smoke:run-claude"],
