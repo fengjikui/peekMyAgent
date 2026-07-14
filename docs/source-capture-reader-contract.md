@@ -41,7 +41,7 @@ page: {
 
 - live：从当前 watch 的共享/独立 proxy capture 集合读取，command 由 runtime 端口提供。
 - persisted：首屏使用 `loadInitialCaptures`，分页使用 SQLite `loadCapturePage`，单请求使用 `loadCaptureWindow`，全量只在明确请求时使用 `loadCaptures`。
-- file/imported：目前仍需 parse 完整 `proxy-captures.json` 后切片；debug 与 command 文件只在 Viewer 读取模式加载。
+- file/imported：有界首屏、分页与请求窗口通过私有 JSON array sidecar 读取对象 byte range；完整导出才 parse 全部 `proxy-captures.json`。debug companion 使用同一索引，command 只在需要的 Viewer 读取模式加载。
 
 ## 性能与兼容约束
 
@@ -51,7 +51,8 @@ page: {
 - Trace export 不得读取 debug/command companion 或构建完整 timeline。
 - `request_index` 存在时优先用它恢复窗口原始位置；文件窗口的 debug companion 必须按同一 startIndex 切片。
 - reader 不改变 CaptureRecord，不补写 provenance，也不持久化数据。
+- file index 只属于读取后端，原始 Trace 保持只读；sidecar 位置、指纹、失效和 deep-link 回退见 [JSON Array File Index 契约](json-array-file-index-contract.md)。
 
 ## 后续演进
 
-当前 reader 已支持 cursor 页面，但 file/imported backend 仍是完整 JSON parse。后续可以在不改变 Viewer route 和 Trace domain 的前提下替换为 sidecar index 和可取消读取。HTTP 与语义增量协议见 [Timeline Cursor 分页契约](timeline-pagination-contract.md)。
+当前 reader 的 live、SQLite、file/imported backend 都支持有界页面。后续仍可在不改变 Viewer route 和 Trace domain 的前提下增加可取消文件读取、持久化 request identity 和 page eviction。HTTP 与语义增量协议见 [Timeline Cursor 分页契约](timeline-pagination-contract.md)。

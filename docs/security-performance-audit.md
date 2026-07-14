@@ -104,6 +104,7 @@
 - SQLite capture 默认使用分块缓存存储：新请求不再重复保存完整 `raw_body_json`，而是通过 ordered request tree + content blobs 重建 Raw；system、单个 tool schema、单条 message/tool_result 都可按 hash 复用。
 - `pma compact` 可清理旧 store 中已经有 request tree 的重复 `raw_body_json`，并默认执行 SQLite `VACUUM` 回收文件空间。
 - 大 Trace 会话切换采用 cursor 渐进加载：前端先请求 `/api/view?compact=1&initial=1&limit=32` 渲染首屏，再用 Source 绑定的不透明 cursor 分页接收 request、Turn 和 Agent entity delta；live Source 到达尾部后通过 refresh cursor 只续读新增 capture，不再后台下载整条 compact Trace。
+- file/demo/import Trace 使用应用私有 JSON array sidecar 记录对象 byte range；原始证据目录保持只读，分页和 request detail 只 hydrate 对应对象。sidecar 绑定 size/mtime/ctime/头尾样本指纹，内容不保存原路径、prompt 或 response，缓存不可写时退化为进程内索引。
 
 ## 新增/扩展的自动验证
 
@@ -115,6 +116,8 @@
   - 覆盖 macOS/Windows/Linux 路径、浏览器打开、子进程启动和 app path 构造；额外覆盖翻译缓存路径在 `.` / `..` 和 Windows 保留名输入下不会逃出 state translations 根目录。
 - `npm run smoke:source-list-performance`
   - 构造一个 manifest-backed 大 Trace，故意让 `proxy-captures.json` 不可解析；同时构造 SQLite 通用标题会话并禁止 `loadCaptures()`；`/api/sources` 仍应能列出它们，防止会话列表退回全量解析慢路径或覆盖用户重命名标题。
+- `npm run smoke:json-array-file-index` / `npm run smoke:source-capture-reader`
+  - 覆盖跨 chunk JSON object boundary、字符串转义、sidecar 指纹失效和私有权限、只读原始 Trace、不可写缓存降级、request window 定位，以及文件分页不再调用全量 capture `readJson`。
 - `npm run smoke:maintenance`
   - 覆盖 `clear --all-sessions`、`uninstall --remove-data` 和 helper 清理路径；额外覆盖目录形态 `PEEKMYAGENT_STORE_PATH` 必须被拒绝，防止误配置导致递归删除。
 - `npm run smoke:persistence-store`

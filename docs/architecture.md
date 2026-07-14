@@ -50,6 +50,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/server/source-metadata.mjs` | Source 稳定别名、title/pin/hidden 元数据、原子 sidecar 持久化与统一展示装饰 |
 | `src/server/source-lifecycle-service.mjs` | 单 source/项目级 rename、pin、archive、delete 编排及 imported Trace 目录边界 |
 | `src/server/source-capture-reader.mjs` | live/SQLite/file 的首屏、请求窗口与导出 captures 统一读取协议 |
+| `src/server/json-array-file-index.mjs` | file/import JSON array 的私有 sidecar、指纹失效、byte-range 页面与请求窗口读取 |
 | `src/server/trace-bundle-service.mjs` | Trace 导出脱敏压缩、导入验证、provenance 和私有落盘边界 |
 | `src/server/timeline-view-projector.mjs` | 完整 Viewer Trace DTO 到首屏/时间线轻量 DTO 的纯投影、截断和遗漏元数据契约 |
 | `src/server/timeline-cursor-service.mjs` | Source 绑定不透明 cursor、TTL/session 上限、分页 reader 生命周期和 live tail 续读 |
@@ -188,7 +189,7 @@ sequenceDiagram
 
 达到渐进加载门限的 Source 首屏默认只取前 32 个请求，后续以最多 100 条为一页继续读取，不再后台下载一份完整 compact Trace。Server cursor 保留跨页 Context Delta、Turn 和子 Agent 血缘所需状态；后续页只发送新增 request、旧 request annotation patch、变化的 Turn 和 Agent entity。live Source 到达当前尾部后保留 refresh cursor，新增 capture 只续读增量。时间线超过阈值时只渲染一个窗口，点开 Raw/细节再按 request 获取详细内容。
 
-cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 session 数量上限；它不是持久化 id，也不向浏览器暴露 SQLite offset。完整协议、失效回退和当前 file backend 限制见 [Timeline Cursor 分页契约](timeline-pagination-contract.md)。旧 `/api/view?compact=1` 完整响应继续保留兼容。
+cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 session 数量上限；它不是持久化 id，也不向浏览器暴露 SQLite 或文件 offset。file/import Source 的原始 Trace 保持只读，私有 sidecar 只保存对象 byte range 并由源文件指纹自动失效。完整协议和失效回退见 [Timeline Cursor 分页契约](timeline-pagination-contract.md)与 [JSON Array File Index 契约](json-array-file-index-contract.md)。旧 `/api/view?compact=1` 完整响应继续保留兼容。
 
 `compact=1` 的 DTO 由 `timeline-view-projector.mjs` 从完整 Viewer Trace DTO 纯投影得到。它集中管理预览长度、历史/Raw/完整 Response 的省略规则和 `*_omitted` 元数据，不拥有 Trace 语义、Source 读取或 HTTP 生命周期；完整详情仍以 `/api/request` 为事实源。详细边界见 [Timeline 轻量投影契约](timeline-view-projection-contract.md)。
 
@@ -222,7 +223,7 @@ Raw Inspector 按数据方向组织证据：请求卡和上行视图只展示 Sy
 
 Raw Inspector 的结构化翻译视图已经拆为纯 View Model 和 Renderer。View Model 只接收显式材料、查询词和译文 lookup 回调，负责工具分组、命中排序、缓存统计与展示 DTO；Renderer 只接收 DTO、i18n、Markdown/Pre renderer 和 action id 注册回调。缓存 Map、网络请求、活动 request/section 与动作生命周期仍由 `client.js` 装配，因此新模块不会重复翻译 hash，也不会隐藏副作用。详细边界见 [Viewer 翻译视图契约](translation-view-renderer-contract.md)。
 
-大 Trace 已使用真正的 cursor 增量读取：live/SQLite Source 首屏后不会再下载整条 compact Trace，后续页面由 `TimelineEntityStore` 合并进 request、Turn 和 Agent 的 normalized map，Raw/detail 仍按 request 懒加载。Store 在状态未变化时复用兼容快照，完整详情只能覆盖对应证据字段，不能反向覆盖 cursor 已确认的 Turn、Context 或 Agent 归属。当前边界是 Store 仍需为旧 View Model 物化完整 compact 数组，尚未实现 page eviction/细粒度订阅；file/import Source 也仍会先完整 parse 再切页。搜索后台索引、浏览器峰值内存 gate 和更细粒度的局部重绘继续属于下一阶段优化。
+大 Trace 已使用真正的 cursor 增量读取：live/SQLite Source 只 hydrate 当前 capture 页面；file/import Source 首次建立结构索引后按 byte range hydrate 当前页，三种后端都不会在首屏完整 `JSON.parse` Trace。后续页面由 `TimelineEntityStore` 合并进 request、Turn 和 Agent 的 normalized map，Raw/detail 仍按 request 懒加载。Store 在状态未变化时复用兼容快照，完整详情只能覆盖对应证据字段，不能反向覆盖 cursor 已确认的 Turn、Context 或 Agent 归属。当前边界是 Store 仍需为旧 View Model 物化完整 compact 数组，尚未实现 page eviction/细粒度订阅；legacy 文件首次索引仍是线性扫描，冷启动 deep link 可能顺序确认 request identity。搜索后台索引、浏览器峰值内存 gate 和更细粒度的局部重绘继续属于下一阶段优化。
 
 ## Trace 解释模型
 

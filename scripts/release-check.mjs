@@ -25,6 +25,7 @@ const coreCommands = [
   ["npm", "run", "smoke:live-source-provider"],
   ["npm", "run", "smoke:source-metadata-contract"],
   ["npm", "run", "smoke:source-lifecycle-service"],
+  ["npm", "run", "smoke:json-array-file-index"],
   ["npm", "run", "smoke:source-capture-reader"],
   ["npm", "run", "smoke:trace-bundle-service-contract"],
   ["npm", "run", "smoke:message-equivalence-contract"],

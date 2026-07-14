@@ -124,6 +124,7 @@
     "smoke:live-source-provider": "node scripts/live-source-provider-smoke.mjs",
     "smoke:source-metadata-contract": "node scripts/source-metadata-contract-smoke.mjs",
     "smoke:source-lifecycle-service": "node scripts/source-lifecycle-service-smoke.mjs",
+    "smoke:json-array-file-index": "node scripts/json-array-file-index-smoke.mjs",
     "smoke:source-capture-reader": "node scripts/source-capture-reader-smoke.mjs",
     "smoke:message-equivalence-contract": "node scripts/message-equivalence-contract-smoke.mjs",
     "smoke:context-delta-contract": "node scripts/context-delta-contract-smoke.mjs",

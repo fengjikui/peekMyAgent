@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { JsonArrayFileIndex } from "../src/server/json-array-file-index.mjs";
 import { SourceCaptureReader } from "../src/server/source-capture-reader.mjs";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-capture-reader-"));
@@ -19,6 +20,7 @@ fs.writeFileSync(path.join(tmpDir, "command.json"), JSON.stringify({ argv: ["cla
 
 const liveWatch = { id: "live-watch-1", watch_id: "watch-1" };
 const storeCalls = [];
+const fileReadCalls = [];
 const reader = new SourceCaptureReader({
   watches: new Map([[liveWatch.id, liveWatch]]),
   store: {
@@ -40,7 +42,10 @@ const reader = new SourceCaptureReader({
     },
   },
   files: {
-    readJson: (filePath) => JSON.parse(fs.readFileSync(filePath, "utf8")),
+    readJson(filePath) {
+      fileReadCalls.push(filePath);
+      return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    },
     readOptionalJson(filePath) {
       try {
         return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -49,6 +54,7 @@ const reader = new SourceCaptureReader({
       }
     },
   },
+  fileIndex: new JsonArrayFileIndex({ cacheDir: path.join(tmpDir, "index-cache"), chunkBytes: 11 }),
   runtime: {
     capturesForWatch: () => captures,
     commandForWatch: () => ({ argv: ["claude", "-c"] }),
@@ -102,10 +108,13 @@ try {
   assert.equal(fileInitial.captures.length, 2);
   assert.equal(fileInitial.debugSources.length, 2);
   assert.deepEqual(fileInitial.command, { argv: ["claude"] });
+  assert.equal(fileReadCalls.some((filePath) => filePath.endsWith("proxy-captures.json")), false, "bounded initial reads use the file index");
   const fileAll = reader.readAll(fileSource);
   assert.equal(fileAll.captures.length, 3);
   assert.deepEqual(fileAll.debugSources, [], "full export read skips debug companion data");
   assert.equal(fileAll.command, null, "full export read skips command companion data");
+  assert.equal(fileReadCalls.filter((filePath) => filePath.endsWith("proxy-captures.json")).length, 1, "explicit full export still reads the complete capture file");
+  fileReadCalls.length = 0;
   const firstFilePage = reader.readPage(fileSource, { limit: 2 });
   assert.deepEqual(firstFilePage.captures.map((capture) => capture.request_index), [1, 2]);
   assert.deepEqual(firstFilePage.debugSources.map((item) => item.request_index), [1, 2]);
@@ -119,6 +128,7 @@ try {
   const fileWindow = reader.readRequestWindow(fileSource, "3");
   assert.deepEqual(fileWindow.captures.map((capture) => capture.request_index), [2, 3]);
   assert.deepEqual(fileWindow.debugSources.map((item) => item.request_index), [2, 3]);
+  assert.equal(fileReadCalls.some((filePath) => filePath.endsWith("proxy-captures.json")), false, "file pages and request windows do not full-parse the capture file");
 
   assert.throws(() => reader.readRequestWindow(fileSource, "missing"), (error) => error.statusCode === 404);
   assert.throws(() => reader.readPage(fileSource, { cursor: "not-a-cursor" }), /cursor must be a non-negative integer/);

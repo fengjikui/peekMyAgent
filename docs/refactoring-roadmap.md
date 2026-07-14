@@ -23,7 +23,7 @@
 | CLI | `bin/peekmyagent.mjs` 包含命令解析和几乎全部命令实现 | 新命令继续扩大入口文件，wrapper 生命周期难单测 |
 | 协议 | provenance 与 translation block 已有共享契约；其余 request/detail DTO 仍由 Server 和 Client 分别解释 | 字段漂移、展示歧义和重复修复 |
 | 数据库 | 内容寻址和 migration runner 已落地；repository 仍集中在 `PersistenceStore` | 后续领域拆分仍受单体 store 约束 |
-| 性能 | live/SQLite 已使用 cursor 增量读取和实体 delta；Client/Server 仍累计 compact 实体，file/import 仍先完整 parse | 首屏网络成本已受控，但超长会话的常驻内存和 file/import 解析成本仍随会话增长 |
+| 性能 | live/SQLite/file/import 已使用 cursor 增量读取和实体 delta；文件后端使用私有 sidecar byte range，Client/Server 仍累计 compact 实体 | 首屏网络和文件 hydrate 成本已受控，但超长会话的常驻 compact 实体仍随会话增长 |
 | 测试 | smoke 丰富，但基础设施重复，部分 UI 仅正则检查源码 | 维护成本高，真实交互回归覆盖不足 |
 | 发布 | `0.0.0`、无稳定版本/变更记录流程 | 用户难判断兼容性，npm 发布不可追踪 |
 
@@ -166,7 +166,7 @@ src/
 - 已迁移 Raw Inspector 基础 Renderer：请求/响应导航、搜索控件与结果、详情状态和来源提示只依赖显式 DTO 与渲染依赖。
 - 已迁移 Message View Model 与 Renderer：role/content/block 规范化、结构化判定、长文本截断、原文/整理切换与安全 Markdown 不再由全局 client 所有。
 - 已迁移 Translation View Model 与 Renderer：工具分组、译文搜索排序、命中统计、System/Harness 块、工具说明与参数汇总不再直接读取全局 client state；缓存 key 继续复用共享 translation block contract，动作注册通过显式依赖留在应用层。
-- 最小 client store 已建立：source/Turn/request selection、Raw/messages mode、UI/翻译语言、pane layout 与 latest-only 已有单一写入边界和原子变更通知；file/imported sidecar index 与 cursor 分页仍留在大 Trace 数据路径阶段实施。
+- 最小 client store 已建立：source/Turn/request selection、Raw/messages mode、UI/翻译语言、pane layout 与 latest-only 已有单一写入边界和原子变更通知；大 Trace cursor、Client entity store 与 file/imported sidecar 已在阶段 4 落地，page eviction/细粒度订阅继续演进。
 - 已迁移 Trace Timeline View Model：查询分类、命中 Turn、结果上限、latest-only、lead request 与窗口策略成为无 DOM 纯模块；Header、Timeline、Composer 已形成局部渲染表面，Timeline 内部交互和 Thinking 块翻译不再默认触发整页 `renderAll()`，活动选择由 Store 通知统一同步 DOM。
 - 已迁移 Trace Timeline Renderer/Controller：查询、空状态和窗口 HTML 使用显式 DTO；IME、筛选、Raw/Agent 动作和活动态通过长生命周期控制器做单次事件委派，不再在每次 Timeline 重绘后逐按钮重新绑定。
 - 已迁移 Request Card Renderer：请求卡外壳、上行标题与快捷动作、当前工具交换、Thinking 和 Assistant 回复 HTML 只消费显式 View DTO；详情读取、请求分类、翻译动作注册和响应折叠状态继续由应用层所有。
@@ -205,7 +205,7 @@ src/
 - 增加 cursor/turn 分页 API，首屏后按滚动或导航增量加载。
 - 客户端使用 normalized entity store 合并页面，不重新构建全部 Trace。
 - Raw JSON 节点按展开状态懒创建；搜索建立可取消的后台索引。
-- 对 file/import source 建 sidecar index，避免每次完整 parse。
+- 对 file/import source 建 sidecar index，避免每次完整 parse。已完成 object boundary sidecar、指纹失效、私有原子缓存和请求窗口回退。
 - 把 system diff 改成有大小门限的算法，超限时使用 hash/块级摘要。
 - response 更新只调整受影响 blob refcount；翻译缓存做批量/原子 flush。
 - 增加浏览器性能 gate：首屏、长任务、DOM 节点、峰值内存和交互延迟。
@@ -218,13 +218,13 @@ src/
 
 当前进展（2026-07-14）：
 
-- 已建立 `SourceCaptureReader.readPage` 和 SQLite `loadCapturePage`，live/SQLite 只 hydrate 当前 capture 页面；file/import 仍待 sidecar index。
+- 已建立 `SourceCaptureReader.readPage` 和 SQLite `loadCapturePage`，live/SQLite 只 hydrate 当前 capture 页面；file/import 通过 `JsonArrayFileIndex` 按对象 byte range 读取，原始 Trace 保持只读。
 - 已建立 daemon 内存中的 Source 绑定 opaque cursor，包含 TTL、session 上限、错源/过期错误和 live tail 续读；Source 生命周期变更会清理 session。
 - Context Delta 与 body-only 子 Agent lineage 已支持显式跨页状态，不再错误地按全局上一行比较或丢失早页 spawn。
 - 已建立 `TimelinePageAssembler`：首屏返回 compact 基线，后续只返回 request patch、Turn entity update 和 Agent graph entity delta。
 - Client 已由持久的 `TimelineEntityStore` 按稳定 id 管理 request/Turn/Agent map，页面合并不再从完整数组重建临时 map；完整 detail 覆盖也统一经过该边界。大 Source 首屏后不再请求完整 compact Trace，live 自动刷新优先从 refresh cursor 续读。
 - 420-request 性能 fixture 已验证分页覆盖所有请求、Client normalized merge、累计网络载荷保持线性；真实 HTTP smoke 覆盖跨页父/子 Agent/回流和 live 增量。
-- 尚未完成 page eviction/细粒度订阅、file/import sidecar、可取消搜索索引、system diff 上限、增量 blob refcount 和浏览器内存/长任务 gate，因此阶段 4 仍保持进行中。
+- 尚未完成 page eviction/细粒度订阅、可取消文件/搜索读取、持久化 deep-link identity、system diff 上限、增量 blob refcount 和浏览器内存/长任务 gate，因此阶段 4 仍保持进行中。
 
 ## 阶段 5：适配器 SDK 与更多 Agent
 

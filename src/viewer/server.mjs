@@ -40,6 +40,7 @@ import {
 import { SourceRepository } from "../server/source-repository.mjs";
 import { SourceLifecycleService } from "../server/source-lifecycle-service.mjs";
 import { SourceCaptureReader } from "../server/source-capture-reader.mjs";
+import { JsonArrayFileIndex } from "../server/json-array-file-index.mjs";
 import { importedTraceSourceFromDir as sourceFromImportedTraceDir, listImportedTraceSources } from "../server/imported-trace-source-provider.mjs";
 import { listFileSources } from "../server/file-source-provider.mjs";
 import { listPersistedSources } from "../server/persisted-source-provider.mjs";
@@ -501,9 +502,17 @@ function sourceCaptureReader(options) {
     watches: options.watches,
     store: options.store,
     files: { readJson, readOptionalJson },
+    fileIndex: jsonArrayFileIndex(options),
     runtime: { capturesForWatch, commandForWatch: liveWatchCommand },
     errors: { requestNotFound: (requestId) => httpError(404, `Request not found: ${requestId}`) },
   });
+}
+
+function jsonArrayFileIndex(options) {
+  if (options.jsonArrayFileIndex) return options.jsonArrayFileIndex;
+  const stateRoot = options.store?.path ? path.dirname(options.store.path) : path.dirname(options.importsDir);
+  options.jsonArrayFileIndex = new JsonArrayFileIndex({ cacheDir: path.join(stateRoot, "cache", "json-array-indexes") });
+  return options.jsonArrayFileIndex;
 }
 
 function timelineCursorService(options) {

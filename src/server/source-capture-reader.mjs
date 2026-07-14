@@ -2,10 +2,11 @@ import path from "node:path";
 import { watchIdFromSourceId } from "../core/source-identifiers.mjs";
 
 export class SourceCaptureReader {
-  constructor({ watches, store, files, runtime, errors } = {}) {
+  constructor({ watches, store, files, fileIndex, runtime, errors } = {}) {
     this.watches = watches || new Map();
     this.store = store || null;
     this.files = files || {};
+    this.fileIndex = fileIndex || null;
     this.runtime = runtime || {};
     this.errors = errors || {};
   }
@@ -63,7 +64,20 @@ export class SourceCaptureReader {
   }
 
   readFile(source, { limit, includeCompanions }) {
-    const allCaptures = this.readJson(path.join(source.path, "proxy-captures.json"));
+    const capturePath = path.join(source.path, "proxy-captures.json");
+    if (limit && this.fileIndex) {
+      const page = this.fileIndex.readPage(capturePath, { offset: 0, limit });
+      return {
+        captures: page.items,
+        debugSources: includeCompanions
+          ? this.readOptionalIndexedPage(path.join(source.path, "debug-api-sources.json"), { offset: 0, limit: page.items.length })
+          : [],
+        command: includeCompanions ? this.readOptionalJson(path.join(source.path, "command.json")) : null,
+        totalCount: page.totalCount,
+        startIndex: 0,
+      };
+    }
+    const allCaptures = this.readJson(capturePath);
     const captures = limit ? allCaptures.slice(0, limit) : allCaptures;
     return {
       captures,
@@ -99,14 +113,20 @@ export class SourceCaptureReader {
   }
 
   readFilePage(source, { offset, limit, includeCompanions }) {
-    const allCaptures = this.readJson(path.join(source.path, "proxy-captures.json"));
-    const captures = allCaptures.slice(offset, offset + limit);
-    const debugSources = includeCompanions ? this.readOptionalJson(path.join(source.path, "debug-api-sources.json")) || [] : [];
+    const capturePath = path.join(source.path, "proxy-captures.json");
+    const indexedPage = this.fileIndex?.readPage(capturePath, { offset, limit }) || null;
+    const allCaptures = indexedPage ? null : this.readJson(capturePath);
+    const captures = indexedPage?.items || allCaptures.slice(offset, offset + limit);
+    const debugSources = includeCompanions
+      ? indexedPage
+        ? this.readOptionalIndexedPage(path.join(source.path, "debug-api-sources.json"), { offset, limit: captures.length })
+        : this.readOptionalJson(path.join(source.path, "debug-api-sources.json")) || []
+      : [];
     return pageResult({
       captures,
-      debugSources: debugSources.slice(offset, offset + captures.length),
+      debugSources: indexedPage ? debugSources : debugSources.slice(offset, offset + captures.length),
       command: includeCompanions && offset === 0 ? this.readOptionalJson(path.join(source.path, "command.json")) : null,
-      totalCount: allCaptures.length,
+      totalCount: indexedPage?.totalCount ?? allCaptures.length,
       offset,
       limit,
     });
@@ -124,14 +144,31 @@ export class SourceCaptureReader {
   }
 
   readFileWindow(source, requestId, { previousCount }) {
-    const captures = this.readJson(path.join(source.path, "proxy-captures.json"));
-    const window = captureWindow(captures, requestId, { previousCount, notFound: (id) => this.requestNotFound(id) });
-    const debugSources = this.readOptionalJson(path.join(source.path, "debug-api-sources.json")) || [];
+    const indexedWindow = this.fileIndex?.readWindow(path.join(source.path, "proxy-captures.json"), requestId, { previousCount }) || null;
+    if (this.fileIndex && !indexedWindow) throw this.requestNotFound(requestId);
+    const captures = indexedWindow ? null : this.readJson(path.join(source.path, "proxy-captures.json"));
+    const window = indexedWindow
+      ? { captures: indexedWindow.items, totalCount: indexedWindow.totalCount, startIndex: indexedWindow.startIndex }
+      : captureWindow(captures, requestId, { previousCount, notFound: (id) => this.requestNotFound(id) });
+    const debugSources = indexedWindow
+      ? this.readOptionalIndexedPage(path.join(source.path, "debug-api-sources.json"), {
+          offset: window.startIndex,
+          limit: window.captures.length,
+        })
+      : this.readOptionalJson(path.join(source.path, "debug-api-sources.json")) || [];
     return {
       ...window,
-      debugSources: debugSources.slice(window.startIndex, window.startIndex + window.captures.length),
+      debugSources: indexedWindow ? debugSources : debugSources.slice(window.startIndex, window.startIndex + window.captures.length),
       command: this.readOptionalJson(path.join(source.path, "command.json")),
     };
+  }
+
+  readOptionalIndexedPage(filePath, { offset, limit }) {
+    try {
+      return this.fileIndex?.readPage(filePath, { offset, limit }).items || [];
+    } catch {
+      return [];
+    }
   }
 
   resolveWatch(source) {
