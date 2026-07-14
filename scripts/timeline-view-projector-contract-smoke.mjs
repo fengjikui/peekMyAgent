@@ -117,6 +117,7 @@ assert.equal(projected.raw.response.headers, undefined);
 assert.equal(projected.raw.response.body_json_omitted, true);
 assert.equal(projected.raw.response.body_text, undefined);
 assert.equal(projected.raw.response.body_text_omitted.reason, "compact_view");
+assert.deepEqual(projectTimelineRequest(projected), projected, "compact projection must be idempotent for cursor assembly");
 
 const projectedData = projectTimelineViewerData({ source: { id: "source-1" }, requests: [request] });
 assert.equal(projectedData.source.id, "source-1");

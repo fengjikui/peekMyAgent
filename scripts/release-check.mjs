@@ -35,6 +35,7 @@ const coreCommands = [
   ["npm", "run", "smoke:request-profile-contract"],
   ["npm", "run", "smoke:request-composition-contract"],
   ["npm", "run", "smoke:timeline-view-projector-contract"],
+  ["npm", "run", "smoke:viewer-trace-projector-contract"],
   ["npm", "run", "smoke:timeline-cursor-service-contract"],
   ["npm", "run", "smoke:timeline-cursor-http"],
   ["npm", "run", "smoke:model-response-normalizer-contract"],

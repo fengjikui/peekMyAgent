@@ -28,7 +28,7 @@ flowchart LR
 
 daemon、Viewer HTTP API 和静态资源服务由同一个 `startViewerServer()` 实例提供。共享 Capture Proxy 在配置了 capture port 时由该进程一并启动，但监听独立端口。
 
-Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。HTTP 路由读取并校验 JSON 后，将 rename、pin、archive、delete 和项目批量操作交给 `SourceLifecycleService`；该 service 只通过显式 runtime、SQLite、metadata 和 imports 端口执行副作用。模型下行 JSON/SSE、上行消息语义以及请求协议/provider/source 画像已由 Trace Domain 统一解释；Trace 内容组装、watch 创建/恢复和其他 Viewer domain 仍在 `server.mjs`，尚未完成拆分。
+Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。HTTP 路由读取并校验 JSON 后，将 rename、pin、archive、delete 和项目批量操作交给 `SourceLifecycleService`；该 service 只通过显式 runtime、SQLite、metadata 和 imports 端口执行副作用。模型下行 JSON/SSE、上行消息语义以及请求协议/provider/source 画像已由 Trace Domain 统一解释；`ViewerTraceProjector` 将这些领域契约统一投影为完整加载、单请求详情和 cursor 分页共用的 Viewer DTO。watch 创建/恢复和其他 Viewer runtime 仍在 `server.mjs`，尚未完成拆分。
 
 ## 源码地图
 
@@ -55,6 +55,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/server/timeline-view-projector.mjs` | 完整 Viewer Trace DTO 到首屏/时间线轻量 DTO 的纯投影、截断和遗漏元数据契约 |
 | `src/server/timeline-cursor-service.mjs` | Source 绑定不透明 cursor、TTL/session 上限、分页 reader 生命周期和 live tail 续读 |
 | `src/server/timeline-page-assembler.mjs` | 跨页 Context/Agent 状态、compact request、Turn patch 和 Agent entity delta 组装 |
+| `src/server/viewer-trace-projector.mjs` | Capture 到 Viewer request/Turn/Agent/stats/workbench DTO 的无 I/O 单一投影边界 |
 | `src/trace/content-parts.mjs` | 上行/下行共用的 content、thinking、tool use 与 tool result 最小协议原语 |
 | `src/trace/message-semantics.mjs` | 真实用户输入、命令、Harness 注入、工具结果与任务/子 Agent 回流语义 |
 | `src/trace/request-profile.mjs` | System 提取、协议/provider 能力画像以及 main/subagent/parent-spawn/metadata 来源提示 |

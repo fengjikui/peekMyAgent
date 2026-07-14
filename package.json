@@ -73,6 +73,7 @@
     "smoke:request-profile-contract": "node scripts/request-profile-contract-smoke.mjs",
     "smoke:request-composition-contract": "node scripts/request-composition-contract-smoke.mjs",
     "smoke:timeline-view-projector-contract": "node scripts/timeline-view-projector-contract-smoke.mjs",
+    "smoke:viewer-trace-projector-contract": "node scripts/viewer-trace-projector-contract-smoke.mjs",
     "smoke:timeline-entity-store-contract": "node scripts/timeline-entity-store-contract-smoke.mjs",
     "smoke:timeline-cursor-service-contract": "node scripts/timeline-cursor-service-contract-smoke.mjs",
     "smoke:timeline-cursor-http": "node scripts/timeline-cursor-http-smoke.mjs",

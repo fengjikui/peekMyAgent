@@ -87,6 +87,7 @@ for (const required of [
   "src/server/timeline-cursor-service.mjs",
   "src/server/timeline-page-assembler.mjs",
   "src/server/viewer-static-assets.mjs",
+  "src/server/viewer-trace-projector.mjs",
   "src/trace/message-equivalence.mjs",
   "src/trace/context-delta.mjs",
   "src/trace/content-parts.mjs",

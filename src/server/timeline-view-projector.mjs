@@ -34,21 +34,19 @@ export function projectTimelineRequest(request) {
     summary: {
       ...summaryWithoutHeavyFields,
       history_stack: [],
-      history_stack_omitted: {
-        count: historyStack.length,
-      },
+      history_stack_omitted: omittedCollectionCount(historyStack, summary.history_stack_omitted),
       roles: compactArray(roles, TIMELINE_VIEW_LIMITS.roleCount),
-      roles_omitted: omittedArrayCount(roles, TIMELINE_VIEW_LIMITS.roleCount),
+      roles_omitted: omittedArrayCount(roles, TIMELINE_VIEW_LIMITS.roleCount, summary.roles_omitted),
       tool_names: compactArray(tool_names, TIMELINE_VIEW_LIMITS.toolNameCount),
-      tool_names_omitted: omittedArrayCount(tool_names, TIMELINE_VIEW_LIMITS.toolNameCount),
+      tool_names_omitted: omittedArrayCount(tool_names, TIMELINE_VIEW_LIMITS.toolNameCount, summary.tool_names_omitted),
       current_user: textPreview(summary.current_user || "", TIMELINE_VIEW_LIMITS.currentUserChars),
       system_preview: textPreview(summary.system_preview || "", TIMELINE_VIEW_LIMITS.systemPreviewChars),
       assistant_preview: textPreview(summary.assistant_preview || "", TIMELINE_VIEW_LIMITS.assistantPreviewChars),
       internal_request_preview: textPreview(summary.internal_request_preview || "", TIMELINE_VIEW_LIMITS.internalPreviewChars),
       entry: projectEntry(summary.entry),
       composition: projectComposition(summary.composition),
-      tool_calls_omitted: Array.isArray(tool_calls) ? { count: tool_calls.length } : undefined,
-      tool_results_omitted: Array.isArray(tool_results) ? { count: tool_results.length } : undefined,
+      tool_calls_omitted: omittedCollectionCount(tool_calls, summary.tool_calls_omitted),
+      tool_results_omitted: omittedCollectionCount(tool_results, summary.tool_results_omitted),
       current_tool_calls: (summary.current_tool_calls || []).map(projectToolCall),
       current_tool_results: (summary.current_tool_results || []).map(projectToolResult),
       response: projectResponseSummary(summary.response),
@@ -62,8 +60,19 @@ function compactArray(value, limit) {
   return Array.isArray(value) ? value.slice(0, limit) : [];
 }
 
-function omittedArrayCount(value, limit) {
-  return Array.isArray(value) && value.length > limit ? { count: value.length - limit, total: value.length } : undefined;
+function omittedArrayCount(value, limit, existing = undefined) {
+  if (Array.isArray(value) && value.length > limit) return { count: value.length - limit, total: value.length };
+  return normalizedOmission(existing);
+}
+
+function omittedCollectionCount(value, existing = undefined) {
+  if (Array.isArray(value) && value.length > 0) return { count: value.length };
+  return normalizedOmission(existing) || (Array.isArray(value) ? { count: 0 } : undefined);
+}
+
+function normalizedOmission(value) {
+  if (!value || typeof value !== "object" || !Number.isFinite(Number(value.count))) return undefined;
+  return { ...value, count: Number(value.count) };
 }
 
 function projectContextDelta(delta) {
@@ -76,7 +85,7 @@ function projectContextDelta(delta) {
       kind: preview?.kind || "message",
       text: textPreview(preview?.text || "", TIMELINE_VIEW_LIMITS.contextPreviewChars),
     })),
-    previews_omitted: omittedArrayCount(previews, TIMELINE_VIEW_LIMITS.contextPreviewCount),
+    previews_omitted: omittedArrayCount(previews, TIMELINE_VIEW_LIMITS.contextPreviewCount, delta.previews_omitted),
   };
 }
 
@@ -141,6 +150,7 @@ function projectToolResult(result) {
 }
 
 function compactPreviewValue(value) {
+  if (value?.omitted?.reason === "compact_view" && typeof value.preview === "string") return value;
   const serialized = stableJson(value ?? null);
   if (serialized.length <= TIMELINE_VIEW_LIMITS.toolArgumentChars) return value;
   return {
@@ -159,14 +169,16 @@ function projectRawCapture(raw) {
   return {
     body_source: raw.body_source || "original",
     body: projectRawBodyMetadata(body),
-    body_omitted: body
-      ? {
-          messages: Array.isArray(body.messages) ? body.messages.length : 0,
-          tools: Array.isArray(body.tools) ? body.tools.length : 0,
-          system: Array.isArray(body.system) ? body.system.length : body.system ? 1 : 0,
-          raw_body_length: raw.raw_body_length || jsonByteLength(body),
-        }
-      : null,
+    body_omitted:
+      raw.body_omitted ||
+      (body
+        ? {
+            messages: Array.isArray(body.messages) ? body.messages.length : 0,
+            tools: Array.isArray(body.tools) ? body.tools.length : 0,
+            system: Array.isArray(body.system) ? body.system.length : body.system ? 1 : 0,
+            raw_body_length: raw.raw_body_length || jsonByteLength(body),
+          }
+        : null),
     response: projectRawResponseMetadata(response),
     detail_omitted: true,
   };
@@ -187,7 +199,7 @@ function projectRawResponseMetadata(response) {
   for (const key of ["status", "received_at", "duration_ms", "raw_body_length", "captured_body_length", "truncated", "body_text_omitted"]) {
     if (response[key] !== undefined) output[key] = response[key];
   }
-  if (response.body_json !== undefined && response.body_json !== null) output.body_json_omitted = true;
+  if (response.body_json_omitted || (response.body_json !== undefined && response.body_json !== null)) output.body_json_omitted = true;
   if (typeof response.body_text === "string") {
     const byteSize = Buffer.byteLength(response.body_text, "utf8");
     output.body_text_omitted =

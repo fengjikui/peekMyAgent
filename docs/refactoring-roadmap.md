@@ -154,6 +154,7 @@ src/
 - 已迁移 Trace 请求画像：System 位置、Anthropic/OpenAI/Gemini 协议、provider/reasoning 扩展及 main/subagent/parent-spawn/metadata 来源提示由单一纯模块解释；metadata 优先级与 provenance 概念边界由直接契约锁定。
 - 已迁移 Trace 请求构成分析：System、Tools、参数、历史消息、当前用户、工具交互及回复规模由纯模块输出兼容 DTO；字符近似、包含关系与上/下行展示边界由直接契约说明。
 - 已迁移 Timeline 轻量投影：完整 Viewer Trace DTO 到 compact 首屏/时间线 DTO 的截断、Raw/Response 省略和遗漏计数由独立纯模块管理；HTTP route 只选择完整或 compact 表示，直接契约与大 Trace 性能 smoke 共同锁定边界。
+- 已迁移 Viewer Trace 投影：Capture 到 request/Turn/Agent graph/stats/workbench DTO 的组合成为无 I/O `ViewerTraceProjector`；完整加载、单请求详情和 cursor 分页共享同一组消息、Context Delta、Turn、子 Agent 与 response 语义端口，HTTP route 不再拥有该组装实现。
 - 已迁移 Trace Bundle Service：Raw 快路径导出、递归脱敏、gzip/数量边界、provenance 补全与安全导入目录由独立服务管理。
 - 已建立共享 Translation Material Collector：Viewer 局部/整段刷新与离线提取统一使用 system/tool/schema hash、去重、occurrence 和限额协议。
 - 已迁移 Translation Service：材料/manifest 私有落盘、缓存 alias、并发/force 参数、脚本编排和公开响应边界不再由 Viewer Server 所有。
