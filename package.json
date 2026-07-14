@@ -103,6 +103,7 @@
     "smoke:shared-proxy-auto-restore": "node scripts/shared-proxy-auto-restore-smoke.mjs",
     "smoke:dashboard-open": "node scripts/dashboard-open-smoke.mjs",
     "smoke:agent-send": "node scripts/agent-send-smoke.mjs",
+    "smoke:agent-send-service-contract": "node scripts/agent-send-service-contract-smoke.mjs",
     "smoke:platform": "node scripts/platform-smoke.mjs",
     "smoke:security-boundary": "node scripts/security-boundary-smoke.mjs",
     "smoke:viewer-http-contract": "node scripts/viewer-http-contract-smoke.mjs",

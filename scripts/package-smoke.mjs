@@ -77,6 +77,7 @@ for (const required of [
   "src/server/viewer-translation-adapter.mjs",
   "src/server/file-source-provider.mjs",
   "src/server/imported-trace-source-provider.mjs",
+  "src/server/agent-send-service.mjs",
   "src/server/json-array-file-index.mjs",
   "src/server/live-source-provider.mjs",
   "src/server/otel-ingest-service.mjs",

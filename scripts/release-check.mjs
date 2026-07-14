@@ -62,6 +62,7 @@ const coreCommands = [
   ["npm", "run", "smoke:daemon-claude"],
   ["npm", "run", "smoke:run-openclaw"],
   ["npm", "run", "smoke:openclaw-profile-cleanup"],
+  ["npm", "run", "smoke:agent-send-service-contract"],
   ["npm", "run", "smoke:agent-send"],
   ["npm", "run", "smoke:trae-cn-stable-route"],
   ["npm", "run", "smoke:audit-data-sources"],

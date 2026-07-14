@@ -1,14 +1,13 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
-import { execFile } from "node:child_process";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { startCaptureProxy, startSharedCaptureProxy } from "../core/capture-proxy.mjs";
 import { importedTracesDir } from "../core/app-paths.mjs";
-import { claudeCodeProxySettingsArgs, mergeClaudeCodeProcessEnv, resolveClaudeCodeTargetBaseUrl } from "../core/claude-code-settings.mjs";
-import { childProcessSpawnConfig, isAccessibleDirectory, safeProcessCwd, userHome } from "../core/platform.mjs";
+import { resolveClaudeCodeTargetBaseUrl } from "../core/claude-code-settings.mjs";
+import { safeProcessCwd } from "../core/platform.mjs";
 import { openPersistenceStore } from "../core/persistence-store.mjs";
 import { sourceIdForWatch, watchIdFromSourceId } from "../core/source-identifiers.mjs";
 import { clearViewerRegistry, writeViewerRegistry } from "../core/viewer-registry.mjs";
@@ -25,6 +24,7 @@ import { SourceRepository } from "../server/source-repository.mjs";
 import { SourceLifecycleService } from "../server/source-lifecycle-service.mjs";
 import { SourceCaptureReader } from "../server/source-capture-reader.mjs";
 import { JsonArrayFileIndex } from "../server/json-array-file-index.mjs";
+import { AgentSendService } from "../server/agent-send-service.mjs";
 import { OtelIngestService } from "../server/otel-ingest-service.mjs";
 import { importedTraceSourceFromDir as sourceFromImportedTraceDir, listImportedTraceSources } from "../server/imported-trace-source-provider.mjs";
 import { listFileSources } from "../server/file-source-provider.mjs";
@@ -208,7 +208,7 @@ function viewerRouterOperations(options) {
     startWatch: (input) => startWatch(input, options),
     stopWatch: (input) => stopWatch(input, options),
     pauseWatch: (input) => pauseWatch(input, options),
-    sendAgentMessage: (input) => sendAgentMessage(input, options),
+    sendAgentMessage: (input) => agentSendService(options).send(input),
     updateSource: (input) => updateSource(input, options),
     importTrace: (buffer) => traceBundleService(options).import(buffer),
     exportTrace: (sourceId) => traceBundleService(options).export(sourceId),
@@ -359,6 +359,15 @@ function otelIngestService(options) {
     badRequest: (message) => httpError(400, message),
   });
   return options.otelIngestService;
+}
+
+function agentSendService(options) {
+  if (options.agentSendService) return options.agentSendService;
+  options.agentSendService = new AgentSendService({
+    resolveWatch: (sourceId) => resolveAgentSendWatch(sourceId, options),
+    sanitizeSourceId: (value) => sanitizeApiLookupId(value, { limit: MAX_API_SOURCE_ID_CHARS }),
+  });
+  return options.agentSendService;
 }
 
 async function startWatch(input, { cwd, watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {
@@ -729,38 +738,6 @@ async function pauseWatch(input, { watches, store }) {
   return watchControlResponse(watch, { action: status === "paused" ? "pause" : "resume" });
 }
 
-async function sendAgentMessage(input, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {
-  const sourceId = sanitizeApiLookupId(input.source_id || input.id, { limit: MAX_API_SOURCE_ID_CHARS });
-  const message = String(input.message || "").trim();
-  if (!sourceId) throw new Error("Missing source_id");
-  if (!message) throw new Error("Message is empty");
-  if (message.length > 12000) throw new Error("Message is too long; please keep it under 12000 characters.");
-  const watch = await resolveAgentSendWatch(sourceId, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy });
-  if (!watch) throw new Error("Live Agent session not found. Start the Agent through peekMyAgent first.");
-  if (watch.status === "stopped") throw new Error("This Agent watch has stopped. Restart or create a new captured session before sending.");
-  const command = buildAgentSendCommand(watch, message);
-  const startedAt = new Date().toISOString();
-  const result = await execAgentCommand(command);
-  return {
-    ok: true,
-    source_id: watch.id,
-    watch_id: watch.watch_id,
-    agent: watch.agent,
-    status: watch.status,
-    sent_at: startedAt,
-    completed_at: new Date().toISOString(),
-    command: {
-      name: command.command,
-      args: redactCommandArgs(command.args),
-      cwd: command.cwd,
-    },
-    delivery: command.delivery || null,
-    exit_code: result.exit_code,
-    stdout: result.stdout,
-    stderr: result.stderr,
-  };
-}
-
 async function resolveAgentSendWatch(sourceId, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {
   const active = findWatch(watches, { id: sourceId, watch_id: sourceId });
   if (active) return active;
@@ -776,89 +753,6 @@ async function resolveAgentSendWatch(sourceId, { watches, store, sourceMeta, sou
     { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy },
   );
   return watches.get(restored.id) || null;
-}
-
-function buildAgentSendCommand(watch, message) {
-  const cwd = agentCommandCwd(watch.workspace);
-  if (/claude/i.test(watch.agent)) {
-    const args = ["-p", "--output-format", "text"];
-    if (watch.conversation_id) args.push("--resume", watch.conversation_id);
-    const proxySettings = claudeCodeProxySettingsArgs({ baseUrl: watch.base_url });
-    args.push(...proxySettings.args, message);
-    return {
-      command: "claude",
-      args,
-      cwd,
-      env: mergeClaudeCodeProcessEnv({
-        cwd: watch.workspace,
-        env: process.env,
-        overrides: { ANTHROPIC_BASE_URL: watch.base_url },
-      }),
-      cleanup: proxySettings.cleanup,
-      delivery: {
-        mode: "detached_resume",
-        terminal_echo: false,
-        inherits_active_terminal_context: false,
-      },
-    };
-  }
-  if (/openclaw/i.test(watch.agent)) {
-    const args = ["agent", "--local"];
-    if (watch.conversation_id) args.push("--session-key", watch.conversation_id);
-    args.push("--message", message);
-    return {
-      command: "openclaw",
-      args,
-      cwd,
-      env: {
-        ...process.env,
-        OPENAI_BASE_URL: watch.base_url,
-        OPENCLAW_BASE_URL: watch.base_url,
-        DEEPSEEK_BASE_URL: watch.base_url,
-      },
-      delivery: {
-        mode: "detached_message",
-        terminal_echo: false,
-        inherits_active_terminal_context: false,
-      },
-    };
-  }
-  throw new Error(`Sending messages is not implemented for ${watch.agent}.`);
-}
-
-function agentCommandCwd(workspace) {
-  if (isAccessibleDirectory(workspace)) return workspace;
-  const home = userHome();
-  if (isAccessibleDirectory(home)) return home;
-  return safeProcessCwd();
-}
-
-function execAgentCommand({ command, args, cwd, env, cleanup }) {
-  return new Promise((resolve, reject) => {
-    const spawnConfig = childProcessSpawnConfig(command, args, { env });
-    execFile(spawnConfig.command, spawnConfig.args, {
-      cwd,
-      env,
-      timeout: 10 * 60 * 1000,
-      maxBuffer: 20 * 1024 * 1024,
-      ...spawnConfig.options,
-    }, (error, stdout, stderr) => {
-      cleanup?.();
-      if (error && error.code == null && !error.killed) return reject(error);
-      resolve({
-        exit_code: Number.isInteger(error?.code) ? error.code : 0,
-        stdout: String(stdout || ""),
-        stderr: String(stderr || ""),
-      });
-    });
-  });
-}
-
-function redactCommandArgs(args) {
-  return (args || []).map((arg) => {
-    const text = String(arg || "");
-    return text.length > 160 ? `${text.slice(0, 120)}...${text.slice(-20)}` : text;
-  });
 }
 
 function normalizeWatchControlStatus(input) {

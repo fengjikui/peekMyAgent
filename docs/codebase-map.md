@@ -33,6 +33,7 @@ pma CLI / adapter
 | CLI 命令、wrapper、进程退出、安装卸载 | `bin/`、`src/core/platform.mjs`、`paths.mjs`、`processes.mjs` | Viewer renderer |
 | Proxy 请求/回复捕获 | `src/core/capture-proxy.mjs`、`provenance.mjs` | UI 文案 |
 | Claude Code OTel 关联与入库 | `src/core/otel-capture.mjs`、`otel-events.mjs`、`src/server/otel-ingest-service.mjs`、`src/adapters/claude-code-otel.mjs`、[Service 契约](otel-ingest-service-contract.md) | 在 HTTP route 复制配对算法，或让 core 解析层直接写 Store |
+| 页面向 Agent 独立发送消息 | `src/server/agent-send-service.mjs`、`src/viewer/agent-composer-*`、[Service 契约](agent-send-service-contract.md) | renderer 启动进程、Service 直接拥有 watch 恢复，或暗示消息会进入原终端上下文 |
 | OpenClaw/Trae 或新 Agent | `src/adapters/`、对应 integration、适配器 fixture | 在 Server/Client 散落 provider 条件分支 |
 | SQLite、内容块、迁移 | `src/core/persistence-store.mjs`、`src/persistence/migrations/` | 绕过 migration 直接改 schema |
 | content、thinking、tool use、tool result 基础解析 | `src/trace/content-parts.mjs`、对应 contract smoke | 在上行/下行各维护一份 block 解析 |
