@@ -105,6 +105,8 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/viewer/message-view-model.js` | Messages role/content/block 的规范化、结构化判定和长文本截断 DTO |
 | `src/viewer/messages-renderer.js` | Messages 原文/整理切换、安全 Markdown、类型标记和结构化 Raw renderer |
 | `src/viewer/translation-cache-controller.js` | Source/目标语言翻译缓存、lookup、自动刷新去重与旧异步结果失效 |
+| `src/viewer/translation-action-controller.js` | 翻译生成、块/整段复制、整组参数重译、动作注册与 Source/语言切换后的副作用失效 |
+| `src/viewer/translation-action-model.js` | 翻译块/Tools 整段剪贴板结构和生成结果文案的纯模型 |
 | `src/viewer/translation-generation-operation.js` | 翻译生成的详情准备、provider、cache reload 三阶段异步编排与逐阶段失效校验 |
 | `src/viewer/translation-view-model.js` | 翻译材料分组、结构化搜索排序、缓存命中统计与展示 DTO |
 | `src/viewer/translation-renderer.js` | 翻译工具栏、System/Harness 块、工具组和参数汇总的依赖注入 HTML renderer |

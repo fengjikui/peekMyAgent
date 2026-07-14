@@ -112,6 +112,7 @@
     "smoke:request-detail-cache-contract": "node scripts/request-detail-cache-contract-smoke.mjs",
     "smoke:source-timeline-controller-contract": "node scripts/source-timeline-controller-contract-smoke.mjs",
     "smoke:translation-cache-controller-contract": "node scripts/translation-cache-controller-contract-smoke.mjs",
+    "smoke:translation-action-controller-contract": "node scripts/translation-action-controller-contract-smoke.mjs",
     "smoke:translation-generation-operation-contract": "node scripts/translation-generation-operation-contract-smoke.mjs",
     "smoke:raw-view-model-contract": "node scripts/raw-view-model-contract-smoke.mjs",
     "smoke:raw-search-model-contract": "node scripts/raw-search-model-contract-smoke.mjs",

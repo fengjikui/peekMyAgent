@@ -31,6 +31,8 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/system-diff-model.js", javascriptAsset("system-diff-model.js")],
   ["/system-diff-renderer.js", javascriptAsset("system-diff-renderer.js")],
   ["/translation-cache-controller.js", javascriptAsset("translation-cache-controller.js")],
+  ["/translation-action-controller.js", javascriptAsset("translation-action-controller.js")],
+  ["/translation-action-model.js", javascriptAsset("translation-action-model.js")],
   ["/translation-generation-operation.js", javascriptAsset("translation-generation-operation.js")],
   ["/translation-renderer.js", javascriptAsset("translation-renderer.js")],
   ["/translation-view-model.js", javascriptAsset("translation-view-model.js")],

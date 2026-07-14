@@ -79,6 +79,7 @@ const viewerCommands = [
   ["npm", "run", "smoke:request-detail-cache-contract"],
   ["npm", "run", "smoke:source-timeline-controller-contract"],
   ["npm", "run", "smoke:translation-cache-controller-contract"],
+  ["npm", "run", "smoke:translation-action-controller-contract"],
   ["npm", "run", "smoke:translation-generation-operation-contract"],
   ["npm", "run", "smoke:raw-view-model-contract"],
   ["npm", "run", "smoke:raw-search-model-contract"],

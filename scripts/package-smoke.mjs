@@ -63,6 +63,8 @@ for (const required of [
   "src/viewer/session-navigator-renderer.js",
   "src/viewer/system-diff-model.js",
   "src/viewer/system-diff-renderer.js",
+  "src/viewer/translation-action-controller.js",
+  "src/viewer/translation-action-model.js",
   "src/viewer/translation-cache-controller.js",
   "src/viewer/translation-generation-operation.js",
   "src/viewer/translation-renderer.js",

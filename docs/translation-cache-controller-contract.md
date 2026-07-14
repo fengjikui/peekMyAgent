@@ -51,7 +51,7 @@ request detail 补载
 - 不渲染翻译卡片、工具参数、Markdown 或缓存状态 HTML。
 - 不重新定义翻译块规范化、lookup key 或 SHA-256 算法。
 
-主动刷新和块级重译仍由应用装配层执行；它们通过纯 `translation-generation-operation.js` 统一详情准备、provider、cache reload 三个异步阶段的失效检查。`translation-view-model.js` 与 `translation-renderer.js` 仍只负责结构化展示。不要为了得到一个“统一翻译控制器”而把这些不同生命周期重新聚合。
+主动刷新、块级重译、复制和 action registry 由独立的 `TranslationActionController` 执行；它通过纯 `translation-generation-operation.js` 统一详情准备、provider、cache reload 三个异步阶段的失效检查，并复用本控制器签发的 operation token。`translation-view-model.js` 与 `translation-renderer.js` 仍只负责结构化展示。详细边界见[翻译动作控制器契约](translation-action-controller-contract.md)。不要为了得到一个“统一翻译控制器”而把缓存、用户动作、搜索和 HTML 生命周期重新聚合。
 
 ## 依赖端口
 
@@ -97,9 +97,9 @@ request detail 补载
 - 在 Source 切换时立即 `invalidate()`，避免新 Source 加载期间继续显示旧译文。
 - 在 `RequestDetailCache` 补载完成后调用 `refreshLookup()`。
 - 用控制器公开的 cache/lookup 驱动 Translation View Model 和 Renderer。
-- 收到 `onAutoRefresh` 后执行既有生成流程并局部刷新可见界面。
-- 将回调给出的 Source、目标语言和 Agent 原样带入生成操作；生成流程开始即进入 busy 状态，并在每个异步边界后复核控制器 token。
-- 通过 `runTranslationGenerationOperation()` 编排详情准备、provider 请求和 cache reload；任一阶段后 token 失效时跳过后续副作用并清理仍归该 operation 所有的 loading。
+- 将 `onAutoRefresh` 交给 `TranslationActionController.generateSection()`，并原样传入 Source、目标语言和 Agent 作为预期上下文。
+- 把当前 request/section/mode、详情读取、provider API、剪贴板和局部重绘作为窄端口装配给 Action Controller。
+- Source 或目标语言切换时同时使 Cache Controller 与 Action Controller 失效；旧 provider 结果不能更新当前 loading、提示文案、缓存 lookup 或翻译模式。
 
 不要在 `client.js` 恢复 `state.translations`、`state.translationLookup` 或 `state.translationAutoRefresh`。也不要让 Controller 反向调用 Raw Inspector 或 Renderer。
 
@@ -109,7 +109,7 @@ request detail 补载
 - 新增 Agent alias 时只扩展纯候选函数，保持稳定顺序与去重。
 - cache API 增加 AbortSignal 时仍需保留 epoch/sequence 校验。
 - 翻译材料 identity 变化必须先更新共享 translation block contract，不能只改浏览器 lookup。
-- 生成、复制、重译或 Renderer 行为变化不应进入本控制器，除非其生命周期所有权真的发生改变。
+- 生成、复制、重译或 Renderer 行为变化不应进入本控制器；用户动作生命周期由 Action Controller 所有，展示由 View Model/Renderer 所有。
 - 当前行为变化必须同步本文、`architecture.md`、`codebase-map.md`、路线图状态和直接 smoke。
 
 ## 验证

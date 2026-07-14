@@ -15,7 +15,7 @@ import {
   TranslationCacheController,
   translationAgentCandidatesForData,
 } from "./translation-cache-controller.js";
-import { runTranslationGenerationOperation } from "./translation-generation-operation.js";
+import { TranslationActionController } from "./translation-action-controller.js";
 import {
   renderTimelineAssistantResponse as renderTimelineAssistantResponseView,
   renderTimelineRequestCard as renderTimelineRequestCardView,
@@ -72,7 +72,6 @@ import {
 } from "./translation-renderer.js";
 import {
   buildTranslationSectionView,
-  groupToolTranslationMaterials,
   translationSectionStats as summarizeTranslationSection,
 } from "./translation-view-model.js";
 import { TurnRailController } from "./turn-rail.js";
@@ -111,8 +110,6 @@ const state = Object.assign(clientStore.state, {
   responseExpanded: new Set(),
   upstreamExpanded: new Set(),
   translationGenerate: { loading: false, error: "", message: "" },
-  translationActionItems: new Map(),
-  nextTranslationActionId: 1,
   expandedAgentBranches: new Set(),
   openAgentDashboards: new Set(),
   openSupportingTimelines: new Set(),
@@ -390,7 +387,7 @@ const traceTimelineController = new TraceTimelineController({
   onSystemDiff: showSystemDiff,
 });
 let requestDetailCache;
-let translationGenerationSequence = 0;
+let translationActionController;
 const sourceTimelineController = new SourceTimelineController({
   loadView: (sourceId, options) => api.viewSource(sourceId, options),
   detailFor: (requestId) => requestDetailCache?.detailFor(requestId) || null,
@@ -413,11 +410,11 @@ const translationCacheController = new TranslationCacheController({
     }),
   schedule: (callback) => window.setTimeout(callback, 0),
   onAutoRefresh: (context) => {
-    generateTranslationsForActiveSource(state.activeRawSection || "tools", { automatic: true, ...context }).catch((error) => {
+    translationActionController?.generateSection(state.activeRawSection || "tools", { automatic: true, ...context }).catch((error) => {
       console.warn("peekMyAgent auto translation refresh failed", error);
     });
   },
-  isGenerationBusy: () => state.translationGenerate.loading,
+  isGenerationBusy: () => translationActionController?.loading || false,
   onWarning: (message, error) => console.warn(`peekMyAgent ${message}`, error),
 });
 requestDetailCache = new RequestDetailCache({
@@ -432,6 +429,50 @@ requestDetailCache = new RequestDetailCache({
     const { request, data } = sourceTimelineController.mergeRequestDetail(fullRequest);
     if (data) state.data = data;
     return request;
+  },
+});
+translationActionController = new TranslationActionController({
+  getContext: () => ({
+    sourceId: state.data?.source?.id || state.activeSourceId || "",
+    targetLanguage: currentTargetLanguage(),
+    targetLanguageLabel: currentTargetLanguageLabel(),
+    agent: translationAgentCandidatesForData(state.data)[0] || "Claude Code",
+    activeSection: state.activeRawSection || "system",
+    requestId: state.activeRequestId || "",
+    rawMode: state.activeRawMode || "request",
+  }),
+  getGenerationState: () => state.translationGenerate,
+  setGenerationState: (next) => {
+    state.translationGenerate = next;
+  },
+  cache: {
+    captureOperation: (context) => translationCacheController.captureOperation(context),
+    isOperationCurrent: (operation) => translationCacheController.isOperationCurrent(operation),
+    reload: () => loadTranslationsForActiveSource({ autoRefresh: false }),
+    isAvailable: () => translationCacheController.available,
+  },
+  data: {
+    ensureRequestDetail: ensureRequestDetailLoaded,
+    requestFor: currentRequestById,
+    sectionMaterials: sectionTranslationMaterials,
+    sectionStats: translationSectionStats,
+  },
+  api: {
+    generateTranslations: (payload) => api.generateTranslations(payload),
+  },
+  ui: {
+    translate: t,
+    translatedTextFor,
+    labelForKind: translationKindLabel,
+    sectionLabel: rawSectionLabel,
+    copyText: writeClipboard,
+    renderRaw: (requestId, section, mode) => rawInspectorController.show(requestId, section, { mode }),
+    renderTimeline: () => renderTimelineSurface(),
+    setTranslationMode: (mode, { reason }) => {
+      clientStore.setLanguage({ translationMode: mode }, { reason });
+      localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
+    },
+    warn: (message, error) => console.warn(`peekMyAgent ${message}`, error),
   },
 });
 const rawSearchController = new RawSearchController({
@@ -498,7 +539,7 @@ const rawInspectorController = new RawInspectorController({
   }),
   setContext: (context) => clientStore.setRawContext(context, { reason: "show-raw" }),
   onContextChanged: () => rawSearchController.contextChanged(),
-  clearActions: () => clearTranslationActions("raw"),
+  clearActions: () => translationActionController.clearActions("raw"),
   openPanel: () => paneLayoutController.setRawOpen(true),
   needsDetail: requestNeedsDetail,
   loadDetails: (request, section) => ensureDetailsForRawSection(request, section),
@@ -643,7 +684,7 @@ async function setTargetTranslationLanguage(value) {
     renderLanguageSelectors();
     return;
   }
-  invalidateTranslationGeneration();
+  translationActionController.invalidate();
   clientStore.setLanguage(
     { targetTranslationLanguage: next, translationMode: next },
     { reason: "set-translation-language" },
@@ -709,7 +750,7 @@ async function init() {
     if (retranslateButton && els.rawTree.contains(retranslateButton)) {
       event.preventDefault();
       event.stopPropagation();
-      retranslateTranslationBlock(retranslateButton.dataset.translationRetranslate);
+      translationActionController.retranslate(retranslateButton.dataset.translationRetranslate);
       return;
     }
     const translationButton = event.target.closest("[data-translation-mode]");
@@ -724,21 +765,21 @@ async function init() {
     }
     const generateButton = event.target.closest("[data-translation-generate]");
     if (generateButton && els.rawTree.contains(generateButton)) {
-      generateTranslationsForActiveSource(generateButton.dataset.translationSection || "system");
+      translationActionController.generateSection(generateButton.dataset.translationSection || "system");
       return;
     }
     const copyButton = event.target.closest("[data-translation-copy]");
     if (copyButton && els.rawTree.contains(copyButton)) {
       event.preventDefault();
       event.stopPropagation();
-      copyTranslationBlock(copyButton.dataset.translationCopy, copyButton);
+      translationActionController.copyBlock(copyButton.dataset.translationCopy, copyButton);
       return;
     }
     const copyAllButton = event.target.closest("[data-translation-copy-all]");
     if (copyAllButton && els.rawTree.contains(copyAllButton)) {
       event.preventDefault();
       event.stopPropagation();
-      copyAllTranslations(copyAllButton.dataset.translationCopyAll, copyAllButton);
+      translationActionController.copySection(copyAllButton.dataset.translationCopyAll, copyAllButton);
       return;
     }
     const button = event.target.closest("[data-raw]");
@@ -750,7 +791,7 @@ async function init() {
     if (!retranslateButton || els.rawTree.contains(retranslateButton)) return;
     event.preventDefault();
     event.stopPropagation();
-    retranslateTranslationBlock(retranslateButton.dataset.translationRetranslate);
+    translationActionController.retranslate(retranslateButton.dataset.translationRetranslate);
   });
   turnRailController.bind();
   paneLayoutController.bind();
@@ -767,7 +808,7 @@ async function loadSource(sourceId, { preserveScroll = false } = {}) {
   if (state.activeSourceId && state.activeSourceId !== sourceId) {
     rawInspectorController.invalidate();
     requestDetailCache.clear();
-    invalidateTranslationGeneration();
+    translationActionController.invalidate();
     translationCacheController.invalidate();
     state.openSupportingTimelines.clear();
     state.openAgentDashboards.clear();
@@ -952,108 +993,6 @@ async function loadTranslationsForActiveSource({ autoRefresh = true } = {}) {
   );
 }
 
-function beginTranslationGeneration({ sourceId, targetLanguage, agent }) {
-  const cacheOperation = translationCacheController.captureOperation({ sourceId, targetLanguage, agent });
-  if (!cacheOperation) return null;
-  return {
-    sequence: ++translationGenerationSequence,
-    cacheOperation,
-    sourceId,
-    targetLanguage,
-    agent,
-  };
-}
-
-function isTranslationGenerationCurrent(operation) {
-  if (!operation || operation.sequence !== translationGenerationSequence) return false;
-  const sourceId = state.data?.source?.id || state.activeSourceId || "";
-  return (
-    operation.sourceId === sourceId &&
-    operation.targetLanguage === currentTargetLanguage() &&
-    translationCacheController.isOperationCurrent(operation.cacheOperation)
-  );
-}
-
-function abandonTranslationGeneration(operation) {
-  if (operation?.sequence === translationGenerationSequence) invalidateTranslationGeneration();
-}
-
-function invalidateTranslationGeneration() {
-  translationGenerationSequence += 1;
-  state.translationGenerate = { loading: false, error: "", message: "" };
-}
-
-async function generateTranslationsForActiveSource(
-  section,
-  { automatic = false, agent = null, sourceId: expectedSourceId = "", targetLanguage: expectedTargetLanguage = "" } = {},
-) {
-  if (state.translationGenerate.loading) return;
-  const sourceId = state.data?.source?.id || state.activeSourceId || "";
-  const targetLanguage = currentTargetLanguage();
-  if ((expectedSourceId && expectedSourceId !== sourceId) || (expectedTargetLanguage && expectedTargetLanguage !== targetLanguage)) return;
-  const selectedAgent = agent || translationAgentCandidatesForData(state.data)[0] || "Claude Code";
-  const activeSection = section || state.activeRawSection || "system";
-  const requestId = state.activeRequestId || "";
-  const operation = beginTranslationGeneration({ sourceId, targetLanguage, agent: selectedAgent });
-  if (!operation) return;
-  const languageLabel = currentTargetLanguageLabel();
-  state.translationGenerate = {
-    loading: true,
-    error: "",
-    message: automatic ? t("autoTranslating", { language: languageLabel }) : t("translatingSection"),
-  };
-  if (requestId) rawInspectorController.show(requestId, activeSection, { mode: state.activeRawMode || "request" });
-  const outcome = await runTranslationGenerationOperation({
-    prepare: async () => {
-      if (!requestId) return;
-      try {
-        await ensureRequestDetailLoaded(requestId);
-      } catch (error) {
-        console.warn("peekMyAgent request detail unavailable before translation", error);
-      }
-    },
-    generate: () =>
-      api.generateTranslations({
-        agent: selectedAgent,
-        source_id: sourceId,
-        request_id: requestId,
-        section: activeSection,
-        force: !automatic,
-        target_language: targetLanguage,
-      }),
-    reloadCache: () => loadTranslationsForActiveSource({ autoRefresh: false }),
-    isCurrent: () => isTranslationGenerationCurrent(operation),
-    onStale: () => abandonTranslationGeneration(operation),
-    onSuccess: (result) => {
-      const translated = Number(result.translate?.translated || 0);
-      const remaining = Number(result.translate?.remaining || 0);
-      const activeRequest = (state.data?.requests || []).find((request) => request.id === requestId);
-      const stats = activeRequest ? translationSectionStats(activeRequest, activeSection) : { total: 0, hit: 0, missing: 0 };
-      const cacheAvailable = translationCacheController.available;
-      const message = translationGenerateMessage({ cacheAvailable, translated, remaining, stats });
-      state.translationGenerate = {
-        loading: false,
-        error: "",
-        message: automatic && message === t("translationCacheLatest", { language: languageLabel }) ? t("translationAutoUpdated") : message,
-      };
-      if (cacheAvailable && stats.hit > 0) {
-        clientStore.setLanguage({ translationMode: targetLanguage }, { reason: "translation-generated" });
-        localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
-      }
-    },
-    onError: (error) => {
-      state.translationGenerate = {
-        loading: false,
-        error: error.message,
-        message: "",
-      };
-    },
-  });
-  if (outcome.status !== "stale" && isTranslationGenerationCurrent(operation) && state.activeRequestId === requestId) {
-    rawInspectorController.show(requestId, activeSection, { mode: state.activeRawMode || "request" });
-  }
-}
-
 function flashButtonLabel(button, text) {
   if (!button) return;
   const original = button.dataset.copyOriginalLabel || button.textContent;
@@ -1085,134 +1024,11 @@ async function writeClipboard(text, button) {
   }
 }
 
-function translationBlockClipboardText(item) {
-  const kind = item.kind;
-  const sourceText = item.sourceText || item.source_text || "";
-  const label = item.metadata?.label || translationKindLabel(kind);
-  const translation = translatedTextFor(kind, sourceText);
-  const parts = [`## ${label}  [${kind}]`, "", `${t("sourceLabel")}:`, sourceText];
-  if (translation) parts.push("", `${t("translationLabel")}:`, translation);
-  return parts.join("\n");
-}
-
-function copyTranslationBlock(actionId, button) {
-  const item = state.translationActionItems.get(actionId);
-  if (!item) return;
-  writeClipboard(translationBlockClipboardText(item), button);
-}
-
 function sectionTranslationMaterials(request, section) {
   if (section === "system") return collectSystemTranslationMaterials(request);
   if (section === "tools") return collectToolTranslationMaterials(request);
   if (section === "harness") return collectHarnessTranslationMaterials(request);
   return [];
-}
-
-function copyAllTranslations(section, button) {
-  const request = (state.data?.requests || []).find((item) => item.id === state.activeRequestId);
-  if (!request) return;
-  const materials = sectionTranslationMaterials(request, section);
-  if (!materials.length) return;
-  const header = `# ${rawSectionLabel(section)} · ${t("requestClipboardTitle", { index: request.request_index })}`;
-  const body = section === "tools" ? toolsTranslationClipboardText(materials) : materials.map((material) => translationBlockClipboardText(material)).join("\n\n---\n\n");
-  writeClipboard(`${header}\n\n${body}\n`, button);
-}
-
-function toolsTranslationClipboardText(materials) {
-  return groupToolTranslationMaterials(materials)
-    .map((group) => {
-      const parts = [`## ${t("toolClipboardHeading")}: ${group.toolName}`];
-      if (group.description) parts.push("", translationMaterialClipboardSection(group.description, t("toolDescription")));
-      for (const parameter of group.parameters) {
-        const parameterName = parameter.metadata?.field_name || parameter.metadata?.path || "parameter";
-        parts.push("", translationMaterialClipboardSection(parameter, t("parameterClipboardHeading", { name: parameterName })));
-      }
-      return parts.join("\n");
-    })
-    .join("\n\n---\n\n");
-}
-
-function translationMaterialClipboardSection(material, label) {
-  const sourceText = material.source_text || "";
-  const translation = translatedTextFor(material.kind, sourceText);
-  const parts = [`### ${label}`, "", `${t("sourceLabel")}:`, sourceText];
-  if (translation) parts.push("", `${t("translationLabel")}:`, translation);
-  return parts.join("\n");
-}
-
-async function retranslateTranslationBlock(actionId) {
-  const item = state.translationActionItems.get(actionId);
-  if (!item || state.translationGenerate.loading) return;
-  const selectedAgent = translationAgentCandidatesForData(state.data)[0] || "Claude Code";
-  const materials = item.materials?.length
-    ? item.materials
-    : [
-        {
-          kind: item.kind,
-          source_text: item.sourceText,
-          metadata: item.metadata || {},
-        },
-      ];
-  const targetLanguage = currentTargetLanguage();
-  const sourceId = state.data?.source?.id || state.activeSourceId || "";
-  const requestId = item.requestId || state.activeRequestId || "";
-  const operation = beginTranslationGeneration({ sourceId, targetLanguage, agent: selectedAgent });
-  if (!operation) return;
-  state.translationGenerate = { loading: true, error: "", message: materials.length > 1 ? t("translatingParameterGroup") : t("retranslatingBlock") };
-  if (item.surface === "raw" && requestId) rawInspectorController.show(requestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
-  const outcome = await runTranslationGenerationOperation({
-    generate: () =>
-      api.generateTranslations({
-        agent: selectedAgent,
-        source_id: sourceId,
-        request_id: requestId,
-        target_language: targetLanguage,
-        force: true,
-        materials,
-      }),
-    reloadCache: () => loadTranslationsForActiveSource({ autoRefresh: false }),
-    isCurrent: () => isTranslationGenerationCurrent(operation),
-    onStale: () => abandonTranslationGeneration(operation),
-    onSuccess: (result) => {
-      const translated = Number(result.translate?.translated || 0);
-      state.translationGenerate = {
-        loading: false,
-        error: "",
-        message: translated
-          ? materials.length > 1
-            ? t("retranslatedParametersDone", { count: translated })
-            : t("retranslatedBlockDone")
-          : t("translationCacheLatest", { language: currentTargetLanguageLabel() }),
-      };
-      clientStore.setLanguage({ translationMode: targetLanguage }, { reason: "translation-block-generated" });
-      localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
-    },
-    onError: (error) => {
-      state.translationGenerate = {
-        loading: false,
-        error: error.message,
-        message: "",
-      };
-    },
-  });
-  if (outcome.status === "stale" || !isTranslationGenerationCurrent(operation)) return;
-  if (item.surface === "timeline") {
-    renderTimelineSurface();
-  } else if (item.surface === "raw" && state.activeRequestId === requestId) {
-    rawInspectorController.show(requestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
-  }
-}
-
-function translationGenerateMessage({ cacheAvailable, translated, remaining, stats }) {
-  const languageLabel = currentTargetLanguageLabel();
-  if (!cacheAvailable) return t("translationCacheNotFoundAfterGenerate", { language: languageLabel });
-  if (stats.total && stats.hit < stats.total) {
-    return translated
-      ? t("translationSectionPartialWithTranslated", { translated, hit: stats.hit, total: stats.total, remaining })
-      : t("translationSectionPartial", { language: languageLabel, hit: stats.hit, total: stats.total });
-  }
-  if (translated) return t("translationSectionCompletedWithTranslated", { translated, language: languageLabel, hit: stats.hit, total: stats.total });
-  return stats.total ? t("translationSectionLatest", { language: languageLabel, hit: stats.hit, total: stats.total }) : t("translationCacheLatest", { language: languageLabel });
 }
 
 function setTranslationMode(mode, section) {
@@ -1427,7 +1243,7 @@ async function updateProjectSources(projectGroup, payload) {
 }
 
 function renderAll() {
-  clearTranslationActions();
+  translationActionController.clearActions();
   renderHeaderSurface();
   renderTimelineSurface({ updateViewControls: false });
   renderComposerSurface();
@@ -1463,7 +1279,7 @@ function renderViewControls() {
 
 function renderTimelineSurface({ updateViewControls = true } = {}) {
   if (!state.data) return;
-  clearTranslationActions("timeline");
+  translationActionController.clearActions("timeline");
   if (updateViewControls) renderViewControls();
   const { source, requests } = state.data;
   const timelineView = currentTimelineView();
@@ -2032,7 +1848,7 @@ function renderAssistantResponse(request) {
 function buildAssistantThinkingView(thinking, request) {
   if (!thinking?.text) return null;
   const translation = translatedTextFor("assistant_thinking", thinking.text);
-  const actionId = registerTranslationAction({
+  const actionId = translationActionController.registerAction({
     kind: "assistant_thinking",
     sourceText: thinking.text,
     section: "response",
@@ -2475,37 +2291,12 @@ function renderTranslatedSection(request, section) {
     renderMarkdown: renderMarkdownPreview,
     renderPre,
     registerAction: (action) =>
-      registerTranslationAction({
+      translationActionController.registerAction({
         ...action,
         section: state.activeRawSection || section,
         surface: "raw",
       }),
   });
-}
-
-function registerTranslationAction({ kind, sourceText, section, requestId = "", surface = "raw", metadata = {}, materials = null }) {
-  const id = String(state.nextTranslationActionId++);
-  state.translationActionItems.set(id, {
-    kind,
-    sourceText,
-    section,
-    requestId: requestId || state.activeRequestId || "",
-    surface,
-    metadata,
-    materials,
-  });
-  return id;
-}
-
-function clearTranslationActions(surface = "") {
-  if (!surface) {
-    state.translationActionItems.clear();
-    state.nextTranslationActionId = 1;
-    return;
-  }
-  for (const [id, item] of state.translationActionItems.entries()) {
-    if (item.surface === surface) state.translationActionItems.delete(id);
-  }
 }
 
 function translationKindLabel(kind) {
