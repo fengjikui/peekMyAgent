@@ -47,6 +47,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/server/http.mjs` | Viewer method/intent/body/loopback 安全边界与统一 HTTP 响应 |
 | `src/server/viewer-api-contract.mjs` | Viewer API pathname/method、lookup ID 和首屏分页上限的共享协议事实源 |
 | `src/server/viewer-router.mjs` | HTTP URL/query/body/intent/响应适配；通过显式 operations 调用业务能力 |
+| `src/server/viewer-translation-adapter.mjs` | Viewer Source/Request 到翻译材料的适配、Harness 注入提取与 TranslationService 装配 |
 | `src/server/source-repository.mjs` | live、SQLite、file/demo、import source 的汇聚、校验与解析门面 |
 | `src/server/*-source-provider.mjs`、`source-text.mjs` | live、file/demo、portable Trace、SQLite provider 与共享 Source 文本约束 |
 | `src/server/source-metadata.mjs` | Source 稳定别名、title/pin/hidden 元数据、原子 sidecar 持久化与统一展示装饰 |
@@ -249,7 +250,7 @@ Viewer 会从 capture 中派生：
 
 翻译对象被提取为语义块，规范化后以 `kind + "\0" + source_text` 作为 lookup key，并计算 SHA-256。Server、浏览器 Client、离线提取脚本和翻译 worker 共用 `src/translation/blocks.mjs`；Node 路径共用 `hash.mjs`，浏览器对同一 key 使用 Web Crypto，因此已有缓存 key 保持兼容。并发翻译返回通过共享 parser 解析 `@@PEEK_TRANSLATION <hash>` marker，与原块重新对齐，不依赖响应顺序。
 
-系统支持 Markdown 感知的长块拆分、部分成功和块级重译。翻译可使用兼容 API，也可回退到本机 `claude -p`。system/harness 消息的上层语义提取仍分别依赖 Server 和 Client 的请求解释函数；后续协议 normalizer 应继续收敛这一层，但 block identity 不再重复实现。维护契约见 [翻译块协议](translation-block-contract.md)。
+系统支持 Markdown 感知的长块拆分、部分成功和块级重译。翻译可使用兼容 API，也可回退到本机 `claude -p`。Viewer 的整条 Source、单 Request 和显式材料刷新由 `ViewerTranslationAdapter` 统一转成 Translation Material；Harness 提取复用共享 message semantics，单 Request 刷新只调用详情读取端口。浏览器继续负责当前可见结构的展示与搜索，但不重新定义 block identity。维护契约见[翻译块协议](translation-block-contract.md)和[Viewer Translation Adapter 契约](viewer-translation-adapter-contract.md)。
 
 ## Trace 分享
 

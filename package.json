@@ -160,6 +160,7 @@
     "smoke:translation-contract": "node scripts/translation-contract-smoke.mjs",
     "smoke:translation-materials-contract": "node scripts/translation-materials-contract-smoke.mjs",
     "smoke:translation-service-contract": "node scripts/translation-service-contract-smoke.mjs",
+    "smoke:viewer-translation-adapter-contract": "node scripts/viewer-translation-adapter-contract-smoke.mjs",
     "smoke:translation-claude-cli": "node scripts/translation-claude-cli-smoke.mjs",
     "release:check": "node scripts/release-check.mjs --profile current",
     "release:check:linux": "node scripts/release-check.mjs --profile linux",

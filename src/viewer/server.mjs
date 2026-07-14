@@ -48,20 +48,15 @@ import { TraceBundleService } from "../server/trace-bundle-service.mjs";
 import { TimelineCursorService } from "../server/timeline-cursor-service.mjs";
 import { TimelinePageAssembler } from "../server/timeline-page-assembler.mjs";
 import { resolveViewerStaticAsset } from "../server/viewer-static-assets.mjs";
+import { createViewerTranslationAdapter } from "../server/viewer-translation-adapter.mjs";
 import {
   createViewerTraceProjector,
   textPreview,
   uniqueValues,
 } from "../server/viewer-trace-projector.mjs";
-import { TranslationMaterialCollector } from "../translation/materials.mjs";
-import { TranslationService } from "../translation/service.mjs";
-import { extractContentText } from "../trace/content-parts.mjs";
 import {
   cleanTitleText,
-  compactInjectionText,
   isKnownFrameworkReminderText,
-  isSuggestionModeMessage,
-  parseCommandMessage,
 } from "../trace/message-semantics.mjs";
 
 const viewerDir = path.dirname(fileURLToPath(import.meta.url));
@@ -213,8 +208,8 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
 function viewerRouterOperations(options) {
   return {
     listSources: () => listSources(options),
-    loadTranslations: (input) => translationService(options).loadPublicCache(input),
-    generateTranslations: (input) => generateTranslations(input, options),
+    loadTranslations: (input) => viewerTranslationAdapter(options).loadPublicCache(input),
+    generateTranslations: (input) => viewerTranslationAdapter(options).generate(input),
     startWatch: (input) => startWatch(input, options),
     stopWatch: (input) => stopWatch(input, options),
     pauseWatch: (input) => pauseWatch(input, options),
@@ -235,47 +230,11 @@ function viewerRouterOperations(options) {
   };
 }
 
-async function generateTranslations(input, options) {
-  return translationService(options).generate(input);
-}
-
-function translationMaterialCollector(targetLanguage) {
-  return new TranslationMaterialCollector({
-    targetLanguage,
-    contentText: extractContentText,
-    extractHarnessParts: extractHarnessTranslationParts,
-    tooLarge: (message) => httpError(413, message),
-  });
-}
-
-function translationService(options) {
-  return new TranslationService({
+function viewerTranslationAdapter(options) {
+  return createViewerTranslationAdapter({
     projectRoot,
-    materialProvider: {
-      fromSource({ sourceId, requestId, section, targetLanguage }) {
-        const collector = translationMaterialCollector(targetLanguage);
-        if (requestId) {
-          const detail = loadViewerRequestDetail(sourceId, requestId, options, { requireSource: true });
-          collector.collectRequest(detail.request, detail.source, { section });
-        } else {
-          const data = loadViewerData(sourceId, options, { requireSource: true });
-          for (const request of data.requests || []) collector.collectRequest(request, data.source, { section });
-        }
-        return { materials: collector.materials(), sourceCount: 1 };
-      },
-      fromInput({ materials, sourceId, requestId, targetLanguage }) {
-        const collector = translationMaterialCollector(targetLanguage);
-        collector.collectInput(materials, {
-          source_id: sourceId || null,
-          watch_id: null,
-          request_id: requestId || null,
-          request_index: null,
-          workspace: null,
-          conversation_id: null,
-        });
-        return { materials: collector.materials(), sourceCount: sourceId ? 1 : 0 };
-      },
-    },
+    loadViewerData: ({ sourceId, requireSource }) => loadViewerData(sourceId, options, { requireSource }),
+    loadRequestDetail: ({ sourceId, requestId, requireSource }) => loadViewerRequestDetail(sourceId, requestId, options, { requireSource }),
     sanitize: {
       agent: (value) => sanitizeSourceMetadataText(value, { fallback: "Claude Code", limit: MAX_SOURCE_AGENT_CHARS }),
       targetLanguage: (value) => normalizePathBackedLabel(value, "target_language"),
@@ -284,46 +243,8 @@ function translationService(options) {
       requestId: (value) => sanitizeSourceMetadataText(value, { limit: MAX_TRANSLATION_REQUEST_ID_CHARS }),
     },
     slugify,
+    tooLarge: (message) => httpError(413, message),
   });
-}
-
-// Extract the harness-injected prompt fragments from the message history so
-// they can be translated + shown original/translated like the system prompt.
-// Covers framework reminders (<system-reminder> blocks), the /compact prompt,
-// slash-command expansions and suggestion-mode text. Task notifications are
-// intentionally excluded (mixed-language content, not a prompt to translate).
-function extractHarnessTranslationParts(messages) {
-  const output = [];
-  const reminderRegex = /<system-reminder\b[^>]*>([\s\S]*?)<\/system-reminder>/gi;
-  (Array.isArray(messages) ? messages : []).forEach((message, messageIndex) => {
-    if (!message || message.role !== "user") return;
-    const fullText = extractContentText(message.content);
-
-    const compact = compactInjectionText(message);
-    if (compact) {
-      output.push({ kind: "harness_compact", text: compact, label: "compact 压缩指令", path: `messages[${messageIndex}]` });
-    }
-
-    const commandMessage = parseCommandMessage(message);
-    if (commandMessage?.body) {
-      output.push({ kind: "harness_command", text: commandMessage.body, label: `命令 ${commandMessage.command}`, path: `messages[${messageIndex}]` });
-    }
-
-    if (isSuggestionModeMessage(message)) {
-      output.push({ kind: "harness_suggestion", text: fullText, label: "Suggestion 模式", path: `messages[${messageIndex}]` });
-    }
-
-    let match;
-    let reminderIndex = 0;
-    while ((match = reminderRegex.exec(fullText))) {
-      const inner = (match[1] || "").trim();
-      if (inner) {
-        output.push({ kind: "harness_reminder", text: inner, label: `框架提醒 #${reminderIndex + 1}`, path: `messages[${messageIndex}].system-reminder[${reminderIndex}]` });
-      }
-      reminderIndex += 1;
-    }
-  });
-  return output.filter((part) => part.text);
 }
 
 function baseSources({ cwd, demo, evidencePath, watches }, { includeStats = true } = {}) {

@@ -159,6 +159,7 @@ src/
 - 已迁移 Trace Bundle Service：Raw 快路径导出、递归脱敏、gzip/数量边界、provenance 补全与安全导入目录由独立服务管理。
 - 已建立共享 Translation Material Collector：Viewer 局部/整段刷新与离线提取统一使用 system/tool/schema hash、去重、occurrence 和限额协议。
 - 已迁移 Translation Service：材料/manifest 私有落盘、缓存 alias、并发/force 参数、脚本编排和公开响应边界不再由 Viewer Server 所有。
+- 已迁移 Viewer Translation Adapter：整条 Source/单 Request/显式材料刷新、occurrence 和 Harness 注入提取通过同步数据端口组装，Viewer Server 不再拥有翻译材料语义或 message marker。
 - 已迁移首个 Viewer Client feature：Turn Rail 的窗口策略、悬停、点击跳转和滚动激活由独立控制器管理，并有直接契约测试。
 - 已建立 Viewer API Client：source/view/request/translation/import/export/send/watch 的浏览器协议与错误处理不再散落在全局脚本。
 - 已迁移 request-detail cache：compact request 的详情判定、并发去重、错误重试和 source 生命周期由独立对象管理。
