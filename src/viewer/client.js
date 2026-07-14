@@ -10,6 +10,7 @@ import { AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView } from "./agent-graph-model
 import { renderAgentGraph as renderAgentGraphView } from "./agent-graph-renderer.js";
 import { RequestDetailCache, requestNeedsDetail } from "./request-detail-cache.js";
 import { SourceTimelineController } from "./source-timeline-controller.js";
+import { ActiveSourceController } from "./active-source-controller.js";
 import {
   buildTranslationLookup as buildTranslationLookupView,
   TranslationCacheController,
@@ -104,8 +105,6 @@ const clientStore = new ViewerClientStore();
 const state = Object.assign(clientStore.state, {
   sources: [],
   data: null,
-  autoRefreshTimer: 0,
-  autoRefreshInFlight: false,
   sessionInfoControlsBound: false,
   responseExpanded: new Set(),
   upstreamExpanded: new Set(),
@@ -411,6 +410,36 @@ const rawInspectorController = new RawInspectorController({
   renderError: (error) => renderRequestDetailError(error),
   decorate: () => rawSearchController.decorate(),
 });
+const activeSourceController = new ActiveSourceController({
+  timeline: sourceTimelineController,
+  listSources: () => api.listSources(),
+  getContext: () => ({
+    sources: state.sources,
+    activeSourceId: state.activeSourceId,
+    data: state.data,
+  }),
+  setSources(sources, { render }) {
+    state.sources = sources;
+    if (render) renderSessionNav();
+  },
+  resetSourceContext: resetActiveSourceContext,
+  captureScroll: captureMainPanelScroll,
+  setData(data) {
+    state.data = data;
+  },
+  presentLoadedData: applyLoadedSourceData,
+  presentRefreshedData: applyRefreshedSourceData,
+  loadTranslations: (data) => loadTranslationsForActiveSource({ data }),
+  refreshRaw() {
+    if (state.activeRequestId && !els.rawTree.classList.contains("empty")) rawInspectorController.refresh();
+  },
+  renderData: () => renderAll(),
+  isHidden: () => document.hidden,
+  scheduleInterval: (callback, delay) => window.setInterval(callback, delay),
+  cancelInterval: (timer) => window.clearInterval(timer),
+  refreshIntervalMs: LIVE_REFRESH_MS,
+  onWarning: (message, error) => console.warn(`peekMyAgent ${message}`, error),
+});
 clientStore.subscribe((change) => {
   if (change.changedKeys.includes("activeId")) syncActiveTurnDom(change.state.activeId);
   if (change.changedKeys.includes("activeRequestId")) syncActiveRequestDom(change.state.activeRequestId);
@@ -448,14 +477,8 @@ async function init() {
   languagePreferencesController.applyStaticI18n();
   languagePreferencesController.renderSelectors();
   paneLayoutController.applyCurrentState({ persist: false });
-  state.sources = await api.listSources();
-  renderSessionNav();
   const requestedSource = new URLSearchParams(window.location.search).get("source");
-  const first =
-    state.sources.find((source) => source.id === requestedSource && source.available) ||
-    state.sources.find((source) => source.available) ||
-    state.sources[0];
-  if (first) await loadSource(first.id);
+  await activeSourceController.initialize(requestedSource);
   els.traceImportButton?.addEventListener("click", () => els.traceImportInput?.click());
   els.traceImportInput?.addEventListener("change", importTraceFromFile);
   languagePreferencesController.bind();
@@ -512,111 +535,53 @@ async function init() {
   turnRailController.bind();
   paneLayoutController.bind();
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) refreshLiveData({ force: true });
+    if (!document.hidden) activeSourceController.refreshLiveData({ force: true });
   });
-  startAutoRefresh();
+  activeSourceController.startAutoRefresh();
 }
 
-async function loadSource(sourceId, { preserveScroll = false } = {}) {
-  const scrollTop = els.mainPanel.scrollTop;
-  const source = state.sources.find((item) => item.id === sourceId);
-  const progressive = sourceTimelineController.shouldLoadProgressively(source, { preserveScroll });
-  if (state.activeSourceId && state.activeSourceId !== sourceId) {
-    rawInspectorController.invalidate();
-    requestDetailCache.clear();
-    translationActionController.invalidate();
-    translationCacheController.invalidate();
-    state.openSupportingTimelines.clear();
-    state.openAgentDashboards.clear();
-    state.expandedAgentBranches.clear();
-    state.agentBranchLimits.clear();
-    state.agentBranchFilters.clear();
-    state.traceQuery = "";
-    state.traceFilter = "all";
-    state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
-  }
-  const load = await sourceTimelineController.loadSource(sourceId, { progressive });
-  if (!load) return;
-  applyLoadedSourceData(load.data, { preserveScroll, scrollTop });
-  if (load.hasMore) {
-    void loadSourcePagesInBackground(load);
-    return;
-  }
-  void loadTranslationsForSourceLoad(load.token, load.sourceId);
+function loadSource(sourceId, options = {}) {
+  return activeSourceController.loadSource(sourceId, options);
 }
 
-async function refreshSources() {
-  state.sources = await api.listSources();
-  renderSessionNav();
-  if (state.activeSourceId && !state.sources.some((source) => source.id === state.activeSourceId)) {
-    const first = state.sources.find((source) => source.available) || state.sources[0];
-    if (first) await loadSource(first.id);
-  }
+function resetActiveSourceContext() {
+  rawInspectorController.invalidate();
+  requestDetailCache.clear();
+  translationActionController.invalidate();
+  translationCacheController.invalidate();
+  state.openSupportingTimelines.clear();
+  state.openAgentDashboards.clear();
+  state.expandedAgentBranches.clear();
+  state.agentBranchLimits.clear();
+  state.agentBranchFilters.clear();
+  state.traceQuery = "";
+  state.traceFilter = "all";
+  state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
 }
 
-function startAutoRefresh() {
-  if (state.autoRefreshTimer) clearInterval(state.autoRefreshTimer);
-  state.autoRefreshTimer = setInterval(() => refreshLiveData(), LIVE_REFRESH_MS);
+function captureMainPanelScroll() {
+  const gap = els.mainPanel.scrollHeight - els.mainPanel.scrollTop - els.mainPanel.clientHeight;
+  return {
+    scrollTop: els.mainPanel.scrollTop,
+    nearBottom: gap < 160,
+  };
 }
 
-async function refreshLiveData({ force = false } = {}) {
-  if (state.autoRefreshInFlight || document.hidden) return;
-  const activeBefore = currentSourceFromList();
-
-  state.autoRefreshInFlight = true;
-  try {
-    const nextSources = await api.listSources();
-    const sourceChanged = sourcesSignature(nextSources) !== sourcesSignature(state.sources);
-    state.sources = nextSources;
-    if (sourceChanged) renderSessionNav();
-
-    const activeAfter = currentSourceFromList();
-    if (!state.activeSourceId || !activeAfter) return;
-    if (!activeAfter.available) return;
-    const activeNeedsReload =
-      force ||
-      activeAfter.request_count !== activeBefore?.request_count ||
-      activeAfter.response_count !== activeBefore?.response_count ||
-      activeAfter.live_status !== activeBefore?.live_status ||
-      activeAfter.last_seen !== activeBefore?.last_seen ||
-      activeAfter.last_response_seen !== activeBefore?.last_response_seen;
-
-    if (activeNeedsReload) await refreshActiveSource(activeAfter);
-  } catch (error) {
-    console.warn("peekMyAgent auto refresh failed", error);
-  } finally {
-    state.autoRefreshInFlight = false;
-  }
-}
-
-async function refreshActiveSource(activeSource) {
-  const previousData = state.data;
-  const refresh = await sourceTimelineController.refreshSource(activeSource, previousData);
-  if (!refresh || state.activeSourceId !== refresh.sourceId) return;
-  const nextData = refresh.data;
-  if (!shouldRenderRefreshedData(previousData, nextData)) {
-    state.data = nextData;
-    return;
-  }
-
-  const wasNearBottom = isMainPanelNearBottom();
-  const previousScrollTop = els.mainPanel.scrollTop;
-  state.data = nextData;
-  await loadTranslationsForActiveSource();
-  const turnIds = activeTurnIds(nextData);
+function applyRefreshedSourceData(data, { wasNearBottom = false, scrollTop = 0 } = {}) {
+  const turnIds = activeTurnIds(data);
   const activeId = turnIds.includes(state.activeId) ? state.activeId : turnIds.at(-1) || null;
-  const activeRequestId = nextData.requests.some((request) => request.id === state.activeRequestId)
+  const activeRequestId = data.requests.some((request) => request.id === state.activeRequestId)
     ? state.activeRequestId
-    : nextData.requests.at(-1)?.id || nextData.requests[0]?.id || null;
+    : data.requests.at(-1)?.id || data.requests[0]?.id || null;
   clientStore.setSelection(
-    { activeSourceId: nextData.source.id, activeId, activeRequestId },
+    { activeSourceId: data.source.id, activeId, activeRequestId },
     { reason: "refresh-source" },
   );
   renderAll();
   if (wasNearBottom) {
     els.mainPanel.scrollTop = els.mainPanel.scrollHeight;
   } else {
-    els.mainPanel.scrollTop = previousScrollTop;
+    els.mainPanel.scrollTop = scrollTop;
   }
   turnRailController.scheduleActiveSync();
 }
@@ -640,36 +605,6 @@ function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } =
   if (preserveScroll) els.mainPanel.scrollTop = scrollTop;
   else els.mainPanel.scrollTop = 0;
   turnRailController.scheduleActiveSync();
-}
-
-async function loadSourcePagesInBackground(load) {
-  try {
-    const mergedData = await sourceTimelineController.continueSourceLoad(load, {
-      onPage(data) {
-        const scrollTop = els.mainPanel.scrollTop;
-        applyLoadedSourceData(data, { preserveScroll: true, scrollTop });
-      },
-    });
-    if (!mergedData) return;
-    await loadTranslationsForSourceLoad(load.token, load.sourceId);
-  } catch (error) {
-    if (!sourceTimelineController.isCurrent(load.token, load.sourceId)) return;
-    renderAll();
-    console.warn("peekMyAgent timeline cursor load failed", error);
-  }
-}
-
-async function loadTranslationsForSourceLoad(token, sourceId) {
-  try {
-    if (!sourceTimelineController.isCurrent(token, sourceId)) return;
-    await loadTranslationsForActiveSource();
-    if (!sourceTimelineController.isCurrent(token, sourceId)) return;
-    if (state.activeRequestId && !els.rawTree.classList.contains("empty")) {
-      rawInspectorController.refresh();
-    }
-  } catch (error) {
-    console.warn("peekMyAgent translation load failed", error);
-  }
 }
 
 function currentRequestById(requestId) {
@@ -696,14 +631,16 @@ async function rebuildTranslationLookupForCurrentData() {
   await translationCacheController.refreshLookup(state.data?.requests || []);
 }
 
-async function loadTranslationsForActiveSource({ autoRefresh = true } = {}) {
+async function loadTranslationsForActiveSource({ autoRefresh = true, data = state.data } = {}) {
+  const sourceId = data?.source?.id || state.activeSourceId || "";
   return translationCacheController.loadContext(
     {
-      sourceId: state.data?.source?.id || state.activeSourceId || "",
+      sourceId,
       targetLanguage: currentTargetLanguage(),
-      agents: translationAgentCandidatesForData(state.data),
-      requests: state.data?.requests || [],
-      getRequests: () => state.data?.requests || [],
+      agents: translationAgentCandidatesForData(data),
+      requests: data?.requests || [],
+      getRequests: () =>
+        state.data?.source?.id === sourceId ? state.data?.requests || [] : data?.requests || [],
     },
     { autoRefresh },
   );
@@ -757,61 +694,6 @@ function setMessagesMode(mode) {
   clientStore.setRawView({ rawMessagesMode: normalizeMessagesMode(mode) }, { reason: "set-messages-mode" });
   localStorage.setItem(RAW_MESSAGES_MODE_KEY, state.rawMessagesMode);
   if (state.activeRequestId) rawInspectorController.show(state.activeRequestId, "messages", { mode: state.activeRawMode || "request" });
-}
-
-function shouldRenderRefreshedData(previousData, nextData) {
-  if (!previousData) return true;
-  return dataSignature(previousData) !== dataSignature(nextData);
-}
-
-function dataSignature(data) {
-  const requests = data?.requests || [];
-  return [
-    data?.source?.id || "",
-    data?.source?.live_status || "",
-    data?.source?.conversation_id || "",
-    requests.length,
-    requests.at(-1)?.id || "",
-    requests.at(-1)?.captured_at || "",
-    requests
-      .map((request) =>
-        [
-          request.id,
-          request.summary?.response?.captured ? "r" : "",
-          request.summary?.response?.received_at || "",
-          request.summary?.response?.raw_body_bytes || "",
-          request.summary?.response?.truncated ? "truncated" : "",
-        ].join(":"),
-      )
-      .join(","),
-  ].join("|");
-}
-
-function sourcesSignature(sources) {
-  return (sources || [])
-    .map((source) =>
-      [
-        source.id,
-        source.label || "",
-        source.pinned ? "pinned" : "",
-        source.live_status || "",
-        source.request_count || 0,
-        source.response_count || 0,
-        source.last_seen || "",
-        source.last_response_seen || "",
-        source.conversation_id || "",
-      ].join(":"),
-    )
-    .join("|");
-}
-
-function currentSourceFromList() {
-  return state.sources.find((source) => source.id === state.activeSourceId) || null;
-}
-
-function isMainPanelNearBottom() {
-  const gap = els.mainPanel.scrollHeight - els.mainPanel.scrollTop - els.mainPanel.clientHeight;
-  return gap < 160;
 }
 
 function renderSessionNav() {
@@ -894,8 +776,10 @@ async function importTraceFromFile(event) {
   if (!file) return;
   try {
     const response = await api.importTrace(await file.arrayBuffer(), file.name);
-    state.sources = response.sources || (await api.listSources());
-    renderSessionNav();
+    activeSourceController.acceptSources(response.sources || (await api.listSources()), {
+      render: true,
+      reason: "import-trace",
+    });
     if (response.source_id) await loadSource(response.source_id);
   } catch (error) {
     window.alert(t("importTraceFailed", { message: error.message }));
@@ -905,12 +789,17 @@ async function importTraceFromFile(event) {
 async function updateSourceMeta(sourceId, payload) {
   try {
     const response = await api.updateSource({ id: sourceId, ...payload });
-    state.sources = response.sources || (await api.listSources());
+    activeSourceController.acceptSources(response.sources || (await api.listSources()), {
+      render: false,
+      reason: "update-source-meta",
+    });
   } catch (error) {
     console.warn("peekMyAgent source update failed", error);
     window.alert(t("sourceUpdateFailed", { message: error.message }));
-    state.sources = await api.listSources();
-    renderSessionNav();
+    activeSourceController.acceptSources(await api.listSources(), {
+      render: true,
+      reason: "recover-source-meta",
+    });
     return;
   }
   if ((payload.archive || payload.remove || payload.delete) && state.activeSourceId === sourceId) {
@@ -936,12 +825,17 @@ async function updateProjectSources(projectGroup, payload) {
       },
       ...payload,
     });
-    state.sources = response.sources || (await api.listSources());
+    activeSourceController.acceptSources(response.sources || (await api.listSources()), {
+      render: false,
+      reason: "update-project-sources",
+    });
   } catch (error) {
     console.warn("peekMyAgent project update failed", error);
     window.alert(t("projectUpdateFailed", { message: error.message }));
-    state.sources = await api.listSources();
-    renderSessionNav();
+    activeSourceController.acceptSources(await api.listSources(), {
+      render: true,
+      reason: "recover-project-sources",
+    });
     return;
   }
   if ((payload.archive || payload.remove || payload.delete) && affectedActiveSource) {
@@ -1178,8 +1072,10 @@ async function stopActiveWatch(clear) {
       id: state.data.source.id,
       clear,
     });
-    state.sources = await api.listSources();
-    renderSessionNav();
+    activeSourceController.acceptSources(await api.listSources(), {
+      render: true,
+      reason: "stop-watch",
+    });
     if (clear) {
       const first = state.sources.find((source) => source.available) || state.sources[0];
       if (first) await loadSource(first.id);

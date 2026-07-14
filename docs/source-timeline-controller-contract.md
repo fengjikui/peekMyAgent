@@ -76,7 +76,7 @@ live Source 变化
 
 ## 应用层装配
 
-`client.js` 仍负责用户可见副作用：
+`ActiveSourceController` 负责首屏、后台 page、翻译和 live refresh 的应用顺序，但不拥有下列用户可见副作用；这些行为仍由 `client.js` 通过端口提供：
 
 - Source 切换时清理 Raw、详情缓存和中栏展开状态。
 - 把控制器 snapshot 写入 `ViewerClientStore` 的选择上下文。
@@ -84,7 +84,7 @@ live Source 变化
 - 完整 Source 加载后读取翻译缓存并刷新 Raw。
 - 根据数据签名决定 live refresh 是否需要重绘。
 
-不要把上述 DOM/UI 行为反向加入数据控制器。反过来，也不要在 `client.js` 重新维护 cursor、generation 或第二份 `TimelineEntityStore`。
+不要把上述 DOM/UI 行为反向加入任一 Source 控制器。反过来，也不要在 `client.js` 或 `ActiveSourceController` 重新维护 cursor、generation 或第二份 `TimelineEntityStore`。应用编排的详细契约见 [Active Source Controller 契约](active-source-controller-contract.md)。
 
 ## 修改规则
 

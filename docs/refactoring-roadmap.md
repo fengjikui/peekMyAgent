@@ -204,6 +204,7 @@ src/
 - 已抽出 `TranslationCacheController`：Source/目标语言缓存身份、Agent 候选探测、lookup dirty 重建、自动刷新 timer/attempt 去重和异步失效成为独立生命周期；request detail 即使在 hash 计算期间补载也会在提交前重算，生成副作用通过 operation token 拒绝旧 Source/语言，旧上下文结果不能覆盖当前缓存或 UI。
 - 已抽出 `TranslationActionController` 与纯 Action Model：翻译生成、块/整段复制、工具参数整组重译、action registry 和 Source/语言切换后的 stale 副作用拒绝通过显式端口协作；剪贴板格式与完成文案不再由 `client.js` 所有，Cache Controller、Renderer 和搜索 Controller 仍保持独立。
 - 已抽出翻译语言目录与 `LanguagePreferencesController`：完整目标语言 catalog、alias/系统语言推荐、偏好水合与持久化、选择器绑定、静态 i18n 和切换副作用顺序不再散落在 `client.js`；Cache/Action/Renderer/Raw 搜索仍保持各自边界。
+- 已抽出 `ActiveSourceController`：Source catalog、首屏与后台 page、live polling、snapshot 翻译、catalog version 和 token-gated UI continuation 形成应用级生命周期；`SourceTimelineController` 仍独占 generation/cursor/normalized store，DOM/selection/URL/滚动仍由装配端口所有。
 - 已抽出 `request-card-model.js`：请求身份、上行类别/标签/预览、快捷 section、工具事件配对和 Assistant response metadata/折叠成为可直接验证的纯 View Model；`client.js` 只注入当前展开状态、格式化依赖和 Thinking 翻译动作，`request-card-renderer.js` 只生成安全 HTML。
 
 验收：

@@ -13,6 +13,7 @@ const upstreamDetailRendererSource = fs.readFileSync(new URL("../src/viewer/upst
 const agentComposerControllerSource = fs.readFileSync(new URL("../src/viewer/agent-composer-controller.js", import.meta.url), "utf8");
 const sessionNavigatorControllerSource = fs.readFileSync(new URL("../src/viewer/session-navigator-controller.js", import.meta.url), "utf8");
 const sourceTimelineControllerSource = fs.readFileSync(new URL("../src/viewer/source-timeline-controller.js", import.meta.url), "utf8");
+const activeSourceControllerSource = fs.readFileSync(new URL("../src/viewer/active-source-controller.js", import.meta.url), "utf8");
 const languagePreferencesControllerSource = fs.readFileSync(new URL("../src/viewer/language-preferences-controller.js", import.meta.url), "utf8");
 const translationLanguageCatalogSource = fs.readFileSync(new URL("../src/viewer/translation-language-catalog.js", import.meta.url), "utf8");
 const translationCacheControllerSource = fs.readFileSync(new URL("../src/viewer/translation-cache-controller.js", import.meta.url), "utf8");
@@ -24,6 +25,10 @@ assert.match(source, /import \{[\s\S]*?buildTraceTimelineView,[\s\S]*?from "\.\/
 assert.match(source, /import \{ TraceTimelineController \} from "\.\/trace-timeline-controller\.js";/);
 assert.match(source, /import \{ SourceTimelineController \} from "\.\/source-timeline-controller\.js";/);
 assert.match(source, /const sourceTimelineController = new SourceTimelineController\(/);
+assert.match(source, /import \{ ActiveSourceController \} from "\.\/active-source-controller\.js";/);
+assert.match(source, /const activeSourceController = new ActiveSourceController\(/);
+assert.doesNotMatch(source, /function (?:refreshLiveData|refreshActiveSource|loadSourcePagesInBackground)\b/);
+assert.doesNotMatch(activeSourceControllerSource, /\bdocument\b|\bwindow\b|\blocalStorage\b|\bfetch\s*\(|new TimelineEntityStore/);
 assert.match(source, /import \{ LanguagePreferencesController \} from "\.\/language-preferences-controller\.js";/);
 assert.match(source, /const languagePreferencesController = new LanguagePreferencesController\(/);
 assert.doesNotMatch(source, /const SUPPORTED_TRANSLATION_LANGUAGES|peekmyagent\.(?:uiLanguage|targetTranslationLanguage|translationMode)/);

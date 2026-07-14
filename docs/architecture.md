@@ -104,6 +104,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/viewer/system-diff-renderer.js` | System diff 行/块摘要的双语、安全 HTML renderer |
 | `src/viewer/message-view-model.js` | Messages role/content/block 的规范化、结构化判定和长文本截断 DTO |
 | `src/viewer/messages-renderer.js` | Messages 原文/整理切换、安全 Markdown、类型标记和结构化 Raw renderer |
+| `src/viewer/active-source-controller.js` | Source 清单、首屏/后台分页、live polling、翻译等待和迟到 UI 提交拒绝的应用编排 |
 | `src/viewer/translation-language-catalog.js` | UI/翻译目标语言目录、alias 解析、系统语言推荐与无效值回退纯契约 |
 | `src/viewer/language-preferences-controller.js` | 语言偏好水合/持久化、选择器绑定、静态 i18n 与目标语言切换副作用编排 |
 | `src/viewer/translation-cache-controller.js` | Source/目标语言翻译缓存、lookup、自动刷新去重与旧异步结果失效 |
@@ -240,6 +241,8 @@ Turn Rail 已作为首个 Viewer Client feature 从全局脚本迁出。`client.
 Viewer 的浏览器请求统一通过 `ViewerApiClient`。它集中定义 source/view/request/translation/import/export/send/watch API 的 URL 编码、method、Content-Type、intent 和错误传播；它不持有界面状态，也不操作 DOM。Server 继续承担最终的 loopback 与请求意图校验。
 
 Viewer 的核心选择和偏好状态已经由最小 `ViewerClientStore` 所有。当前涵盖 source/Turn/request 选择、Raw section/mode、UI 与目标翻译语言、三栏开关/宽度和 latest-only。Store 只提供原子 patch、领域写入约束和带 `changedKeys` 的订阅通知，不访问 DOM、网络或 `localStorage`；`client.js` 暂时复用同一 state 引用读取，并继续装配副作用。受管字段禁止再直接赋值；活动 Turn/request 已由 Store 通知统一同步 DOM 和 Turn Rail。详细契约见 [Viewer Client Store 契约](viewer-client-store-contract.md)。
+
+Source 数据层和应用生命周期现在分层：`SourceTimelineController` 独占 generation/cursor/normalized store；`ActiveSourceController` 编排 Source catalog、渐进首屏、后台 page、自动刷新、snapshot 翻译和 token-gated 可见提交。DOM、selection、URL 和滚动仍由 `client.js` 注入，mutation 返回的 catalog 经 version gate 防止旧轮询覆盖。边界见 [Active Source Controller 契约](active-source-controller-contract.md) 与 [Source Timeline Controller 契约](source-timeline-controller-contract.md)。
 
 语言目录和偏好生命周期不再由 `client.js` 维护。`translation-language-catalog.js` 纯粹规范化语言代码、alias 与系统推荐；`LanguagePreferencesController` 统一水合和持久化 UI/翻译目标语言，绑定选择器并通过注入端口协调翻译 operation 失效、cache reload 和可见 feature 刷新。它不拥有翻译 cache、provider、HTML 或 Source 数据。完整边界见 [Viewer 语言偏好契约](language-preferences-controller-contract.md)。
 
