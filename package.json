@@ -106,6 +106,7 @@
     "smoke:platform": "node scripts/platform-smoke.mjs",
     "smoke:security-boundary": "node scripts/security-boundary-smoke.mjs",
     "smoke:viewer-http-contract": "node scripts/viewer-http-contract-smoke.mjs",
+    "smoke:viewer-router-contract": "node scripts/viewer-router-contract-smoke.mjs",
     "smoke:viewer-api-client-contract": "node scripts/viewer-api-client-contract-smoke.mjs",
     "smoke:viewer-client-store-contract": "node scripts/viewer-client-store-contract-smoke.mjs",
     "smoke:pane-layout-controller-contract": "node scripts/pane-layout-controller-contract-smoke.mjs",

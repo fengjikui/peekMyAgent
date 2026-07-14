@@ -72,6 +72,8 @@ for (const required of [
   "src/core/provenance.mjs",
   "src/core/source-identifiers.mjs",
   "src/server/http.mjs",
+  "src/server/viewer-api-contract.mjs",
+  "src/server/viewer-router.mjs",
   "src/server/file-source-provider.mjs",
   "src/server/imported-trace-source-provider.mjs",
   "src/server/json-array-file-index.mjs",

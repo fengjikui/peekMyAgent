@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { expectedViewerApiMethod } from "./viewer-api-contract.mjs";
 
 export const VIEWER_INTENT_HEADER = "x-peekmyagent-intent";
 
@@ -19,28 +20,6 @@ export const VIEWER_INTENTS = Object.freeze({
 const DEFAULT_MAX_JSON_BODY_BYTES = 8 * 1024 * 1024;
 const DEFAULT_MAX_RAW_BODY_BYTES = 64 * 1024 * 1024;
 const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-const API_METHODS = new Map([
-  ["/api/sources", "GET"],
-  ["/api/translations", "GET"],
-  ["/api/trace/export", "GET"],
-  ["/api/watch/status", "GET"],
-  ["/api/daemon/ping", "GET"],
-  ["/api/daemon/status", "GET"],
-  ["/api/view", "GET"],
-  ["/api/request", "GET"],
-  ["/api/translations/generate", "POST"],
-  ["/api/watch/start", "POST"],
-  ["/api/watch/stop", "POST"],
-  ["/api/watch/pause", "POST"],
-  ["/api/agent/send", "POST"],
-  ["/api/source/update", "POST"],
-  ["/api/trace/import", "POST"],
-  ["/api/capture/otel", "POST"],
-  ["/api/capture/otel/events", "POST"],
-  ["/api/capture/otel/traces", "POST"],
-  ["/api/daemon/shutdown", "POST"],
-]);
-
 export function readJsonBody(req, { maxBytes = DEFAULT_MAX_JSON_BODY_BYTES } = {}) {
   const contentType = headerValue(req.headers || {}, "content-type");
   if (contentType && !isJsonContentType(contentType)) {
@@ -99,7 +78,7 @@ export function validateLocalHttpRequest(req, url, { unsafeAllowRemote = false }
 }
 
 export function expectedApiMethod(pathname) {
-  return API_METHODS.get(pathname) || "";
+  return expectedViewerApiMethod(pathname);
 }
 
 export function validateRequestIntent(req, expected, message) {

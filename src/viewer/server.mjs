@@ -18,25 +18,11 @@ import { extractOtelBodyEvents, mergeOtelBodyEvents } from "../core/otel-events.
 import {
   assertSafeBindHost,
   httpError,
-  readJsonBody,
-  readRawBody,
-  rejectWrongMethod,
   serveFile,
-  validateAgentSendIntent,
-  validateDaemonShutdownIntent,
-  validateLocalHttpRequest,
-  validateOtelEventIngestIntent,
-  validateOtelIngestIntent,
-  validateSourceUpdateIntent,
-  validateTraceExportIntent,
-  validateTraceImportIntent,
-  validateTranslationGenerateIntent,
-  validateWatchPauseIntent,
-  validateWatchStartIntent,
-  validateWatchStopIntent,
-  viewerSecurityHeaders,
   writeJson,
 } from "../server/http.mjs";
+import { VIEWER_API_LIMITS, sanitizeApiLookupId } from "../server/viewer-api-contract.mjs";
+import { createViewerRouter } from "../server/viewer-router.mjs";
 import { SourceRepository } from "../server/source-repository.mjs";
 import { SourceLifecycleService } from "../server/source-lifecycle-service.mjs";
 import { SourceCaptureReader } from "../server/source-capture-reader.mjs";
@@ -58,14 +44,12 @@ import {
   stableSourceMetaKeys,
 } from "../server/source-metadata.mjs";
 import { SOURCE_TEXT_LIMITS, sanitizeSourceText } from "../server/source-text.mjs";
-import { TRACE_BUNDLE_LIMITS, TraceBundleService } from "../server/trace-bundle-service.mjs";
+import { TraceBundleService } from "../server/trace-bundle-service.mjs";
 import { TimelineCursorService } from "../server/timeline-cursor-service.mjs";
 import { TimelinePageAssembler } from "../server/timeline-page-assembler.mjs";
-import { projectTimelineViewerData } from "../server/timeline-view-projector.mjs";
 import { resolveViewerStaticAsset } from "../server/viewer-static-assets.mjs";
 import {
   createViewerTraceProjector,
-  headerValue,
   textPreview,
   uniqueValues,
 } from "../server/viewer-trace-projector.mjs";
@@ -90,13 +74,10 @@ const MAX_SOURCE_CONVERSATION_CHARS = SOURCE_TEXT_LIMITS.conversation;
 const MAX_TRANSLATION_SOURCE_ID_CHARS = 512;
 const MAX_TRANSLATION_REQUEST_ID_CHARS = 256;
 const MAX_TRANSLATION_SECTION_CHARS = 48;
-const MAX_API_SOURCE_ID_CHARS = 512;
-const MAX_API_REQUEST_ID_CHARS = 256;
+const MAX_API_SOURCE_ID_CHARS = VIEWER_API_LIMITS.sourceIdChars;
+const MAX_API_REQUEST_ID_CHARS = VIEWER_API_LIMITS.requestIdChars;
 const MAX_OTEL_EVENT_WATCHES = 32;
 const MAX_OTEL_EVENTS_PER_WATCH = 2400;
-const OTEL_WATCH_ID_HEADER = "x-peekmyagent-watch-id";
-const INITIAL_VIEW_REQUEST_LIMIT = 32;
-const INITIAL_VIEW_REQUEST_LIMIT_MAX = 120;
 
 const viewerTraceProjector = createViewerTraceProjector({
   sourceDisplay: {
@@ -181,9 +162,22 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
       });
     },
   };
+  const routeViewerRequest = createViewerRouter({
+    unsafeAllowRemote,
+    defaultSourceId: demo || null,
+    operations: viewerRouterOperations(runtimeOptions),
+    staticAssets: {
+      resolve(pathname) {
+        return resolveViewerStaticAsset(pathname, { viewerDir, projectRoot });
+      },
+      serve(res, asset) {
+        return serveFile(res, asset.filePath, asset.contentType);
+      },
+    },
+  });
   const server = http.createServer(async (req, res) => {
     try {
-      await handleRequest(req, res, runtimeOptions);
+      await routeViewerRequest(req, res);
     } catch (error) {
       writeJson(res, error.statusCode || 500, { error: error.message });
     }
@@ -216,146 +210,33 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
   };
 }
 
-async function handleRequest(req, res, options) {
-  const url = new URL(req.url || "/", "http://peek.local");
-  const guard = validateLocalHttpRequest(req, url, options);
-  if (guard) return writeJson(res, guard.status, { error: guard.message });
-  const staticAsset = resolveViewerStaticAsset(url.pathname, { viewerDir, projectRoot });
-  if (staticAsset) return serveFile(res, staticAsset.filePath, staticAsset.contentType);
-  if (url.pathname === "/api/sources") {
-    if (rejectWrongMethod(req, res, "GET")) return;
-    return writeJson(res, 200, listSources(options));
-  }
-  if (url.pathname === "/api/translations") {
-    if (rejectWrongMethod(req, res, "GET")) return;
-    return writeJson(
-      res,
-      200,
-      translationService(options).loadPublicCache({
-        agent: url.searchParams.get("agent") || "Claude Code",
-        targetLanguage: url.searchParams.get("target_language") || "zh-CN",
-      }),
-    );
-  }
-  if (url.pathname === "/api/translations/generate") {
-    if (rejectWrongMethod(req, res, "POST")) return;
-    const intentGuard = validateTranslationGenerateIntent(req);
-    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    return writeJson(res, 200, await generateTranslations(req, options));
-  }
-  if (url.pathname === "/api/watch/start") {
-    if (rejectWrongMethod(req, res, "POST")) return;
-    const intentGuard = validateWatchStartIntent(req);
-    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    return writeJson(res, 200, await startWatch(req, options));
-  }
-  if (url.pathname === "/api/watch/stop") {
-    if (rejectWrongMethod(req, res, "POST")) return;
-    const intentGuard = validateWatchStopIntent(req);
-    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    return writeJson(res, 200, await stopWatch(req, options));
-  }
-  if (url.pathname === "/api/watch/pause") {
-    if (rejectWrongMethod(req, res, "POST")) return;
-    const intentGuard = validateWatchPauseIntent(req);
-    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    return writeJson(res, 200, await pauseWatch(req, options));
-  }
-  if (url.pathname === "/api/agent/send") {
-    if (rejectWrongMethod(req, res, "POST")) return;
-    const intentGuard = validateAgentSendIntent(req);
-    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    return writeJson(res, 200, await sendAgentMessage(req, options));
-  }
-  if (url.pathname === "/api/source/update") {
-    if (rejectWrongMethod(req, res, "POST")) return;
-    const intentGuard = validateSourceUpdateIntent(req);
-    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    return writeJson(res, 200, await updateSource(req, options));
-  }
-  if (url.pathname === "/api/trace/import") {
-    if (rejectWrongMethod(req, res, "POST")) return;
-    const intentGuard = validateTraceImportIntent(req);
-    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    const buffer = await readRawBody(req, { maxBytes: TRACE_BUNDLE_LIMITS.importBytes });
-    return writeJson(res, 200, traceBundleService(options).import(buffer));
-  }
-  if (url.pathname === "/api/trace/export") {
-    if (rejectWrongMethod(req, res, "GET")) return;
-    const intentGuard = validateTraceExportIntent(req);
-    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    return exportTraceBundleResponse(res, url.searchParams.get("source") || "", options);
-  }
-  if (url.pathname === "/api/capture/otel") {
-    if (rejectWrongMethod(req, res, "POST")) return;
-    const intentGuard = validateOtelIngestIntent(req);
-    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    return writeJson(res, 200, await ingestOtelCaptures(req, options));
-  }
-  if (url.pathname === "/api/capture/otel/events") {
-    if (rejectWrongMethod(req, res, "POST")) return;
-    const intentGuard = validateOtelEventIngestIntent(req);
-    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    return writeJson(res, 200, await ingestOtelEvents(req, url, options));
-  }
-  if (url.pathname === "/api/capture/otel/traces") {
-    if (rejectWrongMethod(req, res, "POST")) return;
-    const intentGuard = validateOtelEventIngestIntent(req);
-    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    await readJsonBody(req);
-    return writeJson(res, 200, {});
-  }
-  if (url.pathname === "/api/watch/status") {
-    if (rejectWrongMethod(req, res, "GET")) return;
-    return writeJson(res, 200, listWatchStatus(options));
-  }
-  if (url.pathname === "/api/daemon/ping") {
-    if (rejectWrongMethod(req, res, "GET")) return;
-    return writeJson(res, 200, daemonPing(options));
-  }
-  if (url.pathname === "/api/daemon/status") {
-    if (rejectWrongMethod(req, res, "GET")) return;
-    return writeJson(res, 200, daemonStatus(options));
-  }
-  if (url.pathname === "/api/daemon/shutdown") {
-    if (rejectWrongMethod(req, res, "POST")) return;
-    const intentGuard = validateDaemonShutdownIntent(req);
-    if (intentGuard) return writeJson(res, intentGuard.status, { error: intentGuard.message });
-    res.once("finish", () => options.requestShutdown?.());
-    writeJson(res, 200, { ok: true, action: "shutdown", pid: process.pid });
-    return;
-  }
-  if (url.pathname === "/api/view") {
-    if (rejectWrongMethod(req, res, "GET")) return;
-    const requestedSource = sanitizeApiLookupId(url.searchParams.get("source"), { limit: MAX_API_SOURCE_ID_CHARS });
-    const sourceId = requestedSource || options.demo || null;
-    const compact = url.searchParams.get("compact") === "1";
-    const cursor = sanitizeApiLookupId(url.searchParams.get("cursor"), { limit: 128 });
-    if (compact && (url.searchParams.get("initial") === "1" || cursor)) {
-      const limit = boundedPositiveInt(url.searchParams.get("limit"), INITIAL_VIEW_REQUEST_LIMIT, INITIAL_VIEW_REQUEST_LIMIT_MAX);
-      const data = cursor
-        ? timelineCursorService(options).next({ sourceId, cursor, limit })
-        : timelineCursorService(options).start({ sourceId, limit });
-      return writeJson(res, 200, data);
-    }
-    const data = loadViewerData(sourceId, options, {
-      requireSource: Boolean(requestedSource),
-      initialLimit: initialViewLimit(url.searchParams),
-    });
-    return writeJson(res, 200, compact ? projectTimelineViewerData(data) : data);
-  }
-  if (url.pathname === "/api/request") {
-    if (rejectWrongMethod(req, res, "GET")) return;
-    const requestedSource = sanitizeApiLookupId(url.searchParams.get("source"), { limit: MAX_API_SOURCE_ID_CHARS });
-    const sourceId = requestedSource || options.demo || null;
-    const requestId = sanitizeApiLookupId(url.searchParams.get("request") || "", { limit: MAX_API_REQUEST_ID_CHARS });
-    return writeJson(res, 200, loadViewerRequestDetail(sourceId, requestId, options, { requireSource: Boolean(requestedSource) }));
-  }
-  writeJson(res, 404, { error: "Not found" });
+function viewerRouterOperations(options) {
+  return {
+    listSources: () => listSources(options),
+    loadTranslations: (input) => translationService(options).loadPublicCache(input),
+    generateTranslations: (input) => generateTranslations(input, options),
+    startWatch: (input) => startWatch(input, options),
+    stopWatch: (input) => stopWatch(input, options),
+    pauseWatch: (input) => pauseWatch(input, options),
+    sendAgentMessage: (input) => sendAgentMessage(input, options),
+    updateSource: (input) => updateSource(input, options),
+    importTrace: (buffer) => traceBundleService(options).import(buffer),
+    exportTrace: (sourceId) => traceBundleService(options).export(sourceId),
+    ingestOtelCaptures: (input) => ingestOtelCaptures(input, options),
+    ingestOtelEvents: (input) => ingestOtelEvents(input, options),
+    listWatchStatus: () => listWatchStatus(options),
+    daemonPing: () => daemonPing(options),
+    daemonStatus: () => daemonStatus(options),
+    requestShutdown: () => options.requestShutdown?.(),
+    loadViewerData: ({ sourceId, requireSource, initialLimit }) => loadViewerData(sourceId, options, { requireSource, initialLimit }),
+    startTimeline: ({ sourceId, limit }) => timelineCursorService(options).start({ sourceId, limit }),
+    nextTimeline: ({ sourceId, cursor, limit }) => timelineCursorService(options).next({ sourceId, cursor, limit }),
+    loadRequestDetail: ({ sourceId, requestId, requireSource }) => loadViewerRequestDetail(sourceId, requestId, options, { requireSource }),
+  };
 }
 
-async function generateTranslations(req, options) {
-  return translationService(options).generate(await readJsonBody(req));
+async function generateTranslations(input, options) {
+  return translationService(options).generate(input);
 }
 
 function translationMaterialCollector(targetLanguage) {
@@ -445,15 +326,6 @@ function extractHarnessTranslationParts(messages) {
   return output.filter((part) => part.text);
 }
 
-function positiveInt(value, fallback) {
-  const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? number : fallback;
-}
-
-function boundedPositiveInt(value, fallback, max) {
-  return Math.min(positiveInt(value, fallback), max);
-}
-
 function baseSources({ cwd, demo, evidencePath, watches }, { includeStats = true } = {}) {
   const fileSources = listFileSources({ cwd, demo, evidencePath, includeStats, summarizeDirectory: sourceListStats });
   if (evidencePath) return fileSources;
@@ -532,11 +404,6 @@ function importedTraceSourceFromDir(dir, idPart = path.basename(dir)) {
   return sourceFromImportedTraceDir(dir, idPart, { summarizeDirectory: sourceListStats, cleanText: cleanTitleText });
 }
 
-function initialViewLimit(searchParams) {
-  if (searchParams.get("initial") !== "1" && !searchParams.has("limit")) return 0;
-  return boundedPositiveInt(searchParams.get("limit"), INITIAL_VIEW_REQUEST_LIMIT, INITIAL_VIEW_REQUEST_LIMIT_MAX);
-}
-
 function loadViewerData(sourceId, options, { requireSource = false, initialLimit = 0 } = {}) {
   const repository = viewerSourceRepository(options);
   const source = repository.resolve(sourceId, { requireSource });
@@ -571,8 +438,7 @@ function loadViewerRequestDetail(sourceId, requestId, options, { requireSource =
 // the official endpoint (no proxy -> no 403) and dumps request/response bodies
 // to a local dir. We read that dir and persist captures exactly like the proxy
 // path, so listSources/loadViewerData surface it as a normal persisted source.
-async function ingestOtelCaptures(req, options) {
-  const input = await readJsonBody(req);
+async function ingestOtelCaptures(input, options) {
   const { store, cwd, otelBodyEvents } = options;
   const dir = String(input.dir || "").trim();
   if (!dir) throw new Error("ingestOtelCaptures requires a dump dir");
@@ -631,16 +497,8 @@ async function ingestOtelCaptures(req, options) {
   return result;
 }
 
-async function ingestOtelEvents(req, url, { otelBodyEvents }) {
-  // OTLP exporters do not consistently preserve endpoint query strings. The
-  // dedicated header is the stable transport; the query remains for backward
-  // compatibility with older wrappers and direct smoke fixtures.
-  const watchId = sanitizeApiLookupId(
-    headerValue(req.headers || {}, OTEL_WATCH_ID_HEADER) || url.searchParams.get("watch_id"),
-    { limit: MAX_API_REQUEST_ID_CHARS },
-  );
+async function ingestOtelEvents({ watchId, payload }, { otelBodyEvents }) {
   if (!watchId) throw httpError(400, "OTel event ingest requires watch_id");
-  const payload = await readJsonBody(req);
   const incoming = extractOtelBodyEvents(payload, { maxEvents: MAX_OTEL_EVENTS_PER_WATCH });
   const merged = mergeOtelBodyEvents(otelBodyEvents?.get(watchId) || [], incoming, { maxEvents: MAX_OTEL_EVENTS_PER_WATCH });
   if (otelBodyEvents) {
@@ -655,8 +513,7 @@ async function ingestOtelEvents(req, url, { otelBodyEvents }) {
   return { accepted: incoming.length, indexed: merged.length };
 }
 
-async function startWatch(req, { cwd, watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {
-  const input = await readJsonBody(req);
+async function startWatch(input, { cwd, watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {
   const agent = input.agent || "Claude Code";
   const mode = input.mode || "next_request";
   const workspace = input.workspace || cwd;
@@ -918,8 +775,7 @@ function touchWatchFromSkippedCapture(watch) {
   watch.last_seen = new Date().toISOString();
 }
 
-async function updateSource(req, options) {
-  const input = await readJsonBody(req);
+async function updateSource(input, options) {
   const result = await sourceLifecycleService(options).update(input);
   const cursorService = options.timelineCursorService;
   if (cursorService) {
@@ -975,18 +831,6 @@ function sourceLifecycleService(options) {
   });
 }
 
-function exportTraceBundleResponse(res, sourceId, options) {
-  const exported = traceBundleService(options).export(sourceId);
-  res.writeHead(200, {
-    ...viewerSecurityHeaders(),
-    "content-type": "application/gzip",
-    "content-disposition": `attachment; filename="${exported.filename}"`,
-    "cache-control": "no-store",
-    "x-peekmyagent-trace-id": exported.bundle.manifest.trace_id,
-  });
-  res.end(exported.buffer);
-}
-
 function traceBundleService(options) {
   return new TraceBundleService({
     repository: viewerSourceRepository(options),
@@ -1002,8 +846,7 @@ function traceBundleService(options) {
   });
 }
 
-async function stopWatch(req, { watches, sourceMeta, sourceMetaPath, store }) {
-  const input = await readJsonBody(req);
+async function stopWatch(input, { watches, sourceMeta, sourceMetaPath, store }) {
   const watch = findWatch(watches, input);
   if (!watch) throw new Error("Watch not found");
   await closeWatchProxy(watch);
@@ -1019,8 +862,7 @@ async function stopWatch(req, { watches, sourceMeta, sourceMetaPath, store }) {
   return watchStopResponse(watch, { status: watch.status, cleared: false });
 }
 
-async function pauseWatch(req, { watches, store }) {
-  const input = await readJsonBody(req);
+async function pauseWatch(input, { watches, store }) {
   const watch = findWatch(watches, input);
   if (!watch) throw new Error("Watch not found");
   const status = normalizeWatchControlStatus(input);
@@ -1039,8 +881,7 @@ async function pauseWatch(req, { watches, store }) {
   return watchControlResponse(watch, { action: status === "paused" ? "pause" : "resume" });
 }
 
-async function sendAgentMessage(req, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {
-  const input = await readJsonBody(req);
+async function sendAgentMessage(input, { watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {
   const sourceId = sanitizeApiLookupId(input.source_id || input.id, { limit: MAX_API_SOURCE_ID_CHARS });
   const message = String(input.message || "").trim();
   if (!sourceId) throw new Error("Missing source_id");
@@ -1575,17 +1416,6 @@ function normalizePathBackedLabel(value, fieldName) {
     throw httpError(400, `${fieldName} contains unsafe path characters.`);
   }
   return text.slice(0, 80);
-}
-
-function sanitizeApiLookupId(value, { limit = MAX_API_SOURCE_ID_CHARS } = {}) {
-  const text = String(value || "")
-    .replace(/[\x00-\x1F\x7F]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!text) return "";
-  const maxChars = Math.max(16, Number(limit) || MAX_API_SOURCE_ID_CHARS);
-  if (text.length <= maxChars) return text;
-  return `${text.slice(0, maxChars - 3).trimEnd()}...`;
 }
 
 function formatBytes(bytes) {

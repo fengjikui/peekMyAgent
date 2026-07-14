@@ -46,7 +46,7 @@ pma CLI / adapter
 | Trace 导入导出与脱敏 | `src/server/trace-bundle-service.mjs`、`src/core/redaction.mjs` | 浏览器自行拼 bundle |
 | 大 Trace 首屏、file sidecar、cursor 续读、跨页语义和 Client normalized store | `json-array-file-index.mjs`、`source-capture-reader.mjs`、`timeline-cursor-service.mjs`、`timeline-page-assembler.mjs`、`timeline-view-projector.mjs`、`TimelineEntityStore`（`timeline-entity-store.js`）、[文件索引契约](json-array-file-index-contract.md)、[分页契约](timeline-pagination-contract.md) | 修改原始 Trace、在 route 暴露 reader offset、每页重复完整 Turn/Agent 图，绕过 Store 改 `state.data`，或重新下载整条 compact Trace |
 | Capture 到 Viewer request/Turn/Agent/stats DTO | `viewer-trace-projector.mjs`、`src/trace/*`、[投影器契约](viewer-trace-projector-contract.md) | 在 HTTP route、Source provider、详情或 cursor 路径分别拼 DTO |
-| Viewer HTTP 安全和 API | `src/server/http.mjs`、`src/viewer/server.mjs`、`src/viewer/api-client.js` | feature renderer 发 `fetch` |
+| Viewer HTTP 安全和 API | `viewer-api-contract.mjs`、`http.mjs`、`viewer-router.mjs`、[Router 契约](viewer-router-contract.md)、`src/viewer/api-client.js` | 在 `server.mjs` 重新写 URL/method/intent 分支，或让 feature renderer 发 `fetch` |
 | 中栏 Timeline、请求卡、多 Agent 看板、上行详情 | `trace-timeline-*`、`request-card-renderer.js`、`agent-graph-*`、`upstream-detail-*` | renderer 读取全局 `state` 或 DOM |
 | Raw、Messages、翻译展示 | `raw-*`、`message-*`、`translation-*` | `client.js` 新增长段领域 HTML |
 | System 提示词变化与大文本退化 | `system-diff-model.js`、`system-diff-renderer.js`、[System Diff 契约](system-diff-view-contract.md) | 在 `client.js` 重建无上限 LCS 矩阵，或把块摘要称作精确行 diff |

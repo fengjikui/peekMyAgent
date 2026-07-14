@@ -107,7 +107,7 @@ src/
 - 老数据库自动打开，新数据库记录明确 schema version。
 - 同一翻译块在脚本、Server 和 Client 中得到相同 key。
 
-当前进展（2026-07-12）：
+当前进展（2026-07-14）：
 
 - 已建立 provenance v1 最小运行时契约，先用于 OTel raw-body request/response，分离正文 fidelity 与关联 confidence。
 - 已接入 Claude Code OTel body events，通过 `traceId + spanId` 精确关联 response，并保留旧版本顺序回退。
@@ -138,6 +138,7 @@ src/
 
 - 已抽出 `src/server/http.mjs`，集中管理 method 表、loopback/Origin/Fetch Metadata 防护、Content-Type、intent、body parser、CSP 和 JSON/静态响应。
 - 已增加不启动 daemon 的 HTTP contract smoke，并继续以真实 Viewer security smoke 锁定校验顺序和响应行为。
+- 已抽出共享 Viewer API contract 和依赖注入的 `ViewerRouter`：19 条 API 的 pathname/method、lookup/分页上限、transport 校验、body 解析和响应序列化不再由 `server.mjs` 内联分发；直接 Router contract 与真实 security smoke 共同锁定路由覆盖和校验顺序。
 - 已建立 SourceRepository 最小契约，统一 live、SQLite、file/demo 与 imported Trace 的 provider 汇聚、DTO 校验和显式 source 解析；现有标题/统计 provider 尚未迁出单体。
 - 已迁移 imported Trace provider：manifest 快速统计、旧 bundle fallback、目录发现与 DTO 构造不再由 Viewer Server 所有；共享 Source 文本约束保持标题清洗兼容。
 - 已迁移 file/demo provider：custom evidence 与显式 demo 的定义、路径解析、可用性和统计开关不再由 Viewer Server 所有；默认仍不加载 demo。

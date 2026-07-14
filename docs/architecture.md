@@ -28,7 +28,7 @@ flowchart LR
 
 daemon、Viewer HTTP API 和静态资源服务由同一个 `startViewerServer()` 实例提供。共享 Capture Proxy 在配置了 capture port 时由该进程一并启动，但监听独立端口。
 
-Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。HTTP 路由读取并校验 JSON 后，将 rename、pin、archive、delete 和项目批量操作交给 `SourceLifecycleService`；该 service 只通过显式 runtime、SQLite、metadata 和 imports 端口执行副作用。模型下行 JSON/SSE、上行消息语义以及请求协议/provider/source 画像已由 Trace Domain 统一解释；`ViewerTraceProjector` 将这些领域契约统一投影为完整加载、单请求详情和 cursor 分页共用的 Viewer DTO。watch 创建/恢复和其他 Viewer runtime 仍在 `server.mjs`，尚未完成拆分。
+Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。`ViewerRouter` 按共享 API contract 处理 URL、method、intent、body 和响应，将解析后的输入交给 `server.mjs` 注入的显式 operations；rename、pin、archive、delete 和项目批量操作继续由 `SourceLifecycleService` 执行，该 service 只通过 runtime、SQLite、metadata 和 imports 端口产生副作用。模型下行 JSON/SSE、上行消息语义以及请求协议/provider/source 画像已由 Trace Domain 统一解释；`ViewerTraceProjector` 将这些领域契约统一投影为完整加载、单请求详情和 cursor 分页共用的 Viewer DTO。watch 创建/恢复和其他 Viewer runtime 仍在 `server.mjs`，尚未完成拆分。
 
 ## 源码地图
 
@@ -45,6 +45,8 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/core/platform.mjs`、`paths.mjs`、`processes.mjs` | 跨平台路径、命令、进程和本机运行环境 |
 | `src/core/redaction.mjs` | Trace 导出等路径使用的敏感内容脱敏 |
 | `src/server/http.mjs` | Viewer method/intent/body/loopback 安全边界与统一 HTTP 响应 |
+| `src/server/viewer-api-contract.mjs` | Viewer API pathname/method、lookup ID 和首屏分页上限的共享协议事实源 |
+| `src/server/viewer-router.mjs` | HTTP URL/query/body/intent/响应适配；通过显式 operations 调用业务能力 |
 | `src/server/source-repository.mjs` | live、SQLite、file/demo、import source 的汇聚、校验与解析门面 |
 | `src/server/*-source-provider.mjs`、`source-text.mjs` | live、file/demo、portable Trace、SQLite provider 与共享 Source 文本约束 |
 | `src/server/source-metadata.mjs` | Source 稳定别名、title/pin/hidden 元数据、原子 sidecar 持久化与统一展示装饰 |
@@ -67,7 +69,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/adapters/claude-code-otel.mjs` | Claude Code OTel 数据归一化 |
 | `src/adapters/openclaw-config.mjs`、`openclaw-normalize.mjs` | OpenClaw profile 配置和协议归一化 |
 | `src/adapters/trae-cn-integration.mjs` | Trae CN 配置发现、启停、漂移检查和稳定路由 |
-| `src/viewer/server.mjs` | Viewer HTTP/control plane、source/watch、Trace 解释、翻译路由和 Agent send 适配 |
+| `src/viewer/server.mjs` | Viewer daemon composition root、运行时生命周期，以及尚未迁出的 watch/OTel/Agent send 业务装配 |
 | `src/viewer/client.js` | 浏览器应用装配、共享状态、数据加载和尚未迁出的 feature renderer |
 | `src/viewer/api-client.js` | 浏览器 `/api/*` URL、method、intent header、body 与错误协议门面 |
 | `src/viewer/client-store.js` | source/Turn/request、Raw、语言、布局和 latest-only 的最小可订阅状态边界 |
