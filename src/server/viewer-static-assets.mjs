@@ -16,6 +16,7 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/messages-renderer.js", javascriptAsset("messages-renderer.js")],
   ["/pane-layout-controller.js", javascriptAsset("pane-layout-controller.js")],
   ["/pane-layout-model.js", javascriptAsset("pane-layout-model.js")],
+  ["/raw-inspector-controller.js", javascriptAsset("raw-inspector-controller.js")],
   ["/raw-inspector-renderer.js", javascriptAsset("raw-inspector-renderer.js")],
   ["/raw-search-controller.js", javascriptAsset("raw-search-controller.js")],
   ["/raw-search-model.js", javascriptAsset("raw-search-model.js")],

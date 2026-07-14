@@ -197,6 +197,12 @@ src/
 5. 将硬编码文案移入中英文资源表；增加缺失 key 检查。已完成现有 357 个 UI key 的资源迁移和契约门禁，后续 feature 继续复用该资源。
 6. 删除确认无调用的函数和 CSS，再按 component/feature 拆样式。
 
+当前进展（2026-07-14）：
+
+- 已抽出 `RawInspectorController`：request/section/mode 选择、右栏打开、compact detail 懒加载、loading/error/content 提交与搜索装饰由单一生命周期控制器串联。
+- Raw 异步渲染增加 operation id 与 Store context 双重失效检查，快速切换请求或区块时，旧详情和旧错误不能覆盖当前面板。
+- 翻译动作、Raw section View Model、Renderer 和搜索 Controller 保持独立；`client.js` 只装配这些端口，未把领域语义重新聚合进一个大控制器。
+
 验收：
 
 - 选择 request、切换 Raw tab、翻译一个块不再默认触发整页 `renderAll`。

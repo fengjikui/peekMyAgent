@@ -97,6 +97,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/viewer/raw-view-model.js` | Raw Inspector 上行、下行、Harness、Metadata 的纯 section 数据与方向约束 |
 | `src/viewer/raw-search-model.js` | Raw 搜索条目构建、过滤、摘要命中分段与导航索引的纯模型 |
 | `src/viewer/raw-search-controller.js` | Raw 搜索输入法生命周期、延迟重绘、当前命中、高亮和滚动控制器 |
+| `src/viewer/raw-inspector-controller.js` | Raw 请求选择、详情懒加载、竞态失效、面板状态与重绘生命周期控制器 |
 | `src/viewer/raw-inspector-renderer.js` | Raw 请求/响应导航、搜索控件与结果、详情状态和来源提示的纯 HTML renderer |
 | `src/viewer/system-diff-model.js` | System 文本的精确行级 diff 门限、块级退化策略与有界 View DTO |
 | `src/viewer/system-diff-renderer.js` | System diff 行/块摘要的双语、安全 HTML renderer |
@@ -215,6 +216,8 @@ cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 ses
 多 Agent 看板可按运行中、已完成未回流、已回流筛选；筛选后只生成当前状态的分支和事件。Trace 顶层搜索索引派生摘要而不是 Raw body，可按异常、慢请求、工具和子 Agent 定位请求。结果以 Turn 为归属、以命中请求为证据，每次最多追加 24 条，避免搜索本身重新制造超大 DOM。主栏使用容器条件适配真实栏宽，三栏拖拽或折叠不会再把标题挤成竖排。
 
 Raw Inspector 的分类标签、当前区块搜索和原文/翻译操作组成同一个粘性控制区。原文模式只搜索原始 JSON 路径和值；整理/翻译模式只搜索当前可见的结构化 system、harness 或工具文本，并筛选原有块和工具组。匹配计数以可见关键词的实际出现次数为准，上一个/下一个按钮逐词循环定位并强化当前高亮。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属。
+
+Raw Inspector 的一次导航由 `RawInspectorController` 串联：更新 Store 中的 request/section/mode、打开右栏、按需读取 compact detail、提交当前渲染并通知搜索装饰。控制器使用递增 operation id 和 Store context 双重校验；用户快速切换请求或区块时，旧详情或旧错误即使更晚返回也不能覆盖当前面板。翻译缓存、Raw section 语义、HTML 和搜索算法仍由注入端口及各自 Model/Renderer/Controller 所有。完整边界见 [Raw Inspector Controller 契约](raw-inspector-controller-contract.md)。
 
 搜索的递归条目、大小写无关过滤、特殊字符转义、摘要窗口、高亮分段和循环索引由 `raw-search-model.js` 统一；DOM 层只负责把纯模型结果渲染为 `mark` 并滚动到当前可见命中。这样搜索语义可以脱离浏览器直接做契约测试。
 

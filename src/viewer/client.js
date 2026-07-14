@@ -28,6 +28,7 @@ import {
   rawSearchSnippetSegments,
 } from "./raw-search-model.js";
 import { RawSearchController } from "./raw-search-controller.js";
+import { RawInspectorController } from "./raw-inspector-controller.js";
 import { buildSystemDiffModel } from "./system-diff-model.js";
 import { renderSystemDiffView } from "./system-diff-renderer.js";
 import { SessionNavigatorController } from "./session-navigator-controller.js";
@@ -346,7 +347,7 @@ const traceTimelineController = new TraceTimelineController({
     jumpToTurn(turnId, true);
   },
   onRaw({ requestId, section, mode }) {
-    showRaw(requestId, section, { mode });
+    rawInspectorController.show(requestId, section, { mode });
   },
   onAgentJump: jumpToRequest,
   onAgentBranchJump: jumpToAgentBranch,
@@ -391,7 +392,7 @@ const rawSearchController = new RawSearchController({
     mode: state.activeRawMode || "request",
   }),
   render: ({ requestId, section, mode }) => {
-    showRaw(requestId, section, { mode });
+    rawInspectorController.show(requestId, section, { mode });
   },
 });
 const sessionNavigatorController = new SessionNavigatorController({
@@ -434,6 +435,28 @@ const paneLayoutController = new PaneLayoutController({
   translate: t,
   onLayoutChanged: () => turnRailController.scheduleActiveSync(),
   onWindowResize: renderTurnRail,
+});
+const rawInspectorController = new RawInspectorController({
+  root: els.rawTree,
+  titleElement: els.rawTitle,
+  getRequest: currentRequestById,
+  getContext: () => ({
+    requestId: state.activeRequestId,
+    section: state.activeRawSection,
+    mode: state.activeRawMode || "request",
+  }),
+  setContext: (context) => clientStore.setRawContext(context, { reason: "show-raw" }),
+  onContextChanged: () => rawSearchController.contextChanged(),
+  clearActions: () => clearTranslationActions("raw"),
+  openPanel: () => paneLayoutController.setRawOpen(true),
+  needsDetail: requestNeedsDetail,
+  loadDetails: (request, section) => ensureDetailsForRawSection(request, section),
+  titleFor: (request, section, mode) =>
+    `Request ${request.request_index} · ${mode === "response" ? responseRawSectionLabel(section) : rawSectionLabel(section)}`,
+  renderLoading: () => renderRequestDetailLoading(),
+  renderContent: (request, section, mode) => renderRawSections(request, section, mode),
+  renderError: (error) => renderRequestDetailError(error),
+  decorate: () => rawSearchController.decorate(),
 });
 clientStore.subscribe((change) => {
   if (change.changedKeys.includes("activeId")) syncActiveTurnDom(change.state.activeId);
@@ -560,7 +583,7 @@ async function setUiLanguage(value) {
   applyStaticI18n();
   paneLayoutController.refreshLabels();
   if (state.data) renderAll();
-  if (state.activeRequestId) showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
+  if (state.activeRequestId) rawInspectorController.refresh();
 }
 
 async function setTargetTranslationLanguage(value) {
@@ -579,7 +602,7 @@ async function setTargetTranslationLanguage(value) {
   await loadTranslationsForActiveSource();
   renderLanguageSelectors();
   if (state.data) renderAll();
-  if (state.activeRequestId) showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
+  if (state.activeRequestId) rawInspectorController.refresh();
 }
 
 async function setTargetTranslationLanguageFromSelect() {
@@ -668,7 +691,7 @@ async function init() {
     }
     const button = event.target.closest("[data-raw]");
     if (!button || !els.rawTree.contains(button)) return;
-    showRaw(button.dataset.raw, button.dataset.rawSection || "full", { mode: button.dataset.rawMode || "request" });
+    rawInspectorController.show(button.dataset.raw, button.dataset.rawSection || "full", { mode: button.dataset.rawMode || "request" });
   });
   document.addEventListener("click", (event) => {
     const retranslateButton = event.target.closest("[data-translation-retranslate]");
@@ -690,6 +713,7 @@ async function loadSource(sourceId, { preserveScroll = false } = {}) {
   const loadSeq = (state.sourceLoadSeq += 1);
   const progressive = shouldUseProgressiveSourceLoad(sourceId, { preserveScroll });
   if (state.activeSourceId && state.activeSourceId !== sourceId) {
+    rawInspectorController.invalidate();
     requestDetailCache.clear();
     state.openSupportingTimelines.clear();
     state.openAgentDashboards.clear();
@@ -911,7 +935,7 @@ async function loadTranslationsForSourceLoad(loadSeq) {
     await loadTranslationsForActiveSource();
     if (loadSeq !== state.sourceLoadSeq) return;
     if (state.activeRequestId && !els.rawTree.classList.contains("empty")) {
-      showRaw(state.activeRequestId, state.activeRawSection, { mode: state.activeRawMode || "request" });
+      rawInspectorController.refresh();
     }
   } catch (error) {
     console.warn("peekMyAgent translation load failed", error);
@@ -1021,7 +1045,7 @@ async function generateTranslationsForActiveSource(section, { automatic = false,
     error: "",
     message: automatic ? t("autoTranslating", { language: languageLabel }) : t("translatingSection"),
   };
-  if (state.activeRequestId) showRaw(state.activeRequestId, activeSection, { mode: state.activeRawMode || "request" });
+  if (state.activeRequestId) rawInspectorController.show(state.activeRequestId, activeSection, { mode: state.activeRawMode || "request" });
   try {
     const result = await api.generateTranslations({
       agent: selectedAgent,
@@ -1053,7 +1077,7 @@ async function generateTranslationsForActiveSource(section, { automatic = false,
       message: "",
     };
   }
-  if (state.activeRequestId) showRaw(state.activeRequestId, activeSection, { mode: state.activeRawMode || "request" });
+  if (state.activeRequestId) rawInspectorController.show(state.activeRequestId, activeSection, { mode: state.activeRawMode || "request" });
 }
 
 function flashButtonLabel(button, text) {
@@ -1157,7 +1181,7 @@ async function retranslateTranslationBlock(actionId) {
       ];
   const targetLanguage = currentTargetLanguage();
   state.translationGenerate = { loading: true, error: "", message: materials.length > 1 ? t("translatingParameterGroup") : t("retranslatingBlock") };
-  if (item.surface === "raw" && state.activeRequestId) showRaw(state.activeRequestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
+  if (item.surface === "raw" && state.activeRequestId) rawInspectorController.show(state.activeRequestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
   try {
     const result = await api.generateTranslations({
       agent: selectedAgent,
@@ -1190,7 +1214,7 @@ async function retranslateTranslationBlock(actionId) {
   if (item.surface === "timeline") {
     renderTimelineSurface();
   } else if (item.surface === "raw" && state.activeRequestId) {
-    showRaw(state.activeRequestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
+    rawInspectorController.show(state.activeRequestId, item.section || state.activeRawSection || "system", { mode: state.activeRawMode || "request" });
   }
 }
 
@@ -1256,13 +1280,13 @@ function setTranslationMode(mode, section) {
   );
   rawSearchController.modeChanged();
   localStorage.setItem(TRANSLATION_MODE_KEY, state.translationMode);
-  if (state.activeRequestId) showRaw(state.activeRequestId, section || state.activeRawSection || "full", { mode: state.activeRawMode || "request" });
+  if (state.activeRequestId) rawInspectorController.show(state.activeRequestId, section || state.activeRawSection || "full", { mode: state.activeRawMode || "request" });
 }
 
 function setMessagesMode(mode) {
   clientStore.setRawView({ rawMessagesMode: normalizeMessagesMode(mode) }, { reason: "set-messages-mode" });
   localStorage.setItem(RAW_MESSAGES_MODE_KEY, state.rawMessagesMode);
-  if (state.activeRequestId) showRaw(state.activeRequestId, "messages", { mode: state.activeRawMode || "request" });
+  if (state.activeRequestId) rawInspectorController.show(state.activeRequestId, "messages", { mode: state.activeRawMode || "request" });
 }
 
 function shouldRenderRefreshedData(previousData, nextData) {
@@ -2421,36 +2445,8 @@ function syncActiveRequestDom(id) {
   traceTimelineController.syncActiveRequest(id);
 }
 
-async function showRaw(id, section = "full", { mode = "request" } = {}) {
-  const request = state.data.requests.find((item) => item.id === id);
-  if (!request) return;
-  const contextChanged = state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode;
-  if (contextChanged) rawSearchController.contextChanged();
-  clearTranslationActions("raw");
-  clientStore.setRawContext(
-    { requestId: id, section, mode },
-    { reason: "show-raw" },
-  );
-  markActiveRequest(id, false);
-  paneLayoutController.setRawOpen(true);
-  els.rawTitle.textContent = `Request ${request.request_index} · ${mode === "response" ? responseRawSectionLabel(section) : rawSectionLabel(section)}`;
-  els.rawTree.className = "raw-tree";
-  if (requestNeedsDetail(request)) {
-    els.rawTree.innerHTML = renderRequestDetailLoading();
-  }
-  try {
-    const hydrated = await ensureDetailsForRawSection(request, section);
-    if (state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode) return;
-    els.rawTree.innerHTML = renderRawSections(hydrated, section, mode);
-    rawSearchController.decorate();
-  } catch (error) {
-    if (state.activeRequestId !== id || state.activeRawSection !== section || state.activeRawMode !== mode) return;
-    els.rawTree.innerHTML = renderRequestDetailError(error);
-  }
-}
-
 function showSystemDiff(id) {
-  showRaw(id, "system_diff");
+  rawInspectorController.show(id, "system_diff");
 }
 
 function renderRawSections(request, activeSection = "full", mode = "request") {
