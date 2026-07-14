@@ -236,6 +236,7 @@ src/
 - Context Delta 与 body-only 子 Agent lineage 已支持显式跨页状态，不再错误地按全局上一行比较或丢失早页 spawn。
 - 已建立 `TimelinePageAssembler`：首屏返回 compact 基线，后续只返回 request patch、Turn entity update 和 Agent graph entity delta。
 - Client 已由持久的 `TimelineEntityStore` 按稳定 id 管理 request/Turn/Agent map，页面合并不再从完整数组重建临时 map；完整 detail 覆盖也统一经过该边界。大 Source 首屏后不再请求完整 compact Trace，live 自动刷新优先从 refresh cursor 续读。
+- Source 加载、progressive cursor、live refresh、过期回建和 normalized Store 已由 `SourceTimelineController` 统一管理 generation 与提交；旧 Source/page 不再能迟到覆盖，后台续读与自动刷新不再并发写同一个 Store，Viewer 应用层只保留 DOM、选择、滚动、URL 和翻译副作用。边界见 [Source Timeline Controller 契约](source-timeline-controller-contract.md)。
 - 420-request 性能 fixture 已验证分页覆盖所有请求、Client normalized merge、累计网络载荷保持线性；真实 HTTP smoke 覆盖跨页父/子 Agent/回流和 live 增量。
 - System diff 已迁移为纯 Model/Renderer：小输入运行有矩阵/字符上限的精确行级 LCS，大输入退化为共同前后缀加至多 256 个动态内容块的指纹摘要，不再在主线程创建无界二维数组。
 - 尚未完成 page eviction/细粒度订阅、可取消文件/搜索读取、持久化 deep-link identity、增量 blob refcount 和浏览器内存/长任务 gate，因此阶段 4 仍保持进行中。

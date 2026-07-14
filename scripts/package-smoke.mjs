@@ -55,6 +55,7 @@ for (const required of [
   "src/viewer/raw-view-model.js",
   "src/viewer/request-card-renderer.js",
   "src/viewer/request-detail-cache.js",
+  "src/viewer/source-timeline-controller.js",
   "src/viewer/timeline-entity-store.js",
   "src/viewer/session-navigator-controller.js",
   "src/viewer/session-navigator-model.js",

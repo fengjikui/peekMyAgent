@@ -11,12 +11,16 @@ const upstreamDetailModelSource = fs.readFileSync(new URL("../src/viewer/upstrea
 const upstreamDetailRendererSource = fs.readFileSync(new URL("../src/viewer/upstream-detail-renderer.js", import.meta.url), "utf8");
 const agentComposerControllerSource = fs.readFileSync(new URL("../src/viewer/agent-composer-controller.js", import.meta.url), "utf8");
 const sessionNavigatorControllerSource = fs.readFileSync(new URL("../src/viewer/session-navigator-controller.js", import.meta.url), "utf8");
+const sourceTimelineControllerSource = fs.readFileSync(new URL("../src/viewer/source-timeline-controller.js", import.meta.url), "utf8");
 
 assert.match(source, /import \{[\s\S]*?buildTraceTimelineView,[\s\S]*?from "\.\/trace-timeline-model\.js";/);
 assert.match(source, /import \{ TraceTimelineController \} from "\.\/trace-timeline-controller\.js";/);
-assert.match(source, /import \{ TimelineEntityStore \} from "\.\/timeline-entity-store\.js";/);
-assert.match(source, /let timelineEntityStore = new TimelineEntityStore\(\);/);
-assert.match(source, /function createTimelineEntityStore\(/);
+assert.match(source, /import \{ SourceTimelineController \} from "\.\/source-timeline-controller\.js";/);
+assert.match(source, /const sourceTimelineController = new SourceTimelineController\(/);
+assert.doesNotMatch(source, /TimelineEntityStore|sourceLoadSeq|function continueTimelineCursor\(/);
+assert.match(sourceTimelineControllerSource, /import \{ TimelineEntityStore \} from "\.\/timeline-entity-store\.js";/);
+assert.match(sourceTimelineControllerSource, /this\.store = new TimelineEntityStore\(\)/);
+assert.doesNotMatch(sourceTimelineControllerSource, /\bdocument\b|\bwindow\b|\blocalStorage\b|\bstate\./);
 assert.doesNotMatch(source, /\bmergeTimelinePage\(/, "application code should use the persistent normalized entity store");
 assert.match(source, /renderTurnTimeline as renderTurnTimelineView,[\s\S]*?from "\.\/trace-timeline-renderer\.js";/);
 assert.match(

@@ -26,6 +26,7 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/session-navigator-controller.js", javascriptAsset("session-navigator-controller.js")],
   ["/session-navigator-model.js", javascriptAsset("session-navigator-model.js")],
   ["/session-navigator-renderer.js", javascriptAsset("session-navigator-renderer.js")],
+  ["/source-timeline-controller.js", javascriptAsset("source-timeline-controller.js")],
   ["/system-diff-model.js", javascriptAsset("system-diff-model.js")],
   ["/system-diff-renderer.js", javascriptAsset("system-diff-renderer.js")],
   ["/translation-renderer.js", javascriptAsset("translation-renderer.js")],

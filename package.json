@@ -113,6 +113,7 @@
     "smoke:viewer-client-store-contract": "node scripts/viewer-client-store-contract-smoke.mjs",
     "smoke:pane-layout-controller-contract": "node scripts/pane-layout-controller-contract-smoke.mjs",
     "smoke:request-detail-cache-contract": "node scripts/request-detail-cache-contract-smoke.mjs",
+    "smoke:source-timeline-controller-contract": "node scripts/source-timeline-controller-contract-smoke.mjs",
     "smoke:raw-view-model-contract": "node scripts/raw-view-model-contract-smoke.mjs",
     "smoke:raw-search-model-contract": "node scripts/raw-search-model-contract-smoke.mjs",
     "smoke:raw-search-controller-contract": "node scripts/raw-search-controller-contract-smoke.mjs",

@@ -5,11 +5,11 @@ import {
   renderMessagesSection as renderMessagesSectionView,
 } from "./messages-renderer.js";
 import { ViewerApiClient } from "./api-client.js";
-import { TimelineEntityStore } from "./timeline-entity-store.js";
 import { ViewerClientStore } from "./client-store.js";
 import { AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView } from "./agent-graph-model.js";
 import { renderAgentGraph as renderAgentGraphView } from "./agent-graph-renderer.js";
 import { RequestDetailCache, requestNeedsDetail } from "./request-detail-cache.js";
+import { SourceTimelineController } from "./source-timeline-controller.js";
 import {
   renderTimelineAssistantResponse as renderTimelineAssistantResponseView,
   renderTimelineRequestCard as renderTimelineRequestCardView,
@@ -81,12 +81,9 @@ import {
 
 const api = new ViewerApiClient();
 const clientStore = new ViewerClientStore();
-let timelineEntityStore = new TimelineEntityStore();
 const state = Object.assign(clientStore.state, {
   sources: [],
   data: null,
-  sourceLoadSeq: 0,
-  progressiveLoadError: "",
   autoRefreshTimer: 0,
   autoRefreshInFlight: false,
   sessionInfoControlsBound: false,
@@ -374,14 +371,29 @@ const traceTimelineController = new TraceTimelineController({
   },
   onSystemDiff: showSystemDiff,
 });
-const requestDetailCache = new RequestDetailCache({
+let requestDetailCache;
+const sourceTimelineController = new SourceTimelineController({
+  loadView: (sourceId, options) => api.viewSource(sourceId, options),
+  detailFor: (requestId) => requestDetailCache?.detailFor(requestId) || null,
+  yieldControl: () => new Promise((resolve) => window.setTimeout(resolve, 24)),
+  initialLimit: INITIAL_SOURCE_REQUEST_LIMIT,
+  cursorLimit: CURSOR_PAGE_REQUEST_LIMIT,
+  progressiveThreshold: PROGRESSIVE_SOURCE_MIN_REQUESTS,
+  onWarning: (message, error) => console.warn(`peekMyAgent ${message}`, error),
+});
+requestDetailCache = new RequestDetailCache({
   loadDetail: async (sourceId, requestId) => (await api.requestDetail(sourceId, requestId)).request,
   onLoaded: async (fullRequest) => {
-    const merged = mergeRequestDetail(fullRequest);
+    const { request, data } = sourceTimelineController.mergeRequestDetail(fullRequest);
+    if (data) state.data = data;
     await rebuildTranslationLookupForCurrentData();
-    return merged;
+    return request;
   },
-  onCached: mergeRequestDetail,
+  onCached: (fullRequest) => {
+    const { request, data } = sourceTimelineController.mergeRequestDetail(fullRequest);
+    if (data) state.data = data;
+    return request;
+  },
 });
 const rawSearchController = new RawSearchController({
   root: els.rawTree,
@@ -710,8 +722,8 @@ async function init() {
 
 async function loadSource(sourceId, { preserveScroll = false } = {}) {
   const scrollTop = els.mainPanel.scrollTop;
-  const loadSeq = (state.sourceLoadSeq += 1);
-  const progressive = shouldUseProgressiveSourceLoad(sourceId, { preserveScroll });
+  const source = state.sources.find((item) => item.id === sourceId);
+  const progressive = sourceTimelineController.shouldLoadProgressively(source, { preserveScroll });
   if (state.activeSourceId && state.activeSourceId !== sourceId) {
     rawInspectorController.invalidate();
     requestDetailCache.clear();
@@ -724,20 +736,14 @@ async function loadSource(sourceId, { preserveScroll = false } = {}) {
     state.traceFilter = "all";
     state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
   }
-  state.progressiveLoadError = "";
-  const initialPage = await fetchViewerData(
-    sourceId,
-    progressive ? { initial: true, limit: INITIAL_SOURCE_REQUEST_LIMIT } : {},
-  );
-  if (loadSeq !== state.sourceLoadSeq) return;
-  const sourceStore = createTimelineEntityStore(initialPage);
-  const initialData = sourceStore.snapshot();
-  applyLoadedSourceData(initialData, { preserveScroll, scrollTop, store: sourceStore });
-  if (progressive && initialData.partial?.has_more) {
-    loadSourcePagesInBackground(sourceId, initialData, { loadSeq, store: sourceStore });
+  const load = await sourceTimelineController.loadSource(sourceId, { progressive });
+  if (!load) return;
+  applyLoadedSourceData(load.data, { preserveScroll, scrollTop });
+  if (load.hasMore) {
+    void loadSourcePagesInBackground(load);
     return;
   }
-  loadTranslationsForSourceLoad(loadSeq);
+  void loadTranslationsForSourceLoad(load.token, load.sourceId);
 }
 
 async function refreshSources() {
@@ -786,36 +792,16 @@ async function refreshLiveData({ force = false } = {}) {
 
 async function refreshActiveSource(activeSource) {
   const previousData = state.data;
-  const loadSeq = state.sourceLoadSeq;
-  let nextData;
-  let nextStore = timelineEntityStore;
-  if (previousData?.source?.id === activeSource.id && previousData.partial?.refresh_cursor) {
-    try {
-      nextData = await continueTimelineCursor(activeSource.id, previousData, {
-        cursor: previousData.partial.refresh_cursor,
-        loadSeq,
-        store: timelineEntityStore,
-      });
-    } catch (error) {
-      console.warn("peekMyAgent timeline refresh cursor expired; rebuilding the compact timeline", error);
-      const rebuilt = await fetchCompleteTimeline(activeSource.id, { loadSeq });
-      nextData = rebuilt?.data || null;
-      nextStore = rebuilt?.store || nextStore;
-    }
-  } else if (Number(activeSource.request_count || 0) >= PROGRESSIVE_SOURCE_MIN_REQUESTS) {
-    const rebuilt = await fetchCompleteTimeline(activeSource.id, { loadSeq });
-    nextData = rebuilt?.data || null;
-    nextStore = rebuilt?.store || nextStore;
-  } else {
-    nextStore = createTimelineEntityStore(await fetchViewerData(activeSource.id));
-    nextData = nextStore.snapshot();
+  const refresh = await sourceTimelineController.refreshSource(activeSource, previousData);
+  if (!refresh || state.activeSourceId !== refresh.sourceId) return;
+  const nextData = refresh.data;
+  if (!shouldRenderRefreshedData(previousData, nextData)) {
+    state.data = nextData;
+    return;
   }
-  if (!nextData || loadSeq !== state.sourceLoadSeq || state.activeSourceId !== activeSource.id) return;
-  if (!shouldRenderRefreshedData(previousData, nextData)) return;
 
   const wasNearBottom = isMainPanelNearBottom();
   const previousScrollTop = els.mainPanel.scrollTop;
-  timelineEntityStore = nextStore;
   state.data = nextData;
   await loadTranslationsForActiveSource();
   const turnIds = activeTurnIds(nextData);
@@ -836,8 +822,7 @@ async function refreshActiveSource(activeSource) {
   turnRailController.scheduleActiveSync();
 }
 
-function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0, store = null } = {}) {
-  if (store) timelineEntityStore = store;
+function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } = {}) {
   state.data = data;
   const turnIds = activeTurnIds(data);
   const activeId = preserveScroll && turnIds.includes(state.activeId) ? state.activeId : turnIds[0] || null;
@@ -858,82 +843,28 @@ function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0, st
   turnRailController.scheduleActiveSync();
 }
 
-async function loadSourcePagesInBackground(sourceId, initialData, { loadSeq, store } = {}) {
+async function loadSourcePagesInBackground(load) {
   try {
-    const mergedData = await continueTimelineCursor(sourceId, initialData, {
-      cursor: initialData.partial?.next_cursor,
-      loadSeq,
-      store,
+    const mergedData = await sourceTimelineController.continueSourceLoad(load, {
       onPage(data) {
         const scrollTop = els.mainPanel.scrollTop;
-        applyLoadedSourceData(data, { preserveScroll: true, scrollTop, store });
+        applyLoadedSourceData(data, { preserveScroll: true, scrollTop });
       },
     });
     if (!mergedData) return;
-    loadTranslationsForSourceLoad(loadSeq);
+    await loadTranslationsForSourceLoad(load.token, load.sourceId);
   } catch (error) {
-    if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== sourceId) return;
-    state.progressiveLoadError = error.message;
+    if (!sourceTimelineController.isCurrent(load.token, load.sourceId)) return;
     renderAll();
     console.warn("peekMyAgent timeline cursor load failed", error);
   }
 }
 
-async function fetchCompleteTimeline(sourceId, { loadSeq } = {}) {
-  const initialPage = await fetchViewerData(sourceId, { initial: true, limit: INITIAL_SOURCE_REQUEST_LIMIT });
-  if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== sourceId) return null;
-  const store = createTimelineEntityStore(initialPage);
-  const initialData = store.snapshot();
-  const data = await continueTimelineCursor(sourceId, initialData, {
-    cursor: initialData.partial?.next_cursor,
-    loadSeq,
-    store,
-  });
-  return data ? { data, store } : null;
-}
-
-async function continueTimelineCursor(sourceId, initialData, { cursor, loadSeq, store, onPage = null } = {}) {
-  let mergedData = initialData;
-  let nextCursor = cursor || null;
-  const entityStore = store || timelineEntityStore;
-  while (nextCursor) {
-    await backgroundPageYield();
-    const page = await fetchViewerData(sourceId, { cursor: nextCursor, limit: CURSOR_PAGE_REQUEST_LIMIT });
-    if (loadSeq !== state.sourceLoadSeq || state.activeSourceId !== sourceId) return null;
-    mergedData = applyTimelinePage(entityStore, page);
-    onPage?.(mergedData);
-    nextCursor = mergedData.partial?.has_more ? mergedData.partial.next_cursor : null;
-  }
-  return mergedData;
-}
-
-function createTimelineEntityStore(data) {
-  const store = new TimelineEntityStore(data);
-  overlayCachedRequestDetails(store, data?.requests);
-  return store;
-}
-
-function applyTimelinePage(store, page) {
-  store.applyPage(page);
-  overlayCachedRequestDetails(store, page?.requests);
-  return store.snapshot();
-}
-
-function overlayCachedRequestDetails(store, requests) {
-  for (const request of requests || []) {
-    const detail = requestDetailCache.detailFor(request.id);
-    if (detail) store.mergeRequestDetail(detail);
-  }
-}
-
-function backgroundPageYield() {
-  return new Promise((resolve) => window.setTimeout(resolve, 24));
-}
-
-async function loadTranslationsForSourceLoad(loadSeq) {
+async function loadTranslationsForSourceLoad(token, sourceId) {
   try {
+    if (!sourceTimelineController.isCurrent(token, sourceId)) return;
     await loadTranslationsForActiveSource();
-    if (loadSeq !== state.sourceLoadSeq) return;
+    if (!sourceTimelineController.isCurrent(token, sourceId)) return;
     if (state.activeRequestId && !els.rawTree.classList.contains("empty")) {
       rawInspectorController.refresh();
     }
@@ -942,19 +873,8 @@ async function loadTranslationsForSourceLoad(loadSeq) {
   }
 }
 
-function shouldUseProgressiveSourceLoad(sourceId, { preserveScroll = false } = {}) {
-  if (preserveScroll) return false;
-  const source = state.sources.find((item) => item.id === sourceId);
-  return Number(source?.request_count || 0) >= PROGRESSIVE_SOURCE_MIN_REQUESTS;
-}
-
-function fetchViewerData(sourceId, { initial = false, cursor = null, limit = INITIAL_SOURCE_REQUEST_LIMIT } = {}) {
-  return api.viewSource(sourceId, { initial, cursor, limit });
-}
-
 function currentRequestById(requestId) {
-  if (timelineEntityStore.sourceId === state.data?.source?.id) return timelineEntityStore.request(requestId);
-  return (state.data?.requests || []).find((item) => item.id === requestId) || null;
+  return sourceTimelineController.currentRequest(requestId);
 }
 
 async function ensureRequestDetailLoaded(requestId) {
@@ -971,13 +891,6 @@ async function ensureDetailsForRawSection(request, section) {
     if (previous) await ensureRequestDetailLoaded(previous.id);
   }
   return currentRequestById(request.id) || request;
-}
-
-function mergeRequestDetail(fullRequest) {
-  if (!fullRequest?.id || !timelineEntityStore.hasRequest(fullRequest.id)) return fullRequest;
-  const merged = timelineEntityStore.mergeRequestDetail(fullRequest);
-  state.data = timelineEntityStore.snapshot();
-  return merged;
 }
 
 async function rebuildTranslationLookupForCurrentData() {
@@ -1556,14 +1469,15 @@ function renderComposerSurface() {
 }
 
 function renderProgressiveLoadNotice(partial) {
-  if (!partial?.has_more && !state.progressiveLoadError) return "";
+  const error = sourceTimelineController.progressiveLoadError;
+  if (!partial?.has_more && !error) return "";
   const loaded = partial?.loaded_request_count || state.data?.requests?.length || 0;
   const total = partial?.total_request_count || state.data?.stats?.request_count || loaded;
-  const message = state.progressiveLoadError
-    ? t("traceFullLoadFailed", { message: state.progressiveLoadError })
+  const message = error
+    ? t("traceFullLoadFailed", { message: error })
     : t("traceInitialLoading", { loaded, total });
   return `
-    <div class="progressive-load-notice ${state.progressiveLoadError ? "error" : ""}">
+    <div class="progressive-load-notice ${error ? "error" : ""}">
       <span class="progressive-load-dot" aria-hidden="true"></span>
       <span>${escapeHtml(message)}</span>
     </div>

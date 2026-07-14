@@ -106,6 +106,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/viewer/translation-view-model.js` | 翻译材料分组、结构化搜索排序、缓存命中统计与展示 DTO |
 | `src/viewer/translation-renderer.js` | 翻译工具栏、System/Harness 块、工具组和参数汇总的依赖注入 HTML renderer |
 | `src/viewer/request-detail-cache.js` | compact request 的完整详情按需加载、并发去重、错误和 source 生命周期缓存 |
+| `src/viewer/source-timeline-controller.js` | Source generation、渐进首屏/cursor/live refresh、normalized Store 提交与旧异步结果失效控制器 |
 | `src/viewer/timeline-entity-store.js` | `TimelineEntityStore`：cursor 页面中的 request/Turn/Agent normalized map、缓存快照、详情覆盖与原子 annotation patch |
 | `src/viewer/turn-rail.js` | Turn Rail 可见窗口、悬停层级、跳转和滚动激活控制器 |
 | `src/server/viewer-static-assets.mjs` | Viewer 浏览器资源白名单、文件解析与 content type manifest |
@@ -210,6 +211,8 @@ sequenceDiagram
 cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 session 数量上限；它不是持久化 id，也不向浏览器暴露 SQLite 或文件 offset。file/import Source 的原始 Trace 保持只读，私有 sidecar 只保存对象 byte range 并由源文件指纹自动失效。完整协议和失效回退见 [Timeline Cursor 分页契约](timeline-pagination-contract.md)与 [JSON Array File Index 契约](json-array-file-index-contract.md)。旧 `/api/view?compact=1` 完整响应继续保留兼容。
 
 `compact=1` 的 DTO 由 `timeline-view-projector.mjs` 从完整 Viewer Trace DTO 纯投影得到。它集中管理预览长度、历史/Raw/完整 Response 的省略规则和 `*_omitted` 元数据，不拥有 Trace 语义、Source 读取或 HTTP 生命周期；完整详情仍以 `/api/request` 为事实源。详细边界见 [Timeline 轻量投影契约](timeline-view-projection-contract.md)。
+
+浏览器中的 Source 数据生命周期由 `SourceTimelineController` 所有。它为每次 Source 加载分配 generation token，在持久的 `TimelineEntityStore` 上合并首屏、cursor page 和详情覆盖，并在临时 Store 中完成 live refresh 或过期 cursor 回建后原子提交。旧 Source/旧 cursor 的迟到结果会被拒绝；progressive cursor 工作期间自动刷新会跳过该周期，避免两个异步写入者竞争同一 Store。DOM、URL、滚动、翻译和活动选择仍由 `client.js` 装配。完整边界见 [Source Timeline Controller 契约](source-timeline-controller-contract.md)。
 
 折叠状态是实际渲染边界，而不只是 CSS 隐藏：幕后请求时间线在展开前不创建 request card；多 Agent 看板在展开前只创建摘要；打开看板后首批只创建 24 个分支和最多 80 个事件；单个子 Agent 的步骤只在该分支展开后创建。这个边界避免大量不可见节点阻塞长 Trace 的主线程。
 
