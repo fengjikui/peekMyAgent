@@ -127,6 +127,7 @@ const persistenceCommands = [
 ];
 const otelCommands = [
   ["npm", "run", "smoke:otel-capture"],
+  ["npm", "run", "smoke:otel-ingest-service-contract"],
   ["npm", "run", "smoke:otel-ingest"],
   ["npm", "run", "smoke:otel-e2e"],
 ];

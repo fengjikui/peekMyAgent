@@ -48,6 +48,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/server/viewer-api-contract.mjs` | Viewer API pathname/method、lookup ID 和首屏分页上限的共享协议事实源 |
 | `src/server/viewer-router.mjs` | HTTP URL/query/body/intent/响应适配；通过显式 operations 调用业务能力 |
 | `src/server/viewer-translation-adapter.mjs` | Viewer Source/Request 到翻译材料的适配、Harness 注入提取与 TranslationService 装配 |
+| `src/server/otel-ingest-service.mjs` | OTel body-event 有界缓冲、incremental/final 配对策略、watch DTO 与 Store 幂等写入 |
 | `src/server/source-repository.mjs` | live、SQLite、file/demo、import source 的汇聚、校验与解析门面 |
 | `src/server/*-source-provider.mjs`、`source-text.mjs` | live、file/demo、portable Trace、SQLite provider 与共享 Source 文本约束 |
 | `src/server/source-metadata.mjs` | Source 稳定别名、title/pin/hidden 元数据、原子 sidecar 持久化与统一展示装饰 |
@@ -70,7 +71,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/adapters/claude-code-otel.mjs` | Claude Code OTel 数据归一化 |
 | `src/adapters/openclaw-config.mjs`、`openclaw-normalize.mjs` | OpenClaw profile 配置和协议归一化 |
 | `src/adapters/trae-cn-integration.mjs` | Trae CN 配置发现、启停、漂移检查和稳定路由 |
-| `src/viewer/server.mjs` | Viewer daemon composition root、运行时生命周期，以及尚未迁出的 watch/OTel/Agent send 业务装配 |
+| `src/viewer/server.mjs` | Viewer daemon composition root、运行时生命周期，以及尚未迁出的 watch/Agent send 业务装配 |
 | `src/viewer/client.js` | 浏览器应用装配、共享状态、数据加载和尚未迁出的 feature renderer |
 | `src/viewer/api-client.js` | 浏览器 `/api/*` URL、method、intent header、body 与错误协议门面 |
 | `src/viewer/client-store.js` | source/Turn/request、Raw、语言、布局和 latest-only 的最小可订阅状态边界 |
@@ -133,6 +134,8 @@ Claude Code 的订阅/OAuth 请求可能拒绝经过改写代理。此时 CLI：
 4. Agent 退出后完成最后一次 ingest，并删除临时目录。
 
 OTel 的 body 来源是 Agent 官方遥测输出。wrapper 同时启用增强 OTel tracing，并把 raw-body log events 发送到 daemon 的固定 loopback 入口；watch 归属通过 `x-peekmyagent-watch-id` header 传递，不依赖 OTLP exporter 对 endpoint 查询参数的兼容性。`api_request_body` 与 `api_response_body` 若携带相同的 `traceId + spanId`，会以该关联键精确配对；同一 span 内存在多个 request attempt 时，成功 response 归属事件序号最靠后的 attempt，并标为 `high`，较早 attempt 保持无 response。旧 Claude Code、事件丢失或 exporter 不可用时，仅在进程退出的最终 ingest 中按文件写入顺序兼容回退，并明确标为 `heuristic`。
+
+上述有状态流程由 `OtelIngestService` 管理：事件解析与文件配对仍属于 `core/otel-*` 纯协议层，Service 只维护有界 watch 事件缓冲、选择 incremental/final 策略、生成 watch DTO 并幂等写 Store。Router 继续承担 loopback、intent、Content-Type、body 与 watch header 校验。详细边界见 [OTel Ingest Service 契约](otel-ingest-service-contract.md)。
 
 Capture 内的 `provenance` v1 将两个概念分开，完整字段与来源矩阵见 [Capture Provenance 契约](provenance-contract.md)：
 

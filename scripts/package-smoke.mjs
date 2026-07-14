@@ -79,6 +79,7 @@ for (const required of [
   "src/server/imported-trace-source-provider.mjs",
   "src/server/json-array-file-index.mjs",
   "src/server/live-source-provider.mjs",
+  "src/server/otel-ingest-service.mjs",
   "src/server/persisted-source-provider.mjs",
   "src/server/source-capture-reader.mjs",
   "src/server/source-lifecycle-service.mjs",

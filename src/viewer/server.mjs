@@ -13,8 +13,6 @@ import { openPersistenceStore } from "../core/persistence-store.mjs";
 import { sourceIdForWatch, watchIdFromSourceId } from "../core/source-identifiers.mjs";
 import { clearViewerRegistry, writeViewerRegistry } from "../core/viewer-registry.mjs";
 import { resolveTraeCnDynamicRoute } from "../adapters/trae-cn-integration.mjs";
-import { OTEL_WATCH_KIND, otelDirToCaptures } from "../core/otel-capture.mjs";
-import { extractOtelBodyEvents, mergeOtelBodyEvents } from "../core/otel-events.mjs";
 import {
   assertSafeBindHost,
   httpError,
@@ -27,6 +25,7 @@ import { SourceRepository } from "../server/source-repository.mjs";
 import { SourceLifecycleService } from "../server/source-lifecycle-service.mjs";
 import { SourceCaptureReader } from "../server/source-capture-reader.mjs";
 import { JsonArrayFileIndex } from "../server/json-array-file-index.mjs";
+import { OtelIngestService } from "../server/otel-ingest-service.mjs";
 import { importedTraceSourceFromDir as sourceFromImportedTraceDir, listImportedTraceSources } from "../server/imported-trace-source-provider.mjs";
 import { listFileSources } from "../server/file-source-provider.mjs";
 import { listPersistedSources } from "../server/persisted-source-provider.mjs";
@@ -71,8 +70,6 @@ const MAX_TRANSLATION_REQUEST_ID_CHARS = 256;
 const MAX_TRANSLATION_SECTION_CHARS = 48;
 const MAX_API_SOURCE_ID_CHARS = VIEWER_API_LIMITS.sourceIdChars;
 const MAX_API_REQUEST_ID_CHARS = VIEWER_API_LIMITS.requestIdChars;
-const MAX_OTEL_EVENT_WATCHES = 32;
-const MAX_OTEL_EVENTS_PER_WATCH = 2400;
 
 const viewerTraceProjector = createViewerTraceProjector({
   sourceDisplay: {
@@ -87,7 +84,6 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
   assertSafeBindHost(host, { unsafeAllowRemote });
   assertSafeBindHost(captureHost, { unsafeAllowRemote });
   const watches = new Map();
-  const otelBodyEvents = new Map();
   const store = persistenceStore || openPersistenceStore(storePath);
   const sourceMetaPath = path.join(path.dirname(store.path), SOURCE_META_FILE);
   const sourceMeta = readSourceMeta(sourceMetaPath, sourceMetadataPolicy());
@@ -130,7 +126,6 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
     demo,
     evidencePath,
     watches,
-    otelBodyEvents,
     sourceMeta,
     sourceMetaPath,
     store,
@@ -217,8 +212,8 @@ function viewerRouterOperations(options) {
     updateSource: (input) => updateSource(input, options),
     importTrace: (buffer) => traceBundleService(options).import(buffer),
     exportTrace: (sourceId) => traceBundleService(options).export(sourceId),
-    ingestOtelCaptures: (input) => ingestOtelCaptures(input, options),
-    ingestOtelEvents: (input) => ingestOtelEvents(input, options),
+    ingestOtelCaptures: (input) => otelIngestService(options).ingestCaptures(input),
+    ingestOtelEvents: (input) => otelIngestService(options).ingestEvents(input),
     listWatchStatus: () => listWatchStatus(options),
     daemonPing: () => daemonPing(options),
     daemonStatus: () => daemonStatus(options),
@@ -354,84 +349,16 @@ function loadViewerRequestDetail(sourceId, requestId, options, { requireSource =
   };
 }
 
-// Ingest Claude Code OTel raw-body dumps (subscription/OAuth path). The wrapper
-// runs `claude` with OTEL_LOG_RAW_API_BODIES so the agent connects directly to
-// the official endpoint (no proxy -> no 403) and dumps request/response bodies
-// to a local dir. We read that dir and persist captures exactly like the proxy
-// path, so listSources/loadViewerData surface it as a normal persisted source.
-async function ingestOtelCaptures(input, options) {
-  const { store, cwd, otelBodyEvents } = options;
-  const dir = String(input.dir || "").trim();
-  if (!dir) throw new Error("ingestOtelCaptures requires a dump dir");
-  const watchId = String(input.watch_id || "").trim();
-  if (!watchId) throw new Error("ingestOtelCaptures requires watch_id");
-  const agent = input.agent || "Claude Code";
-  const workspace = input.workspace || cwd;
-  const conversationId = input.conversation_id || null;
-  const events = otelBodyEvents?.get(watchId) || [];
-  const eventCorrelationEnabled = input.event_correlation_enabled === true;
-  const finalIngest = input.final === true;
-  const captures = otelDirToCaptures(
-    dir,
-    { watchId, workspace, agent, conversationId },
-    {
-      events,
-      allowHeuristicPairing: !eventCorrelationEnabled || finalIngest,
-    },
-  );
-  const watch = {
-    watch_id: watchId,
-    label: input.label || `${agent} · OTel`,
-    title: sanitizeSourceTitle(input.title || conversationTitleForSource(store, { agent, conversation_id: conversationId })) || null,
-    agent,
-    mode: input.mode || "single_session",
-    confidence: "exact",
-    kind: OTEL_WATCH_KIND,
-    workspace,
-    conversation_id: conversationId,
-    status: input.status || "stored",
-  };
-  let ingested = 0;
-  let responses = 0;
-  let nextRequestIndex = store?.nextRequestIndex(watchId) || 1;
-  for (const capture of captures) {
-    if (!store?.hasRequest(capture.capture_id)) {
-      capture.request_index = nextRequestIndex;
-      nextRequestIndex += 1;
-    }
-    const result = store?.upsertCapture({ watch, capture });
-    if (result?.inserted) ingested += 1;
-    // Always attempt the response update: on incremental re-ingest the request
-    // may already exist while its response was dumped only afterwards.
-    if (capture.response && store?.updateCaptureResponse(capture)?.updated) responses += 1;
-  }
-  const result = {
-    ok: true,
-    watch_id: watchId,
-    source_id: sourceIdForWatch(watchId),
-    total: captures.length,
-    ingested,
-    responses,
-    event_correlations: events.length,
-  };
-  if (finalIngest) otelBodyEvents?.delete(watchId);
-  return result;
-}
-
-async function ingestOtelEvents({ watchId, payload }, { otelBodyEvents }) {
-  if (!watchId) throw httpError(400, "OTel event ingest requires watch_id");
-  const incoming = extractOtelBodyEvents(payload, { maxEvents: MAX_OTEL_EVENTS_PER_WATCH });
-  const merged = mergeOtelBodyEvents(otelBodyEvents?.get(watchId) || [], incoming, { maxEvents: MAX_OTEL_EVENTS_PER_WATCH });
-  if (otelBodyEvents) {
-    otelBodyEvents.delete(watchId);
-    while (otelBodyEvents.size >= MAX_OTEL_EVENT_WATCHES) {
-      const oldestWatchId = otelBodyEvents.keys().next().value;
-      if (!oldestWatchId) break;
-      otelBodyEvents.delete(oldestWatchId);
-    }
-    otelBodyEvents.set(watchId, merged);
-  }
-  return { accepted: incoming.length, indexed: merged.length };
+function otelIngestService(options) {
+  if (options.otelIngestService) return options.otelIngestService;
+  options.otelIngestService = new OtelIngestService({
+    store: options.store,
+    cwd: options.cwd,
+    sanitizeTitle: sanitizeSourceTitle,
+    conversationTitle: ({ agent, conversation_id }) => conversationTitleForSource(options.store, { agent, conversation_id }),
+    badRequest: (message) => httpError(400, message),
+  });
+  return options.otelIngestService;
 }
 
 async function startWatch(input, { cwd, watches, store, sourceMeta, sourceMetaPath, sharedCaptureProxy }) {

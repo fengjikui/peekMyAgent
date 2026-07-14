@@ -153,6 +153,7 @@
     "smoke:openclaw-profile-cleanup": "node scripts/openclaw-profile-cleanup-smoke.mjs",
     "smoke:trae-cn-stable-route": "node scripts/trae-cn-stable-route-smoke.mjs",
     "smoke:otel-capture": "node scripts/otel-capture-smoke.mjs",
+    "smoke:otel-ingest-service-contract": "node scripts/otel-ingest-service-contract-smoke.mjs",
     "smoke:otel-ingest": "node scripts/otel-ingest-smoke.mjs",
     "smoke:otel-e2e": "node scripts/otel-capture-e2e-smoke.mjs",
     "smoke:provenance-contract": "node scripts/provenance-contract-smoke.mjs",
