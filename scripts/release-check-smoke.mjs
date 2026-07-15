@@ -25,6 +25,7 @@ for (const [profile, description] of profiles) {
   assert.match(result.stdout, /npm run smoke:platform/);
   assert.match(result.stdout, /npm run smoke:source-install/);
   assert.match(result.stdout, /npm run smoke:source-uninstall/);
+  assert.match(result.stdout, /npm run smoke:release-version/);
   assert.match(result.stdout, /npm run smoke:cli/);
   assert.match(result.stdout, /npm run smoke:normalize/);
   assert.match(result.stdout, /npm run smoke:watch-current/);

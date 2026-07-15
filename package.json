@@ -1,6 +1,6 @@
 {
   "name": "peekmyagent",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.1",
   "description": "Local-first dashboard for inspecting coding-agent model requests.",
   "type": "module",
   "keywords": [
@@ -20,6 +20,9 @@
     "url": "https://github.com/fengjikui/peekMyAgent/issues"
   },
   "homepage": "https://github.com/fengjikui/peekMyAgent#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=24.0.0"
   },
@@ -28,6 +31,7 @@
     "pma": "./bin/peekmyagent.mjs"
   },
   "files": [
+    "CHANGELOG.md",
     "bin/",
     "src/",
     "integrations/",
@@ -149,6 +153,7 @@
     "smoke:view-compact-detail": "node scripts/view-compact-detail-smoke.mjs",
     "smoke:audit-data-sources": "node scripts/audit-data-sources-smoke.mjs",
     "smoke:release-workflow": "node scripts/release-workflow-smoke.mjs",
+    "smoke:release-version": "node scripts/release-version-smoke.mjs",
     "smoke:release-check": "node scripts/release-check-smoke.mjs",
     "smoke:governance": "node scripts/governance-smoke.mjs",
     "smoke:claude-settings-env": "node scripts/claude-settings-env-smoke.mjs",
@@ -179,6 +184,7 @@
     "release:check:macos:list": "node scripts/release-check.mjs --profile macos --list",
     "release:check:windows": "node scripts/release-check.mjs --profile windows",
     "release:check:windows:list": "node scripts/release-check.mjs --profile windows --list",
+    "release:verify-version": "node scripts/verify-release-version.mjs",
     "analyze:trae-openai": "node scripts/trae-openai-capture-analysis.mjs",
     "analyze:claude-trace-evidence": "node scripts/analyze-claude-trace-evidence.mjs",
     "analyze:protocol-shape": "node scripts/protocol-shape-check.mjs",

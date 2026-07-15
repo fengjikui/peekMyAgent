@@ -25,10 +25,14 @@ assert.match(packageJson.bugs?.url || "", /github\.com\/fengjikui\/peekMyAgent\/
 assert.match(packageJson.homepage || "", /github\.com\/fengjikui\/peekMyAgent/i);
 assert.equal(packageJson.engines?.node, ">=24.0.0");
 assert.notEqual(packageJson.private, true, "package must not be private before npm distribution");
+assert.notEqual(packageJson.version, "0.0.0", "package must use a real release version before npm distribution");
+assert.match(packageJson.version || "", /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
+assert.equal(packageJson.publishConfig?.access, "public");
 assert.equal(packageJson.bin?.peekmyagent, "./bin/peekmyagent.mjs");
 assert.equal(packageJson.bin?.pma, "./bin/peekmyagent.mjs");
 
 for (const required of [
+  "CHANGELOG.md",
   "README.md",
   "package.json",
   "bin/peekmyagent.mjs",
@@ -161,7 +165,7 @@ const deniedFiles = packageFiles.filter((file) => deniedPatterns.some((pattern) 
 assert.deepEqual(deniedFiles, [], `npm package includes release-unsafe files: ${deniedFiles.join(", ")}`);
 
 const allowedPatterns = [
-  /^(?:LICENSE|README\.md|README\.zh-CN\.md|package\.json)$/,
+  /^(?:CHANGELOG\.md|LICENSE|README\.md|README\.zh-CN\.md|package\.json)$/,
   /^bin\//,
   /^src\//,
   /^integrations\//,

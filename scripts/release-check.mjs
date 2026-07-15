@@ -49,6 +49,7 @@ const coreCommands = [
   ["npm", "run", "smoke:doctor"],
   ["npm", "run", "smoke:source-install"],
   ["npm", "run", "smoke:source-uninstall"],
+  ["npm", "run", "smoke:release-version"],
   ["npm", "run", "smoke:package"],
   ["npm", "run", "smoke:cli"],
   ["npm", "run", "smoke:normalize"],
