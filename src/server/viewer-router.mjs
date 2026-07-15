@@ -20,6 +20,7 @@ import {
 import {
   VIEWER_API_LIMITS,
   VIEWER_API_ROUTES,
+  assertTraceTimelineResponse,
   expectedViewerApiMethod,
   sanitizeApiLookupId,
 } from "../contracts/viewer-api.mjs";
@@ -181,7 +182,7 @@ function createViewHandler({ defaultSourceId, operations }) {
       const data = cursor
         ? await operations.nextTimeline({ sourceId, cursor, limit })
         : await operations.startTimeline({ sourceId, limit });
-      return writeJson(res, 200, data);
+      return writeJson(res, 200, assertTraceTimelineResponse(data));
     }
 
     const data = await operations.loadViewerData({
@@ -189,7 +190,7 @@ function createViewHandler({ defaultSourceId, operations }) {
       requireSource: Boolean(requestedSource),
       initialLimit: initialViewLimit(url.searchParams),
     });
-    return writeJson(res, 200, compact ? projectTimelineViewerData(data) : data);
+    return writeJson(res, 200, assertTraceTimelineResponse(compact ? projectTimelineViewerData(data) : data));
   };
 }
 

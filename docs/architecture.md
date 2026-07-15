@@ -28,7 +28,7 @@ flowchart LR
 
 daemon、Viewer HTTP API 和静态资源服务由同一个 `startViewerServer()` 实例提供。共享 Capture Proxy 在配置了 capture port 时由该进程一并启动，但监听独立端口。
 
-Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。`ViewerRouter` 按共享 API contract 处理 URL、method、intent、body 和响应，将解析后的输入交给 `server.mjs` 注入的显式 operations；`WatchRuntimeService` 拥有 active watch registry、new/reuse/restore、pause/resume/stop、共享/独立代理和 Capture 回调，Server 只装配 shared proxy、Store、metadata 与 presenter 端口。rename、pin、archive、delete 和项目批量操作继续由 `SourceLifecycleService` 执行，该 service 只通过 runtime、SQLite、metadata 和 imports 端口产生副作用。模型下行 JSON/SSE、上行消息语义以及请求协议/provider/source 画像已由 Trace Domain 统一解释；`ViewerTraceProjector` 将这些领域契约统一投影为完整加载、单请求详情和 cursor 分页共用的 Viewer DTO。
+Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。`ViewerRouter` 按共享 API contract 处理 URL、method、intent、body 和响应，将解析后的输入交给 `server.mjs` 注入的显式 operations；SourceSummary、单请求详情以及完整/compact/cursor Timeline 响应均在 Server 序列化前和浏览器解析后执行同一版本化 DTO 契约。`WatchRuntimeService` 拥有 active watch registry、new/reuse/restore、pause/resume/stop、共享/独立代理和 Capture 回调，Server 只装配 shared proxy、Store、metadata 与 presenter 端口。rename、pin、archive、delete 和项目批量操作继续由 `SourceLifecycleService` 执行，该 service 只通过 runtime、SQLite、metadata 和 imports 端口产生副作用。模型下行 JSON/SSE、上行消息语义以及请求协议/provider/source 画像已由 Trace Domain 统一解释；`ViewerTraceProjector` 将这些领域契约统一投影为完整加载、单请求详情和 cursor 分页共用的 Viewer DTO。
 
 ## 源码地图
 
@@ -219,7 +219,7 @@ sequenceDiagram
 
 达到渐进加载门限的 Source 首屏默认只取前 32 个请求，后续以最多 100 条为一页继续读取，不再后台下载一份完整 compact Trace。Server cursor 保留跨页 Context Delta、Turn 和子 Agent 血缘所需状态；后续页只发送新增 request、旧 request annotation patch、变化的 Turn 和 Agent entity。live Source 到达当前尾部后保留 refresh cursor，新增 capture 只续读增量。时间线超过阈值时只渲染一个窗口，点开 Raw/细节再按 request 获取详细内容。
 
-cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 session 数量上限；它不是持久化 id，也不向浏览器暴露 SQLite 或文件 offset。file/import Source 的原始 Trace 保持只读，私有 sidecar 只保存对象 byte range 并由源文件指纹自动失效。完整协议和失效回退见 [Timeline Cursor 分页契约](timeline-pagination-contract.md)与 [JSON Array File Index 契约](json-array-file-index-contract.md)。旧 `/api/view?compact=1` 完整响应继续保留兼容。
+cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 session 数量上限；它不是持久化 id，也不向浏览器暴露 SQLite 或文件 offset。file/import Source 的原始 Trace 保持只读，私有 sidecar 只保存对象 byte range 并由源文件指纹自动失效。完整/compact snapshot 和 cursor delta 的 envelope 由共享 `TraceTimelineResponse` 契约约束，内部 Turn/Agent 实体仍由领域协议拥有。完整协议和失效回退见 [Viewer API DTO 契约](viewer-api-dto-contract.md)、[Timeline Cursor 分页契约](timeline-pagination-contract.md)与 [JSON Array File Index 契约](json-array-file-index-contract.md)。旧 `/api/view?compact=1` 完整响应继续保留兼容。
 
 `compact=1` 的 DTO 由 `timeline-view-projector.mjs` 从完整 Viewer Trace DTO 纯投影得到。它集中管理预览长度、历史/Raw/完整 Response 的省略规则和 `*_omitted` 元数据，不拥有 Trace 语义、Source 读取或 HTTP 生命周期；完整详情仍以 `/api/request` 为事实源。详细边界见 [Timeline 轻量投影契约](timeline-view-projection-contract.md)。
 

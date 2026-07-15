@@ -21,7 +21,7 @@
 | Server | `src/viewer/server.mjs` 同时负责 HTTP、安全、repository、Trace domain、翻译、bundle 和 Agent send | 很难局部测试和分配代码所有权 |
 | Client | `src/viewer/client.js` 同时负责 store、fetch、协议解释和所有视图 | 小交互容易触发全量渲染，贡献者难定位 |
 | CLI | `bin/peekmyagent.mjs` 包含命令解析和几乎全部命令实现 | 新命令继续扩大入口文件，wrapper 生命周期难单测 |
-| 协议 | provenance、translation block、`SourceSummary` 与单请求 `TraceRequestDetail` 已有共享契约；完整/compact Timeline、cursor delta 和其余 operation 响应仍由各层分别解释 | 首批高频身份 DTO 已阻断漂移，剩余接口仍需按功能逐条迁移 |
+| 协议 | provenance、translation block、`SourceSummary`、单请求 `TraceRequestDetail` 与完整/compact/cursor Timeline envelope 已有共享契约；其余 operation 响应仍由各层分别解释 | 高频读取 DTO 已阻断漂移，写操作与控制面接口仍需按功能逐条迁移 |
 | 数据库 | 内容寻址和 migration runner 已落地；Capture 读取 repository 已抽离，Watch/Capture 写入、维护与连接生命周期仍集中在 `PersistenceStore` | 写路径继续受单体 store 约束，但读取查询和水合已有独立可测边界 |
 | 性能 | live/SQLite/file/import 已使用 cursor 增量读取和实体 delta；文件后端使用私有 sidecar byte range；System diff 已有精确门限和块级退化；Client/Server 仍累计 compact 实体 | 首屏网络、文件 hydrate 和大 System diff 成本已受控，但超长会话的常驻 compact 实体仍随会话增长 |
 | 测试 | smoke 丰富，但基础设施重复，部分 UI 仅正则检查源码 | 维护成本高，真实交互回归覆盖不足 |
@@ -181,6 +181,7 @@ src/
 - Watch 生命周期扩展字段持久化、persisted-only 控制面、shared per-watch cache 清理和大 watch 流式恢复仍需独立 schema/proxy 协议阶段，不属于本次抽离的已实现行为。
 - 已迁移首个 Viewer Client feature：Turn Rail 的窗口策略、悬停、点击跳转和滚动激活由独立控制器管理，并有直接契约测试。
 - 已建立 Viewer API Client：source/view/request/translation/import/export/send/watch 的浏览器协议与错误处理不再散落在全局脚本。
+- 已建立共享 Viewer API 读取 DTO：SourceSummary、单请求窗口以及完整/compact/cursor Timeline 的身份、信封和分页不变量在 Server 序列化前与 API Client 解析后双向执行；领域实体内部字段继续由 Trace Domain 和 normalized Store 所有。
 - 已迁移 request-detail cache：compact request 的详情判定、并发去重、错误重试和 source 生命周期由独立对象管理。
 - 已建立 Raw Inspector View Model：上行请求、下行 Response、Harness 和 Metadata 的方向约束由纯模块统一。
 - 已迁移 Raw Search Model：递归条目、过滤、摘要命中分段和循环导航索引不再依赖 DOM 或全局状态。

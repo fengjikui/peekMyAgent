@@ -177,10 +177,46 @@ function operationFixture(log, onShutdown) {
     daemonPing: operation("daemonPing", { ok: true }),
     daemonStatus: operation("daemonStatus", { ok: true }),
     requestShutdown: onShutdown,
-    loadViewerData: operation("loadViewerData", { source: { id: "source-a" }, requests: [], turns: [] }),
-    startTimeline: operation("startTimeline", { mode: "initial", requests: [] }),
-    nextTimeline: operation("nextTimeline", { mode: "next", requests: [] }),
+    loadViewerData: operation("loadViewerData", timelineSnapshot("source-a")),
+    startTimeline: operation("startTimeline", timelineCursorPage("demo-source", { initial: true })),
+    nextTimeline: operation("nextTimeline", timelineCursorPage("source-a")),
     loadRequestDetail: operation("loadRequestDetail", { request: { capture_id: "request-9" } }),
+  };
+}
+
+function timelineSnapshot(sourceId) {
+  return {
+    generated_at: "2026-07-15T00:00:00.000Z",
+    source: { id: sourceId, label: sourceId, kind: "stored", available: true },
+    stats: { request_count: 0 },
+    requests: [],
+    turns: [],
+    agent_trace: { branches: [], spawns: [], returns: [] },
+  };
+}
+
+function timelineCursorPage(sourceId, { initial = false } = {}) {
+  return {
+    generated_at: "2026-07-15T00:00:00.000Z",
+    source: { id: sourceId, label: sourceId, kind: "stored", available: true },
+    stats: { request_count: 0 },
+    requests: [],
+    request_patches: [],
+    turn_updates: [],
+    removed_turn_ids: [],
+    agent_trace_delta: null,
+    ...(initial ? { turns: [], agent_trace: { branches: [], spawns: [], returns: [] } } : {}),
+    page_scope: "timeline_cursor_delta",
+    partial: {
+      mode: "cursor",
+      loaded_request_count: 0,
+      total_request_count: 0,
+      page_offset: 0,
+      page_request_count: 0,
+      has_more: false,
+      next_cursor: null,
+      refresh_cursor: null,
+    },
   };
 }
 

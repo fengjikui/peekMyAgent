@@ -1,6 +1,7 @@
 export const VIEWER_API_DTO_CONTRACT_VERSION = 1;
 export const SOURCE_SUMMARY_CONTRACT_VERSION = 1;
 export const TRACE_REQUEST_DETAIL_CONTRACT_VERSION = 1;
+export const TRACE_TIMELINE_RESPONSE_CONTRACT_VERSION = 1;
 
 export const VIEWER_API_LIMITS = Object.freeze({
   sourceIdChars: 512,
@@ -105,6 +106,145 @@ export function assertTraceRequestDetailResponse(value, name = "Viewer API reque
   return assertContract(value, validateTraceRequestDetailResponse(value), name);
 }
 
+export function validateTraceTimelineResponse(value) {
+  const errors = [];
+  if (!isRecord(value)) return { ok: false, errors: ["response must be an object"] };
+
+  const sourceValidation = validateSourceSummary(value.source);
+  errors.push(...sourceValidation.errors.map((error) => `source.${error}`));
+  if (!nonEmptyText(value.generated_at)) errors.push("generated_at is required");
+  if (!isRecord(value.stats)) errors.push("stats must be an object");
+  validateTimelineRequests(value.requests, "requests", errors);
+
+  const pageScope = value.page_scope;
+  if (pageScope != null && pageScope !== "timeline_cursor_delta") {
+    errors.push("page_scope must be timeline_cursor_delta when present");
+  }
+
+  if (pageScope === "timeline_cursor_delta") {
+    validateCursorTimelineResponse(value, errors);
+  } else {
+    validateTimelineEntities(value.turns, "turns", errors);
+    validateAgentTrace(value.agent_trace, "agent_trace", errors);
+    if (value.partial != null) validateInitialPartial(value.partial, errors);
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
+export function assertTraceTimelineResponse(value, name = "Viewer API timeline response") {
+  return assertContract(value, validateTraceTimelineResponse(value), name);
+}
+
+function validateCursorTimelineResponse(value, errors) {
+  validateTimelineEntities(value.request_patches, "request_patches", errors);
+  validateTimelineEntities(value.turn_updates, "turn_updates", errors);
+  validateIdList(value.removed_turn_ids, "removed_turn_ids", errors);
+  validateCursorPartial(value.partial, errors);
+
+  if (value.turns != null) validateTimelineEntities(value.turns, "turns", errors);
+  if (value.agent_trace != null) validateAgentTrace(value.agent_trace, "agent_trace", errors);
+  if (value.agent_trace_delta != null && !isRecord(value.agent_trace_delta)) {
+    errors.push("agent_trace_delta must be an object or null");
+  }
+}
+
+function validateTimelineRequests(value, path, errors) {
+  if (!Array.isArray(value)) {
+    errors.push(`${path} must be an array`);
+    return;
+  }
+  value.forEach((request, index) => {
+    if (!isRecord(request)) {
+      errors.push(`${path}[${index}] must be an object`);
+      return;
+    }
+    if (!nonEmptyText(request.id)) errors.push(`${path}[${index}].id is required`);
+    if (!positiveInteger(request.request_index)) {
+      errors.push(`${path}[${index}].request_index must be a positive integer`);
+    }
+  });
+}
+
+function validateTimelineEntities(value, path, errors) {
+  if (!Array.isArray(value)) {
+    errors.push(`${path} must be an array`);
+    return;
+  }
+  value.forEach((entity, index) => {
+    if (!isRecord(entity)) {
+      errors.push(`${path}[${index}] must be an object`);
+    } else if (!nonEmptyText(entity.id)) {
+      errors.push(`${path}[${index}].id is required`);
+    }
+  });
+}
+
+function validateAgentTrace(value, path, errors) {
+  if (!isRecord(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  for (const key of ["branches", "spawns", "returns"]) {
+    if (!Array.isArray(value[key])) errors.push(`${path}.${key} must be an array`);
+  }
+}
+
+function validateInitialPartial(value, errors) {
+  if (!isRecord(value)) {
+    errors.push("partial must be an object");
+    return;
+  }
+  if (value.mode !== "initial") errors.push("partial.mode must be initial");
+  if (!positiveInteger(value.request_limit)) errors.push("partial.request_limit must be a positive integer");
+  validateTimelineCounts(value, errors);
+}
+
+function validateCursorPartial(value, errors) {
+  if (!isRecord(value)) {
+    errors.push("partial must be an object");
+    return;
+  }
+  if (value.mode !== "cursor") errors.push("partial.mode must be cursor");
+  validateTimelineCounts(value, errors);
+  for (const key of ["page_offset", "page_request_count"]) {
+    if (!nonNegativeInteger(value[key])) errors.push(`partial.${key} must be a non-negative integer`);
+  }
+  if (value.has_more && !nonEmptyText(value.next_cursor)) {
+    errors.push("partial.next_cursor is required when more pages are available");
+  }
+  if (!value.has_more && value.next_cursor != null) {
+    errors.push("partial.next_cursor must be null when no more pages are available");
+  }
+  for (const key of ["next_cursor", "refresh_cursor"]) {
+    if (value[key] != null && !nonEmptyText(value[key])) errors.push(`partial.${key} must be text or null`);
+  }
+}
+
+function validateTimelineCounts(value, errors) {
+  for (const key of ["loaded_request_count", "total_request_count"]) {
+    if (!nonNegativeInteger(value[key])) errors.push(`partial.${key} must be a non-negative integer`);
+  }
+  if (typeof value.has_more !== "boolean") errors.push("partial.has_more must be boolean");
+  if (
+    nonNegativeInteger(value.loaded_request_count) &&
+    nonNegativeInteger(value.total_request_count) &&
+    value.total_request_count < value.loaded_request_count
+  ) {
+    errors.push("partial.total_request_count must not be smaller than loaded_request_count");
+  }
+}
+
+function validateIdList(value, path, errors) {
+  if (!Array.isArray(value)) {
+    errors.push(`${path} must be an array`);
+    return;
+  }
+  value.forEach((id, index) => {
+    if (!nonEmptyText(id)) errors.push(`${path}[${index}] must be non-empty text`);
+  });
+}
+
 function assertContract(value, validation, name) {
   if (!validation.ok) throw new Error(`Invalid ${name}: ${validation.errors.join("; ")}`);
   return value;
@@ -121,4 +261,9 @@ function nonEmptyText(value) {
 function positiveInteger(value) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0;
+}
+
+function nonNegativeInteger(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0;
 }

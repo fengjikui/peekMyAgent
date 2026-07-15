@@ -19,11 +19,11 @@ responses.push(jsonResponse([sourceSummary("source-1")]));
 assert.deepEqual(await api.listSources(), [sourceSummary("source-1")]);
 assert.deepEqual(calls.at(-1), { path: "/api/sources", options: {} });
 
-responses.push(jsonResponse({ source: { id: "source/a" } }));
+responses.push(jsonResponse(timelineCursorPage("source/a", { initial: true })));
 await api.viewSource("source/a", { initial: true, limit: 24 });
 assert.equal(calls.at(-1).path, "/api/view?source=source%2Fa&compact=1&initial=1&limit=24");
 
-responses.push(jsonResponse({ source: { id: "source/a" } }));
+responses.push(jsonResponse(timelineCursorPage("source/a")));
 await api.viewSource("source/a", { cursor: "opaque cursor", limit: 100 });
 assert.equal(calls.at(-1).path, "/api/view?source=source%2Fa&compact=1&cursor=opaque+cursor&limit=100");
 
@@ -75,6 +75,8 @@ const malformedSourceApi = new ViewerApiClient({ fetchImpl: async () => jsonResp
 await assert.rejects(() => malformedSourceApi.listSources(), /Invalid Viewer API source list.*label is required/);
 const malformedDetailApi = new ViewerApiClient({ fetchImpl: async () => jsonResponse({ request: { id: "request-1" } }) });
 await assert.rejects(() => malformedDetailApi.requestDetail("source-1", "request-1"), /Invalid Viewer API request detail/);
+const malformedTimelineApi = new ViewerApiClient({ fetchImpl: async () => jsonResponse({ source: sourceSummary("source-1") }) });
+await assert.rejects(() => malformedTimelineApi.viewSource("source-1"), /Invalid Viewer API timeline response.*generated_at is required/);
 
 console.log("viewer API client contract smoke passed");
 
@@ -103,5 +105,41 @@ function requestDetail(sourceId, requestId) {
     source: sourceSummary(sourceId),
     request: { id: requestId, request_index: 1, detail_scope: "request_window" },
     detail_scope: "request_window",
+  };
+}
+
+function timelineSnapshot(sourceId) {
+  return {
+    generated_at: "2026-07-15T00:00:00.000Z",
+    source: sourceSummary(sourceId),
+    stats: { request_count: 1 },
+    requests: [{ id: "request-1", request_index: 1 }],
+    turns: [{ id: "turn-1" }],
+    agent_trace: { branches: [], spawns: [], returns: [] },
+  };
+}
+
+function timelineCursorPage(sourceId, { initial = false } = {}) {
+  return {
+    generated_at: "2026-07-15T00:00:00.000Z",
+    source: sourceSummary(sourceId),
+    stats: { request_count: 1 },
+    requests: [],
+    request_patches: [],
+    turn_updates: [],
+    removed_turn_ids: [],
+    agent_trace_delta: null,
+    ...(initial ? { turns: [], agent_trace: { branches: [], spawns: [], returns: [] } } : {}),
+    page_scope: "timeline_cursor_delta",
+    partial: {
+      mode: "cursor",
+      loaded_request_count: 1,
+      total_request_count: 1,
+      page_offset: 1,
+      page_request_count: 0,
+      has_more: false,
+      next_cursor: null,
+      refresh_cursor: "opaque-refresh",
+    },
   };
 }

@@ -1,6 +1,7 @@
 import {
   assertSourceSummaryList,
   assertTraceRequestDetailResponse,
+  assertTraceTimelineResponse,
 } from "../contracts/viewer-api.mjs";
 
 export class ViewerApiClient {
@@ -14,7 +15,7 @@ export class ViewerApiClient {
     return assertSourceSummaryList(await this.getJson("/api/sources"));
   }
 
-  viewSource(sourceId, { initial = false, cursor = null, limit = 32 } = {}) {
+  async viewSource(sourceId, { initial = false, cursor = null, limit = 32 } = {}) {
     const url = new URL("/api/view", this.origin);
     url.searchParams.set("source", sourceId);
     url.searchParams.set("compact", "1");
@@ -25,7 +26,7 @@ export class ViewerApiClient {
       url.searchParams.set("cursor", cursor);
       url.searchParams.set("limit", String(limit));
     }
-    return this.getJson(`${url.pathname}${url.search}`);
+    return assertTraceTimelineResponse(await this.getJson(`${url.pathname}${url.search}`));
   }
 
   async requestDetail(sourceId, requestId) {

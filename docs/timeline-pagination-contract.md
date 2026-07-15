@@ -79,6 +79,8 @@ GET /api/view?source=<source>&compact=1&cursor=<opaque-token>&limit=100
 
 Client 的 `TimelineEntityStore` 以 request/Turn/branch/spawn/return 的稳定 id 持有 normalized map，并只在界面需要时物化兼容数组快照。页面级 delta 字段不进入长期应用状态；完整 request detail 会覆盖证据字段，但不能反向覆盖 cursor 已确认的 Turn、Context 和 Agent 归属。
 
+snapshot 与 cursor page 的 HTTP envelope 由浏览器/Node 共用的 `src/contracts/viewer-api.mjs` 验证。Server 在最终 JSON 序列化前执行契约，`ViewerApiClient` 在浏览器解析后再次执行同一契约；领域实体内部字段仍由 Trace Domain 和本页合并契约负责，不在共享层重复建模。
+
 ## Live 续读
 
 读取到当前尾部后：
@@ -118,6 +120,8 @@ npm run smoke:subagent-graph-contract
 npm run smoke:timeline-cursor-service-contract
 npm run smoke:timeline-entity-store-contract
 npm run smoke:timeline-cursor-http
+npm run smoke:viewer-api-dto-contract
+npm run smoke:viewer-api-client-contract
 npm run smoke:compact-view-performance
 npm run smoke:view-compact-detail
 ```
