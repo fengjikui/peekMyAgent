@@ -127,6 +127,7 @@ src/
 - 已建立 SQLite migration baseline：`PRAGMA user_version=1`、顺序事务 runner、旧库认领、未来版本保护和 schema shape 校验。
 - 已抽离 `SqliteCaptureReadRepository`：完整/首屏/分页/单请求窗口、request tree 重建和 response blob 水合不再由单体 `PersistenceStore` 实现；Store 保留兼容 facade，连接、migration、写事务和 GC 所有权不变。
 - 已建立共享 translation block contract：Server、Client、提取脚本和 worker 统一规范化、lookup key、schema description 和 marker 解析，缓存 hash 保持兼容。
+- 已建立共享 request translation material projector：System parts、Tools schema descriptions 与 Harness 注入只提取一次，Node Collector 与浏览器展示复用同一纯模块；服务端继续独占 hash、occurrence、限额和缓存写入。
 - 已建立共享 Viewer API DTO contract：`SourceSummary` 与单请求 `TraceRequestDetail` 具有版本、运行时 schema 和 Node/浏览器双端断言，SourceRepository、Viewer Server 与 API Client 共用同一事实源。
 - 已将 provenance v1 接入 Capture Proxy、OpenClaw normalizer 和 portable Trace import：区分 artifact fidelity 与关联 confidence，保留合法原始来源，旧导入采用保守回退。
 - file/demo/debug 等尚未形成 CaptureRecord 的 source 仍需在后续 source repository 阶段建立统一 DTO；阶段 1 的共享地基已经完成，可以进入 Viewer Server 拆分。

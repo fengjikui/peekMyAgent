@@ -41,6 +41,7 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/translation-action-model.js", javascriptAsset("translation-action-model.js")],
   ["/translation-generation-operation.js", javascriptAsset("translation-generation-operation.js")],
   ["/translation-language-catalog.js", javascriptAsset("translation-language-catalog.js")],
+  ["/translation-materials.js", javascriptAsset("translation-materials.js")],
   ["/translation-renderer.js", javascriptAsset("translation-renderer.js")],
   ["/translation-view-model.js", javascriptAsset("translation-view-model.js")],
   ["/trace-timeline-controller.js", javascriptAsset("trace-timeline-controller.js")],
@@ -54,6 +55,22 @@ const VIEWER_STATIC_ASSETS = new Map([
   [
     "/translation-blocks.js",
     { base: "project", file: path.join("src", "translation", "blocks.mjs"), contentType: "text/javascript; charset=utf-8" },
+  ],
+  [
+    "/translation/request-materials.mjs",
+    { base: "project", file: path.join("src", "translation", "request-materials.mjs"), contentType: "text/javascript; charset=utf-8" },
+  ],
+  [
+    "/translation/blocks.mjs",
+    { base: "project", file: path.join("src", "translation", "blocks.mjs"), contentType: "text/javascript; charset=utf-8" },
+  ],
+  [
+    "/trace/content-parts.mjs",
+    { base: "project", file: path.join("src", "trace", "content-parts.mjs"), contentType: "text/javascript; charset=utf-8" },
+  ],
+  [
+    "/trace/message-semantics.mjs",
+    { base: "project", file: path.join("src", "trace", "message-semantics.mjs"), contentType: "text/javascript; charset=utf-8" },
   ],
 ]);
 

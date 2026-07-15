@@ -1,12 +1,11 @@
 import {
-  extractTranslationSchemaDescriptions,
   isSkippableTranslationMaterial,
   normalizeTranslationSourceText,
-  systemTranslationKind,
-  translationToolDescription,
-  translationToolName,
 } from "./blocks.mjs";
 import { translationMaterialHash } from "./hash.mjs";
+import { projectTranslationBodyMaterials } from "./request-materials.mjs";
+
+export { extractTranslationSystemParts } from "./request-materials.mjs";
 
 export const TRANSLATION_MATERIAL_LIMITS = Object.freeze({
   materials: 1500,
@@ -57,54 +56,32 @@ export class TranslationMaterialCollector {
   }
 
   collectSystem(body, messages, occurrence) {
-    extractTranslationSystemParts(body, messages, this.contentText).forEach((part, index) => {
-      this.add({
-        kind: systemTranslationKind(part.text),
-        source_text: part.text,
-        source_language: "en",
-        metadata: { source: part.source, index },
-        occurrence,
-      });
-    });
+    this.collectProjected(
+      projectTranslationBodyMaterials({ ...body, messages }, { section: "system", contentText: this.contentText }),
+      occurrence,
+    );
   }
 
   collectHarness(messages, occurrence) {
-    for (const part of this.extractHarnessParts(messages) || []) {
-      this.add({
-        kind: part.kind,
-        source_text: part.text,
-        source_language: "en",
-        metadata: { label: part.label, path: part.path },
-        occurrence,
-      });
-    }
+    this.collectProjected(
+      projectTranslationBodyMaterials(
+        { messages },
+        { section: "harness", contentText: this.contentText, extractHarnessParts: this.extractHarnessParts },
+      ),
+      occurrence,
+    );
   }
 
   collectTools(body, occurrence) {
-    const tools = Array.isArray(body.tools) ? body.tools : [];
-    tools.forEach((tool, toolIndex) => {
-      const toolName = translationToolName(tool);
-      const description = translationToolDescription(tool);
-      if (description) {
-        this.add({
-          kind: "tool_description",
-          source_text: description,
-          source_language: "en",
-          metadata: { tool_name: toolName, path: `tools[${toolIndex}].description` },
-          occurrence,
-        });
-      }
-      const schema = tool.input_schema || tool.function?.parameters || tool.parameters || null;
-      for (const item of extractTranslationSchemaDescriptions(schema, { rootPath: `tools[${toolIndex}].input_schema` })) {
-        this.add({
-          kind: "tool_parameter_description",
-          source_text: item.description,
-          source_language: "en",
-          metadata: { tool_name: toolName, path: item.path, field_name: item.field_name },
-          occurrence,
-        });
-      }
-    });
+    this.collectProjected(
+      projectTranslationBodyMaterials(body, { section: "tools", contentText: this.contentText }),
+      occurrence,
+    );
+  }
+
+  collectProjected(materials, occurrence) {
+    for (const item of materials || []) this.add({ ...item, occurrence });
+    return this;
   }
 
   add(input) {
@@ -137,17 +114,6 @@ export class TranslationMaterialCollector {
     assertTranslationMaterialsWithinLimits(materials, { limits: this.limits, tooLarge: this.tooLarge });
     return materials;
   }
-}
-
-export function extractTranslationSystemParts(body, messages, contentText) {
-  const extract = requiredFunction(contentText, "contentText");
-  const output = [];
-  if (typeof body?.system === "string") output.push({ source: "body.system", text: body.system });
-  if (Array.isArray(body?.system)) body.system.forEach((part) => output.push({ source: "body.system", text: extract(part) }));
-  for (const message of messages || []) {
-    if (message?.role === "system") output.push({ source: "messages.system", text: extract(message.content) });
-  }
-  return output.filter((part) => part.text);
 }
 
 export function assertTranslationMaterialsWithinLimits(materials, { limits = TRANSLATION_MATERIAL_LIMITS, tooLarge = (message) => new Error(message) } = {}) {

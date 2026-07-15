@@ -1,8 +1,10 @@
 # Translation Material 契约
 
-更新时间：2026-07-12
+更新时间：2026-07-15
 
-`src/translation/materials.mjs` 定义 Viewer 局部刷新、整段刷新和离线提取脚本共享的翻译材料模型。它不调用 LLM，也不读取或写入缓存，只负责从标准化请求/capture 中形成稳定的块。
+`src/translation/request-materials.mjs` 定义 Node 与浏览器共享的请求材料投影；`src/translation/materials.mjs` 在其上增加 hash、occurrence、metadata 清洗和大小限制。两者都不调用 LLM，也不读写翻译缓存。
+
+共享投影拥有 System parts、Tools schema descriptions 和 Harness 注入的提取语义。Viewer 可为 Harness 材料注入本地化标签，但不得重写 compact、command、suggestion 或 system-reminder 的识别规则。
 
 ## 块级粒度
 
@@ -27,11 +29,20 @@
 - billing header 等不可翻译控制信息被跳过；
 - metadata 去控制字符、压缩空白并截断。
 
-Claude Code 的 compact/command/suggestion/reminder 判断通过 `extractHarnessParts` policy 注入。Collector 不依赖 Viewer、HTTP、SQLite 或具体 LLM provider。
+Claude Code 的 compact/command/suggestion/reminder 判断由共享 `extractHarnessTranslationParts()` 复用 `src/trace/message-semantics.mjs`。Collector 通过 `extractHarnessParts` 端口接入该 policy，因此仍不依赖 Viewer、HTTP、SQLite 或具体 LLM provider。
 
 ## 回归约束
 
-- Viewer 与 `scripts/extract-translation-materials.mjs` 必须复用同一个 Collector。
+- Viewer、Viewer Adapter 与 `scripts/extract-translation-materials.mjs` 必须复用同一个 request-material projector 和 translation block contract；浏览器不得复制服务端提取规则。
 - section 刷新只产生当前 system、tools 或 harness 类型的材料。
 - 同一归一化块的 hash、metadata 和 occurrence 顺序必须稳定。
 - 新增可翻译材料类型时，必须同步检查 UI 国际化文本、复制行为、缓存命中和主动重译路径。
+
+聚焦验证：
+
+```bash
+npm run smoke:translation-materials-contract
+npm run smoke:viewer-translation-adapter-contract
+npm run smoke:viewer-static-assets-contract
+npm run smoke:raw-search-browser
+```

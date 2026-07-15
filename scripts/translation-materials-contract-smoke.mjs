@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { TranslationMaterialCollector, countTranslationMaterialsByKind } from "../src/translation/materials.mjs";
+import {
+  extractHarnessTranslationParts,
+  translationMaterialsForRequest,
+} from "../src/translation/request-materials.mjs";
+import { extractContentText } from "../src/trace/content-parts.mjs";
 
 const source = { id: "source-a", workspace: "/workspace", conversation_id: "conversation-a" };
 const first = request(1, "deepseek-v4-pro", "/workspace/a");
@@ -27,6 +32,33 @@ assert.equal(toolDescription.metadata.tool_name, "Read");
 assert.equal(toolDescription.occurrence_count, 2);
 const parameterNames = materials.filter((item) => item.kind === "tool_parameter_description").map((item) => item.metadata.field_name).sort();
 assert.deepEqual(parameterNames, ["encoding", "file_path"]);
+
+const projected = translationMaterialsForRequest(first, {
+  extractHarnessParts: extractHarnessTranslationParts,
+});
+assert.deepEqual(
+  [...new Set(projected.map((item) => item.kind))].sort(),
+  ["harness_reminder", "system_prompt", "tool_description", "tool_parameter_description"],
+  "browser and Node consumers share the same request-material projection",
+);
+assert.equal(
+  projected.some((item) => item.source_text.startsWith("x-anthropic-billing-header")),
+  false,
+  "shared request projection applies the translation skip policy",
+);
+assert.equal(
+  translationMaterialsForRequest(first, { section: "tools" }).filter((item) => item.metadata.tool_name === "Read").length,
+  3,
+  "tool projection preserves the tool description and each parameter description",
+);
+
+const harnessParts = extractHarnessTranslationParts([
+  { role: "user", content: "<command-name>/init</command-name><command-message>init</command-message>Inspect the project." },
+  { role: "user", content: "<system-reminder>Use repository evidence.</system-reminder>" },
+]);
+assert.deepEqual(harnessParts.map((item) => item.kind), ["harness_command", "harness_reminder"]);
+assert.equal(harnessParts[0].text, "Inspect the project.");
+assert.equal(harnessParts[1].path, "messages[1].system-reminder[0]");
 
 const toolOnly = createCollector();
 toolOnly.collectRequest(first, source, { section: "tools" });
@@ -62,7 +94,7 @@ console.log("translation materials contract smoke passed");
 function createCollector(limits = undefined) {
   return new TranslationMaterialCollector({
     targetLanguage: "zh-CN",
-    contentText,
+    contentText: extractContentText,
     extractHarnessParts(messages) {
       const output = [];
       for (const [index, message] of messages.entries()) {

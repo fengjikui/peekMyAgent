@@ -91,14 +91,14 @@ import {
 import { buildUpstreamDetailView } from "./upstream-detail-model.js";
 import { renderUpstreamDetail as renderUpstreamDetailView } from "./upstream-detail-renderer.js";
 import {
-  extractTranslationSchemaDescriptions as extractSchemaDescriptionsForTranslation,
-  isSkippableTranslationMaterial,
   normalizeTranslationSourceText as normalizeTranslationText,
-  systemTranslationKind,
   translationLookupKey,
-  translationToolDescription as toolDescriptionOf,
-  translationToolName as toolNameOf,
 } from "./translation-blocks.js";
+import {
+  extractContentText,
+  extractHarnessTranslationParts,
+  translationMaterialsForRequest,
+} from "./translation-materials.js";
 
 const api = new ViewerApiClient();
 const clientStore = new ViewerClientStore();
@@ -681,10 +681,11 @@ async function writeClipboard(text, button) {
 }
 
 function sectionTranslationMaterials(request, section) {
-  if (section === "system") return collectSystemTranslationMaterials(request);
-  if (section === "tools") return collectToolTranslationMaterials(request);
-  if (section === "harness") return collectHarnessTranslationMaterials(request);
-  return [];
+  if (!["system", "tools", "harness"].includes(section)) return [];
+  return translationMaterialsForRequest(request, {
+    section,
+    extractHarnessParts: extractClientHarnessTranslationParts,
+  });
 }
 
 function setTranslationMode(mode, section) {
@@ -1992,9 +1993,9 @@ function systemTextFromRequest(request) {
 
 function collectTranslationMaterials(request) {
   return [
-    ...collectSystemTranslationMaterials(request),
-    ...collectToolTranslationMaterials(request),
-    ...collectHarnessTranslationMaterials(request),
+    ...translationMaterialsForRequest(request, {
+      extractHarnessParts: extractClientHarnessTranslationParts,
+    }),
     ...collectResponseTranslationMaterials(request),
   ];
 }
@@ -2011,143 +2012,22 @@ function collectResponseTranslationMaterials(request) {
   ];
 }
 
-function collectSystemTranslationMaterials(request) {
-  const body = request.raw?.body || {};
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  const materials = [];
-  extractSystemPartsForTranslation(body, messages).forEach((part, index) => {
-    const sourceText = normalizeTranslationText(part.text);
-    const kind = systemTranslationKind(sourceText);
-    if (isSkippableTranslationMaterial(kind, sourceText)) return;
-    materials.push({
-      kind,
-      source_text: sourceText,
-      metadata: { source: part.source, index },
-    });
+function extractClientHarnessTranslationParts(messages) {
+  return extractHarnessTranslationParts(messages, {
+    labelForPart(kind, { reminderIndex = 0 } = {}) {
+      if (kind === "harness_compact") return t("harnessCompact");
+      if (kind === "harness_command") return t("harnessCommand");
+      if (kind === "harness_suggestion") return t("harnessSuggestion");
+      if (kind === "harness_reminder") return `${t("harnessReminder")} #${reminderIndex + 1}`;
+      return kind;
+    },
   });
-  return dedupeTranslationMaterials(materials);
-}
-
-function collectToolTranslationMaterials(request) {
-  const body = request.raw?.body || {};
-  const tools = Array.isArray(body.tools) ? body.tools : [];
-  const materials = [];
-  tools.forEach((tool, toolIndex) => {
-    const toolName = toolNameOf(tool);
-    const description = toolDescriptionOf(tool);
-    if (description) {
-      materials.push({
-        kind: "tool_description",
-        source_text: description,
-        metadata: { tool_name: toolName, path: `tools[${toolIndex}].description` },
-      });
-    }
-    const schema = tool.input_schema || tool.function?.parameters || tool.parameters || null;
-    for (const item of extractSchemaDescriptionsForTranslation(schema, { rootPath: `tools[${toolIndex}].input_schema` })) {
-      materials.push({
-        kind: "tool_parameter_description",
-        source_text: item.description,
-        metadata: { tool_name: toolName, path: item.path, field_name: item.field_name },
-      });
-    }
-  });
-  return dedupeToolTranslationMaterials(materials);
-}
-
-function isCompactPromptText(text) {
-  const t = String(text || "");
-  return /create a detailed summary of the conversation so far/i.test(t) || (/Respond with TEXT ONLY/i.test(t) && /<analysis>[\s\S]*<summary>/i.test(t));
-}
-
-// Mirror of the server's extractHarnessTranslationParts: pull the harness
-// injected prompt fragments (framework reminders, /compact, slash commands,
-// suggestion mode) out of the message history for original/translated display.
-// Reads request.raw.body (already shipped to the client), so no extra payload.
-function collectHarnessTranslationMaterials(request) {
-  const body = request.raw?.body || {};
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  const materials = [];
-  messages.forEach((message, messageIndex) => {
-    if (!message || message.role !== "user") return;
-    const blocks = Array.isArray(message.content) ? message.content : [{ type: "text", text: extractContentText(message.content) }];
-    const fullText = extractContentText(message.content);
-
-    for (const block of blocks) {
-      const text = typeof block === "string" ? block : block?.type === "text" ? block.text || "" : "";
-      if (isCompactPromptText(text)) {
-        materials.push({ kind: "harness_compact", source_text: text, metadata: { label: t("harnessCompact"), path: `messages[${messageIndex}]` } });
-        break;
-      }
-    }
-    if (/<command-(?:name|message)\b/i.test(fullText)) {
-      const commandBody = fullText
-        .replace(/<command-message\b[^>]*>([\s\S]*?)<\/command-message>/gi, "")
-        .replace(/<command-name\b[^>]*>([\s\S]*?)<\/command-name>/gi, "")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
-      if (commandBody) materials.push({ kind: "harness_command", source_text: commandBody, metadata: { label: t("harnessCommand"), path: `messages[${messageIndex}]` } });
-    }
-    if (/^\s*\[SUGGESTION MODE:/i.test(fullText)) {
-      materials.push({ kind: "harness_suggestion", source_text: fullText, metadata: { label: t("harnessSuggestion"), path: `messages[${messageIndex}]` } });
-    }
-    const reminderRegex = /<system-reminder\b[^>]*>([\s\S]*?)<\/system-reminder>/gi;
-    let match;
-    let reminderIndex = 0;
-    while ((match = reminderRegex.exec(fullText))) {
-      const inner = (match[1] || "").trim();
-      if (inner) materials.push({ kind: "harness_reminder", source_text: inner, metadata: { label: `${t("harnessReminder")} #${reminderIndex + 1}`, path: `messages[${messageIndex}].reminder[${reminderIndex}]` } });
-      reminderIndex += 1;
-    }
-  });
-  return dedupeTranslationMaterials(materials);
-}
-
-function extractSystemPartsForTranslation(body, messages) {
-  const output = [];
-  if (typeof body.system === "string") output.push({ source: "body.system", text: body.system });
-  if (Array.isArray(body.system)) {
-    for (const part of body.system) output.push({ source: "body.system", text: extractContentText(part) });
-  }
-  for (const message of messages) {
-    if (message.role === "system") output.push({ source: "messages.system", text: extractContentText(message.content) });
-  }
-  return output.filter((part) => normalizeTranslationText(part.text));
-}
-
-function dedupeTranslationMaterials(materials) {
-  return [...new Map(materials.map((item) => [translationLookupKey(item.kind, normalizeTranslationText(item.source_text)), { ...item, source_text: normalizeTranslationText(item.source_text) }])).values()].filter(
-    (item) => item.source_text,
-  );
-}
-
-function dedupeToolTranslationMaterials(materials) {
-  return [
-    ...new Map(
-      materials.map((item) => {
-        const sourceText = normalizeTranslationText(item.source_text);
-        const metadata = item.metadata || {};
-        const key = [translationLookupKey(item.kind, sourceText), metadata.tool_name || "unknown", metadata.field_name || metadata.path || ""].join("\0");
-        return [key, { ...item, source_text: sourceText }];
-      }),
-    ).values(),
-  ].filter((item) => item.source_text);
 }
 
 async function materialHash(kind, sourceText) {
   const bytes = new TextEncoder().encode(translationLookupKey(kind, sourceText));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function extractContentText(content) {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) return content.map(extractContentText).filter(Boolean).join("\n");
-  if (content && typeof content === "object") {
-    if (typeof content.text === "string") return content.text;
-    if (typeof content.content === "string" || Array.isArray(content.content)) return extractContentText(content.content);
-    return JSON.stringify(content);
-  }
-  return "";
 }
 
 function renderJson(value, key) {

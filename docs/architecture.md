@@ -114,6 +114,9 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/viewer/translation-generation-operation.js` | 翻译生成的详情准备、provider、cache reload 三阶段异步编排与逐阶段失效校验 |
 | `src/viewer/translation-view-model.js` | 翻译材料分组、结构化搜索排序、缓存命中统计与展示 DTO |
 | `src/viewer/translation-renderer.js` | 翻译工具栏、System/Harness 块、工具组和参数汇总的依赖注入 HTML renderer |
+| `src/translation/request-materials.mjs` | Node/浏览器共享的 System、Tools schema 与 Harness 翻译材料投影、去重和 Harness 语义提取 |
+| `src/translation/materials.mjs` | 服务端翻译材料 hash、occurrence、metadata 清洗和大小限制 Collector |
+| `src/viewer/translation-materials.js` | 将共享翻译材料投影与 content text 原语接入浏览器模块图的薄适配层 |
 | `src/viewer/request-detail-cache.js` | compact request 的完整详情按需加载、并发去重、错误和 source 生命周期缓存 |
 | `src/viewer/source-timeline-controller.js` | Source generation、渐进首屏/cursor/live refresh、normalized Store 提交与旧异步结果失效控制器 |
 | `src/viewer/timeline-entity-store.js` | `TimelineEntityStore`：cursor 页面中的 request/Turn/Agent normalized map、缓存快照、详情覆盖与原子 annotation patch |

@@ -10,11 +10,18 @@ const viewerDir = path.join(projectRoot, "src", "viewer");
 const clientSource = fs.readFileSync(path.join(viewerDir, "client.js"), "utf8");
 const browserImports = [...clientSource.matchAll(/from\s+["']\.\/([^"']+)["']/g)].map((match) => `/${match[1]}`);
 
-for (const pathname of ["/", "/styles.css", "/client.js", ...browserImports]) {
+const sharedModuleImports = [
+  "/translation/request-materials.mjs",
+  "/translation/blocks.mjs",
+  "/trace/content-parts.mjs",
+  "/trace/message-semantics.mjs",
+];
+
+for (const pathname of ["/", "/styles.css", "/client.js", ...browserImports, ...sharedModuleImports]) {
   const asset = resolveViewerStaticAsset(pathname, { viewerDir, projectRoot });
   assert.ok(asset, `viewer static asset is not registered: ${pathname}`);
   assert.equal(fs.existsSync(asset.filePath), true, `viewer static asset file is missing: ${asset.filePath}`);
-  if (pathname.endsWith(".js")) assert.equal(asset.contentType, "text/javascript; charset=utf-8");
+  if (/\.m?js$/.test(pathname)) assert.equal(asset.contentType, "text/javascript; charset=utf-8");
 }
 
 assert.equal(resolveViewerStaticAsset("/../../package.json", { viewerDir, projectRoot }), null);

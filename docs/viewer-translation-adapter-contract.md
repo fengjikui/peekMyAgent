@@ -9,7 +9,7 @@
 Adapter 负责：
 
 - 将整条 Source、单个 Request 或浏览器提交的显式材料转成 `TranslationMaterialCollector` 输入；
-- 从上行消息中识别 framework reminder、`/compact`、slash command 展开和 Suggestion Mode；
+- 通过 `src/translation/request-materials.mjs` 的共享投影读取 framework reminder、`/compact`、slash command 展开和 Suggestion Mode；
 - 保留 request/source occurrence，使缓存块仍可追溯到原始 Trace；
 - 把生成与缓存读取委托给 `TranslationService`。
 
@@ -36,14 +36,14 @@ loadRequestDetail({ sourceId, requestId, requireSource })
 
 ## Harness 材料
 
-`extractHarnessTranslationParts()` 复用 `src/trace/message-semantics.mjs`，当前只产生：
+`extractHarnessTranslationParts()` 由 `src/translation/request-materials.mjs` 所有并复用 `src/trace/message-semantics.mjs`；Adapter 保留兼容导出。当前只产生：
 
 - `harness_reminder`
 - `harness_compact`
 - `harness_command`
 - `harness_suggestion`
 
-后台 task notification 和子 Agent 结果不是待翻译的 Harness 提示词，必须排除。新增 Harness 语义时，先扩展共享 message semantics，再更新 Adapter 契约；不要在 HTTP route 或浏览器里新增第二套 marker 判断。
+后台 task notification 和子 Agent 结果不是待翻译的 Harness 提示词，必须排除。新增 Harness 语义时，先扩展共享 message semantics 与 request-material projector，再更新 Adapter 契约；不要在 HTTP route 或浏览器里新增第二套 marker 判断。
 
 ## 验证
 
