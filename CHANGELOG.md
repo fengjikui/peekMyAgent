@@ -5,6 +5,10 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 
 ## [Unreleased]
 
+### Changed
+
+- Viewer source summaries and single-request details now use one versioned runtime DTO contract enforced by SourceRepository, Viewer Server, and the browser API client.
+
 ## [0.1.0-alpha.1] - 2026-07-15
 
 ### Added

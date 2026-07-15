@@ -86,7 +86,7 @@ for (const required of [
   "src/core/provenance.mjs",
   "src/core/source-identifiers.mjs",
   "src/server/http.mjs",
-  "src/server/viewer-api-contract.mjs",
+  "src/contracts/viewer-api.mjs",
   "src/server/viewer-router.mjs",
   "src/server/viewer-translation-adapter.mjs",
   "src/server/watch-runtime-service.mjs",

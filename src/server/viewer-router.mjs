@@ -22,7 +22,7 @@ import {
   VIEWER_API_ROUTES,
   expectedViewerApiMethod,
   sanitizeApiLookupId,
-} from "./viewer-api-contract.mjs";
+} from "../contracts/viewer-api.mjs";
 import { TRACE_BUNDLE_LIMITS } from "./trace-bundle-service.mjs";
 import { projectTimelineViewerData } from "./timeline-view-projector.mjs";
 

@@ -1,3 +1,8 @@
+import {
+  assertSourceSummaryList,
+  assertTraceRequestDetailResponse,
+} from "../contracts/viewer-api.mjs";
+
 export class ViewerApiClient {
   constructor({ fetchImpl = globalThis.fetch, fetchContext = globalThis, origin = globalThis.location?.origin || "http://127.0.0.1" } = {}) {
     if (typeof fetchImpl !== "function") throw new Error("fetchImpl is required");
@@ -5,8 +10,8 @@ export class ViewerApiClient {
     this.origin = origin;
   }
 
-  listSources() {
-    return this.getJson("/api/sources");
+  async listSources() {
+    return assertSourceSummaryList(await this.getJson("/api/sources"));
   }
 
   viewSource(sourceId, { initial = false, cursor = null, limit = 32 } = {}) {
@@ -23,8 +28,10 @@ export class ViewerApiClient {
     return this.getJson(`${url.pathname}${url.search}`);
   }
 
-  requestDetail(sourceId, requestId) {
-    return this.getJson(`/api/request?source=${encodeURIComponent(sourceId)}&request=${encodeURIComponent(requestId)}`);
+  async requestDetail(sourceId, requestId) {
+    return assertTraceRequestDetailResponse(
+      await this.getJson(`/api/request?source=${encodeURIComponent(sourceId)}&request=${encodeURIComponent(requestId)}`),
+    );
   }
 
   translations(agent, targetLanguage) {

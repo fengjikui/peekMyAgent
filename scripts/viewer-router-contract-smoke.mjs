@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import { VIEWER_INTENTS } from "../src/server/http.mjs";
-import { VIEWER_API_ROUTES } from "../src/server/viewer-api-contract.mjs";
+import { VIEWER_API_ROUTES } from "../src/contracts/viewer-api.mjs";
 import { createViewerRouter } from "../src/server/viewer-router.mjs";
 
 const calls = [];

@@ -15,8 +15,8 @@ const api = new ViewerApiClient({
   },
 });
 
-responses.push(jsonResponse([{ id: "source-1" }]));
-assert.deepEqual(await api.listSources(), [{ id: "source-1" }]);
+responses.push(jsonResponse([sourceSummary("source-1")]));
+assert.deepEqual(await api.listSources(), [sourceSummary("source-1")]);
 assert.deepEqual(calls.at(-1), { path: "/api/sources", options: {} });
 
 responses.push(jsonResponse({ source: { id: "source/a" } }));
@@ -27,7 +27,7 @@ responses.push(jsonResponse({ source: { id: "source/a" } }));
 await api.viewSource("source/a", { cursor: "opaque cursor", limit: 100 });
 assert.equal(calls.at(-1).path, "/api/view?source=source%2Fa&compact=1&cursor=opaque+cursor&limit=100");
 
-responses.push(jsonResponse({ request: { id: "request 1" } }));
+responses.push(jsonResponse(requestDetail("source/a", "request 1")));
 await api.requestDetail("source/a", "request 1");
 assert.equal(calls.at(-1).path, "/api/request?source=source%2Fa&request=request%201");
 
@@ -71,6 +71,10 @@ const jsonErrorApi = new ViewerApiClient({ fetchImpl: async () => jsonResponse({
 await assert.rejects(() => jsonErrorApi.listSources(), /denied/);
 const textErrorApi = new ViewerApiClient({ fetchImpl: async () => new Response("upstream failed", { status: 502 }) });
 await assert.rejects(() => textErrorApi.listSources(), /upstream failed/);
+const malformedSourceApi = new ViewerApiClient({ fetchImpl: async () => jsonResponse([{ id: "source-1" }]) });
+await assert.rejects(() => malformedSourceApi.listSources(), /Invalid Viewer API source list.*label is required/);
+const malformedDetailApi = new ViewerApiClient({ fetchImpl: async () => jsonResponse({ request: { id: "request-1" } }) });
+await assert.rejects(() => malformedDetailApi.requestDetail("source-1", "request-1"), /Invalid Viewer API request detail/);
 
 console.log("viewer API client contract smoke passed");
 
@@ -87,4 +91,17 @@ function jsonResponse(value, status = 200) {
     status,
     headers: { "content-type": "application/json" },
   });
+}
+
+function sourceSummary(id) {
+  return { id, label: id, kind: "proxy_capture", available: true, request_count: 1 };
+}
+
+function requestDetail(sourceId, requestId) {
+  return {
+    generated_at: "2026-07-15T00:00:00.000Z",
+    source: sourceSummary(sourceId),
+    request: { id: requestId, request_index: 1, detail_scope: "request_window" },
+    detail_scope: "request_window",
+  };
 }

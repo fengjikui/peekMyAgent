@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { expectedViewerApiMethod } from "./viewer-api-contract.mjs";
+import { expectedViewerApiMethod } from "../contracts/viewer-api.mjs";
 
 export const VIEWER_INTENT_HEADER = "x-peekmyagent-intent";
 

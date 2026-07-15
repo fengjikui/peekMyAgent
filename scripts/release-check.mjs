@@ -19,6 +19,7 @@ const coreCommands = [
   ["npm", "run", "smoke:security-boundary"],
   ["npm", "run", "smoke:viewer-http-contract"],
   ["npm", "run", "smoke:viewer-router-contract"],
+  ["npm", "run", "smoke:viewer-api-dto-contract"],
   ["npm", "run", "smoke:source-list-performance"],
   ["npm", "run", "smoke:source-repository-contract"],
   ["npm", "run", "smoke:imported-source-provider"],

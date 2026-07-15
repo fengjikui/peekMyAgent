@@ -21,7 +21,7 @@
 | Server | `src/viewer/server.mjs` 同时负责 HTTP、安全、repository、Trace domain、翻译、bundle 和 Agent send | 很难局部测试和分配代码所有权 |
 | Client | `src/viewer/client.js` 同时负责 store、fetch、协议解释和所有视图 | 小交互容易触发全量渲染，贡献者难定位 |
 | CLI | `bin/peekmyagent.mjs` 包含命令解析和几乎全部命令实现 | 新命令继续扩大入口文件，wrapper 生命周期难单测 |
-| 协议 | provenance 与 translation block 已有共享契约；其余 request/detail DTO 仍由 Server 和 Client 分别解释 | 字段漂移、展示歧义和重复修复 |
+| 协议 | provenance、translation block、`SourceSummary` 与单请求 `TraceRequestDetail` 已有共享契约；完整/compact Timeline、cursor delta 和其余 operation 响应仍由各层分别解释 | 首批高频身份 DTO 已阻断漂移，剩余接口仍需按功能逐条迁移 |
 | 数据库 | 内容寻址和 migration runner 已落地；Capture 读取 repository 已抽离，Watch/Capture 写入、维护与连接生命周期仍集中在 `PersistenceStore` | 写路径继续受单体 store 约束，但读取查询和水合已有独立可测边界 |
 | 性能 | live/SQLite/file/import 已使用 cursor 增量读取和实体 delta；文件后端使用私有 sidecar byte range；System diff 已有精确门限和块级退化；Client/Server 仍累计 compact 实体 | 首屏网络、文件 hydrate 和大 System diff 成本已受控，但超长会话的常驻 compact 实体仍随会话增长 |
 | 测试 | smoke 丰富，但基础设施重复，部分 UI 仅正则检查源码 | 维护成本高，真实交互回归覆盖不足 |
@@ -127,6 +127,7 @@ src/
 - 已建立 SQLite migration baseline：`PRAGMA user_version=1`、顺序事务 runner、旧库认领、未来版本保护和 schema shape 校验。
 - 已抽离 `SqliteCaptureReadRepository`：完整/首屏/分页/单请求窗口、request tree 重建和 response blob 水合不再由单体 `PersistenceStore` 实现；Store 保留兼容 facade，连接、migration、写事务和 GC 所有权不变。
 - 已建立共享 translation block contract：Server、Client、提取脚本和 worker 统一规范化、lookup key、schema description 和 marker 解析，缓存 hash 保持兼容。
+- 已建立共享 Viewer API DTO contract：`SourceSummary` 与单请求 `TraceRequestDetail` 具有版本、运行时 schema 和 Node/浏览器双端断言，SourceRepository、Viewer Server 与 API Client 共用同一事实源。
 - 已将 provenance v1 接入 Capture Proxy、OpenClaw normalizer 和 portable Trace import：区分 artifact fidelity 与关联 confidence，保留合法原始来源，旧导入采用保守回退。
 - file/demo/debug 等尚未形成 CaptureRecord 的 source 仍需在后续 source repository 阶段建立统一 DTO；阶段 1 的共享地基已经完成，可以进入 Viewer Server 拆分。
 
@@ -152,7 +153,7 @@ src/
 
 - 已抽出 `src/server/http.mjs`，集中管理 method 表、loopback/Origin/Fetch Metadata 防护、Content-Type、intent、body parser、CSP 和 JSON/静态响应。
 - 已增加不启动 daemon 的 HTTP contract smoke，并继续以真实 Viewer security smoke 锁定校验顺序和响应行为。
-- 已抽出共享 Viewer API contract 和依赖注入的 `ViewerRouter`：19 条 API 的 pathname/method、lookup/分页上限、transport 校验、body 解析和响应序列化不再由 `server.mjs` 内联分发；直接 Router contract 与真实 security smoke 共同锁定路由覆盖和校验顺序。
+- 已抽出共享 Viewer API contract 和依赖注入的 `ViewerRouter`：19 条 API 的 pathname/method、lookup/分页上限、`SourceSummary`/单请求详情 DTO、transport 校验、body 解析和响应序列化不再由 `server.mjs` 内联分发；直接 DTO/Router contract 与真实 security smoke 共同锁定字段、路由覆盖和校验顺序。
 - 已建立 SourceRepository 最小契约，统一 live、SQLite、file/demo 与 imported Trace 的 provider 汇聚、DTO 校验和显式 source 解析；现有标题/统计 provider 尚未迁出单体。
 - 已迁移 imported Trace provider：manifest 快速统计、旧 bundle fallback、目录发现与 DTO 构造不再由 Viewer Server 所有；共享 Source 文本约束保持标题清洗兼容。
 - 已迁移 file/demo provider：custom evidence 与显式 demo 的定义、路径解析、可用性和统计开关不再由 Viewer Server 所有；默认仍不加载 demo。

@@ -31,6 +31,7 @@ for (const [profile, description] of profiles) {
   assert.match(result.stdout, /npm run smoke:watch-current/);
   assert.match(result.stdout, /npm run smoke:watch-pause-resume/);
   assert.match(result.stdout, /npm run smoke:daemon-claude/);
+  assert.match(result.stdout, /npm run smoke:viewer-api-dto-contract/);
   assert.match(result.stdout, /npm run smoke:release-workflow/);
   assert.match(result.stdout, /npm run smoke:release-environment/);
   assert.match(result.stdout, /npm run smoke:governance/);

@@ -17,7 +17,11 @@ import {
   serveFile,
   writeJson,
 } from "../server/http.mjs";
-import { VIEWER_API_LIMITS, sanitizeApiLookupId } from "../server/viewer-api-contract.mjs";
+import {
+  assertTraceRequestDetailResponse,
+  VIEWER_API_LIMITS,
+  sanitizeApiLookupId,
+} from "../contracts/viewer-api.mjs";
 import { createViewerRouter } from "../server/viewer-router.mjs";
 import { SourceRepository } from "../server/source-repository.mjs";
 import { SourceLifecycleService } from "../server/source-lifecycle-service.mjs";
@@ -347,12 +351,12 @@ function loadViewerRequestDetail(sourceId, requestId, options, { requireSource =
   const { captures, debugSources, startIndex } = sourceCaptureReader(options).readRequestWindow(source, requestId, { previousCount: 1 });
   const request = viewerTraceProjector.projectRequestDetailWindow(captures, source, requestId, { startIndex, debugSources });
   if (!request) throw httpError(404, `Request not found: ${requestId}`);
-  return {
+  return assertTraceRequestDetailResponse({
     generated_at: new Date().toISOString(),
     source,
     request,
     detail_scope: "request_window",
-  };
+  });
 }
 
 function otelIngestService(options) {

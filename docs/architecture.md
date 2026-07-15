@@ -46,7 +46,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/core/platform.mjs`、`src/core/app-paths.mjs`、`src/core/process-tools.mjs` | 跨平台路径、命令、进程和本机运行环境 |
 | `src/core/redaction.mjs` | Trace 导出等路径使用的敏感内容脱敏 |
 | `src/server/http.mjs` | Viewer method/intent/body/loopback 安全边界与统一 HTTP 响应 |
-| `src/server/viewer-api-contract.mjs` | Viewer API pathname/method、lookup ID 和首屏分页上限的共享协议事实源 |
+| `src/contracts/viewer-api.mjs` | 浏览器与 Server 共用的 Viewer API pathname/method、lookup/分页上限、`SourceSummary` 和 `TraceRequestDetail` 运行时契约 |
 | `src/server/viewer-router.mjs` | HTTP URL/query/body/intent/响应适配；通过显式 operations 调用业务能力 |
 | `src/server/viewer-translation-adapter.mjs` | Viewer Source/Request 到翻译材料的适配、Harness 注入提取与 TranslationService 装配 |
 | `src/server/agent-send-service.mjs` | 页面独立发送的输入限制、Claude/OpenClaw 命令、跨平台执行、临时配置清理与脱敏响应 |
@@ -76,7 +76,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/adapters/trae-cn-integration.mjs` | Trae CN 配置发现、启停、漂移检查和稳定路由 |
 | `src/viewer/server.mjs` | Viewer daemon composition root、shared proxy/Store/Service/Router 装配与公开 DTO presenter |
 | `src/viewer/client.js` | 浏览器应用装配、共享状态、数据加载和尚未迁出的 feature renderer |
-| `src/viewer/api-client.js` | 浏览器 `/api/*` URL、method、intent header、body 与错误协议门面 |
+| `src/viewer/api-client.js` | 浏览器 `/api/*` URL、method、intent header、body、错误协议与共享响应 DTO 断言门面 |
 | `src/viewer/client-store.js` | source/Turn/request、Raw、语言、布局和 latest-only 的最小可订阅状态边界 |
 | `src/viewer/pane-layout-model.js` | 三栏宽度上下限、可用空间和内容占比的纯几何模型 |
 | `src/viewer/pane-layout-controller.js` | 三栏折叠、宽度偏好、键盘/指针拖动和窗口变化的长期 DOM Controller |

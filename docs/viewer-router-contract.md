@@ -1,8 +1,8 @@
 # Viewer Router 契约
 
-更新时间：2026-07-14
+更新时间：2026-07-15
 
-本文记录 Viewer HTTP 传输层的当前事实。路由表和 ID/分页上限的可执行事实源是 `src/server/viewer-api-contract.mjs`，路由实现位于 `src/server/viewer-router.mjs`，运行时依赖由 `src/viewer/server.mjs` 组装。
+本文记录 Viewer HTTP 传输层的当前事实。路由表和 ID/分页上限的可执行事实源是 `src/contracts/viewer-api.mjs`，路由实现位于 `src/server/viewer-router.mjs`，运行时依赖由 `src/viewer/server.mjs` 组装。Source 与单请求响应的字段边界见 [Viewer API DTO 契约](viewer-api-dto-contract.md)。
 
 ## 所有权
 
@@ -49,7 +49,7 @@ nextTimeline            loadRequestDetail
 
 ## 共享 API 事实源
 
-`src/server/viewer-api-contract.mjs` 统一定义：
+`src/contracts/viewer-api.mjs` 统一定义：
 
 - 全部 Viewer API pathname 和 method；
 - source/request/cursor ID 长度限制；
