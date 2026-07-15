@@ -1,6 +1,6 @@
 # peekMyAgent 当前架构
 
-更新时间：2026-07-14
+更新时间：2026-07-15
 
 本文描述当前代码真实运行方式。它是维护者和贡献者理解仓库的事实源，不是未来架构愿景；需要快速定位改动位置的 Coding Agent 先读[代码库地图](codebase-map.md)，演进计划见[重构路线图](refactoring-roadmap.md)。
 
@@ -39,8 +39,9 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/core/otel-capture.mjs` | 扫描 Claude Code OTel raw-body dump、关联 request/response 并生成 capture |
 | `src/core/otel-events.mjs` | 提取 OTel raw-body log events 和 trace/span 关联字段 |
 | `src/core/provenance.mjs` | Capture 内容来源与关联置信度运行时契约 |
-| `src/core/persistence-store.mjs` | SQLite schema、watch/capture、内容 blob 和 request tree 持久化 |
+| `src/core/persistence-store.mjs` | SQLite 连接生命周期、migration 装配、写事务、维护操作与兼容 facade |
 | `src/persistence/migrations/` | SQLite schema version、顺序 migration runner 和结构校验 |
+| `src/persistence/repositories/sqlite-capture-read-repository.mjs` | persisted Capture 的分页/窗口查询、request tree 重建与 response blob 水合 |
 | `src/core/normalize.mjs` | 归一化 capture 的基础结构，目前主要由 CLI/实验脚本使用 |
 | `src/core/platform.mjs`、`paths.mjs`、`processes.mjs` | 跨平台路径、命令、进程和本机运行环境 |
 | `src/core/redaction.mjs` | Trace 导出等路径使用的敏感内容脱敏 |

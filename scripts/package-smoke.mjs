@@ -115,6 +115,7 @@ for (const required of [
   "src/trace/subagent-graph.mjs",
   "src/persistence/migrations/index.mjs",
   "src/persistence/migrations/runner.mjs",
+  "src/persistence/repositories/sqlite-capture-read-repository.mjs",
   "src/translation/blocks.mjs",
   "src/translation/hash.mjs",
   "src/translation/materials.mjs",

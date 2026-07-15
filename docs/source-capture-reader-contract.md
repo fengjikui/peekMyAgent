@@ -1,6 +1,6 @@
 # Viewer Source Capture Reader 契约
 
-更新时间：2026-07-14
+更新时间：2026-07-15
 
 `src/server/source-capture-reader.mjs` 统一 live watch、SQLite persisted capture 和 file/imported Trace 的证据读取接口。它只负责读取窗口，不解释 turn、tool exchange 或子 Agent 语义。
 
@@ -40,7 +40,7 @@ page: {
 ## Backend 行为
 
 - live：从当前 watch 的共享/独立 proxy capture 集合读取，command 由 runtime 端口提供。
-- persisted：首屏使用 `loadInitialCaptures`，分页使用 SQLite `loadCapturePage`，单请求使用 `loadCaptureWindow`，全量只在明确请求时使用 `loadCaptures`。
+- persisted：首屏使用 `loadInitialCaptures`，分页使用 SQLite `loadCapturePage`，单请求使用 `loadCaptureWindow`，全量只在明确请求时使用 `loadCaptures`。这些 `PersistenceStore` facade 由 [`SqliteCaptureReadRepository`](sqlite-capture-read-repository-contract.md) 实现，reader 不直接持有 SQLite 查询或水合逻辑。
 - file/imported：有界首屏、分页与请求窗口通过私有 JSON array sidecar 读取对象 byte range；完整导出才 parse 全部 `proxy-captures.json`。debug companion 使用同一索引，command 只在需要的 Viewer 读取模式加载。
 
 ## 性能与兼容约束

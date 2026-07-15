@@ -1,6 +1,6 @@
 # peekMyAgent 重构路线图
 
-更新时间：2026-07-14
+更新时间：2026-07-15
 
 这份路线图的目标不是“大改得更漂亮”，而是在不破坏现有用户闭环的前提下，让 peekMyAgent 能长期演进、方便外部贡献，并为更多 Agent 适配建立稳定边界。当前系统事实见 [架构文档](architecture.md)。
 
@@ -22,7 +22,7 @@
 | Client | `src/viewer/client.js` 同时负责 store、fetch、协议解释和所有视图 | 小交互容易触发全量渲染，贡献者难定位 |
 | CLI | `bin/peekmyagent.mjs` 包含命令解析和几乎全部命令实现 | 新命令继续扩大入口文件，wrapper 生命周期难单测 |
 | 协议 | provenance 与 translation block 已有共享契约；其余 request/detail DTO 仍由 Server 和 Client 分别解释 | 字段漂移、展示歧义和重复修复 |
-| 数据库 | 内容寻址和 migration runner 已落地；repository 仍集中在 `PersistenceStore` | 后续领域拆分仍受单体 store 约束 |
+| 数据库 | 内容寻址和 migration runner 已落地；Capture 读取 repository 已抽离，Watch/Capture 写入、维护与连接生命周期仍集中在 `PersistenceStore` | 写路径继续受单体 store 约束，但读取查询和水合已有独立可测边界 |
 | 性能 | live/SQLite/file/import 已使用 cursor 增量读取和实体 delta；文件后端使用私有 sidecar byte range；System diff 已有精确门限和块级退化；Client/Server 仍累计 compact 实体 | 首屏网络、文件 hydrate 和大 System diff 成本已受控，但超长会话的常驻 compact 实体仍随会话增长 |
 | 测试 | smoke 丰富，但基础设施重复，部分 UI 仅正则检查源码 | 维护成本高，真实交互回归覆盖不足 |
 | 发布 | `0.0.0`、无稳定版本/变更记录流程 | 用户难判断兼容性，npm 发布不可追踪 |
@@ -112,6 +112,7 @@ src/
 - 已建立 provenance v1 最小运行时契约，先用于 OTel raw-body request/response，分离正文 fidelity 与关联 confidence。
 - 已接入 Claude Code OTel body events，通过 `traceId + spanId` 精确关联 response，并保留旧版本顺序回退。
 - 已建立 SQLite migration baseline：`PRAGMA user_version=1`、顺序事务 runner、旧库认领、未来版本保护和 schema shape 校验。
+- 已抽离 `SqliteCaptureReadRepository`：完整/首屏/分页/单请求窗口、request tree 重建和 response blob 水合不再由单体 `PersistenceStore` 实现；Store 保留兼容 facade，连接、migration、写事务和 GC 所有权不变。
 - 已建立共享 translation block contract：Server、Client、提取脚本和 worker 统一规范化、lookup key、schema description 和 marker 解析，缓存 hash 保持兼容。
 - 已将 provenance v1 接入 Capture Proxy、OpenClaw normalizer 和 portable Trace import：区分 artifact fidelity 与关联 confidence，保留合法原始来源，旧导入采用保守回退。
 - file/demo/debug 等尚未形成 CaptureRecord 的 source 仍需在后续 source repository 阶段建立统一 DTO；阶段 1 的共享地基已经完成，可以进入 Viewer Server 拆分。

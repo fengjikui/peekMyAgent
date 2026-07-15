@@ -1,6 +1,6 @@
 # Coding Agent 代码库地图
 
-更新时间：2026-07-14
+更新时间：2026-07-15
 
 本文帮助 Codex、Claude Code 和其他 Coding Agent 在几分钟内找到正确改动边界。它不是第二份架构事实源：运行行为以[当前架构](architecture.md)为准，未来设计以[重构路线图](refactoring-roadmap.md)为准，协作和验证规则以仓库根目录的 `AGENTS.md` 为准。
 
@@ -36,7 +36,8 @@ pma CLI / adapter
 | Claude Code OTel 关联与入库 | `src/core/otel-capture.mjs`、`otel-events.mjs`、`src/server/otel-ingest-service.mjs`、`src/adapters/claude-code-otel.mjs`、[Service 契约](otel-ingest-service-contract.md) | 在 HTTP route 复制配对算法，或让 core 解析层直接写 Store |
 | 页面向 Agent 独立发送消息 | `src/server/agent-send-service.mjs`、`src/viewer/agent-composer-*`、[Service 契约](agent-send-service-contract.md) | renderer 启动进程、Service 直接拥有 watch 恢复，或暗示消息会进入原终端上下文 |
 | OpenClaw/Trae 或新 Agent | `src/adapters/`、对应 integration、适配器 fixture | 在 Server/Client 散落 provider 条件分支 |
-| SQLite、内容块、迁移 | `src/core/persistence-store.mjs`、`src/persistence/migrations/` | 绕过 migration 直接改 schema |
+| SQLite 连接/写入/维护与 schema migration | `src/core/persistence-store.mjs`、`src/persistence/migrations/` | 绕过 migration 直接改 schema，或让 read repository 拥有连接生命周期/写事务 |
+| persisted Capture 分页、窗口、body 重建与 response 水合 | `src/persistence/repositories/sqlite-capture-read-repository.mjs`、[读取仓库契约](sqlite-capture-read-repository-contract.md) | 在 Source reader、HTTP route 或 Viewer projector 重写 SQLite 查询和 blob 水合 |
 | content、thinking、tool use、tool result 基础解析 | `src/trace/content-parts.mjs`、对应 contract smoke | 在上行/下行各维护一份 block 解析 |
 | 真实用户输入、slash command、Harness 注入、任务通知 | `src/trace/message-semantics.mjs`、对应 contract smoke | 在 Server/Turn/标题/UI 各写一套 marker 正则 |
 | 请求协议/provider、main/subagent/metadata 来源画像 | `src/trace/request-profile.mjs`、对应 contract smoke | 在 Server/Viewer/adapter 中散落 model、path 或 header 判断 |
