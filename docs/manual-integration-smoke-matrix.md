@@ -17,6 +17,8 @@ npm run release:check:windows
 
 The platform-specific gates are deterministic by design. They use temporary state roots, fake Agent commands, mock upstreams, and ignored `tmp/` report paths. They should not require Claude Code, OpenClaw, Codex, provider API keys, or real user session data.
 
+The fake Claude wrapper gate covers normal and non-zero child exits, missing-watch idempotency, capture preservation, and stopped-watch cleanup on every host. On macOS and Linux it also sends `SIGINT` to the wrapper and requires signal forwarding, exit code `130`, and cleanup before the wrapper exits. Windows console control events are not equivalent to POSIX signals, so release candidates still verify interactive `Ctrl+C` once on a real Windows terminal.
+
 ## Manual Smoke Classes
 
 | Class | Commands | Requires | Why not in release gate | Expected artifact |
