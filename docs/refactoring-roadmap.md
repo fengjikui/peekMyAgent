@@ -32,7 +32,7 @@
 结构重构不再以“拆完所有大文件”为目标。公开 alpha 前只继续处理会直接影响数据完整性、关键交互回归或新贡献者定位的问题：
 
 - 修正文档入口和真实模块路径，保证新贡献者可以从任务定位到唯一边界与最小测试。
-- 为多语句 Capture/response 写入补原子性和失败回滚契约。
+- 已为迟到 response 的 content blob、关联、refcount、Capture JSON 和 watch 时间补齐单事务写入与 failure-trigger 回滚契约；后续写路径修改必须保持该边界。
 - 为 Raw 搜索真实浏览器交互与 Claude wrapper signal/cleanup 保留发布门禁。
 - 完成 semver、CHANGELOG、npm provenance 和三平台候选 SHA 验证。
 

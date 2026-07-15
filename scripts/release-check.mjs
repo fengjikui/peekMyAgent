@@ -131,6 +131,7 @@ const protocolCommands = [
 const persistenceCommands = [
   ["npm", "run", "smoke:persistence-migrations"],
   ["npm", "run", "smoke:sqlite-capture-read-repository"],
+  ["npm", "run", "smoke:capture-response-transaction"],
   ["npm", "run", "smoke:persistence-store"],
   ["npm", "run", "smoke:project-source-actions"],
   ["npm", "run", "smoke:request-tree"],

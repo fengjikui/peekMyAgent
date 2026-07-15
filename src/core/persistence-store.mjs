@@ -311,25 +311,36 @@ export class PersistenceStore {
   }
 
   updateCaptureResponse(capture) {
-    if (!capture?.capture_id || !this.hasRequest(capture.capture_id)) return { updated: false };
-    const row = this.db.prepare("SELECT capture_json FROM model_requests WHERE request_id = ?").get(capture.capture_id);
-    const stored = row?.capture_json ? JSON.parse(row.capture_json) : {};
-    const responseForStore = capture.response ? this.storeResponseBlob(capture.capture_id, capture.response) : null;
-    const next = {
-      ...stored,
-      upstream_status: capture.upstream_status ?? stored.upstream_status ?? null,
-      upstream_error: capture.upstream_error ?? stored.upstream_error ?? null,
-      response: responseForStore ?? stored.response ?? null,
-      source: capture.source ?? stored.source ?? null,
-      provenance: capture.provenance ?? stored.provenance ?? null,
-    };
-    this.db.prepare("UPDATE model_requests SET capture_json = ? WHERE request_id = ?").run(JSON.stringify(next), capture.capture_id);
-    if (capture.watch_id && capture.response?.received_at) {
-      this.db
-        .prepare("UPDATE watches SET updated_at = ?, last_seen = ? WHERE watch_id = ?")
-        .run(capture.response.received_at, capture.response.received_at, capture.watch_id);
+    if (!capture?.capture_id) return { updated: false };
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const row = this.db.prepare("SELECT capture_json FROM model_requests WHERE request_id = ?").get(capture.capture_id);
+      if (!row) {
+        this.db.exec("ROLLBACK");
+        return { updated: false };
+      }
+      const stored = row.capture_json ? JSON.parse(row.capture_json) : {};
+      const responseForStore = capture.response ? this.storeResponseBlob(capture.capture_id, capture.response) : null;
+      const next = {
+        ...stored,
+        upstream_status: capture.upstream_status ?? stored.upstream_status ?? null,
+        upstream_error: capture.upstream_error ?? stored.upstream_error ?? null,
+        response: responseForStore ?? stored.response ?? null,
+        source: capture.source ?? stored.source ?? null,
+        provenance: capture.provenance ?? stored.provenance ?? null,
+      };
+      this.db.prepare("UPDATE model_requests SET capture_json = ? WHERE request_id = ?").run(JSON.stringify(next), capture.capture_id);
+      if (capture.watch_id && capture.response?.received_at) {
+        this.db
+          .prepare("UPDATE watches SET updated_at = ?, last_seen = ? WHERE watch_id = ?")
+          .run(capture.response.received_at, capture.response.received_at, capture.watch_id);
+      }
+      this.db.exec("COMMIT");
+      return { updated: true, request_id: capture.capture_id };
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
     }
-    return { updated: true, request_id: capture.capture_id };
   }
 
   storeResponseBlob(requestId, response) {

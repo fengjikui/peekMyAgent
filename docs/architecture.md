@@ -183,13 +183,15 @@ SQLite 使用 WAL，核心实体为：
 
 Anthropic 风格请求的顶层 `system`、`tools`、`messages` 会拆成 blob 引用，从而避免长会话重复保存完整上下文。历史数据可通过 `pma compact` 迁移到该布局。
 
+请求首次写入和迟到 response 更新分别使用独立的 `BEGIN IMMEDIATE` 事务。response 更新中的 content blob、request-to-blob 关联、refcount、Capture JSON 和 watch 时间必须整体提交或整体回滚，契约见 [Capture Response 写入事务](capture-response-transaction-contract.md)。
+
 数据库使用 `PRAGMA user_version` 记录 schema 版本，当前版本为 1。打开数据库时，migration runner 会先在单个事务中顺序执行所有 pending migration，再校验必需表和字段，成功后才切换 WAL；未标版本的现有数据库会以不重写业务数据的方式认领 v1。任一步失败会整体回滚，高于当前程序支持版本的数据库会被拒绝打开，避免旧版本误写新 schema。新增或修改表结构必须增加新 migration，不再直接把 DDL 塞回 store 构造函数。维护流程见 [数据库迁移指南](database-migrations.md)。
 
 当前边界：
 
 - OpenAI Responses 风格 `input` 尚未获得完全等价的语义分块。
 - response 更新会重新计算 blob refcount，长库写入有进一步优化空间。
-- imported/file-backed source 仍依赖完整文件读取和 JSON parse。
+- imported/file-backed source 首次线性建立私有 sidecar，后续页面和请求窗口按 byte range 水合；冷启动索引和 deep-link 查找仍有继续优化空间。
 
 详见 [Block cache 存储设计](block-cache-storage.md)。
 
