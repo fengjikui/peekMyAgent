@@ -38,18 +38,24 @@ assert.match(controls, /2\/3/);
 assert.match(controls, /data-raw-search-nav="previous"/);
 assert.match(controls, /value="Claude&quot;"/);
 
+const longSearchValue = `${"x".repeat(520)} Claude tail match`;
+const highlightedValues = [];
 const results = renderRawSearchResults({
   query: "Claude",
   scope: "System",
-  entries: [{ path: "system[0]", scope: "system", text: "Claude Code", value: "Claude Code full" }],
+  entries: [{ path: "system[0]", scope: "system", text: `${"x".repeat(417)}...`, value: longSearchValue }],
   translate,
   escapeHtml,
-  highlightSnippet: (text) => `<mark>${escapeHtml(text)}</mark>`,
+  highlightSnippet: (text) => {
+    highlightedValues.push(text);
+    return `<mark>${escapeHtml(text)}</mark>`;
+  },
   renderPre: (text) => `<pre>${escapeHtml(text)}</pre>`,
 });
 assert.match(results, /data-raw-search-target/);
-assert.match(results, /<mark>Claude Code<\/mark>/);
-assert.match(results, /<pre>Claude Code full<\/pre>/);
+assert.ok(highlightedValues.includes(longSearchValue), "Raw search must highlight the complete value rather than its leading preview");
+assert.match(results, /Claude tail match<\/mark>/);
+assert.match(results, /<pre>.*Claude tail match<\/pre>/s);
 
 assert.match(renderRawDetail({ title: "system", value: { ok: true }, escapeHtml, renderJson: JSON.stringify }), /json-node/);
 assert.match(renderRequestDetailLoading({ translate, escapeHtml }), /requestDetailLoading/);

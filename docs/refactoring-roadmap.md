@@ -33,7 +33,7 @@
 
 - 修正文档入口和真实模块路径，保证新贡献者可以从任务定位到唯一边界与最小测试。
 - 已为迟到 response 的 content blob、关联、refcount、Capture JSON 和 watch 时间补齐单事务写入与 failure-trigger 回滚契约；后续写路径修改必须保持该边界。
-- 为 Raw 搜索真实浏览器交互与 Claude wrapper signal/cleanup 保留发布门禁。
+- 已为 Raw 搜索建立隔离 Viewer/Capture Proxy + 真实 Chromium/Edge 的发布门禁，覆盖中文 IME、长文本尾部命中、可见计数、高亮、循环导航、区块切换和粘性控件；Claude wrapper signal/cleanup 仍需发布门禁。
 - 完成 semver、CHANGELOG、npm provenance 和三平台候选 SHA 验证。
 
 以下工作移到公开 alpha 后，由真实问题或新增功能触发：继续机械拆分 `server.mjs`/`client.js`、完整 Write Repository 抽离、Claude wrapper 全面模块化、page eviction、后台搜索索引、前端框架替换和 Adapter SDK 扩张。
@@ -224,7 +224,7 @@ src/
 验收：
 
 - 选择 request、切换 Raw tab、翻译一个块不再默认触发整页 `renderAll`。
-- 至少用真实浏览器测试三栏折叠/调整、时间线导航、Raw 懒展开和 Markdown。
+- 已将 Raw 搜索中文 IME、完整值命中、可见计数、循环导航和粘性控件纳入真实 Chromium/Edge 发布 smoke；三栏折叠/调整、时间线导航、Raw 懒展开和 Markdown 仍需继续补齐真实浏览器场景。
 - pane 宽度变化由单一布局模型控制，组件响应使用容器条件而非只看 viewport。
 
 ## 阶段 4：大 Trace 数据路径

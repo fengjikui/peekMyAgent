@@ -81,18 +81,20 @@ export function renderRawSearchResults({ query, scope, entries, translate, escap
     <section class="raw-search-results">
       ${entries
         .slice(0, limit)
-        .map(
-          (entry) => `
+        .map((entry) => {
+          const entryPath = entry.path || scope;
+          const entryValue = entry.value ?? entry.text;
+          return `
             <article class="raw-search-result" data-raw-search-target="true">
               <header>
-                <strong>${escapeHtml(entry.path || scope)}</strong>
+                <strong>${highlightSnippet(entryPath, query)}</strong>
                 <span>${escapeHtml(translate("rawSearchMatchedIn", { scope: entry.scope || scope }))}</span>
               </header>
-              <p>${highlightSnippet(entry.text, query)}</p>
+              <p>${highlightSnippet(entryValue, query)}</p>
               ${entry.value !== entry.text ? `<details><summary>${escapeHtml(translate("rawSearchValue"))}</summary>${renderPre(entry.value)}</details>` : ""}
             </article>
-          `,
-        )
+          `;
+        })
         .join("")}
     </section>
   `;

@@ -53,7 +53,7 @@ pma CLI / adapter
 | Capture 到 Viewer request/Turn/Agent/stats DTO | `viewer-trace-projector.mjs`、`src/trace/*`、[投影器契约](viewer-trace-projector-contract.md) | 在 HTTP route、Source provider、详情或 cursor 路径分别拼 DTO |
 | Viewer HTTP 安全和 API | `viewer-api-contract.mjs`、`http.mjs`、`viewer-router.mjs`、[Router 契约](viewer-router-contract.md)、`src/viewer/api-client.js` | 在 `server.mjs` 重新写 URL/method/intent 分支，或让 feature renderer 发 `fetch` |
 | 中栏 Timeline、请求卡、多 Agent 看板、上行详情 | `trace-timeline-*`、`request-card-model.js`、`request-card-renderer.js`、`agent-graph-*`、`upstream-detail-*`、[请求卡 View 契约](request-card-renderer-contract.md) | 在 `client.js` 重写请求分类/摘要/工具配对，或让 renderer 读取全局 `state`/DOM |
-| Raw、Messages、翻译展示 | `raw-inspector-controller.js`、`raw-*`、`message-*`、`translation-*`、[Raw Inspector Controller 契约](raw-inspector-controller-contract.md) | `client.js` 新增长段领域 HTML，或绕过 Controller 直接提交异步 Raw 结果 |
+| Raw、Messages、翻译展示 | `raw-inspector-controller.js`、`raw-*`、`message-*`、`translation-*`、[Raw Inspector Controller 契约](raw-inspector-controller-contract.md)、[Raw 搜索浏览器契约](raw-search-browser-contract.md) | `client.js` 新增长段领域 HTML，或绕过 Controller 直接提交异步 Raw 结果；Raw 搜索只检查截断预览而不检查完整值 |
 | System 提示词变化与大文本退化 | `system-diff-model.js`、`system-diff-renderer.js`、[System Diff 契约](system-diff-view-contract.md) | 在 `client.js` 重建无上限 LCS 矩阵，或把块摘要称作精确行 diff |
 | 三栏折叠、宽度与拖动 | `pane-layout-model.js`、`pane-layout-controller.js`；状态在 `client-store.js` | 在 `client.js` 直接读写 CSS 变量或重复绑定 resizer |
 | UI 状态与交互动作 | `client-store.js`、feature controller、`session-navigator-*`、`agent-composer-*`、`client.js` 装配层 | model/renderer 写全局状态 |

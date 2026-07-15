@@ -36,6 +36,7 @@ for (const [profile, description] of profiles) {
   assert.match(result.stdout, /npm run smoke:proxy-anthropic/);
   assert.match(result.stdout, /npm run smoke:proxy-attribution/);
   assert.match(result.stdout, /npm run smoke:response-capture/);
+  assert.match(result.stdout, /npm run smoke:raw-search-browser/);
   assert.match(result.stdout, /npm run smoke:tool-exchange-delta/);
   assert.match(result.stdout, /npm run smoke:timeline-display/);
   assert.match(result.stdout, /npm run smoke:claude-internal-turn/);
