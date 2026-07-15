@@ -43,7 +43,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/persistence/migrations/` | SQLite schema version、顺序 migration runner 和结构校验 |
 | `src/persistence/repositories/sqlite-capture-read-repository.mjs` | persisted Capture 的分页/窗口查询、request tree 重建与 response blob 水合 |
 | `src/core/normalize.mjs` | 归一化 capture 的基础结构，目前主要由 CLI/实验脚本使用 |
-| `src/core/platform.mjs`、`paths.mjs`、`processes.mjs` | 跨平台路径、命令、进程和本机运行环境 |
+| `src/core/platform.mjs`、`src/core/app-paths.mjs`、`src/core/process-tools.mjs` | 跨平台路径、命令、进程和本机运行环境 |
 | `src/core/redaction.mjs` | Trace 导出等路径使用的敏感内容脱敏 |
 | `src/server/http.mjs` | Viewer method/intent/body/loopback 安全边界与统一 HTTP 响应 |
 | `src/server/viewer-api-contract.mjs` | Viewer API pathname/method、lookup ID 和首屏分页上限的共享协议事实源 |
@@ -71,7 +71,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚四类 provider。
 | `src/trace/message-equivalence.mjs`、`context-delta.mjs`、`turn-timeline.mjs`、`subagent-graph.mjs` | 消息等价、context chain、历史复用、Turn 编组与多 Agent 血缘图协议 |
 | `src/translation/blocks.mjs`、`hash.mjs`、`materials.mjs` | 跨 Server/Client/脚本共享的翻译块规范化、key、marker、schema 遍历、材料去重与限额 |
 | `src/translation/service.mjs` | 翻译材料/manifest 私有落盘、缓存 alias 查找、并发/force 参数与翻译脚本编排 |
-| `src/adapters/claude-code-otel.mjs` | Claude Code OTel 数据归一化 |
+| `src/adapters/claude-otel.mjs` | Claude Code OTel 数据归一化 |
 | `src/adapters/openclaw-config.mjs`、`openclaw-normalize.mjs` | OpenClaw profile 配置和协议归一化 |
 | `src/adapters/trae-cn-integration.mjs` | Trae CN 配置发现、启停、漂移检查和稳定路由 |
 | `src/viewer/server.mjs` | Viewer daemon composition root、shared proxy/Store/Service/Router 装配与公开 DTO presenter |

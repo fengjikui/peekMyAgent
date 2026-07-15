@@ -106,7 +106,7 @@ Viewer-only JavaScript, CSS, copy, or documentation changes still use hosted CI,
 
 - Preserve existing behavior unless the task explicitly changes it.
 - Prefer current project patterns and shared helpers.
-- Put platform differences behind `src/core/platform.mjs`, `paths.mjs`, `processes.mjs`, or another explicit platform boundary.
+- Put platform differences behind `src/core/platform.mjs`, `src/core/app-paths.mjs`, `src/core/process-tools.mjs`, or another explicit platform boundary.
 - Do not scatter `process.platform` checks through unrelated product code.
 - A platform bug fix MUST include a deterministic regression test whenever the failure can be reproduced without real credentials or external services.
 - Do not weaken, delete, or rewrite a failing test merely to make a platform pass.

@@ -30,6 +30,19 @@ npm run release:check:windows
 
 The release gate uses temporary state directories and temporary ports. Do not run tests against real captured sessions unless the test explicitly requires it.
 
+## Find The Right Boundary
+
+Read the [codebase map](docs/codebase-map.md) before editing. Common starting points are:
+
+| Change | Start here | Focused check |
+| --- | --- | --- |
+| Persisted Capture page or request window | `src/persistence/repositories/sqlite-capture-read-repository.mjs` | `npm run smoke:sqlite-capture-read-repository` |
+| Capture write or response persistence | `src/core/persistence-store.mjs` | `npm run smoke:persistence-store` and `npm run smoke:response-capture` |
+| Raw search matching or navigation | `src/viewer/raw-search-model.js`, `raw-search-controller.js`, `raw-inspector-renderer.js` | matching `smoke:raw-*` contracts plus a browser scenario |
+| Claude wrapper lifecycle | `bin/peekmyagent.mjs`, `src/core/claude-code-settings.mjs`, `src/core/platform.mjs` | `npm run smoke:run-claude` and `npm run smoke:daemon-claude` |
+
+The architecture document describes current behavior; the roadmap is not an implementation contract. Do not add a second query, parser, or lifecycle owner merely because the existing facade is large.
+
 ## Useful Checks
 
 Before opening a pull request, run the smallest checks that cover your change:
