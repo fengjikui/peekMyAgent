@@ -136,7 +136,7 @@
 - `npm run smoke:package`
   - 覆盖 npm 包内容边界，使用发布路径 allowlist 并拒绝把 `docs/`、`tmp/`、handover/private/resume/memory 草稿、`.env`、数据库、日志、压缩包和录屏/截图素材打进发布包；仓库测试 fixtures、源码安装/卸载脚本及其 helper 保留在 Git 仓库中但不随 npm 运行时包分发，npm 用户使用全局安装和 `pma uninstall`，翻译生成所需的两个运行时脚本继续随包提供。门禁同时约束 140 个条目、270 KB 压缩体积和 1.15 MB 解压体积，给边界模块保留少量余量，同时让意外打包大文件继续立即失败。
 - `npm run smoke:release-environment`
-  - 发布门禁为每个命令创建隔离 HOME/state/端口，并移除宿主机 Anthropic、OpenAI、DeepSeek、OpenClaw 和翻译 provider 凭据，保证确定性 smoke 不会意外访问真实模型或写入用户缓存。
+  - 发布门禁为每个命令创建隔离 HOME/state/端口，并移除宿主机 Anthropic、OpenAI、DeepSeek、OpenClaw 和翻译 provider 凭据，保证确定性 smoke 不会意外访问真实模型或写入用户缓存。macOS Chromium 子进程使用独立临时 profile，但不继承伪造 HOME；后者会让 Chrome DevTools 导航永久不响应，因此仅由系统账户解析合法主目录。
 - `npm run smoke:timeline-window`
   - 覆盖长 Trace 主时间线窗口渲染和 Raw Messages 整理视图截断，防止前端回退到大 DOM 全量渲染。
 - `npm run smoke:markdown-safety`

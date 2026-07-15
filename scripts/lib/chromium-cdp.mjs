@@ -30,7 +30,10 @@ export async function launchChromiumPage({ env = process.env, timeoutMs = DEFAUL
     "--window-size=1440,900",
     "about:blank",
   ];
-  const child = spawn(executable, args, { stdio: ["ignore", "ignore", "pipe"] });
+  const child = spawn(executable, args, {
+    stdio: ["ignore", "ignore", "pipe"],
+    env: chromiumSpawnEnvironment({ env }),
+  });
   child.stderr.on("data", (chunk) => {
     stderr.push(String(chunk));
     if (stderr.length > 80) stderr.shift();
@@ -75,6 +78,15 @@ export function findChromiumExecutable({ env = process.env, platform = process.p
   throw new Error(
     "Raw browser smoke requires Chrome, Chromium, or Edge. Install one or set PEEKMYAGENT_BROWSER_PATH to its executable.",
   );
+}
+
+export function chromiumSpawnEnvironment({ env = process.env, platform = process.platform } = {}) {
+  const browserEnv = { ...env };
+  if (platform === "darwin" && env.PEEKMYAGENT_RELEASE_CHECK_ISOLATED === "1") {
+    delete browserEnv.HOME;
+    delete browserEnv.USERPROFILE;
+  }
+  return browserEnv;
 }
 
 class ChromiumCdpPage {

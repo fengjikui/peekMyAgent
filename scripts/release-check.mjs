@@ -290,6 +290,7 @@ async function isolatedCommandEnv(command) {
   const [apiPort, capturePort] = await Promise.all([freePort(), freePort()]);
   return {
     ...sanitizeReleaseCheckEnvironment(process.env),
+    PEEKMYAGENT_RELEASE_CHECK_ISOLATED: "1",
     HOME: homeDir,
     USERPROFILE: homeDir,
     LOCALAPPDATA: localAppDataDir,

@@ -3,6 +3,7 @@ import {
   RELEASE_CHECK_PROVIDER_ENV_KEYS,
   sanitizeReleaseCheckEnvironment,
 } from "./lib/release-environment.mjs";
+import { chromiumSpawnEnvironment } from "./lib/chromium-cdp.mjs";
 
 const original = {
   PATH: "/test/bin",
@@ -20,5 +21,25 @@ for (const key of RELEASE_CHECK_PROVIDER_ENV_KEYS) {
   assert.equal(Object.hasOwn(sanitized, key), false, `release check must remove ${key}`);
 }
 assert.equal(original.DEEPSEEK_API_KEY, "real-deepseek-secret", "sanitization must not mutate the caller environment");
+
+const isolatedMacBrowserEnv = chromiumSpawnEnvironment({
+  env: { HOME: "/isolated/home", USERPROFILE: "/isolated/profile", PEEKMYAGENT_RELEASE_CHECK_ISOLATED: "1" },
+  platform: "darwin",
+});
+assert.equal(Object.hasOwn(isolatedMacBrowserEnv, "HOME"), false);
+assert.equal(Object.hasOwn(isolatedMacBrowserEnv, "USERPROFILE"), false);
+assert.equal(
+  chromiumSpawnEnvironment({ env: { HOME: "/normal/home" }, platform: "darwin" }).HOME,
+  "/normal/home",
+  "ordinary browser smokes must preserve the caller environment",
+);
+assert.equal(
+  chromiumSpawnEnvironment({
+    env: { HOME: "/isolated/linux", PEEKMYAGENT_RELEASE_CHECK_ISOLATED: "1" },
+    platform: "linux",
+  }).HOME,
+  "/isolated/linux",
+  "only macOS Chromium requires the system-account HOME fallback",
+);
 
 console.log("release environment smoke passed");
