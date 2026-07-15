@@ -39,7 +39,7 @@ export async function launchChromiumPage({ env = process.env, timeoutMs = DEFAUL
   try {
     const target = await waitForPageTarget({ port, child, stderr, timeoutMs });
     const socket = await openWebSocket(target.webSocketDebuggerUrl, timeoutMs);
-    const page = new ChromiumCdpPage({ socket, child, profileDir, executable, stderr });
+    const page = new ChromiumCdpPage({ socket, child, profileDir, executable, stderr, timeoutMs });
     await page.send("Page.enable");
     await page.send("Runtime.enable");
     await page.send("Log.enable").catch(() => {});
@@ -78,12 +78,13 @@ export function findChromiumExecutable({ env = process.env, platform = process.p
 }
 
 class ChromiumCdpPage {
-  constructor({ socket, child, profileDir, executable, stderr }) {
+  constructor({ socket, child, profileDir, executable, stderr, timeoutMs }) {
     this.socket = socket;
     this.child = child;
     this.profileDir = profileDir;
     this.executable = executable;
     this.stderr = stderr;
+    this.timeoutMs = timeoutMs;
     this.nextId = 1;
     this.pending = new Map();
     this.runtimeExceptions = [];
@@ -93,12 +94,32 @@ class ChromiumCdpPage {
     socket.addEventListener("error", () => this.rejectPending(new Error("Chromium DevTools connection failed")));
   }
 
-  send(method, params = {}) {
+  send(method, params = {}, { timeoutMs = this.timeoutMs } = {}) {
     if (this.closed) return Promise.reject(new Error(`Cannot send ${method}: Chromium page is closed`));
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { method, resolve, reject });
-      this.socket.send(JSON.stringify({ id, method, params }));
+      const timer = setTimeout(() => {
+        if (!this.pending.delete(id)) return;
+        reject(new Error(`Timed out waiting for Chromium CDP command ${method}`));
+      }, timeoutMs);
+      const pending = {
+        method,
+        resolve: (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      };
+      this.pending.set(id, pending);
+      try {
+        this.socket.send(JSON.stringify({ id, method, params }));
+      } catch (error) {
+        this.pending.delete(id);
+        pending.reject(error);
+      }
     });
   }
 

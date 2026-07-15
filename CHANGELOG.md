@@ -22,6 +22,7 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 
 - Dashboard, control APIs, OTel ingest, and Capture Proxy default to loopback-only access.
 - Browser-origin, method, upgrade, hop-header, secret-redaction, archive-limit, and path-traversal boundaries are covered by deterministic release checks.
+- Deterministic release checks scrub host provider credentials so browser and translation fixtures cannot call real models.
 
 ### Compatibility
 

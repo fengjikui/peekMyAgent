@@ -153,6 +153,7 @@
     "smoke:view-compact-detail": "node scripts/view-compact-detail-smoke.mjs",
     "smoke:audit-data-sources": "node scripts/audit-data-sources-smoke.mjs",
     "smoke:release-workflow": "node scripts/release-workflow-smoke.mjs",
+    "smoke:release-environment": "node scripts/release-environment-smoke.mjs",
     "smoke:release-version": "node scripts/release-version-smoke.mjs",
     "smoke:release-check": "node scripts/release-check-smoke.mjs",
     "smoke:governance": "node scripts/governance-smoke.mjs",

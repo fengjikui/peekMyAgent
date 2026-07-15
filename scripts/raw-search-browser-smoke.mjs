@@ -3,13 +3,24 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { translationsDir } from "../src/core/app-paths.mjs";
 import { startViewerServer } from "../src/viewer/server.mjs";
 import { jsonHeadersForUrl } from "./lib/http-intents.mjs";
 import { launchChromiumPage } from "./lib/chromium-cdp.mjs";
+import { RELEASE_CHECK_PROVIDER_ENV_KEYS } from "./lib/release-environment.mjs";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peek-raw-search-browser-"));
 const previousStateDir = process.env.PEEKMYAGENT_STATE_DIR;
+const previousProviderEnv = new Map(RELEASE_CHECK_PROVIDER_ENV_KEYS.map((key) => [key, process.env[key]]));
+for (const key of RELEASE_CHECK_PROVIDER_ENV_KEYS) delete process.env[key];
+process.env.PEEKMYAGENT_TRANSLATION_CLAUDE_BIN = path.join(tmpDir, "missing-claude");
 process.env.PEEKMYAGENT_STATE_DIR = path.join(tmpDir, "state");
+const translationCacheDir = translationsDir("Claude Code", "zh-CN");
+fs.mkdirSync(translationCacheDir, { recursive: true });
+fs.writeFileSync(
+  path.join(translationCacheDir, "zh-CN.json"),
+  `${JSON.stringify({ version: 1, target_language: "zh-CN", entries: {} }, null, 2)}\n`,
+);
 const storePath = path.join(tmpDir, "store.sqlite");
 const query = "项目记忆";
 const system = Array.from({ length: 12 }, (_, index) => ({
@@ -177,9 +188,13 @@ try {
   await browser?.close();
   await viewer?.close();
   await closeServer(upstream);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
   if (previousStateDir === undefined) delete process.env.PEEKMYAGENT_STATE_DIR;
   else process.env.PEEKMYAGENT_STATE_DIR = previousStateDir;
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  for (const [key, value] of previousProviderEnv) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
 }
 
 async function clickSearchNavigation(browserPage, direction, expectedPosition, expectedActiveIndex) {

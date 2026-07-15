@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { childProcessSpawnConfig } from "../src/core/platform.mjs";
+import { sanitizeReleaseCheckEnvironment } from "./lib/release-environment.mjs";
 import { formatTrackedSnapshot, readTrackedSnapshot, trackedSnapshotChanged } from "./lib/tracked-snapshot.mjs";
 
 const args = process.argv.slice(2);
@@ -69,6 +70,7 @@ const coreCommands = [
   ["npm", "run", "smoke:trae-cn-stable-route"],
   ["npm", "run", "smoke:audit-data-sources"],
   ["npm", "run", "smoke:release-workflow"],
+  ["npm", "run", "smoke:release-environment"],
   ["npm", "run", "smoke:release-check"],
   ["npm", "run", "smoke:governance"],
 ];
@@ -287,7 +289,7 @@ async function isolatedCommandEnv(command) {
   fs.mkdirSync(npmCacheDir, { recursive: true });
   const [apiPort, capturePort] = await Promise.all([freePort(), freePort()]);
   return {
-    ...process.env,
+    ...sanitizeReleaseCheckEnvironment(process.env),
     HOME: homeDir,
     USERPROFILE: homeDir,
     LOCALAPPDATA: localAppDataDir,
