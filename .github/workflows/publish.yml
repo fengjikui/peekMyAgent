@@ -1,0 +1,86 @@
+name: Publish npm package
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: npm-publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-check:
+    name: Verify ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            command: npm run release:check:linux
+          - os: macos-latest
+            command: npm run release:check:macos
+          - os: windows-latest
+            command: npm run release:check:windows
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: npm ci
+
+      - run: npm run release:verify-version -- --tag=${{ github.event.release.tag_name }}
+
+      - run: ${{ matrix.command }}
+
+  publish:
+    name: Publish with npm trusted publishing
+    needs: release-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install npm trusted-publishing support
+        run: npm install --global npm@11.18.0
+
+      - run: npm ci
+
+      - run: npm run release:verify-version -- --tag=${{ github.event.release.tag_name }}
+
+      - name: Select npm distribution tag
+        id: distribution
+        shell: bash
+        run: |
+          if node -e "process.exit(require('./package.json').version.includes('-') ? 0 : 1)"; then
+            echo "tag=next" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - run: npm publish --provenance --access public --tag=${{ steps.distribution.outputs.tag }}

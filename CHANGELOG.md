@@ -16,6 +16,7 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 - Structured System, Harness, message, and tool-schema views with on-demand multilingual translation.
 - Portable, redacted Trace export and read-only import for sharing debugging evidence.
 - Cross-platform CLI wrappers, daemon lifecycle, install/uninstall diagnostics, and deterministic macOS, Windows, and Linux release profiles.
+- Exact-tag GitHub Release validation and npm OIDC trusted publishing with provenance and prerelease dist-tag protection.
 
 ### Security
 

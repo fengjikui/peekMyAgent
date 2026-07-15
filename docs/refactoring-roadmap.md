@@ -25,7 +25,7 @@
 | 数据库 | 内容寻址和 migration runner 已落地；Capture 读取 repository 已抽离，Watch/Capture 写入、维护与连接生命周期仍集中在 `PersistenceStore` | 写路径继续受单体 store 约束，但读取查询和水合已有独立可测边界 |
 | 性能 | live/SQLite/file/import 已使用 cursor 增量读取和实体 delta；文件后端使用私有 sidecar byte range；System diff 已有精确门限和块级退化；Client/Server 仍累计 compact 实体 | 首屏网络、文件 hydrate 和大 System diff 成本已受控，但超长会话的常驻 compact 实体仍随会话增长 |
 | 测试 | smoke 丰富，但基础设施重复，部分 UI 仅正则检查源码 | 维护成本高，真实交互回归覆盖不足 |
-| 发布 | `0.0.0`、无稳定版本/变更记录流程 | 用户难判断兼容性，npm 发布不可追踪 |
+| 发布 | `0.1.0-alpha.1`、锁文件、CHANGELOG 和精确 Tag 三平台/OIDC 发布工作流已建立；首次 npm 包实体和候选 SHA 实机验证尚未完成 | 自动化边界已清晰，首次公开发布仍需维护者引导和三平台证据 |
 
 ## 公开 Alpha 前的重构收口
 
@@ -34,7 +34,7 @@
 - 修正文档入口和真实模块路径，保证新贡献者可以从任务定位到唯一边界与最小测试。
 - 已为迟到 response 的 content blob、关联、refcount、Capture JSON 和 watch 时间补齐单事务写入与 failure-trigger 回滚契约；后续写路径修改必须保持该边界。
 - 已为 Raw 搜索建立隔离 Viewer/Capture Proxy + 真实 Chromium/Edge 的发布门禁，覆盖中文 IME、长文本尾部命中、可见计数、高亮、循环导航、区块切换和粘性控件；Claude wrapper 发布门禁覆盖正常/非零退出、幂等 watch 清理，并在 POSIX 主机覆盖 `Ctrl+C` 转发、退出码和停止状态。Windows 控制台事件继续保留真实机器发布验证。
-- 完成 semver、CHANGELOG、npm provenance 和三平台候选 SHA 验证。
+- 已完成 semver、锁文件、CHANGELOG、预发布 dist-tag 和 npm OIDC/provenance 工作流；首次 npm 包实体、GitHub Environment 与最终候选 SHA 三平台验证留在发布检查点完成。
 
 以下工作移到公开 alpha 后，由真实问题或新增功能触发：继续机械拆分 `server.mjs`/`client.js`、完整 Write Repository 抽离、Claude wrapper 全面模块化、page eviction、后台搜索索引、前端框架替换和 Adapter SDK 扩张。
 
@@ -279,7 +279,7 @@ src/
 
 任务：
 
-- 建立 semver、CHANGELOG、release notes 和 npm provenance。
+- 已建立 semver、锁文件、CHANGELOG、精确 Release Tag 三平台门禁、`next`/`latest` 分流和无长期 Token 的 npm OIDC/provenance 工作流；首次包实体仍需按[发布手册](releasing.md)引导创建。
 - 提供可诊断、可回滚的用户更新入口；`pma update` 的行为必须区分 npm 全局安装、源码开发和不受管理的安装方式，并通过三平台安装生命周期测试。
 - 在英文与简体中文 README 稳定后，按真实用户覆盖补充少量常见语言 README；所有版本共享同一安装、快速开始和 Agent 可读说明，并建立链接/命令漂移检查。
 - 给 archive 增加历史列表和恢复入口；实现明确的 retention 设置后再宣称默认策略。

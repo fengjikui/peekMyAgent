@@ -420,6 +420,8 @@ Core release gate:
 npm run release:check
 ```
 
+Maintainers should follow the [release manual](docs/releasing.md) for exact-tag three-platform validation, first-package bootstrap, and npm OIDC trusted publishing.
+
 Platform-specific release gates:
 
 ```bash

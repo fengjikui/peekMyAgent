@@ -206,6 +206,8 @@ npm run release:check:windows:list
 npm run release:check
 ```
 
+维护者发布公开版本时，请遵循[发布手册](docs/releasing.md)：它包含精确 Tag 三平台验证、首次 npm 包引导和后续 OIDC 可信发布流程。
+
 这会运行跨平台核心 smoke gate，包括路径解析、doctor、源码安装、临时全局安装、维护/卸载、dashboard、Claude wrapper、发送消息、Trae CN 路由、持久化和请求树检查。
 
 需要真实 Claude Code、OpenClaw、Codex、provider 或本机登录态的验证不放进默认 gate，维护者可参考 [手动集成 smoke 矩阵](docs/manual-integration-smoke-matrix.md)。
