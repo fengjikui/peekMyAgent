@@ -231,7 +231,7 @@ cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 ses
 
 Raw Inspector 的分类标签、当前区块搜索和原文/翻译操作组成同一个粘性控制区。原文模式只搜索原始 JSON 路径和值；整理/翻译模式只搜索当前可见的结构化 system、harness 或工具文本，并筛选原有块和工具组。匹配计数以可见关键词的实际出现次数为准，上一个/下一个按钮逐词循环定位并强化当前高亮。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属。
 
-Raw Inspector 的一次导航由 `RawInspectorController` 串联：更新 Store 中的 request/section/mode、打开右栏、按需读取 compact detail、提交当前渲染并通知搜索装饰。控制器使用递增 operation id 和 Store context 双重校验；用户快速切换请求或区块时，旧详情或旧错误即使更晚返回也不能覆盖当前面板。翻译缓存、Raw section 语义、HTML 和搜索算法仍由注入端口及各自 Model/Renderer/Controller 所有。完整边界见 [Raw Inspector Controller 契约](raw-inspector-controller-contract.md)。
+Raw Inspector 的一次导航由 `RawInspectorController` 串联：更新 Store 中的 request/section/mode、打开右栏、同步提交已有完整详情或按需读取 compact detail，再通知搜索装饰。控制器使用递增 operation id 和 Store context 双重校验；用户快速切换请求或区块时，旧详情或旧错误即使更晚返回也不能覆盖当前面板。后台同上下文刷新还需经过交互 gate，Raw 搜索正在 IME 组词时不会替换输入框；选词完成后的搜索重绘会消费最新状态。翻译缓存、Raw section 语义、HTML 和搜索算法仍由注入端口及各自 Model/Renderer/Controller 所有。完整边界见 [Raw Inspector Controller 契约](raw-inspector-controller-contract.md)。
 
 搜索的递归条目、大小写无关过滤、特殊字符转义、摘要窗口、高亮分段和循环索引由 `raw-search-model.js` 统一。过滤始终检查完整路径和值；结果摘要必须围绕完整值中的真实命中生成，不能因为前导预览截断而出现“计数已命中、页面无高亮”。DOM 层把可见关键词渲染为 `mark`，按实际可见出现次数计数并滚动到当前命中。纯模型契约之外，隔离 Viewer/Capture Proxy 和真实 Chromium/Edge 的发布 smoke 覆盖中文 IME、长文本尾部命中、计数、高亮、循环导航、区块切换和粘性控件。完整边界见 [Raw 搜索真实浏览器契约](raw-search-browser-contract.md)。
 

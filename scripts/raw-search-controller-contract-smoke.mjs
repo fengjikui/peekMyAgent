@@ -53,10 +53,12 @@ scheduled.shift()();
 assert.equal(renderCount, 1);
 
 listeners.get("compositionstart")({ target: input });
+assert.equal(controller.isComposing(), true);
 input.value = "中文";
 listeners.get("input")({ target: input, isComposing: true });
 assert.equal(scheduled.length, 0, "IME input must not render during composition");
 listeners.get("compositionend")({ target: input });
+assert.equal(controller.isComposing(), false);
 assert.equal(controller.query, "中文");
 assert.equal(scheduled.length, 1);
 scheduled.shift()();

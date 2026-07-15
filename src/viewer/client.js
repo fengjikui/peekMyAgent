@@ -327,7 +327,8 @@ translationActionController = new TranslationActionController({
     labelForKind: translationKindLabel,
     sectionLabel: rawSectionLabel,
     copyText: writeClipboard,
-    renderRaw: (requestId, section, mode) => rawInspectorController.show(requestId, section, { mode }),
+    renderRaw: (requestId, section, mode) =>
+      rawSearchController.isComposing() ? false : rawInspectorController.show(requestId, section, { mode }),
     renderTimeline: () => renderTimelineSurface(),
     setTranslationMode: (mode, { reason }) => {
       languagePreferencesController.setTranslationMode(mode, { reason });
@@ -401,7 +402,8 @@ const rawInspectorController = new RawInspectorController({
   onContextChanged: () => rawSearchController.contextChanged(),
   clearActions: () => translationActionController.clearActions("raw"),
   openPanel: () => paneLayoutController.setRawOpen(true),
-  needsDetail: requestNeedsDetail,
+  needsDetail: (request, section) =>
+    requestNeedsDetail(request) || (section === "system_diff" && requestNeedsDetail(previousRequest(request))),
   loadDetails: (request, section) => ensureDetailsForRawSection(request, section),
   titleFor: (request, section, mode) =>
     `Request ${request.request_index} · ${mode === "response" ? responseRawSectionLabel(section) : rawSectionLabel(section)}`,
@@ -409,6 +411,7 @@ const rawInspectorController = new RawInspectorController({
   renderContent: (request, section, mode) => renderRawSections(request, section, mode),
   renderError: (error) => renderRequestDetailError(error),
   decorate: () => rawSearchController.decorate(),
+  canRefresh: () => !rawSearchController.isComposing(),
 });
 const activeSourceController = new ActiveSourceController({
   timeline: sourceTimelineController,

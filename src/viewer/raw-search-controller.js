@@ -38,6 +38,10 @@ export class RawSearchController {
     return normalizeRawSearchQuery(this.query);
   }
 
+  isComposing() {
+    return this.composing;
+  }
+
   contextChanged() {
     this.activeIndex = 0;
     this.revealPending = Boolean(this.normalizedQuery());

@@ -13,6 +13,7 @@ const calls = [];
 let context = { requestId: null, section: "full", mode: "request" };
 let pendingRequestOne = deferred();
 let pendingError = deferred();
+let refreshAllowed = true;
 
 const controller = new RawInspectorController({
   root,
@@ -28,6 +29,7 @@ const controller = new RawInspectorController({
   openPanel: () => calls.push(["open-panel"]),
   needsDetail: (request) => request.compact,
   loadDetails(request) {
+    calls.push(["load-details", request.id]);
     if (request.id === "request-1") return pendingRequestOne.promise;
     if (request.id === "request-error") return pendingError.promise;
     return Promise.resolve({ ...request, hydrated: true });
@@ -37,6 +39,7 @@ const controller = new RawInspectorController({
   renderContent: (request, section, mode) => `content:${request.id}:${section}:${mode}:${Boolean(request.hydrated)}`,
   renderError: (error) => `error:${error.message}`,
   decorate: () => calls.push(["decorate"]),
+  canRefresh: () => refreshAllowed,
 });
 
 const firstShow = controller.show("request-1", "system", { mode: "request" });
@@ -47,12 +50,18 @@ assert.deepEqual(context, { requestId: "request-1", section: "system", mode: "re
 assert.equal(calls.filter(([name]) => name === "context-changed").length, 1);
 assert.equal(calls.some(([name]) => name === "open-panel"), true);
 
-await controller.show("request-2", "response", { mode: "response" });
-assert.equal(root.innerHTML, "content:request-2:response:response:true");
+const immediateShow = controller.show("request-2", "response", { mode: "response" });
+assert.equal(
+  root.innerHTML,
+  "content:request-2:response:response:false",
+  "a complete request must replace the previous Raw section synchronously",
+);
+assert.equal(await immediateShow, true);
+assert.equal(calls.some(([name, requestId]) => name === "load-details" && requestId === "request-2"), false);
 assert.equal(titleElement.textContent, "2:response:response");
 pendingRequestOne.resolve({ ...requests.get("request-1"), hydrated: true });
 assert.equal(await firstShow, false, "a late detail response must not replace a newer selection");
-assert.equal(root.innerHTML, "content:request-2:response:response:true");
+assert.equal(root.innerHTML, "content:request-2:response:response:false");
 
 const contextChangeCount = calls.filter(([name]) => name === "context-changed").length;
 await controller.refresh();
@@ -61,7 +70,14 @@ assert.equal(
   contextChangeCount,
   "refreshing the same Raw context must preserve search position",
 );
-assert.equal(root.innerHTML, "content:request-2:response:response:true");
+assert.equal(root.innerHTML, "content:request-2:response:response:false");
+
+refreshAllowed = false;
+const callsBeforeBlockedRefresh = calls.length;
+assert.equal(await controller.refresh(), false, "a blocked background refresh must not replace active interaction DOM");
+assert.equal(calls.length, callsBeforeBlockedRefresh);
+assert.equal(root.innerHTML, "content:request-2:response:response:false");
+refreshAllowed = true;
 
 const errorShow = controller.show("request-error", "tools");
 assert.equal(root.innerHTML, "loading:request-error");

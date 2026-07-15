@@ -75,6 +75,27 @@ try {
   await browser.evaluate(`(() => {
     const input = document.querySelector('[data-raw-search]');
     window.__rawSearchInputBeforeComposition = input;
+    window.__rawSearchEventLog = [];
+    window.__rawSearchMutationLog = [];
+    for (const type of ['compositionstart', 'input', 'compositionend']) {
+      input.addEventListener(type, (event) => window.__rawSearchEventLog.push({
+        type: event.type,
+        composing: Boolean(event.isComposing),
+        value: event.target?.value || '',
+        at: Math.round(performance.now()),
+      }));
+    }
+    window.__rawSearchObserver = new MutationObserver(() => {
+      const current = document.querySelector('[data-raw-search]');
+      if (current !== window.__rawSearchInputBeforeComposition) {
+        window.__rawSearchMutationLog.push({
+          value: current?.value || '',
+          marks: document.querySelectorAll('mark.raw-search-highlight').length,
+          at: Math.round(performance.now()),
+        });
+      }
+    });
+    window.__rawSearchObserver.observe(document.querySelector('#rawTree'), { childList: true, subtree: true });
     input.focus();
     input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: ${JSON.stringify(query)} }));
     input.value = ${JSON.stringify(query)};
@@ -91,12 +112,13 @@ try {
     sameInput: document.querySelector('[data-raw-search]') === window.__rawSearchInputBeforeComposition,
     value: document.querySelector('[data-raw-search]')?.value,
     marks: document.querySelectorAll('mark.raw-search-highlight').length,
+    events: window.__rawSearchEventLog,
+    mutations: window.__rawSearchMutationLog,
   }))()`);
-  assert.deepEqual(
-    composingState,
-    { sameInput: true, value: query, marks: 0 },
-    "IME composition must preserve the live input and avoid an intermediate Raw render",
-  );
+  assert.equal(composingState.sameInput, true, `IME composition replaced the input: ${JSON.stringify(composingState)}`);
+  assert.equal(composingState.value, query);
+  assert.equal(composingState.marks, 0, `IME composition rendered intermediate marks: ${JSON.stringify(composingState)}`);
+  await browser.evaluate(`window.__rawSearchObserver?.disconnect()`);
 
   await browser.evaluate(`(() => {
     const input = document.querySelector('[data-raw-search]');

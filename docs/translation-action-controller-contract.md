@@ -77,6 +77,8 @@
 
 `client.js` 只负责把 Store、RequestDetailCache、ViewerApiClient、TranslationCacheController、浏览器剪贴板和局部 renderer 组装成端口。事件委派读取 `data-translation-*` 属性后调用 Controller，不再自行解释 action payload。
 
+`ui.renderRaw()` 是翻译操作的后台局部重绘端口。应用装配必须在 Raw 搜索 IME 组词期间拒绝该次 DOM 提交；翻译结果和缓存照常提交，`compositionend` 触发的搜索重绘会消费最新状态。不要让自动翻译完成回调直接绕过这一 interaction gate。
+
 新增翻译动作时先判断其生命周期属于 Cache、Action、Search 还是 Renderer。不要在 `client.js` 新增第二份 generation sequence、action Map、Tools clipboard formatter 或 provider/cache 编排。
 
 ## 验证

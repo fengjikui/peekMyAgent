@@ -15,6 +15,7 @@ export class RawInspectorController {
     renderContent,
     renderError,
     decorate = () => {},
+    canRefresh = () => true,
     rootClassName = "raw-tree",
   }) {
     if (!root) throw new Error("RawInspectorController root is required");
@@ -24,6 +25,7 @@ export class RawInspectorController {
     if (typeof setContext !== "function") throw new Error("RawInspectorController setContext is required");
     if (typeof renderContent !== "function") throw new Error("RawInspectorController renderContent is required");
     if (typeof renderError !== "function") throw new Error("RawInspectorController renderError is required");
+    if (typeof canRefresh !== "function") throw new Error("RawInspectorController canRefresh must be a function");
     this.root = root;
     this.titleElement = titleElement;
     this.getRequest = getRequest;
@@ -39,6 +41,7 @@ export class RawInspectorController {
     this.renderContent = renderContent;
     this.renderError = renderError;
     this.decorate = decorate;
+    this.canRefresh = canRefresh;
     this.rootClassName = rootClassName;
     this.operationId = 0;
   }
@@ -59,9 +62,12 @@ export class RawInspectorController {
     this.openPanel();
     this.titleElement.textContent = this.titleFor(request, next.section, next.mode);
     this.root.className = this.rootClassName;
-    if (this.needsDetail(request)) {
-      this.root.innerHTML = this.renderLoading(request, next.section, next.mode);
+    if (!this.needsDetail(request, next.section, next.mode)) {
+      this.root.innerHTML = this.renderContent(request, next.section, next.mode);
+      this.decorate();
+      return true;
     }
+    this.root.innerHTML = this.renderLoading(request, next.section, next.mode);
     try {
       const hydrated = await this.loadDetails(request, next.section, next.mode);
       if (!this.isCurrent(operationId, next)) return false;
@@ -78,6 +84,7 @@ export class RawInspectorController {
   refresh() {
     const context = this.getContext();
     if (!context?.requestId) return Promise.resolve(false);
+    if (!this.canRefresh(context)) return Promise.resolve(false);
     return this.show(context.requestId, context.section || "full", { mode: context.mode || "request" });
   }
 
