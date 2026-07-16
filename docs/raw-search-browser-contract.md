@@ -34,7 +34,7 @@ Raw Inspector 的搜索同时涉及完整 JSON 值、截断摘要、中文输入
 PEEKMYAGENT_BROWSER_PATH=/absolute/path/to/chrome npm run smoke:raw-search-browser
 ```
 
-Windows 默认优先使用 Edge 或 Chromium，再回退到 Google Chrome。三者执行同一份 CDP/DOM 契约；这一顺序避免受管理主机上的 Chrome 远程调试目录策略影响。用户通过 `PEEKMYAGENT_BROWSER_PATH` 显式指定的浏览器始终拥有最高优先级。
+发布门禁仍会为应用状态创建隔离 HOME 和 AppData；启动真实浏览器子进程时，macOS 与 Windows 会移除这些伪造的用户目录变量，让浏览器通过宿主系统账号解析自身目录，再使用单独的临时 `--user-data-dir`。这既不接触真实浏览器 profile，也避免 Chromium 将无效的隔离路径误判为默认数据目录。
 
 测试只访问临时 loopback 服务，不需要 Claude Code、OpenClaw、API key 或互联网连接。
 

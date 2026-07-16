@@ -137,8 +137,10 @@ try {
     return true;
   })()`);
   await browser.waitFor(
-    `document.querySelector('[data-raw-search-position]')?.textContent === '1/13' && document.querySelectorAll('mark.raw-search-highlight').length === 13`,
-    { description: "13 visible System search occurrences" },
+    `document.querySelector('[data-raw-search-position]')?.textContent === '1/13' &&
+      document.querySelectorAll('mark.raw-search-highlight').length === 13 &&
+      document.activeElement === document.querySelector('[data-raw-search]')`,
+    { description: "13 visible System search occurrences with restored search focus" },
   );
 
   const initialState = await searchState(browser);

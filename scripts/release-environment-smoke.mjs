@@ -3,10 +3,7 @@ import {
   RELEASE_CHECK_PROVIDER_ENV_KEYS,
   sanitizeReleaseCheckEnvironment,
 } from "./lib/release-environment.mjs";
-import {
-  chromiumExecutableCandidates,
-  chromiumSpawnEnvironment,
-} from "./lib/chromium-cdp.mjs";
+import { chromiumSpawnEnvironment } from "./lib/chromium-cdp.mjs";
 
 const original = {
   PATH: "/test/bin",
@@ -45,19 +42,20 @@ assert.equal(
   "only macOS Chromium requires the system-account HOME fallback",
 );
 
-const windowsBrowserCandidates = chromiumExecutableCandidates({
+const isolatedWindowsBrowserEnv = chromiumSpawnEnvironment({
   platform: "win32",
   env: {
-    PROGRAMFILES: "C:\\Program Files",
-    "PROGRAMFILES(X86)": "C:\\Program Files (x86)",
+    HOME: "C:\\isolated\\home",
+    USERPROFILE: "C:\\isolated\\profile",
     LOCALAPPDATA: "C:\\Users\\tester\\AppData\\Local",
+    APPDATA: "C:\\Users\\tester\\AppData\\Roaming",
+    PATH: "C:\\Windows\\System32",
+    PEEKMYAGENT_RELEASE_CHECK_ISOLATED: "1",
   },
 });
-assert.match(windowsBrowserCandidates[0], /Microsoft[\\/]Edge[\\/]Application[\\/]msedge\.exe$/);
-assert.ok(
-  windowsBrowserCandidates.findIndex((candidate) => /Microsoft[\\/]Edge/.test(candidate)) <
-    windowsBrowserCandidates.findIndex((candidate) => /Google[\\/]Chrome/.test(candidate)),
-  "Windows browser discovery must prefer Edge before branded Chrome for isolated CDP checks",
-);
+for (const key of ["HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA"]) {
+  assert.equal(Object.hasOwn(isolatedWindowsBrowserEnv, key), false, `isolated Windows browser must remove ${key}`);
+}
+assert.equal(isolatedWindowsBrowserEnv.PATH, "C:\\Windows\\System32");
 
 console.log("release environment smoke passed");
