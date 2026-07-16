@@ -1,6 +1,6 @@
 # Coding Agent 代码库地图
 
-更新时间：2026-07-15
+更新时间：2026-07-16
 
 本文帮助 Codex、Claude Code 和其他 Coding Agent 在几分钟内找到正确改动边界。它不是第二份架构事实源：运行行为以[当前架构](architecture.md)为准，未来设计以[重构路线图](refactoring-roadmap.md)为准，协作和验证规则以仓库根目录的 `AGENTS.md` 为准。
 
@@ -35,7 +35,7 @@ pma CLI / adapter
 | Watch 新建/复用/恢复、暂停/停止、共享代理和动态路由 | `src/server/watch-runtime-service.mjs`、[Service 契约](watch-runtime-service-contract.md) | 在 Router、wrapper、Source service 或 Agent send 各维护一份 watch Map/恢复策略 |
 | Claude Code OTel 关联与入库 | `src/core/otel-capture.mjs`、`otel-events.mjs`、`src/server/otel-ingest-service.mjs`、`src/adapters/claude-otel.mjs`、[Service 契约](otel-ingest-service-contract.md) | 在 HTTP route 复制配对算法，或让 core 解析层直接写 Store |
 | 页面向 Agent 独立发送消息 | `src/server/agent-send-service.mjs`、`src/viewer/agent-composer-*`、[Service 契约](agent-send-service-contract.md) | renderer 启动进程、Service 直接拥有 watch 恢复，或暗示消息会进入原终端上下文 |
-| OpenClaw/Trae 或新 Agent | `src/adapters/`、对应 integration、适配器 fixture | 在 Server/Client 散落 provider 条件分支 |
+| OpenClaw/Trae 或新 Agent | `src/adapters/`、对应 integration、适配器 fixture；Codex 接入先读[桌面捕获研究](codex-desktop-capture-research.md) | 在 Server/Client 散落 provider 条件分支，或把 rollout 语义 Trace 冒充为 wire exact request |
 | SQLite 连接/写入/维护与 schema migration | `src/core/persistence-store.mjs`、`src/persistence/migrations/`、[Response 写入事务契约](capture-response-transaction-contract.md) | 绕过 migration 直接改 schema、拆散 response 原子写入，或让 read repository 拥有连接生命周期/写事务 |
 | persisted Capture 分页、窗口、body 重建与 response 水合 | `src/persistence/repositories/sqlite-capture-read-repository.mjs`、[读取仓库契约](sqlite-capture-read-repository-contract.md) | 在 Source reader、HTTP route 或 Viewer projector 重写 SQLite 查询和 blob 水合 |
 | content、thinking、tool use、tool result 基础解析 | `src/trace/content-parts.mjs`、对应 contract smoke | 在上行/下行各维护一份 block 解析 |

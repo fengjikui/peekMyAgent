@@ -276,7 +276,14 @@ src/
 - Harness 注入面声明：System、`<system-reminder>`、项目 memory、Skill 和 hook 内容必须记录其在已捕获 request 中的真实位置与证据来源。项目 memory 的具体注入时机属于 Claude Code 运行时行为，不再作为近期产品实验；[手动集成矩阵](manual-integration-smoke-matrix.md#claude-code-project-memory-injection-check)仅保留为版本差异或缺失问题的可选诊断流程，产品不承诺固定注入位置。
 - fixture 和确定性 contract test。
 
-完成这一步后，再按真实用户需求评估 Codex、OpenCode、Hermes 等适配优先级。
+Codex Desktop 已完成第一轮真实环境研究，结论见 [Codex Desktop 捕获研究与实施路线](codex-desktop-capture-research.md)：
+
+- 桌面图标启动不是捕获障碍；默认 adapter 可只读 `$CODEX_HOME` 的 thread catalog、spawn edges 和 rollout JSONL，形成不修改配置的本地语义 Trace。
+- OTel 可选增强时序、API/WebSocket 和工具决策，但不能替代完整请求捕获。
+- 显式 `openai_base_url` 深度代理可观察 zstd request、模型可见输入和 `additional_tools` schema，但会经过认证与完整上下文，必须作为高风险 opt-in。
+- 自建 app-server 适合未来托管模式，不能透明附着到用户已经打开的 Desktop app-server。
+
+因此适配优先级暂定为：先完成 Codex Desktop 本地观察 Phase 1，再根据真实用户反馈决定 OTel/深度代理；OpenCode、Hermes 等继续等待适配器契约稳定。
 
 ## 阶段 6：公开发布成熟度
 

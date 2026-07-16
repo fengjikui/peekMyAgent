@@ -1,6 +1,6 @@
 # Manual Integration Smoke Matrix
 
-Updated: 2026-07-14
+Updated: 2026-07-16
 
 This file separates the deterministic release gate from smoke tests that need real Agent binaries, local credentials, provider access, or platform-specific manual setup.
 
@@ -27,7 +27,7 @@ The fake Claude wrapper gate covers normal and non-zero child exits, missing-wat
 | Claude Code proxy resume/subagent | `npm run smoke:claude-proxy-resume`, `npm run smoke:claude-subagent-proxy`, `npm run smoke:claude-local-command-input` | Real Claude Code, proxy-compatible model config, local command execution | Validates exact proxy capture against a real Agent loop; provider/model errors should not fail the core release gate | Redacted report under docs or `tmp/smoke-evidence/...` |
 | Claude OTel vs proxy comparison | `npm run smoke:claude-otel-vs-proxy` | Real Claude Code plus both OTel and proxy routes | Compares two capture sources; sensitive to Claude Code internals and provider availability | Comparison report and evidence bundle |
 | Claude Code project memory injection | Manual procedure below | Real Claude Code, a disposable project, and a unique non-sensitive `MEMORY.md` fact | Memory loading is Claude Code runtime/version behavior and may appear in top-level `system`, a `<system-reminder>` message, a lazy file read, or nowhere in the model request | Redacted request-location report naming Claude Code version and exact capture mode |
-| Codex official debug/exec source | `npm run smoke:codex-prompt-input`, `npm run smoke:codex-exec`, `npm run smoke:codex-source-comparison`, `npm run smoke:codex-subagent-exec` | Installed Codex and usable authentication | Codex source availability depends on login mode and CLI version; current ChatGPT-token mode is not an exact network proxy source | Redacted official debug or event-chain reports |
+| Codex Desktop local/debug source | `npm run smoke:codex-prompt-input`, `npm run smoke:codex-exec`, `npm run smoke:codex-source-comparison`, `npm run smoke:codex-subagent-exec` plus the manual procedures in [Codex Desktop capture research](codex-desktop-capture-research.md) | Installed Codex/Desktop and usable authentication | Rollout/DB and official debug sources provide semantic evidence but are not exact wire requests; OTel and explicit deep proxy require user configuration, restart, and separate privacy review | Redacted source-shape, event-chain, compaction, OTel, or deep-proxy reports with exact producer version |
 | OpenClaw exact integration | `npm run smoke:openclaw-proxy`, `npm run smoke:openclaw-subagent`, `npm run smoke:openclaw-multiturn` | Real `openclaw` command, isolated profile support, local test workspace | Validates a real OpenClaw session/profile rather than a fake wrapper; output can vary by OpenClaw version | Redacted report and `tmp/smoke-evidence/...` |
 
 ## Claude Code Project Memory Injection Check
