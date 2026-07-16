@@ -3,6 +3,10 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import {
+  RELEASE_CHECK_HOST_ENV_KEYS,
+  RELEASE_CHECK_HOST_ENV_PREFIX,
+} from "./release-environment.mjs";
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 
@@ -67,11 +71,11 @@ export function findChromiumExecutable({ env = process.env, platform = process.p
     throw new Error(`Configured Chromium browser does not exist: ${configured}`);
   }
 
-  const candidates = platformCandidates(platform, env);
+  const candidates = chromiumExecutableCandidates({ platform, env });
   for (const candidate of candidates) {
     if (candidate && fs.existsSync(candidate)) return candidate;
   }
-  for (const command of platformCommands(platform)) {
+  for (const command of chromiumExecutableCommands(platform)) {
     const resolved = resolveCommand(command, platform);
     if (resolved) return resolved;
   }
@@ -87,10 +91,12 @@ export function chromiumSpawnEnvironment({ env = process.env, platform = process
     delete browserEnv.USERPROFILE;
   }
   if (platform === "win32" && env.PEEKMYAGENT_RELEASE_CHECK_ISOLATED === "1") {
-    delete browserEnv.HOME;
-    delete browserEnv.USERPROFILE;
-    delete browserEnv.LOCALAPPDATA;
-    delete browserEnv.APPDATA;
+    for (const key of RELEASE_CHECK_HOST_ENV_KEYS) {
+      const preservedKey = `${RELEASE_CHECK_HOST_ENV_PREFIX}${key}`;
+      if (env[preservedKey]) browserEnv[key] = env[preservedKey];
+      else delete browserEnv[key];
+      delete browserEnv[preservedKey];
+    }
   }
   return browserEnv;
 }
@@ -226,7 +232,7 @@ class ChromiumCdpPage {
   }
 }
 
-function platformCandidates(platform, env) {
+export function chromiumExecutableCandidates({ platform = process.platform, env = process.env } = {}) {
   if (platform === "darwin") {
     return [
       "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -237,11 +243,13 @@ function platformCandidates(platform, env) {
   }
   if (platform === "win32") {
     const roots = [env.PROGRAMFILES, env["PROGRAMFILES(X86)"], env.LOCALAPPDATA].filter(Boolean);
-    return roots.flatMap((root) => [
-      path.join(root, "Google", "Chrome", "Application", "chrome.exe"),
-      path.join(root, "Chromium", "Application", "chrome.exe"),
-      path.join(root, "Microsoft", "Edge", "Application", "msedge.exe"),
-    ]);
+    // Chrome 136+ may reject CDP on managed Windows hosts even with an
+    // ephemeral profile. Edge and Chromium exercise the same browser contract.
+    return [
+      ...roots.map((root) => path.join(root, "Microsoft", "Edge", "Application", "msedge.exe")),
+      ...roots.map((root) => path.join(root, "Chromium", "Application", "chrome.exe")),
+      ...roots.map((root) => path.join(root, "Google", "Chrome", "Application", "chrome.exe")),
+    ];
   }
   return [
     "/usr/bin/google-chrome-stable",
@@ -253,8 +261,8 @@ function platformCandidates(platform, env) {
   ];
 }
 
-function platformCommands(platform) {
-  if (platform === "win32") return ["chrome.exe", "msedge.exe", "chromium.exe"];
+function chromiumExecutableCommands(platform) {
+  if (platform === "win32") return ["msedge.exe", "chromium.exe", "chrome.exe"];
   return ["google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "microsoft-edge-stable", "microsoft-edge"];
 }
 

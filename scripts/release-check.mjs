@@ -4,7 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { childProcessSpawnConfig } from "../src/core/platform.mjs";
-import { sanitizeReleaseCheckEnvironment } from "./lib/release-environment.mjs";
+import {
+  preserveReleaseCheckHostEnvironment,
+  sanitizeReleaseCheckEnvironment,
+} from "./lib/release-environment.mjs";
 import { formatTrackedSnapshot, readTrackedSnapshot, trackedSnapshotChanged } from "./lib/tracked-snapshot.mjs";
 
 const args = process.argv.slice(2);
@@ -291,6 +294,7 @@ async function isolatedCommandEnv(command) {
   const [apiPort, capturePort] = await Promise.all([freePort(), freePort()]);
   return {
     ...sanitizeReleaseCheckEnvironment(process.env),
+    ...preserveReleaseCheckHostEnvironment(process.env),
     PEEKMYAGENT_RELEASE_CHECK_ISOLATED: "1",
     HOME: homeDir,
     USERPROFILE: homeDir,
