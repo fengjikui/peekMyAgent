@@ -14,6 +14,15 @@
 - **分块缓存存储**：新捕获的请求默认按 system / tool schema / message / tool result 分块入库，Raw 读取时可从 content blobs 无损重建，并支持 `pma compact` 压缩旧数据。
 - **大 Trace cursor 渐进加载**：live/SQLite 会话首屏只读取首批请求，后续按 cursor 合并 request、Turn 和 Agent 实体增量；Raw/detail 按 request 懒加载，不再后台下载整条 compact Trace。
 
+## 当前发布前主线（2026-07-16）
+
+正式录制产品视频并开始宣发前，只保留下面两项主线，其他产品增强不得挤占它们：
+
+1. **npm-first 安装与更新**：把 npm registry 作为公开版本的唯一分发源。首次发布 `peekmyagent` Alpha 后，用户通过 `npm install --global peekmyagent@next` 安装和更新；稳定版发布后使用 `npm install --global peekmyagent`。未来 `pma update` 只能作为这套 npm 更新流程的便捷入口，必须识别安装来源、显示当前/目标版本、运行 `pma doctor` 并提供失败恢复说明，不能维护第二套下载器。
+2. **重新设计子 Agent 信息架构**：先回答用户真正需要知道的四件事——为什么启动、当前在做什么、产生了哪些关键动作、结果如何回到主 Agent——再决定视觉形式。默认视图应以任务和 Agent 实例为中心提供可读摘要；时间顺序、模型请求、工具调用、关联 ID 和原始 JSON 作为逐层展开的证据保留。设计必须使用真实的并行、异步回流、长工具链和嵌套边界 Trace 验证，不能只在理想 fixture 上看起来整齐。
+
+两项均完成并经过真实用户路径验证后，再录制正式演示视频、补齐 README 媒体并开始集中宣发。
+
 ## 近期发布打磨
 
 - **README 演示媒体**：补充一个短 GIF 或视频，展示真实 Claude Code Trace、Raw 分段、多 Agent 信息流、翻译能力以及 Trace 导出/导入。
@@ -43,7 +52,7 @@
 ## 分发
 
 - **跨平台安装器**：继续打磨 macOS、Linux、Windows 上的 install、doctor、uninstall 和 state path 行为。
-- **可审计的便捷更新**：在建立真实版本号和稳定分发源后提供 `pma update --check` 与 `pma update`。更新必须显示当前/目标版本、来源和计划，复用安装器的跨平台 prefix/权限处理，更新后运行 `pma doctor`，失败时保留旧版本或给出明确恢复命令。源码工作区不得在脏树上自动 `git pull`，也不得默认执行未经版本标记的远程脚本。未来 dashboard 更新入口只能调用同一 update service，不能维护第二套更新逻辑。
+- **可审计的便捷更新**：以 npm 为唯一公开版本源，提供 `pma update --check` 与 `pma update` 作为 npm 安装用户的便捷入口。更新必须显示当前/目标版本、来源和计划，复用安装器的跨平台 prefix/权限处理，更新后运行 `pma doctor`，失败时保留旧版本或给出明确恢复命令。源码工作区不得在脏树上自动 `git pull`，也不得默认执行未经版本标记的远程脚本。未来 dashboard 更新入口只能调用同一 update service，不能维护第二套更新逻辑。
 - **发布通道与频率**：日常 `main` 推送不等于要求所有用户当天升级。先建立 `stable` 版本和可选 `edge` 通道；安全修复可明确提示升级，普通重构按批次发布，避免频繁更新打断用户。
 - **Homebrew 或包管理器分发**：源码安装路径稳定后，再考虑 Homebrew 等分发方式。
 - **签名二进制或应用包**：当用户群超出 CLI-first 开发者后，再评估签名包、桌面应用和自动更新。
