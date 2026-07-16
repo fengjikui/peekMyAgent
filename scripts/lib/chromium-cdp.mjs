@@ -67,11 +67,11 @@ export function findChromiumExecutable({ env = process.env, platform = process.p
     throw new Error(`Configured Chromium browser does not exist: ${configured}`);
   }
 
-  const candidates = platformCandidates(platform, env);
+  const candidates = chromiumExecutableCandidates({ platform, env });
   for (const candidate of candidates) {
     if (candidate && fs.existsSync(candidate)) return candidate;
   }
-  for (const command of platformCommands(platform)) {
+  for (const command of chromiumExecutableCommands(platform)) {
     const resolved = resolveCommand(command, platform);
     if (resolved) return resolved;
   }
@@ -220,7 +220,7 @@ class ChromiumCdpPage {
   }
 }
 
-function platformCandidates(platform, env) {
+export function chromiumExecutableCandidates({ platform = process.platform, env = process.env } = {}) {
   if (platform === "darwin") {
     return [
       "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -231,11 +231,13 @@ function platformCandidates(platform, env) {
   }
   if (platform === "win32") {
     const roots = [env.PROGRAMFILES, env["PROGRAMFILES(X86)"], env.LOCALAPPDATA].filter(Boolean);
-    return roots.flatMap((root) => [
-      path.join(root, "Google", "Chrome", "Application", "chrome.exe"),
-      path.join(root, "Chromium", "Application", "chrome.exe"),
-      path.join(root, "Microsoft", "Edge", "Application", "msedge.exe"),
-    ]);
+    // Chrome 136+ may reject CDP on managed Windows hosts even with an
+    // ephemeral profile. Edge and Chromium exercise the same browser contract.
+    return [
+      ...roots.map((root) => path.join(root, "Microsoft", "Edge", "Application", "msedge.exe")),
+      ...roots.map((root) => path.join(root, "Chromium", "Application", "chrome.exe")),
+      ...roots.map((root) => path.join(root, "Google", "Chrome", "Application", "chrome.exe")),
+    ];
   }
   return [
     "/usr/bin/google-chrome-stable",
@@ -247,8 +249,8 @@ function platformCandidates(platform, env) {
   ];
 }
 
-function platformCommands(platform) {
-  if (platform === "win32") return ["chrome.exe", "msedge.exe", "chromium.exe"];
+function chromiumExecutableCommands(platform) {
+  if (platform === "win32") return ["msedge.exe", "chromium.exe", "chrome.exe"];
   return ["google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "microsoft-edge-stable", "microsoft-edge"];
 }
 

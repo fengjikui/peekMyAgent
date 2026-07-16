@@ -3,7 +3,10 @@ import {
   RELEASE_CHECK_PROVIDER_ENV_KEYS,
   sanitizeReleaseCheckEnvironment,
 } from "./lib/release-environment.mjs";
-import { chromiumSpawnEnvironment } from "./lib/chromium-cdp.mjs";
+import {
+  chromiumExecutableCandidates,
+  chromiumSpawnEnvironment,
+} from "./lib/chromium-cdp.mjs";
 
 const original = {
   PATH: "/test/bin",
@@ -40,6 +43,21 @@ assert.equal(
   }).HOME,
   "/isolated/linux",
   "only macOS Chromium requires the system-account HOME fallback",
+);
+
+const windowsBrowserCandidates = chromiumExecutableCandidates({
+  platform: "win32",
+  env: {
+    PROGRAMFILES: "C:\\Program Files",
+    "PROGRAMFILES(X86)": "C:\\Program Files (x86)",
+    LOCALAPPDATA: "C:\\Users\\tester\\AppData\\Local",
+  },
+});
+assert.match(windowsBrowserCandidates[0], /Microsoft[\\/]Edge[\\/]Application[\\/]msedge\.exe$/);
+assert.ok(
+  windowsBrowserCandidates.findIndex((candidate) => /Microsoft[\\/]Edge/.test(candidate)) <
+    windowsBrowserCandidates.findIndex((candidate) => /Google[\\/]Chrome/.test(candidate)),
+  "Windows browser discovery must prefer Edge before branded Chrome for isolated CDP checks",
 );
 
 console.log("release environment smoke passed");

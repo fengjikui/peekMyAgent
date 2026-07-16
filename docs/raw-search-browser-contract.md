@@ -1,6 +1,6 @@
 # Raw 搜索真实浏览器契约
 
-更新时间：2026-07-15
+更新时间：2026-07-16
 
 Raw Inspector 的搜索同时涉及完整 JSON 值、截断摘要、中文输入法、DOM 高亮、滚动和区块切换。纯模型或伪 DOM 测试不能证明这些行为在真实浏览器中协作正确，因此发布门禁包含一条不依赖外部账号或模型服务的 Chromium/Edge 场景。
 
@@ -33,6 +33,8 @@ Raw Inspector 的搜索同时涉及完整 JSON 值、截断摘要、中文输入
 ```bash
 PEEKMYAGENT_BROWSER_PATH=/absolute/path/to/chrome npm run smoke:raw-search-browser
 ```
+
+Windows 默认优先使用 Edge 或 Chromium，再回退到 Google Chrome。三者执行同一份 CDP/DOM 契约；这一顺序避免受管理主机上的 Chrome 远程调试目录策略影响。用户通过 `PEEKMYAGENT_BROWSER_PATH` 显式指定的浏览器始终拥有最高优先级。
 
 测试只访问临时 loopback 服务，不需要 Claude Code、OpenClaw、API key 或互联网连接。
 
