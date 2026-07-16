@@ -1,0 +1,145 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import { ViewerApiClient } from "../src/viewer/api-client.js";
+
+const calls = [];
+const responses = [];
+const fetchContext = { name: "browser-window" };
+const api = new ViewerApiClient({
+  origin: "http://viewer.test:43110",
+  fetchContext,
+  fetchImpl: async function fetchWithBrowserContext(path, options = {}) {
+    assert.equal(this, fetchContext, "fetch should retain its browser execution context");
+    calls.push({ path, options });
+    return responses.shift() || jsonResponse({ ok: true });
+  },
+});
+
+responses.push(jsonResponse([sourceSummary("source-1")]));
+assert.deepEqual(await api.listSources(), [sourceSummary("source-1")]);
+assert.deepEqual(calls.at(-1), { path: "/api/sources", options: {} });
+
+responses.push(jsonResponse(timelineCursorPage("source/a", { initial: true })));
+await api.viewSource("source/a", { initial: true, limit: 24 });
+assert.equal(calls.at(-1).path, "/api/view?source=source%2Fa&compact=1&initial=1&limit=24");
+
+responses.push(jsonResponse(timelineCursorPage("source/a")));
+await api.viewSource("source/a", { cursor: "opaque cursor", limit: 100 });
+assert.equal(calls.at(-1).path, "/api/view?source=source%2Fa&compact=1&cursor=opaque+cursor&limit=100");
+
+responses.push(jsonResponse(requestDetail("source/a", "request 1")));
+await api.requestDetail("source/a", "request 1");
+assert.equal(calls.at(-1).path, "/api/request?source=source%2Fa&request=request%201");
+
+responses.push(jsonResponse({ entries: {} }));
+await api.translations("Claude Code", "zh-CN");
+assert.equal(calls.at(-1).path, "/api/translations?agent=Claude%20Code&target_language=zh-CN");
+
+responses.push(jsonResponse({ translated: 1 }));
+await api.generateTranslations({ source_id: "source-1" });
+assertPost(calls.at(-1), "/api/translations/generate", "translation-generate", { source_id: "source-1" });
+
+responses.push(jsonResponse({ sources: [] }));
+await api.updateSource({ id: "source-1", archive: true });
+assertPost(calls.at(-1), "/api/source/update", "source-update", { id: "source-1", archive: true });
+
+responses.push(jsonResponse({ exit_code: 0 }));
+await api.sendAgent({ source_id: "source-1", message: "hello" });
+assertPost(calls.at(-1), "/api/agent/send", "agent-send", { source_id: "source-1", message: "hello" });
+
+responses.push(jsonResponse({ ok: true }));
+await api.stopWatch({ id: "source-1", clear: false });
+assertPost(calls.at(-1), "/api/watch/stop", "watch-stop", { id: "source-1", clear: false });
+
+const bundle = new Uint8Array([1, 2, 3]);
+responses.push(jsonResponse({ source_id: "imported-1" }));
+await api.importTrace(bundle, "shared.peektrace.json.gz");
+assert.equal(calls.at(-1).path, "/api/trace/import");
+assert.equal(calls.at(-1).options.method, "POST");
+assert.equal(calls.at(-1).options.headers["content-type"], "application/octet-stream");
+assert.equal(calls.at(-1).options.headers["x-peekmyagent-intent"], "trace-import");
+assert.equal(calls.at(-1).options.headers["x-peekmyagent-file-name"], "shared.peektrace.json.gz");
+assert.equal(calls.at(-1).options.body, bundle);
+
+responses.push(new Response(bundle, { status: 200, headers: { "content-type": "application/gzip" } }));
+const exportResponse = await api.exportTrace("source/a");
+assert.equal(exportResponse.status, 200);
+assert.equal(calls.at(-1).path, "/api/trace/export?source=source%2Fa");
+assert.equal(calls.at(-1).options.headers["x-peekmyagent-intent"], "trace-export");
+
+const jsonErrorApi = new ViewerApiClient({ fetchImpl: async () => jsonResponse({ error: "denied" }, 403) });
+await assert.rejects(() => jsonErrorApi.listSources(), /denied/);
+const textErrorApi = new ViewerApiClient({ fetchImpl: async () => new Response("upstream failed", { status: 502 }) });
+await assert.rejects(() => textErrorApi.listSources(), /upstream failed/);
+const malformedSourceApi = new ViewerApiClient({ fetchImpl: async () => jsonResponse([{ id: "source-1" }]) });
+await assert.rejects(() => malformedSourceApi.listSources(), /Invalid Viewer API source list.*label is required/);
+const malformedDetailApi = new ViewerApiClient({ fetchImpl: async () => jsonResponse({ request: { id: "request-1" } }) });
+await assert.rejects(() => malformedDetailApi.requestDetail("source-1", "request-1"), /Invalid Viewer API request detail/);
+const malformedTimelineApi = new ViewerApiClient({ fetchImpl: async () => jsonResponse({ source: sourceSummary("source-1") }) });
+await assert.rejects(() => malformedTimelineApi.viewSource("source-1"), /Invalid Viewer API timeline response.*generated_at is required/);
+
+console.log("viewer API client contract smoke passed");
+
+function assertPost(call, path, intent, payload) {
+  assert.equal(call.path, path);
+  assert.equal(call.options.method, "POST");
+  assert.equal(call.options.headers["content-type"], "application/json");
+  assert.equal(call.options.headers["x-peekmyagent-intent"], intent);
+  assert.deepEqual(JSON.parse(call.options.body), payload);
+}
+
+function jsonResponse(value, status = 200) {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function sourceSummary(id) {
+  return { id, label: id, kind: "proxy_capture", available: true, request_count: 1 };
+}
+
+function requestDetail(sourceId, requestId) {
+  return {
+    generated_at: "2026-07-15T00:00:00.000Z",
+    source: sourceSummary(sourceId),
+    request: { id: requestId, request_index: 1, detail_scope: "request_window" },
+    detail_scope: "request_window",
+  };
+}
+
+function timelineSnapshot(sourceId) {
+  return {
+    generated_at: "2026-07-15T00:00:00.000Z",
+    source: sourceSummary(sourceId),
+    stats: { request_count: 1 },
+    requests: [{ id: "request-1", request_index: 1 }],
+    turns: [{ id: "turn-1" }],
+    agent_trace: { branches: [], spawns: [], returns: [] },
+  };
+}
+
+function timelineCursorPage(sourceId, { initial = false } = {}) {
+  return {
+    generated_at: "2026-07-15T00:00:00.000Z",
+    source: sourceSummary(sourceId),
+    stats: { request_count: 1 },
+    requests: [],
+    request_patches: [],
+    turn_updates: [],
+    removed_turn_ids: [],
+    agent_trace_delta: null,
+    ...(initial ? { turns: [], agent_trace: { branches: [], spawns: [], returns: [] } } : {}),
+    page_scope: "timeline_cursor_delta",
+    partial: {
+      mode: "cursor",
+      loaded_request_count: 1,
+      total_request_count: 1,
+      page_offset: 1,
+      page_request_count: 0,
+      has_more: false,
+      next_cursor: null,
+      refresh_cursor: "opaque-refresh",
+    },
+  };
+}

@@ -4714,6 +4714,47 @@ details .details-body {
   line-height: 1.45;
 }
 
+.diff-bounded-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #f0d58a;
+  border-radius: 8px;
+  background: #fff9e8;
+}
+
+.diff-bounded-note > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.diff-bounded-note strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.diff-bounded-note span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.diff-bounded-note code {
+  max-width: 100%;
+  overflow: hidden;
+  flex: 0 0 auto;
+  color: #7a5b00;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .diff-line {
   display: grid;
   grid-template-columns: 18px 42px 42px minmax(0, 1fr);
@@ -4756,6 +4797,17 @@ details .details-body {
   font-family: var(--mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.diff-block-lines .diff-line {
+  grid-template-columns: 18px 64px 64px minmax(0, 1fr);
+}
+
+.diff-block-hash {
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--faint);
+  font-size: 10px;
 }
 
 .diff-line.remove .diff-marker,

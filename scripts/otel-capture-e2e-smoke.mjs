@@ -39,6 +39,10 @@ if (process.env.CLAUDE_CODE_ENABLE_TELEMETRY !== '1' || !spec.startsWith('file:'
   console.error('otel telemetry env missing');
   process.exit(5);
 }
+if (process.env.CLAUDE_CODE_ENHANCED_TELEMETRY_BETA !== '1' || process.env.OTEL_LOGS_EXPORTER !== 'otlp' || process.env.OTEL_TRACES_EXPORTER !== 'otlp') {
+  console.error('otel correlation telemetry env missing');
+  process.exit(7);
+}
 if (process.env.ANTHROPIC_BASE_URL && process.env.ANTHROPIC_BASE_URL.includes('127.0.0.1')) {
   console.error('otel mode must not point claude at a local proxy');
   process.exit(6);
@@ -54,6 +58,38 @@ function w(name, t, payload) {
 w('c1.request.json', 1000, { model: 'claude-opus-4-8', system: [{ type: 'text', text: 'S' }], messages: [{ role: 'user', content: 'hi' }], tools: [{ name: 'Bash' }], metadata: meta });
 w('req_1.response.json', 1001, { id: 'req_1', content: [{ type: 'text', text: 'ok' }], stop_reason: 'end_turn', usage: { input_tokens: 506, output_tokens: 9, cache_read_input_tokens: 14376, cache_creation_input_tokens: 0 } });
 w('c2.request.json', 2000, { model: 'claude-haiku-4-5', system: [{ type: 'text', text: 'S' }], messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'ok' }, { role: 'user', content: 'next' }], tools: [{ name: 'Bash' }], metadata: meta });
+const attr = (key, value, type = 'stringValue') => ({ key, value: { [type]: value } });
+const record = (eventName, bodyRef, sequence) => ({
+  traceId: 'trace-e2e',
+  spanId: 'span-e2e',
+  body: { stringValue: eventName },
+  attributes: [
+    attr('event.name', eventName),
+    attr('event.sequence', String(sequence), 'intValue'),
+    attr('prompt.id', 'prompt-e2e'),
+    attr('query_source', 'sdk'),
+    attr('body_ref', bodyRef),
+  ],
+});
+const exporterHeaders = Object.fromEntries(
+  String(process.env.OTEL_EXPORTER_OTLP_HEADERS || '')
+    .split(',')
+    .map((entry) => entry.split('=').map((part) => part.trim()))
+    .filter(([key, value]) => key && value),
+);
+if (!exporterHeaders['x-peekmyagent-watch-id']) {
+  console.error('otel watch identity header missing');
+  process.exit(9);
+}
+const eventResponse = await fetch(process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', ...exporterHeaders },
+  body: JSON.stringify({ resourceLogs: [{ scopeLogs: [{ logRecords: [record('api_request_body', 'c1.request.json', 1), record('api_response_body', 'req_1.response.json', 2), record('api_request_body', 'c2.request.json', 3)] }] }] }),
+});
+if (!eventResponse.ok) {
+  console.error('otel event endpoint rejected fake export');
+  process.exit(8);
+}
 console.log('fake claude otel dumped');
 `,
   );
@@ -88,6 +124,7 @@ console.log('fake claude otel dumped');
   assert.equal(view.requests[0].request_index, 1);
   assert.equal(view.requests[0].conversation_id, sessionId);
   assert.equal(view.requests[0].upstream_status, 200, "request #1 has a paired response");
+  assert.equal(view.requests[0].raw.provenance.association.method, "otel_trace_span", "wrapper OTel events produce exact response association");
   assert.equal(view.requests[1].model, "claude-haiku-4-5");
   assert.equal(view.requests[1].request_index, 2);
 

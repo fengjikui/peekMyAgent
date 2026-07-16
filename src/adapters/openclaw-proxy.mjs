@@ -1,4 +1,5 @@
 import { baseNormalizedRequest, collectMessageRedactions, normalizeMessage, requestParams } from "../core/normalize.mjs";
+import { captureProvenanceOr, proxyCaptureProvenance } from "../core/provenance.mjs";
 import { redactHeaders, safeJsonShape, sanitizeEndpoint } from "../core/redaction.mjs";
 
 export function normalizeOpenClawProxyCapture(capture) {
@@ -50,6 +51,7 @@ export function normalizeOpenClawProxyCapture(capture) {
       original_url: capture.originalUrl || capture.original_url || null,
       headers,
     },
+    provenance: captureProvenanceOr(capture.provenance, () => proxyCaptureProvenance(capture)),
     rawBodyShape: safeJsonShape(body),
   });
 }

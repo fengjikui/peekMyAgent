@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { correlationKey } from "./otel-events.mjs";
+import { createCaptureProvenance } from "./provenance.mjs";
 
 // OTel raw-body capture for Claude Code subscription (OAuth) mode.
 //
@@ -22,13 +24,25 @@ const DEFAULT_MAX_SCAN_DIRS = 2000;
 const DEFAULT_MAX_FILE_BYTES = 8 * 1024 * 1024;
 
 // Environment variables that make Claude Code dump raw API bodies to `dir`.
-export function otelTelemetryEnv(dir) {
+export function otelTelemetryEnv(dir, { logsEndpoint, tracesEndpoint, headers } = {}) {
   if (!dir) throw new Error("otelTelemetryEnv requires a directory");
-  return {
+  const env = {
     CLAUDE_CODE_ENABLE_TELEMETRY: "1",
-    OTEL_LOGS_EXPORTER: "console",
     OTEL_LOG_RAW_API_BODIES: `file:${dir}`,
     OTEL_LOGS_EXPORT_INTERVAL: "1000",
+  };
+  if (!logsEndpoint || !tracesEndpoint) return { ...env, OTEL_LOGS_EXPORTER: "console" };
+  return {
+    ...env,
+    CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: "1",
+    OTEL_LOGS_EXPORTER: "otlp",
+    OTEL_TRACES_EXPORTER: "otlp",
+    OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
+    OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: logsEndpoint,
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: tracesEndpoint,
+    OTEL_LOGS_EXPORT_INTERVAL: "1000",
+    OTEL_TRACES_EXPORT_INTERVAL: "1000",
+    ...(headers ? { OTEL_EXPORTER_OTLP_HEADERS: headers } : {}),
   };
 }
 
@@ -126,7 +140,7 @@ function responseRecord(responseFile, receivedAt) {
 
 // Convert one request dump file (+ optional paired response) into a capture
 // record shaped exactly like the proxy path's buildCaptureRecord output.
-export function otelRequestFileToCapture(requestFile, ctx = {}, responseFile = null) {
+export function otelRequestFileToCapture(requestFile, ctx = {}, responseFile = null, association = null) {
   const read = safeReadJson(requestFile.path);
   if (!read) return null;
   const body = read.json;
@@ -148,6 +162,14 @@ export function otelRequestFileToCapture(requestFile, ctx = {}, responseFile = n
     raw_body_length: byteLength(read.raw),
     capture_method: OTEL_CAPTURE_METHOD,
     capture_confidence: "exact",
+    provenance: createCaptureProvenance({
+      transport: OTEL_CAPTURE_METHOD,
+      request: { origin: "agent_telemetry", fidelity: "exact", artifact: requestFile.name },
+      response: responseFile
+        ? { origin: "agent_telemetry", fidelity: "exact", artifact: responseFile.name }
+        : { origin: null, fidelity: "missing", artifact: null },
+      association: association || { method: "none", confidence: "none" },
+    }),
     source: {
       type: "otel_raw_body_file",
       request_file: requestFile.name,
@@ -165,19 +187,111 @@ export function otelRequestFileToCapture(requestFile, ctx = {}, responseFile = n
   return capture;
 }
 
-// Turn a whole dump directory into ordered capture records, pairing requests
-// with responses positionally. ctx supplies watch_id / workspace / agent etc.
-export function otelDirToCaptures(dir, ctx = {}) {
+// Turn a whole dump directory into ordered capture records. OTel trace/span
+// evidence is preferred; positional pairing is an explicit legacy fallback.
+export function otelDirToCaptures(dir, ctx = {}, { events = [], allowHeuristicPairing = true } = {}) {
   const { requests, responses } = scanOtelDir(dir);
+  const pairs = pairOtelDumpFiles(requests, responses, { events, allowHeuristicPairing });
   const captures = [];
   requests.forEach((requestFile, index) => {
-    const responseFile = responses[index] || null;
+    const pair = pairs.get(requestFile.path) || null;
+    const responseFile = pair?.responseFile || null;
     const capture = otelRequestFileToCapture(
       requestFile,
       { ...ctx, requestIndex: index + 1 },
       responseFile,
+      pair?.association || null,
     );
     if (capture) captures.push(capture);
   });
   return captures;
+}
+
+export function pairOtelDumpFiles(requests, responses, { events = [], allowHeuristicPairing = true } = {}) {
+  const pairs = new Map();
+  const responseByName = new Map((responses || []).map((file) => [file.name, file]));
+  const requestByName = new Map((requests || []).map((file) => [file.name, file]));
+  const requestEventsByCorrelation = new Map();
+  const responseEventsByCorrelation = new Map();
+
+  for (const event of events || []) {
+    const key = correlationKey(event);
+    if (!key) continue;
+    const target = event.event_name === "api_request_body" ? requestEventsByCorrelation : responseEventsByCorrelation;
+    if (!target.has(key)) target.set(key, []);
+    target.get(key).push(event);
+  }
+
+  const usedResponses = new Set();
+  for (const [key, responseEvents] of responseEventsByCorrelation) {
+    const requestEvents = requestEventsByCorrelation.get(key) || [];
+    const availableRequests = dedupeEventsByBodyRef(requestEvents.filter((event) => requestByName.has(event.body_ref)));
+    const availableResponses = dedupeEventsByBodyRef(responseEvents.filter((event) => responseByName.has(event.body_ref)));
+    if (!availableRequests.length || !availableResponses.length) continue;
+    availableRequests.sort(compareEventOrder);
+    availableResponses.sort(compareEventOrder);
+    for (const responseEvent of availableResponses) {
+      const candidates = availableRequests.filter((event) => !pairs.has(requestByName.get(event.body_ref).path) && eventBeforeResponse(event, responseEvent));
+      const requestEvent = candidates.at(-1);
+      if (!requestEvent) continue;
+      const requestFile = requestByName.get(requestEvent.body_ref);
+      const responseFile = responseByName.get(responseEvent.body_ref);
+      if (usedResponses.has(responseFile.path)) continue;
+      const retryAmbiguous = candidates.length > 1;
+      const retryOrderKnown = retryAmbiguous && candidates.every((event) => Number.isFinite(event.event_sequence)) && Number.isFinite(responseEvent.event_sequence);
+      pairs.set(requestFile.path, {
+        responseFile,
+        association: {
+          method: retryAmbiguous ? (retryOrderKnown ? "otel_trace_span_last_attempt" : "otel_trace_span_ambiguous_attempt") : "otel_trace_span",
+          confidence: retryAmbiguous ? (retryOrderKnown ? "high" : "heuristic") : "exact",
+          evidence: {
+            trace_id: requestEvent.trace_id,
+            span_id: requestEvent.span_id,
+            request_event_sequence: requestEvent.event_sequence,
+            response_event_sequence: responseEvent.event_sequence,
+            prompt_id: requestEvent.prompt_id || responseEvent.prompt_id,
+            query_source: requestEvent.query_source || responseEvent.query_source,
+          },
+        },
+      });
+      usedResponses.add(responseFile.path);
+    }
+  }
+
+  if (allowHeuristicPairing) {
+    const remainingRequests = (requests || []).filter((file) => !pairs.has(file.path));
+    const remainingResponses = (responses || []).filter((file) => !usedResponses.has(file.path));
+    remainingRequests.forEach((requestFile, index) => {
+      const responseFile = remainingResponses[index];
+      if (!responseFile) return;
+      pairs.set(requestFile.path, {
+        responseFile,
+        association: {
+          method: "file_write_order",
+          confidence: "heuristic",
+          evidence: { request_ordinal: index + 1, response_ordinal: index + 1 },
+        },
+      });
+      usedResponses.add(responseFile.path);
+    });
+  }
+
+  return pairs;
+}
+
+function compareEventOrder(a, b) {
+  const aSequence = Number.isFinite(a?.event_sequence) ? a.event_sequence : Number.MAX_SAFE_INTEGER;
+  const bSequence = Number.isFinite(b?.event_sequence) ? b.event_sequence : Number.MAX_SAFE_INTEGER;
+  return aSequence - bSequence || String(a?.body_ref || "").localeCompare(String(b?.body_ref || ""));
+}
+
+function dedupeEventsByBodyRef(events) {
+  const byBodyRef = new Map();
+  for (const event of events || []) byBodyRef.set(event.body_ref, event);
+  return [...byBodyRef.values()];
+}
+
+function eventBeforeResponse(requestEvent, responseEvent) {
+  if (!Number.isFinite(requestEvent?.event_sequence) || !Number.isFinite(responseEvent?.event_sequence)) return true;
+  return requestEvent.event_sequence < responseEvent.event_sequence;
 }

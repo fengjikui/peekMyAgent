@@ -70,7 +70,7 @@ try {
     });
 
     const exported = await fetchBuffer(`${viewer.url}/api/trace/export?source=${encodeURIComponent(watch.id)}`);
-    assert.equal(exported.status, 200);
+    assert.equal(exported.status, 200, exported.status === 200 ? "trace export succeeds" : exported.buffer.toString("utf8"));
     assert.match(exported.headers.get("content-disposition") || "", /\.peektrace\.json\.gz/);
     const bundle = JSON.parse(zlib.gunzipSync(exported.buffer).toString("utf8"));
     const bundleText = JSON.stringify(bundle);
@@ -84,6 +84,7 @@ try {
     assert.equal(bundleText.includes("[REDACTED:trace_export_sensitive_field]"), true, "exported trace should mark field-name redactions");
     assert.equal(bundleText.includes("[REDACTED:trace_export_max_depth]"), true, "exported trace should bound pathological nesting");
     assert.equal(bundle.manifest.export_kind, "sanitized_share_bundle");
+    assert.equal(bundle.captures[0].provenance.transport, "capture_proxy", "trace export preserves capture provenance");
     assert.equal(bundle.manifest.redaction.applied, true);
     assert.ok(bundle.manifest.redaction.count >= 4);
     assert.match(bundle.manifest.privacy_notice, /Review before sharing/);
@@ -99,6 +100,8 @@ try {
     assert.equal(importedSource.kind, "imported_trace");
     assert.equal(importedSource.readonly, true);
     assert.ok(fs.existsSync(importedSource.path), "imported trace directory exists before deletion");
+    const importedCaptures = JSON.parse(fs.readFileSync(path.join(importedSource.path, "proxy-captures.json"), "utf8"));
+    assert.equal(importedCaptures[0].provenance.transport, "capture_proxy", "trace import preserves valid original provenance");
 
     const importedView = await getJson(`${viewer.url}/api/view?source=${encodeURIComponent(imported.source_id)}`);
     assert.equal(importedView.stats.request_count, 3);
@@ -141,6 +144,10 @@ try {
     assert.notEqual(path.resolve(traversalImport.source.path), path.resolve(tmpDir), "malicious trace id must not resolve to state root");
     assert.equal(fs.existsSync(path.join(tmpDir, "manifest.json")), false, "malicious trace id must not write manifest outside imports");
     assert.equal(path.basename(traversalImport.source.path).startsWith("trace"), true, "dot-only trace id falls back to a safe name");
+    const legacyImportedCaptures = JSON.parse(fs.readFileSync(path.join(traversalImport.source.path, "proxy-captures.json"), "utf8"));
+    assert.equal(legacyImportedCaptures[0].provenance.transport, "trace_import", "legacy import receives conservative provenance");
+    assert.equal(legacyImportedCaptures[0].provenance.request.fidelity, "exact");
+    assert.equal(legacyImportedCaptures[0].provenance.response.fidelity, "missing");
     await postJson(`${viewer.url}/api/source/update`, {
       id: traversalImport.source_id,
       delete: true,

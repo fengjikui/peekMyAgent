@@ -35,6 +35,8 @@ try {
   assert.equal(status.shared_capture_proxy, true);
   assert.equal(status.capture_url, captureUrl);
   assert.equal(typeof status.pid, "number");
+  const translationContract = await getText(`${dashboardUrl}/translation-blocks.js`);
+  assert.match(translationContract, /export function translationLookupKey/, "browser translation contract is served");
 
   const viewResult = runCli(["view", "--print", "--no-open"], env);
   assert.equal(viewResult.status, 0, viewResult.stderr);
@@ -142,6 +144,13 @@ async function getJson(url) {
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
   return data;
+}
+
+async function getText(url) {
+  const response = await fetch(url);
+  const text = await response.text();
+  if (!response.ok) throw new Error(text || `HTTP ${response.status}`);
+  return text;
 }
 
 function killListeningPort(port) {

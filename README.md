@@ -57,9 +57,32 @@ claude --version
 claude -p --output-format text "Reply OK"
 ```
 
-## Install From Source
+## Install
 
-Clone the repository and run the source installer:
+Install the public alpha globally from npm:
+
+```bash
+npm install --global peekmyagent@next
+```
+
+This installs both `pma` and `peekmyagent`; the examples use the shorter `pma` command. Verify the installation:
+
+```bash
+pma doctor
+pma --help
+```
+
+Run the same npm command again to update to the newest public alpha. After the first stable release, `npm install --global peekmyagent` will install and update the stable channel.
+
+If your npm client uses a mirror that has not synchronized the package yet, target the official registry explicitly:
+
+```bash
+npm install --global peekmyagent@next --registry=https://registry.npmjs.org/
+```
+
+### Install From Source
+
+Contributors can clone the repository and run the source installer:
 
 ```bash
 git clone https://github.com/fengjikui/peekMyAgent.git
@@ -67,44 +90,27 @@ cd peekMyAgent
 node scripts/install.mjs
 ```
 
-PowerShell uses the same commands:
+The source installer runs:
 
-```powershell
-git clone https://github.com/fengjikui/peekMyAgent.git
-cd peekMyAgent
-node scripts/install.mjs
+```bash
+npm install
+npm install -g .
+pma doctor
 ```
 
-The installer runs `npm install`, installs the CLI from this source tree with `npm install -g .`, and then runs `pma doctor`. The installed commands are `pma` and `peekmyagent`; `pma` is the short alias used in the examples below. To preview the plan without changing your machine:
+To preview the source-install plan without changing your machine:
 
 ```bash
 node scripts/install.mjs --dry-run
 ```
 
-Manual install is still just:
-
-```bash
-npm install
-npm install -g .
-```
-
-For active development, `npm link` is still fine if you specifically want a symlinked working tree.
-
-Check the command:
-
-```bash
-pma --help
-pma doctor
-peekmyagent --help
-```
-
-If you do not want to install the command globally, run the CLI from the repository:
+For active development, `npm link` is still available. You can also run the CLI without installing it globally:
 
 ```bash
 node bin/peekmyagent.mjs --help
 ```
 
-All examples below use `pma`. The full `peekmyagent` command remains available and behaves the same. If you skipped global installation, replace `pma` with `node /path/to/peekMyAgent/bin/peekmyagent.mjs` on macOS/Linux or `node C:\path\to\peekMyAgent\bin\peekmyagent.mjs` on Windows.
+All examples below use `pma`. The full `peekmyagent` command remains available and behaves the same.
 
 ## Quick Start With Claude Code
 
@@ -172,13 +178,12 @@ Continue the last Claude Code session:
 pma claude -c
 ```
 
-When Claude Code uses `-c/--continue` or `-r/--resume`, peekMyAgent may find an existing recording for the same project/session. In an interactive terminal it asks whether to reuse that recording or create a new one. Pressing Enter accepts option 1 and continues writing to the same recording in both proxy and OTel capture modes; use `--new` when a separate recording is intentional.
+When Claude Code uses `-c/--continue` or `-r/--resume`, peekMyAgent may find an existing recording for the same project/session. In an interactive terminal it asks whether to reuse that recording or create a new one. Pressing Enter accepts option 1 and continues writing to the same recording in both proxy and OTel capture modes; choose option 2 when a separate recording is intentional.
 
 Use these flags to choose explicitly:
 
 ```bash
 pma --reuse claude -c
-pma --new claude -c
 pma --ask claude -r <session-id>
 ```
 
@@ -420,6 +425,8 @@ Core release gate:
 ```bash
 npm run release:check
 ```
+
+Maintainers should follow the [release manual](docs/releasing.md) for exact-tag three-platform validation, first-package bootstrap, and npm OIDC trusted publishing.
 
 Platform-specific release gates:
 

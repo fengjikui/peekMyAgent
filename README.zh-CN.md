@@ -53,7 +53,32 @@ claude --version
 claude -p --output-format text "Reply OK"
 ```
 
-## 从源码安装
+## 安装
+
+通过 npm 全局安装公开 Alpha：
+
+```bash
+npm install --global peekmyagent@next
+```
+
+安装后会同时提供 `pma` 和 `peekmyagent` 两个命令；本文优先使用更短的 `pma`。安装完成后检查：
+
+```bash
+pma doctor
+pma --help
+```
+
+以后重复执行同一条 npm 命令即可更新到最新 Alpha。首个稳定版本发布后，使用 `npm install --global peekmyagent` 安装和更新稳定通道。
+
+如果本机 npm 使用的镜像尚未同步新版本，可以明确使用 npm 官方 registry：
+
+```bash
+npm install --global peekmyagent@next --registry=https://registry.npmjs.org/
+```
+
+### 从源码安装
+
+贡献者可以克隆仓库并运行源码安装器：
 
 ```bash
 git clone https://github.com/fengjikui/peekMyAgent.git
@@ -61,39 +86,21 @@ cd peekMyAgent
 node scripts/install.mjs
 ```
 
-Windows PowerShell 使用同样的命令：
+源码安装器等价于：
 
-```powershell
-git clone https://github.com/fengjikui/peekMyAgent.git
-cd peekMyAgent
-node scripts/install.mjs
+```bash
+npm install
+npm install -g .
+pma doctor
 ```
 
-安装器会执行 `npm install`、用 `npm install -g .` 从当前源码安装 CLI，然后运行 `pma doctor`。安装后会同时提供 `pma` 和 `peekmyagent` 两个命令；下面示例优先使用更短的 `pma`。如果只想预览安装计划，不修改机器：
+如果只想预览源码安装计划，不修改机器：
 
 ```bash
 node scripts/install.mjs --dry-run
 ```
 
-手动安装等价于：
-
-```bash
-npm install
-npm install -g .
-```
-
-如果你是在开发 peekMyAgent 本身，明确希望使用工作区软链，也可以手动使用 `npm link`。
-
-检查命令是否可用：
-
-```bash
-pma --help
-pma doctor
-peekmyagent --help
-peekmyagent doctor
-```
-
-如果不想全局安装命令，也可以直接运行：
+开发时也可以使用 `npm link`，或者不全局安装，直接运行：
 
 ```bash
 node bin/peekmyagent.mjs --help
@@ -205,6 +212,8 @@ npm run release:check:windows:list
 ```bash
 npm run release:check
 ```
+
+维护者发布公开版本时，请遵循[发布手册](docs/releasing.md)：它包含精确 Tag 三平台验证、首次 npm 包引导和后续 OIDC 可信发布流程。
 
 这会运行跨平台核心 smoke gate，包括路径解析、doctor、源码安装、临时全局安装、维护/卸载、dashboard、Claude wrapper、发送消息、Trae CN 路由、持久化和请求树检查。
 

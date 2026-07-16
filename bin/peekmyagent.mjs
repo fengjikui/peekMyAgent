@@ -35,8 +35,8 @@ function usage(exitCode = 0) {
     ? `pma advanced help (alias: peekmyagent)
 
 Usage:
-  pma [--reuse|--new|--ask] [--open] claude [claude args...]
-  pma [--reuse|--new] [--open] openclaw [openclaw args...]
+  pma [--reuse|--ask] [--open] claude [claude args...]
+  pma [--reuse] [--open] openclaw [openclaw args...]
   pma normalize openclaw-capture <capture.json> [--out <file>]
   pma normalize claude-otel <request.json> [--out <file>] [--delete-raw-after-import]
   pma daemon [--host <host>] [--api-port <port>] [--capture-port <port>] [--open]
@@ -54,7 +54,7 @@ Usage:
   pma dev view [--demo openclaw-subagent|openclaw-multiturn|claude-subagent|claude-proxy-resume] [--evidence <dir>] [--port <port>] [--open]
   pma run claude [--watch ask|reuse|new] [peekMyAgent options] -- [claude args...]
   pma run openclaw [--watch reuse|new] [peekMyAgent options] -- [openclaw args...]
-  pma watch-current [--agent claude-code|openclaw] [--mode next_request|single_session|privacy_guard] [--viewer-url <url>] [--json] [--open] [--new] [--pause] [--resume] [--stop] [--clear] [--session-key <key>] [--patch-openclaw] [--openclaw-profile <name>] [--provider <id>] [--model <id>] [--target-base-url <url>] [--refresh-profile]
+  pma watch-current [--agent claude-code|openclaw] [--mode next_request|single_session|privacy_guard] [--viewer-url <url>] [--json] [--open] [--pause] [--resume] [--stop] [--clear] [--session-key <key>] [--patch-openclaw] [--openclaw-profile <name>] [--provider <id>] [--model <id>] [--target-base-url <url>] [--refresh-profile]
   pma install-claude-skill [--scope user|project] [--commands] [--dest <claude-dir>] [--json]
   pma install-openclaw-skill [--agent <id>] [--global] [--force] [--json]
 
@@ -64,7 +64,7 @@ Notes:
   - openclaw-capture expects one proxy capture record with method/path/headers/body.
   - claude-otel expects one Claude Code OTel .request.json file.
   - output is normalized JSON and does not print raw secrets beyond adapter redaction.
-  - run is the advanced compatibility path. Starting an Agent through peekMyAgent is the user's explicit consent to capture that process. For Claude --continue/--resume, peekMyAgent asks where to write capture by default when a matching watch exists; use --reuse to reuse automatically or --new to force a new watch.
+  - run is the advanced compatibility path. Starting an Agent through peekMyAgent is the user's explicit consent to capture that process. For Claude --continue/--resume, peekMyAgent asks where to write capture by default when a matching watch exists; use --reuse to reuse automatically or choose option 2 to start a separate recording.
   - daemon starts the stable local API/dashboard plus fixed capture proxy. open opens that shared dashboard and starts the daemon if needed. shutdown stops it, and restart reloads it on the fixed ports.
   - doctor explains current paths, daemon status, installed helpers, and common cross-platform configuration issues. clear --all-sessions removes captured session storage after stopping the daemon. uninstall removes the CLI, peekMyAgent helpers, and optionally local data, but does not modify Agent provider configs unless a future restore adapter explicitly owns them.
   - compact stops the daemon, removes duplicated raw request bodies that can be rebuilt from content blocks, and VACUUMs the SQLite store unless --no-vacuum is set.
@@ -214,7 +214,8 @@ function parseAgentShortcut(values) {
         runRest: [normalizeShortcutAgent(value), ...wrapperArgs, "--", ...values.slice(index + 1)],
       };
     }
-    if (value === "--reuse" || value === "--new" || value === "--ask") {
+    if (value === "--new") throw new Error("The --new shortcut was removed. Plain Agent starts already create new recordings; for continue/resume choose option 2, or use advanced --watch new.");
+    if (value === "--reuse" || value === "--ask") {
       watchPolicy = mergeWatchPolicy(watchPolicy, value.slice(2));
       continue;
     }
@@ -1057,6 +1058,7 @@ function formatBytes(bytes) {
 }
 
 async function watchCurrent() {
+  if (hasFlag("--new")) throw new Error("The --new flag was removed. Current-session registration reuses its active recording; clear it first if a replacement is required.");
   const viewerUrl = optionValue("--viewer-url") || process.env.PEEKMYAGENT_VIEWER_URL || (await ensureDashboard({ open: false })).url;
   if (!viewerUrl) {
     throw new Error(`No running peekMyAgent dashboard found. Run "peekmyagent open" or pass --viewer-url. Registry checked: ${viewerRegistryPath()}`);
@@ -1072,7 +1074,7 @@ async function watchCurrent() {
     workspace,
     conversation_id: conversationId,
     started_by: "agent-command",
-    reuse: !hasFlag("--new"),
+    reuse: true,
     target_base_url: openclawPatch?.target_base_url,
     provider_id: openclawPatch?.provider_id,
     config_patched: Boolean(openclawPatch),
@@ -1184,7 +1186,15 @@ async function runClaudeOtelAgent(parsed, viewerUrl, { conversationId, reuseWatc
   const watchId = reuseWatchId || `claude-code-otel-${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
   const reused = Boolean(reuseWatchId);
   const dumpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-otel-"));
-  const env = mergeClaudeCodeProcessEnv({ cwd: workspace, env: process.env, overrides: otelTelemetryEnv(dumpDir) });
+  const env = mergeClaudeCodeProcessEnv({
+    cwd: workspace,
+    env: process.env,
+    overrides: otelTelemetryEnv(dumpDir, {
+      logsEndpoint: `${trimSlash(viewerUrl)}/api/capture/otel/events`,
+      tracesEndpoint: `${trimSlash(viewerUrl)}/api/capture/otel/traces`,
+      headers: `x-peekmyagent-intent=otel-event-ingest,x-peekmyagent-watch-id=${watchId}`,
+    }),
+  });
   const ingestPayload = {
     dir: dumpDir,
     watch_id: watchId,
@@ -1192,10 +1202,15 @@ async function runClaudeOtelAgent(parsed, viewerUrl, { conversationId, reuseWatc
     workspace,
     conversation_id: conversationId,
     mode: optionValueIn(parsed.wrapperArgs, "--mode") || "single_session",
+    event_correlation_enabled: true,
   };
-  const ingest = async () => {
+  const ingest = async ({ final = false } = {}) => {
     try {
-      return await postJson(`${trimSlash(viewerUrl)}/api/capture/otel`, ingestPayload, { headers: { "x-peekmyagent-intent": "otel-ingest" } });
+      return await postJson(
+        `${trimSlash(viewerUrl)}/api/capture/otel`,
+        { ...ingestPayload, final },
+        { headers: { "x-peekmyagent-intent": "otel-ingest" } },
+      );
     } catch {
       return null;
     }
@@ -1217,7 +1232,7 @@ async function runClaudeOtelAgent(parsed, viewerUrl, { conversationId, reuseWatc
     childError = error;
   }
   clearInterval(timer);
-  const flushed = await ingest();
+  const flushed = await ingest({ final: true });
   fs.rmSync(dumpDir, { recursive: true, force: true });
   if (flushed) {
     console.error(`peekMyAgent captured ${flushed.total ?? 0} OTel request(s), ${flushed.responses ?? 0} response(s).`);
@@ -1237,7 +1252,7 @@ async function runOpenClawAgent(parsed, viewerUrl) {
     workspace,
     conversation_id: conversationId,
     started_by: "peekmyagent-run",
-    reuse: watchPolicy === "reuse" && !hasFlagIn(parsed.wrapperArgs, "--new"),
+    reuse: watchPolicy === "reuse",
     target_base_url: openclawPatch.target_base_url,
     provider_id: openclawPatch.provider_id,
     config_patched: true,
@@ -1271,6 +1286,7 @@ function parseRunArgs(values) {
   const [agent, ...runArgs] = values;
   const separatorIndex = runArgs.indexOf("--");
   const wrapperArgs = separatorIndex === -1 ? runArgs : runArgs.slice(0, separatorIndex);
+  if (hasFlagIn(wrapperArgs, "--new")) throw new Error("The --new wrapper flag was removed. Use --watch new on the advanced run command.");
   const childArgs = separatorIndex === -1 ? stripRunWrapperArgs(runArgs) : runArgs.slice(separatorIndex + 1);
   return { agent, wrapperArgs, childArgs };
 }
@@ -1278,7 +1294,7 @@ function parseRunArgs(values) {
 function stripRunWrapperArgs(values) {
   const output = [];
   const skipNext = new Set(["--viewer-url", "--mode", "--openclaw-profile", "--provider", "--model", "--target-base-url", "--watch", "--capture"]);
-  const skipSingle = new Set(["--open-viewer", "--new", "--refresh-profile", "--otel", "--proxy"]);
+  const skipSingle = new Set(["--open-viewer", "--refresh-profile", "--otel", "--proxy"]);
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
     if (skipSingle.has(value)) continue;
@@ -1297,7 +1313,7 @@ async function resolveClaudeRunWatchChoice({ parsed, viewerUrl, conversationId }
   const explicitPolicy = optionValueIn(parsed.wrapperArgs, "--watch");
   const continuation = Boolean(conversationId || isClaudeContinue(parsed.childArgs));
   const watchPolicy = explicitPolicy ? normalizeWatchPolicy(explicitPolicy, { allowAsk: true }) : continuation ? "ask" : "new";
-  if (hasFlagIn(parsed.wrapperArgs, "--new") || watchPolicy === "new") return null;
+  if (watchPolicy === "new") return null;
   const shouldConsiderReuse = Boolean(continuation || watchPolicy === "reuse" || explicitPolicy === "ask");
   if (!shouldConsiderReuse) return null;
 

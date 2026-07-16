@@ -79,6 +79,7 @@ export function baseNormalizedRequest({
   requestParams: params,
   redactions,
   source,
+  provenance,
   rawBodyShape,
 }) {
   return {
@@ -105,6 +106,7 @@ export function baseNormalizedRequest({
     request_params: params || {},
     redactions: redactions || [],
     source,
+    provenance: provenance || null,
     raw_body_shape: rawBodyShape,
   };
 }

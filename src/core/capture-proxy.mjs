@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import http from "node:http";
 import https from "node:https";
+import { proxyCaptureProvenance } from "./provenance.mjs";
 import { redactHeaders } from "./redaction.mjs";
 
 export const DEFAULT_WATCH_ID = "default";
@@ -96,7 +97,7 @@ export function buildCaptureRecord({
   receivedAt = new Date().toISOString(),
 }) {
   const { headers, redactions } = redactHeaders(req.headers || {});
-  return {
+  const capture = {
     capture_id: captureId,
     watch_id: attribution.watchId,
     request_index: requestIndex,
@@ -112,6 +113,8 @@ export function buildCaptureRecord({
     body: parseJson(bodyText),
     raw_body_length: Buffer.byteLength(bodyText),
   };
+  capture.provenance = proxyCaptureProvenance(capture);
+  return capture;
 }
 
 export async function startCaptureProxy({
@@ -175,6 +178,7 @@ export async function startCaptureProxy({
       if (capture) {
         capture.upstream_error = error.message;
         capture.response = buildErrorResponseRecord(error);
+        capture.provenance = proxyCaptureProvenance(capture);
       }
       writeProxyJson(res, 502, { error: error.message });
       if (capture && onCaptureUpdate) Promise.resolve(onCaptureUpdate(capture)).catch(() => {});
@@ -304,6 +308,7 @@ export async function startSharedCaptureProxy({
       if (capture) {
         capture.upstream_error = error.message;
         capture.response = buildErrorResponseRecord(error);
+        capture.provenance = proxyCaptureProvenance(capture);
       }
       writeProxyJson(res, 502, { error: error.message });
       if (capture && onCaptureUpdate) Promise.resolve(onCaptureUpdate(capture, watch)).catch(() => {});
@@ -498,6 +503,7 @@ function proxyUpstreamResponse({ upstreamRes, downstreamRes, capture, watch, onC
         capturedBytes,
         startedAt,
       });
+      capture.provenance = proxyCaptureProvenance(capture);
     }
     downstreamRes.end();
     if (capture && onCaptureUpdate) Promise.resolve(onCaptureUpdate(capture, watch)).catch(() => {});
@@ -506,6 +512,7 @@ function proxyUpstreamResponse({ upstreamRes, downstreamRes, capture, watch, onC
     if (capture) {
       capture.upstream_error = error.message;
       capture.response = buildErrorResponseRecord(error, { rawBytes, capturedBytes, startedAt });
+      capture.provenance = proxyCaptureProvenance(capture);
     }
     downstreamRes.destroy(error);
     if (capture && onCaptureUpdate) Promise.resolve(onCaptureUpdate(capture, watch)).catch(() => {});

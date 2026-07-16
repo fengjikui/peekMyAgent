@@ -1,19 +1,16 @@
 import assert from "node:assert/strict";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { openPersistenceStore } from "../src/core/persistence-store.mjs";
+import { translationMaterialHash } from "../src/translation/hash.mjs";
 import { startViewerServer } from "../src/viewer/server.mjs";
 
-// Mirror of the client's lookup-key hashing (translationLookupKey + materialHash)
-// and the server's normalizeTranslationSourceText, so we can assert a harness
-// block's translation is reachable by the exact key the client computes — the
-// parity that makes the original/中文 toggle actually resolve.
+// Assert against the shared key/hash contract used by Server, scripts and the
+// browser client, so the original/translated toggle resolves the same block.
 function clientHash(kind, sourceText) {
-  const normalized = sourceText.replace(/\r\n/g, "\n").trim();
-  return crypto.createHash("sha256").update(`${kind}\0${normalized}`).digest("hex");
+  return translationMaterialHash(kind, sourceText);
 }
 
 // Smoke for harness-prompt translation: the viewer must extract harness-injected

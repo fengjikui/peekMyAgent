@@ -1,0 +1,43 @@
+export const RELEASE_CHECK_PROVIDER_ENV_KEYS = Object.freeze([
+  "PEEKMYAGENT_TRANSLATION_PROTOCOL",
+  "PEEKMYAGENT_TRANSLATION_BASE_URL",
+  "PEEKMYAGENT_TRANSLATION_API_KEY",
+  "PEEKMYAGENT_TRANSLATION_MODEL",
+  "PEEKMYAGENT_TRANSLATION_CLAUDE_BIN",
+  "ANTHROPIC_BASE_URL",
+  "ANTHROPIC_AUTH_TOKEN",
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_MODEL",
+  "ANTHROPIC_SMALL_FAST_MODEL",
+  "OPENAI_BASE_URL",
+  "OPENAI_API_KEY",
+  "OPENAI_MODEL",
+  "DEEPSEEK_BASE_URL",
+  "DEEPSEEK_API_KEY",
+  "DEEPSEEK_MODEL",
+  "OPENCLAW_BASE_URL",
+]);
+
+export const RELEASE_CHECK_HOST_ENV_KEYS = Object.freeze([
+  "HOME",
+  "USERPROFILE",
+  "LOCALAPPDATA",
+  "APPDATA",
+]);
+
+export const RELEASE_CHECK_HOST_ENV_PREFIX = "PEEKMYAGENT_RELEASE_HOST_";
+
+export function sanitizeReleaseCheckEnvironment(env = {}) {
+  const sanitized = { ...env };
+  for (const key of RELEASE_CHECK_PROVIDER_ENV_KEYS) delete sanitized[key];
+  return sanitized;
+}
+
+export function preserveReleaseCheckHostEnvironment(env = {}) {
+  const preserved = {};
+  for (const key of RELEASE_CHECK_HOST_ENV_KEYS) {
+    if (!env[key]) continue;
+    preserved[`${RELEASE_CHECK_HOST_ENV_PREFIX}${key}`] = env[key];
+  }
+  return preserved;
+}

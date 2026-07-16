@@ -91,6 +91,10 @@ try {
   assert.equal(byIndex.get(3).trace.claude_agent_id, byIndex.get(4).trace.claude_agent_id, "same Explore instance shares one synthetic agent id");
   assert.notEqual(byIndex.get(2).trace.claude_agent_id, byIndex.get(3).trace.claude_agent_id, "different subagents get different instance ids");
   assert.equal(byIndex.get(1).is_subagent ?? false, false, "parent request is not a subagent");
+  assert.equal(byIndex.get(2).context_delta.baseline, true, "first request of one child starts its own context chain");
+  assert.equal(byIndex.get(3).context_delta.baseline, true, "first request of another child starts a separate context chain");
+  assert.equal(byIndex.get(4).context_delta.previous_request_index, 3, "later child round compares with the same child instance");
+  assert.match(byIndex.get(4).context_delta.comparison_key, /^agent:/, "body-only child uses an agent context chain after attribution");
 
   // Branches: two, typed, spawned at the parent.
   const branches = view.agent_trace?.branches || [];

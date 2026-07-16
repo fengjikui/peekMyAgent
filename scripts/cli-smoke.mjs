@@ -26,6 +26,17 @@ const advancedHelp = spawnSync(process.execPath, [bin, "help", "--all"], { encod
 assert.equal(advancedHelp.status, 0, advancedHelp.stderr);
 assert.match(advancedHelp.stdout, /normalize openclaw-capture/);
 assert.match(advancedHelp.stdout, /pma daemon/);
+assert.doesNotMatch(advancedHelp.stdout, /pma \[--reuse\|--new/);
+
+const removedNewShortcut = spawnSync(process.execPath, [bin, "--new", "claude"], { encoding: "utf8" });
+assert.equal(removedNewShortcut.status, 1);
+assert.match(removedNewShortcut.stderr, /--new shortcut was removed/);
+const removedNewWrapperFlag = spawnSync(process.execPath, [bin, "run", "claude", "--new", "--"], { encoding: "utf8" });
+assert.equal(removedNewWrapperFlag.status, 1);
+assert.match(removedNewWrapperFlag.stderr, /--new wrapper flag was removed/);
+const removedWatchCurrentNewFlag = spawnSync(process.execPath, [bin, "watch-current", "--new"], { encoding: "utf8" });
+assert.equal(removedWatchCurrentNewFlag.status, 1);
+assert.match(removedWatchCurrentNewFlag.stderr, /--new flag was removed/);
 
 run(["normalize", "openclaw-capture", path.join(root, "fixtures", "openclaw-chat-completions-capture.json"), "--out", openclawOut]);
 run(["normalize", "openclaw-capture", path.join(root, "fixtures", "openclaw-chat-completions-capture.json"), `--out=${openclawAssignmentOut}`]);
@@ -45,6 +56,7 @@ assert.equal(openclaw.source.headers.authorization, "[REDACTED:header]");
 assert.equal(claude.adapter_name, "claude-code-otel-raw-body");
 assert.equal(claude.capture_confidence, "exact");
 assert.equal(claude.system[0].role, "system");
+assert.equal(claude.provenance.transport, "otel_raw_body_file");
 
 const devViewerStateDir = fs.mkdtempSync(path.join(os.tmpdir(), "peek-cli-dev-view-"));
 const devViewer = await startDevViewer(["dev", "view", "--port", "0"], {

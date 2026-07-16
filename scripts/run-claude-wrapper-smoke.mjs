@@ -19,9 +19,12 @@ const shortcutSession = `${runId}-shortcut`;
 const otelSession = `${runId}-otel`;
 const failSession = `${runId}-fail`;
 const missingWatchCleanupSession = `${runId}-missing-watch-cleanup`;
+const signalSession = `${runId}-signal`;
 const argsPath = path.join(tmpDir, "claude-args.json");
+const signalReadyPath = path.join(tmpDir, "claude-signal-ready");
 const originalStateDir = process.env.PEEKMYAGENT_STATE_DIR;
 process.env.PEEKMYAGENT_STATE_DIR = path.join(tmpDir, "state");
+let signalRunner = null;
 
 const upstream = http.createServer(async (req, res) => {
   await readBody(req);
@@ -98,6 +101,10 @@ if (otelTarget.startsWith('file:')) {
     });
     if (!stopResponse.ok) process.exit(4);
   }
+}
+if (process.env.PEEK_FAKE_CLAUDE_WAIT === '1') {
+  fs.writeFileSync(process.env.PEEK_FAKE_SIGNAL_READY_PATH, 'ready');
+  setInterval(() => {}, 1000);
 }
 	`,
   );
@@ -260,8 +267,37 @@ if (otelTarget.startsWith('file:')) {
   assert.match(missingWatchCleanupResult.stdout, /fake claude ok/);
   assert.doesNotMatch(missingWatchCleanupResult.stderr, /peekmyagent error|Watch not found/i);
 
+  if (process.platform !== "win32") {
+    signalRunner = startCli(["run", "claude", "--viewer-url", viewer.url, "--", "--resume", signalSession], {
+      ...process.env,
+      PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+      ANTHROPIC_BASE_URL: upstreamUrl,
+      PEEK_FAKE_CLAUDE_WAIT: "1",
+      PEEK_FAKE_SIGNAL_READY_PATH: signalReadyPath,
+    });
+    await waitForFile(signalReadyPath);
+    signalRunner.child.kill("SIGINT");
+    const signalResult = await signalRunner.closed;
+    signalRunner = null;
+    assert.equal(signalResult.code, 130, signalResult.stderr);
+    assert.equal(signalResult.signal, null, "the wrapper must finish cleanup instead of being terminated directly");
+    assert.doesNotMatch(signalResult.stderr, /peekMyAgent cleanup warning|peekmyagent error|Watch not found/i);
+
+    const sourcesAfterSignal = await getJson(`${viewer.url}/api/sources`);
+    const signalledSource = sourcesAfterSignal.find(
+      (source) => source.agent === "Claude Code" && source.conversation_id === signalSession,
+    );
+    assert.ok(signalledSource, "the interrupted Claude run remains available as a captured source");
+    assert.equal(signalledSource.live_status, "stopped");
+    assert.equal(signalledSource.request_count, 1);
+  }
+
   console.log("run claude wrapper smoke passed");
 } finally {
+  if (signalRunner) {
+    if (signalRunner.child.exitCode == null && signalRunner.child.signalCode == null) signalRunner.child.kill("SIGTERM");
+    await signalRunner.closed.catch(() => {});
+  }
   await viewer.close();
   await closeServer(upstream);
   if (originalStateDir == null) delete process.env.PEEKMYAGENT_STATE_DIR;
@@ -270,8 +306,12 @@ if (otelTarget.startsWith('file:')) {
 }
 
 function runCli(args, env) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["bin/peekmyagent.mjs", ...args], { cwd, env });
+  return startCli(args, env).closed;
+}
+
+function startCli(args, env) {
+  const child = spawn(process.execPath, ["bin/peekmyagent.mjs", ...args], { cwd, env });
+  const closed = new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => {
@@ -288,11 +328,21 @@ function runCli(args, env) {
       clearTimeout(timer);
       reject(error);
     });
-    child.on("close", (code) => {
+    child.on("close", (code, signal) => {
       clearTimeout(timer);
-      resolve({ code, stdout, stderr });
+      resolve({ code, signal: signal || null, stdout, stderr });
     });
   });
+  return { child, closed };
+}
+
+async function waitForFile(filePath, timeoutMs = 5_000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (fs.existsSync(filePath)) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`Timed out waiting for ${filePath}`);
 }
 
 async function getJson(url) {

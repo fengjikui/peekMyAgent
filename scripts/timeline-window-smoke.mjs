@@ -2,35 +2,57 @@ import fs from "node:fs";
 import assert from "node:assert/strict";
 
 const clientSource = fs.readFileSync(new URL("../src/viewer/client.js", import.meta.url), "utf8");
+const agentGraphModelSource = fs.readFileSync(new URL("../src/viewer/agent-graph-model.js", import.meta.url), "utf8");
+const agentGraphRendererSource = fs.readFileSync(new URL("../src/viewer/agent-graph-renderer.js", import.meta.url), "utf8");
 const markdownSource = fs.readFileSync(new URL("../src/viewer/markdown.js", import.meta.url), "utf8");
+const messageViewModelSource = fs.readFileSync(new URL("../src/viewer/message-view-model.js", import.meta.url), "utf8");
+const messagesRendererSource = fs.readFileSync(new URL("../src/viewer/messages-renderer.js", import.meta.url), "utf8");
+const timelineModelSource = fs.readFileSync(new URL("../src/viewer/trace-timeline-model.js", import.meta.url), "utf8");
+const timelineRendererSource = fs.readFileSync(new URL("../src/viewer/trace-timeline-renderer.js", import.meta.url), "utf8");
+const timelineControllerSource = fs.readFileSync(new URL("../src/viewer/trace-timeline-controller.js", import.meta.url), "utf8");
+const turnRailSource = fs.readFileSync(new URL("../src/viewer/turn-rail.js", import.meta.url), "utf8");
 const stylesSource = fs.readFileSync(new URL("../src/viewer/styles.css", import.meta.url), "utf8");
 
-assert.match(clientSource, /const TIMELINE_WINDOW_THRESHOLD = 180;/, "timeline window threshold should be explicit");
-assert.match(clientSource, /const TIMELINE_WINDOW_SIZE = 120;/, "timeline window size should be explicit");
-assert.match(clientSource, /const AGENT_BRANCH_PAGE_SIZE = 24;/, "large multi-agent views should page branches");
-assert.match(clientSource, /const AGENT_EVENT_LIMIT = 80;/, "large multi-agent views should cap the initial event strip");
-assert.match(clientSource, /function timelineWindowInfo\(turns, requests\)/, "timelineWindowInfo should exist");
-assert.match(clientSource, /filteredTurns\.length \? renderTurnTimeline\(turnWindow, requests\)/, "main timeline should render the computed filtered window");
-assert.match(clientSource, /const filtered = traceFilteredTurns\(turns, requests\);/, "turn rail universe should follow the active Trace query");
-assert.match(clientSource, /data-turn-window-jump/, "window edge jump controls should be wired");
+assert.match(timelineModelSource, /export const TIMELINE_WINDOW_THRESHOLD = 180;/, "timeline window threshold should be explicit");
+assert.match(timelineModelSource, /export const TIMELINE_WINDOW_SIZE = 120;/, "timeline window size should be explicit");
+assert.match(agentGraphModelSource, /export const AGENT_BRANCH_PAGE_SIZE = 24;/, "large multi-agent views should page branches");
+assert.match(
+  clientSource,
+  /import \{ AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView \} from "\.\/agent-graph-model\.js";/,
+  "the viewer shell should consume the Agent Graph paging contract",
+);
+assert.match(agentGraphModelSource, /export const AGENT_EVENT_LIMIT = 80;/, "large multi-agent views should cap the initial event strip");
+assert.match(timelineModelSource, /export function buildTraceTimelineView\(/, "the Timeline View Model should be directly testable");
+assert.match(
+  clientSource,
+  /renderTurnTimelineView\(\{[\s\S]*?turnWindowOrTurns: timelineView\.turnWindow,[\s\S]*?requests,/,
+  "main timeline should render the computed filtered window",
+);
+assert.match(clientSource, /return currentTimelineView\(data\)\.railTurns;/, "turn rail universe should follow the Timeline View Model");
+assert.match(clientSource, /import \{ TurnRailController \} from "\.\/turn-rail\.js";/, "the timeline should delegate rail interaction to its feature controller");
+assert.match(clientSource, /turnRailController\.bind\(\)/, "the turn rail controller should own its browser event lifecycle");
+assert.match(turnRailSource, /export function visibleTurnWindow\(/, "the turn rail window policy should be directly testable");
+assert.match(turnRailSource, /syncActiveFromScroll\(\)/, "the turn rail controller should own scroll activation");
+assert.match(timelineRendererSource, /data-turn-window-jump/, "window edge jump controls should be rendered by the Timeline renderer");
+assert.match(timelineControllerSource, /onTurnWindowJump/, "window edge jump controls should be wired by the Timeline controller");
 assert.match(clientSource, /function jumpToTurn\(turnId, scroll = true\)/, "turn rail jumps should re-render the active window");
-assert.match(clientSource, /const RAW_MESSAGE_MARKDOWN_INLINE_CHARS = 5000;/, "organized Messages view should cap markdown rendering");
-assert.match(clientSource, /function truncateOrganizedMessageText\(text\)/, "organized Messages truncation helper should exist");
+assert.match(messageViewModelSource, /export const DEFAULT_MESSAGE_TEXT_LIMIT = 5000;/, "organized Messages view should cap markdown rendering");
+assert.match(messageViewModelSource, /export function truncateMessageText\(text, limit = DEFAULT_MESSAGE_TEXT_LIMIT\)/, "organized Messages truncation helper should remain directly testable");
 assert.match(clientSource, /function displaySourceLabel\(label\)[\s\S]*?Write the title in/, "source labels should hide appended title-generation instructions");
-assert.match(clientSource, /renderSafeMarkdown\(markdownText\.text\)/, "organized Messages should render the truncated markdown text");
+assert.match(messagesRendererSource, /renderMarkdown\(block\.textPreview\.text\)/, "organized Messages should render the truncated markdown text");
 assert.match(markdownSource, /export function renderSafeMarkdown\(text\)/, "safe markdown renderer should be testable as a module");
-assert.match(clientSource, /messageTextTruncated/, "organized Messages truncation should be visible to users");
+assert.match(messagesRendererSource, /messageTextTruncated/, "organized Messages truncation should be visible to users");
 assert.match(clientSource, /state\.openSupportingTimelines\.has\(turnId\)/, "supporting timelines should only render after they are opened");
-assert.match(clientSource, /const dashboardBody = dashboardOpen/, "multi-agent dashboard details should only render after opening");
-assert.match(clientSource, /collapsed\s*\?\s*""\s*:\s*`<div class="agent-branch-body">/, "collapsed subagent branches should not render hidden detail DOM");
-assert.match(clientSource, /events\.slice\(0, AGENT_EVENT_LIMIT\)/, "agent event rendering should obey the explicit cap");
-assert.match(clientSource, /data-agent-status-filter/, "large multi-agent views should support status-first filtering");
+assert.match(agentGraphRendererSource, /view\.dashboardOpen \? renderAgentDashboard\(view,/, "multi-agent dashboard details should only render after opening");
+assert.match(agentGraphRendererSource, /expanded\s*\?\s*`<div class="agent-branch-body">[\s\S]*?\s*:\s*""/, "collapsed subagent branches should not render hidden detail DOM");
+assert.match(agentGraphModelSource, /events: allEvents\.slice\(0, AGENT_EVENT_LIMIT\)/, "agent event rendering should obey the explicit cap");
+assert.match(agentGraphRendererSource, /data-agent-status-filter/, "large multi-agent views should support status-first filtering");
 assert.match(clientSource, /state\.agentBranchFilters\.set\(turnId, filter\)/, "agent status filters should update explicit viewer state");
-assert.match(clientSource, /function traceFilteredTurns\(turns, requests\)/, "Trace search should filter at the turn-story level");
-assert.match(clientSource, /function traceRequestHasIssue\(request\)/, "Trace search should expose an issue entry point");
-assert.match(clientSource, /const traceSearchTextCache = new WeakMap\(\);/, "Trace search text should be cached across keystrokes");
-assert.match(clientSource, /const TRACE_RESULT_PAGE_SIZE = 24;/, "Trace query results should be progressively disclosed");
-assert.match(clientSource, /trace_filter_active:\s*true/, "Trace filters should render matching request evidence instead of whole turns");
+assert.match(timelineModelSource, /export function filterTraceTurns\(/, "Trace search should filter at the turn-story level");
+assert.match(timelineModelSource, /export function traceRequestHasIssue\(request\)/, "Trace search should expose an issue entry point");
+assert.match(timelineModelSource, /const traceSearchTextCache = new WeakMap\(\);/, "Trace search text should be cached across keystrokes");
+assert.match(timelineModelSource, /export const TRACE_RESULT_PAGE_SIZE = 24;/, "Trace query results should be progressively disclosed");
+assert.match(timelineModelSource, /trace_filter_active:\s*true/, "Trace filters should render matching request evidence instead of whole turns");
 assert.match(stylesSource, /\.timeline-window-edge-card/, "window edge UI should be styled");
 assert.match(stylesSource, /\.raw-message-truncation/, "organized Messages truncation notice should be styled");
 assert.match(stylesSource, /container-name:\s*trace-main/, "the main pane should expose its own responsive container");

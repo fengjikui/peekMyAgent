@@ -1,6 +1,6 @@
 # 发布前安全与性能审计纪要
 
-更新时间：2026-07-04
+更新时间：2026-07-14
 
 本文记录 peekMyAgent 面向公开发布前的安全与性能检查结果。它不是一次性的“安全认证”，而是维护者后续改动时需要持续回看的工程边界。
 
@@ -33,6 +33,7 @@
   - 本地 API 显式限制 HTTP 方法：source/view/request/status/export/translation cache 等只读接口只接受 `GET`，watch/source update/import/send/shutdown/translation generate 等状态修改接口只接受 `POST`。
   - 页面发送消息到 Agent 的高敏入口 `/api/agent/send` 必须带 `x-peekmyagent-intent: agent-send`，避免普通脚本或误调用触发外部 Agent 进程。
   - OTel raw-body dump 入库入口 `/api/capture/otel` 必须带 `x-peekmyagent-intent: otel-ingest`，避免普通脚本或误调用触发本机目录扫描与持久化写入。
+  - OTel correlation 入口 `/api/capture/otel/events` 与 trace sink `/api/capture/otel/traces` 必须带 `x-peekmyagent-intent: otel-event-ingest`。daemon 只保留带 `body_ref` 的最小关联字段，完整 trace payload 读取后立即丢弃；事件索引限制为 32 个 watch、每个 2400 条，并在最终 ingest 后清理。
   - Trace 导入入口 `/api/trace/import` 必须带 `x-peekmyagent-intent: trace-import`，避免普通脚本或误调用触发解压、解析和本地 imports 写入。
   - 翻译生成入口 `/api/translations/generate` 必须带 `x-peekmyagent-intent: translation-generate`，避免普通脚本或误调用触发本地 Claude CLI / 模型服务请求。
   - 会话元数据入口 `/api/source/update` 必须带 `x-peekmyagent-intent: source-update`，避免普通脚本或误调用改名、归档或删除本地捕获数据。
@@ -91,6 +92,7 @@
 - Compact 首屏进一步截短 system/assistant/internal preview、entry 文本和 response 重复预览，只保留时间线直接展示所需的 composition 分区；完整内容由 `/api/request` 单请求详情恢复。
 - Compact 首屏不再携带 Raw headers、上游 response headers、重复的 `response.preview` 和完整 `context_delta.previews.command_message` 对象；真实 137 请求 Trace 的 compact payload 从约 2.16MB 降到约 1.54MB，合成 420 请求样本从约 4.58MB 降到约 3.90MB。
 - Trace 导出直接读取 source 的 raw captures 并执行脱敏打包，不再先构建完整 viewer timeline，避免大 Trace 导出触发 turns、agent trace、context diff 等重计算。
+- Trace 导入/导出安全策略已收拢到 `TraceBundleService`，HTTP、未来 CLI 或桌面入口必须复用同一限额、脱敏、provenance 和安全目录契约。
 - Raw JSON 搜索增加 debounce，减少大 JSON 下的连续重渲染。
 - 切换/刷新视图时清理旧翻译 action 状态，避免长时间使用后积累无效 UI 状态。
 - 重命名持久化到 SQLite/import manifest，刷新后不再恢复旧标题。
@@ -101,7 +103,9 @@
 - Raw Messages 的“整理”视图对单个文本块设置 Markdown 渲染上限，长文本只展示预览并提示切换原文查看完整 JSON，避免压缩摘要或长工具结果造成右侧面板卡顿。
 - SQLite capture 默认使用分块缓存存储：新请求不再重复保存完整 `raw_body_json`，而是通过 ordered request tree + content blobs 重建 Raw；system、单个 tool schema、单条 message/tool_result 都可按 hash 复用。
 - `pma compact` 可清理旧 store 中已经有 request tree 的重复 `raw_body_json`，并默认执行 SQLite `VACUUM` 回收文件空间。
-- 大 Trace 会话切换采用渐进加载：前端先请求 `/api/view?compact=1&initial=1&limit=32` 渲染首屏，再后台拉完整 compact view 补齐剩余 turns，避免用户点击左侧会话后长时间空白。
+- 大 Trace 会话切换采用 cursor 渐进加载：前端先请求 `/api/view?compact=1&initial=1&limit=32` 渲染首屏，再用 Source 绑定的不透明 cursor 分页接收 request、Turn 和 Agent entity delta；live Source 到达尾部后通过 refresh cursor 只续读新增 capture，不再后台下载整条 compact Trace。
+- file/demo/import Trace 使用应用私有 JSON array sidecar 记录对象 byte range；原始证据目录保持只读，分页和 request detail 只 hydrate 对应对象。sidecar 绑定 size/mtime/ctime/头尾样本指纹，内容不保存原路径、prompt 或 response，缓存不可写时退化为进程内索引。
+- System diff 的精确行级 LCS 同时限制总行数、总字符、单行字符和矩阵单元；超限后只在线性共同前后缀与至多 256 个动态内容块上生成指纹摘要，避免大 System 提示词在浏览器主线程创建无界二维数组或数千个 DOM 行。
 
 ## 新增/扩展的自动验证
 
@@ -113,6 +117,10 @@
   - 覆盖 macOS/Windows/Linux 路径、浏览器打开、子进程启动和 app path 构造；额外覆盖翻译缓存路径在 `.` / `..` 和 Windows 保留名输入下不会逃出 state translations 根目录。
 - `npm run smoke:source-list-performance`
   - 构造一个 manifest-backed 大 Trace，故意让 `proxy-captures.json` 不可解析；同时构造 SQLite 通用标题会话并禁止 `loadCaptures()`；`/api/sources` 仍应能列出它们，防止会话列表退回全量解析慢路径或覆盖用户重命名标题。
+- `npm run smoke:json-array-file-index` / `npm run smoke:source-capture-reader`
+  - 覆盖跨 chunk JSON object boundary、字符串转义、sidecar 指纹失效和私有权限、只读原始 Trace、不可写缓存降级、request window 定位，以及文件分页不再调用全量 capture `readJson`。
+- `npm run smoke:system-diff-view-contract`
+  - 覆盖小输入精确行 diff、换行归一化、上下文折叠、大输入块级退化、输出数量上限、移动后块行号、双语文案和恶意 HTML 转义。
 - `npm run smoke:maintenance`
   - 覆盖 `clear --all-sessions`、`uninstall --remove-data` 和 helper 清理路径；额外覆盖目录形态 `PEEKMYAGENT_STORE_PATH` 必须被拒绝，防止误配置导致递归删除。
 - `npm run smoke:persistence-store`
@@ -126,7 +134,9 @@
 - `npm run smoke:platform`
   - 覆盖跨平台 browser opener 命令。
 - `npm run smoke:package`
-  - 覆盖 npm 包内容边界，拒绝把 `docs/`、`tmp/`、handover/private/resume/memory 草稿、`.env`、数据库、日志、压缩包和录屏/截图素材打进发布包。
+  - 覆盖 npm 包内容边界，使用发布路径 allowlist 并拒绝把 `docs/`、`tmp/`、handover/private/resume/memory 草稿、`.env`、数据库、日志、压缩包和录屏/截图素材打进发布包；仓库测试 fixtures、源码安装/卸载脚本及其 helper 保留在 Git 仓库中但不随 npm 运行时包分发，npm 用户使用全局安装和 `pma uninstall`，翻译生成所需的两个运行时脚本继续随包提供。门禁同时约束 140 个条目、270 KB 压缩体积和 1.15 MB 解压体积，给边界模块保留少量余量，同时让意外打包大文件继续立即失败。
+- `npm run smoke:release-environment`
+  - 发布门禁为每个命令创建隔离 HOME/state/端口，并移除宿主机 Anthropic、OpenAI、DeepSeek、OpenClaw 和翻译 provider 凭据，保证确定性 smoke 不会意外访问真实模型或写入用户缓存。macOS Chromium 子进程使用独立临时 profile，但不继承伪造 HOME；后者会让 Chrome DevTools 导航永久不响应，因此仅由系统账户解析合法主目录。
 - `npm run smoke:timeline-window`
   - 覆盖长 Trace 主时间线窗口渲染和 Raw Messages 整理视图截断，防止前端回退到大 DOM 全量渲染。
 - `npm run smoke:markdown-safety`
@@ -142,7 +152,7 @@
 
 - 本机恶意进程仍可直接访问本地 loopback 服务。若以后支持更强安全模型，可增加一次性 session token、Unix domain socket 或浏览器端 nonce。
 - Trace 导出已经默认脱敏常见 secret/token pattern，但仍可能包含私有提示词、源码片段、文件路径、工具输出或业务数据；后续可增加导出前预览、风险扫描和可配置脱敏规则。
-- `/api/view` 仍会加载选中会话的完整 compact 视图，这是“用户点开详情”时的预期行为；未来可继续拆成真正分页的 turn endpoint，以及 lazy raw/tree endpoints。
+- cursor Server 为保持跨页 Turn 和多 Agent 语义，仍会在内存中保留已加载的 compact prefix 并重建派生实体；Client 已使用 normalized entity store 避免每页重建 map，但仍会物化兼容数组并重绘 Timeline window。后续需增加 Server 增量派生与 Client page eviction/细粒度订阅，把 CPU、常驻内存和重绘成本继续收敛到受影响实体。
 - Markdown 渲染、翻译和 Raw JSON 展示应继续避免一次性渲染超大 DOM；新增展示区时要补大样本 fixture 或 smoke。
 - 如果未来支持远程访问 dashboard，应设计成明确的远程模式，而不是简单开放 host：需要认证、CSRF token、CORS 策略、TLS/反代建议和更明确的隐私提示。
 

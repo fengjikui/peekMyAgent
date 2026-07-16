@@ -1,0 +1,87 @@
+# Coding Agent 代码库地图
+
+更新时间：2026-07-15
+
+本文帮助 Codex、Claude Code 和其他 Coding Agent 在几分钟内找到正确改动边界。它不是第二份架构事实源：运行行为以[当前架构](architecture.md)为准，未来设计以[重构路线图](refactoring-roadmap.md)为准，协作和验证规则以仓库根目录的 `AGENTS.md` 为准。
+
+## 开始工作前
+
+1. 执行 `git fetch origin`、`git status --short --branch`、`git rev-parse HEAD` 和 `git rev-parse origin/main`。
+2. 阅读 `AGENTS.md`、本文、`docs/architecture.md` 和改动领域的契约文档。
+3. 从真实调用链追踪行为，不要根据旧对话或文件名猜实现。
+4. 先写或找到能证明行为的确定性 smoke，再改代码。
+
+## 一条 Trace 如何流动
+
+```text
+pma CLI / adapter
+  -> Capture Proxy 或 OTel ingestor
+  -> CaptureRecord + provenance
+  -> SQLite content blocks / request tree
+  -> SourceRepository + domain services
+  -> Viewer HTTP API
+  -> browser API client + store
+  -> feature model/controller/renderer
+```
+
+每一层只拥有一类责任：adapter 发现和启动 Agent，capture 层保存证据，Trace Domain 建立语义关系，repository/service 管数据与副作用，HTTP route 做协议适配，Viewer feature 负责展示和交互。
+
+## 按需求定位
+
+| 要修改的行为 | 首先阅读 | 通常不应直接修改 |
+| --- | --- | --- |
+| CLI 命令、wrapper、进程退出、安装卸载 | `bin/`、`src/core/platform.mjs`、`src/core/app-paths.mjs`、`src/core/process-tools.mjs` | Viewer renderer |
+| Proxy 请求/回复捕获 | `src/core/capture-proxy.mjs`、`provenance.mjs` | UI 文案 |
+| Watch 新建/复用/恢复、暂停/停止、共享代理和动态路由 | `src/server/watch-runtime-service.mjs`、[Service 契约](watch-runtime-service-contract.md) | 在 Router、wrapper、Source service 或 Agent send 各维护一份 watch Map/恢复策略 |
+| Claude Code OTel 关联与入库 | `src/core/otel-capture.mjs`、`otel-events.mjs`、`src/server/otel-ingest-service.mjs`、`src/adapters/claude-otel.mjs`、[Service 契约](otel-ingest-service-contract.md) | 在 HTTP route 复制配对算法，或让 core 解析层直接写 Store |
+| 页面向 Agent 独立发送消息 | `src/server/agent-send-service.mjs`、`src/viewer/agent-composer-*`、[Service 契约](agent-send-service-contract.md) | renderer 启动进程、Service 直接拥有 watch 恢复，或暗示消息会进入原终端上下文 |
+| OpenClaw/Trae 或新 Agent | `src/adapters/`、对应 integration、适配器 fixture | 在 Server/Client 散落 provider 条件分支 |
+| SQLite 连接/写入/维护与 schema migration | `src/core/persistence-store.mjs`、`src/persistence/migrations/`、[Response 写入事务契约](capture-response-transaction-contract.md) | 绕过 migration 直接改 schema、拆散 response 原子写入，或让 read repository 拥有连接生命周期/写事务 |
+| persisted Capture 分页、窗口、body 重建与 response 水合 | `src/persistence/repositories/sqlite-capture-read-repository.mjs`、[读取仓库契约](sqlite-capture-read-repository-contract.md) | 在 Source reader、HTTP route 或 Viewer projector 重写 SQLite 查询和 blob 水合 |
+| content、thinking、tool use、tool result 基础解析 | `src/trace/content-parts.mjs`、对应 contract smoke | 在上行/下行各维护一份 block 解析 |
+| 真实用户输入、slash command、Harness 注入、任务通知 | `src/trace/message-semantics.mjs`、对应 contract smoke | 在 Server/Turn/标题/UI 各写一套 marker 正则 |
+| 请求协议/provider、main/subagent/metadata 来源画像 | `src/trace/request-profile.mjs`、对应 contract smoke | 在 Server/Viewer/adapter 中散落 model、path 或 header 判断 |
+| 请求 System/Tools/消息/工具交互字符构成 | `src/trace/request-composition.mjs`、对应 contract smoke | 在 Viewer Server 或 Renderer 中重新统计 payload |
+| 模型下行 JSON/SSE、usage、stop reason | `src/trace/model-response-normalizer.mjs`、对应 contract smoke | 在 Viewer Server/renderer 按 provider 重写解析 |
+| Turn、context delta、子 Agent 血缘 | `src/trace/` 和对应 contract smoke | Viewer 中重新猜测关系 |
+| Source 列表、读取、重命名/归档/删除 | `src/server/source-*` provider/repository/service | HTTP route 直接操作文件或 SQLite |
+| 左侧 Source/项目导航与菜单 | `src/viewer/session-navigator-*`；应用副作用在 `client.js` | 每次渲染重新绑定按钮或 renderer 直接调用 API |
+| Trace 导入导出与脱敏 | `src/server/trace-bundle-service.mjs`、`src/core/redaction.mjs` | 浏览器自行拼 bundle |
+| Viewer 翻译材料提取、刷新、Harness 提示词与 occurrence | `src/translation/request-materials.mjs`、`src/translation/materials.mjs`、`src/server/viewer-translation-adapter.mjs`、[材料契约](translation-material-contract.md)、[Adapter 契约](viewer-translation-adapter-contract.md) | 在 HTTP route 或 `client.js` 重写 System/Tools/Harness 提取、marker 正则、hash 或 occurrence |
+| Viewer 翻译缓存、用户动作、语言偏好、生成异步阶段和语言/Source 竞态 | `translation-cache-controller.js`、`translation-action-controller.js`、`translation-action-model.js`、`translation-generation-operation.js`、`translation-language-catalog.js`、`language-preferences-controller.js`、[Cache Controller 契约](translation-cache-controller-contract.md)、[Action Controller 契约](translation-action-controller-contract.md)、[语言偏好契约](language-preferences-controller-contract.md) | 在 `client.js` 恢复第二份语言目录、localStorage key、cache/action registry、复制格式或生成序列，绕过 operation runner 直接串 provider/cache 副作用，或让任一控制器拥有其他 feature 的 HTML |
+| 大 Trace 首屏、Source 生命周期、file sidecar、cursor 续读、跨页语义和 Client normalized store | `json-array-file-index.mjs`、`source-capture-reader.mjs`、`timeline-cursor-service.mjs`、`timeline-page-assembler.mjs`、`timeline-view-projector.mjs`、`active-source-controller.js`、`source-timeline-controller.js`、`TimelineEntityStore`（`timeline-entity-store.js`）、[Active Source 契约](active-source-controller-contract.md)、[Source Timeline 契约](source-timeline-controller-contract.md) | 修改原始 Trace、在 route 暴露 reader offset、每页重复完整 Turn/Agent 图，在应用层维护第二份 generation/cursor/Store，绕过 catalog version gate 覆盖 Source 清单，或重新下载整条 compact Trace |
+| Capture 到 Viewer request/Turn/Agent/stats DTO | `viewer-trace-projector.mjs`、`src/trace/*`、[投影器契约](viewer-trace-projector-contract.md) | 在 HTTP route、Source provider、详情或 cursor 路径分别拼 DTO |
+| Viewer HTTP 安全和 API | `src/contracts/viewer-api.mjs`、`http.mjs`、`viewer-router.mjs`、[DTO 契约](viewer-api-dto-contract.md)、[Router 契约](viewer-router-contract.md)、`src/viewer/api-client.js` | 在 `server.mjs` 重新写 URL/method/intent 分支、分别解释 Source/request detail/Timeline envelope，或让 feature renderer 发 `fetch` |
+| 中栏 Timeline、请求卡、多 Agent 看板、上行详情 | `trace-timeline-*`、`request-card-model.js`、`request-card-renderer.js`、`agent-graph-*`、`upstream-detail-*`、[请求卡 View 契约](request-card-renderer-contract.md) | 在 `client.js` 重写请求分类/摘要/工具配对，或让 renderer 读取全局 `state`/DOM |
+| Raw、Messages、翻译展示 | `raw-inspector-controller.js`、`raw-*`、`message-*`、`translation-*`、[Raw Inspector Controller 契约](raw-inspector-controller-contract.md)、[Raw 搜索浏览器契约](raw-search-browser-contract.md) | `client.js` 新增长段领域 HTML，或绕过 Controller 直接提交异步 Raw 结果；Raw 搜索只检查截断预览而不检查完整值 |
+| System 提示词变化与大文本退化 | `system-diff-model.js`、`system-diff-renderer.js`、[System Diff 契约](system-diff-view-contract.md) | 在 `client.js` 重建无上限 LCS 矩阵，或把块摘要称作精确行 diff |
+| 三栏折叠、宽度与拖动 | `pane-layout-model.js`、`pane-layout-controller.js`；状态在 `client-store.js` | 在 `client.js` 直接读写 CSS 变量或重复绑定 resizer |
+| UI 状态与交互动作 | `client-store.js`、feature controller、`session-navigator-*`、`agent-composer-*`、`client.js` 装配层 | model/renderer 写全局状态 |
+| 中英文 UI 文案、UI/翻译目标语言偏好 | `src/viewer/ui-i18n.js`、`translation-language-catalog.js`、`language-preferences-controller.js`、对应 contract smoke | 只改一种 UI 语言、在 feature 内另建词典，或绕过语言控制器直接写持久化偏好 |
+
+## Viewer Feature 约定
+
+新 Viewer 功能优先形成以下边界，而不是继续扩张 `client.js`：
+
+- **Model**：纯数据到 View DTO；不得访问 DOM、网络或全局状态。
+- **Renderer**：显式 DTO 到安全 HTML；普通文本必须转义，Markdown 使用受限 renderer。
+- **Controller**：长期持有 DOM 节点、做一次事件委派，通过动作端口通知应用层。
+- **Application assembly**：读取 store、调用 API/service、注册翻译动作并决定局部重绘范围。
+
+不是每个功能都必须凑齐四个文件。只有存在独立责任、显式输入输出和可直接验证的契约时才拆分。
+
+## 验证与文档
+
+- 开发中先运行改动模块的直接 contract smoke。
+- Level 1 低风险代码累计到 3 个提交、准备推送代码批次或出现跨模块不确定性时，运行当前主机完整 release profile。
+- CLI、进程、路径、端口、安装、SQLite 和 provider 配置属于高平台风险，必须按 `docs/validation-strategy.md` 执行 Level 2。
+- 当前行为变化同步更新 `docs/architecture.md`；未来计划只写入 roadmap；复杂修复保留 evidence/retrospective。
+- 新增 UI 文案必须同步更新 `ui-i18n.js` 的中英文 key，并运行 `npm run smoke:viewer-i18n-contract`；该门禁同时检查占位符和源码/HTML 的静态 key 引用。
+
+查看可用 smoke：
+
+```bash
+npm run release:check:macos:list
+npm run release:check:windows:list
+npm run release:check:linux:list
+```
