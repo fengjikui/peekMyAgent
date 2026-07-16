@@ -28,6 +28,7 @@ assert.notEqual(packageJson.private, true, "package must not be private before n
 assert.notEqual(packageJson.version, "0.0.0", "package must use a real release version before npm distribution");
 assert.match(packageJson.version || "", /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
 assert.equal(packageJson.publishConfig?.access, "public");
+assert.equal(packageJson.publishConfig?.registry, "https://registry.npmjs.org/");
 assert.equal(packageJson.bin?.peekmyagent, "./bin/peekmyagent.mjs");
 assert.equal(packageJson.bin?.pma, "./bin/peekmyagent.mjs");
 

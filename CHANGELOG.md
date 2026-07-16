@@ -9,6 +9,7 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 
 - Viewer source summaries, single-request details, and complete/compact/cursor timeline responses now use one versioned runtime DTO contract enforced at the Server and browser API boundaries.
 - System, tool-schema, and Harness translation materials now use one browser/Node request projector while server-side hashing, occurrences, and safety limits remain isolated in the Collector.
+- Public installation documentation is npm-first, and package publishing is pinned to the official npm registry so local mirror configuration cannot redirect a release.
 
 ## [0.1.0-alpha.1] - 2026-07-15
 
