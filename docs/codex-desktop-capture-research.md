@@ -1,6 +1,6 @@
 # Codex Desktop 捕获研究与实施路线
 
-更新时间：2026-07-16
+更新时间：2026-07-17
 
 状态：实验结论，尚未实现为 peekMyAgent 的正式 Codex Desktop adapter。
 
@@ -245,6 +245,8 @@ openai_base_url = "http://127.0.0.1:<local-proxy>/v1"
 
 本机 receiver 只记录安全的 shape、大小和字段名，不记录认证值或用户正文。实验结束后立即停止 receiver。
 
+这一轮 receiver 为了阻止请求继续访问真实服务端，故意返回 `502`。因此实验六只证明 Codex 会把完整请求和订阅态 headers 发送到显式 Base URL，不证明真实上游能够被透明转发。真实转发闭环见实验七。
+
 ### 观察
 
 配置被真实采用，Codex 依次访问：
@@ -279,6 +281,95 @@ HTTP request body 使用 zstd 压缩。解压后的请求包含：
 - Codex/ChatGPT 服务端协议、attestation 或客户端约束变化都可能影响兼容性。
 
 系统级 TLS MITM 虽然也可能看到流量，但会扩大到其他应用和域名，不应成为 peekMyAgent 的默认产品方案。
+
+## 实验七：ChatGPT 订阅态透明转发闭环
+
+### 目标
+
+补齐实验六缺少的最后一段证据：让桌面 App 内嵌 Codex 的真实请求经过 loopback 探针，再发往它原本使用的模型服务，并确认模型回复能够无损返回 Codex。实验同时分别验证 WebSocket 主通道和 HTTP streaming fallback。
+
+### 真实上游地址
+
+本机 `codex-cli 0.144.2` 的当前日志显示，ChatGPT 订阅态 Codex 使用的 first-party 服务是：
+
+- model catalog：`https://chatgpt.com/backend-api/codex/models?client_version=0.144.2`
+- HTTP Responses：`https://chatgpt.com/backend-api/codex/responses`
+- WebSocket Responses：`wss://chatgpt.com/backend-api/codex/responses`
+- compaction：`https://chatgpt.com/backend-api/codex/responses/compact`
+- search：`https://chatgpt.com/backend-api/codex/alpha/search`
+
+它不是公开 API 的 `https://api.openai.com/v1/responses`。订阅认证不能被当作 API key 改投另一个端点。
+
+探针只允许下面的精确路径映射：
+
+```text
+/v1/models             -> /backend-api/codex/models
+/v1/responses          -> /backend-api/codex/responses
+/v1/responses/compact  -> /backend-api/codex/responses/compact
+/v1/alpha/search       -> /backend-api/codex/alpha/search
+```
+
+### 安全约束
+
+- 探针只绑定 `127.0.0.1`，不接受非白名单路径。
+- `authorization`、`chatgpt-account-id`、`session-id` 和 `thread-id` 只在内存中透传；日志只记录 header 名称和“是否存在”，不记录值。
+- zstd 正文的原始压缩字节直接转发；单独解压副本只做字段、数量和大小统计，不输出文本。
+- response 只计状态码和字节数并流式回传，不保存 response body。
+- Codex 使用 `--ephemeral`、只读 sandbox 和固定无工具提示词，不读取项目文件；实验结束后关闭监听并确认没有独立 rollout 文件。
+- `openai_base_url` 通过单次 `-c` 参数覆盖，没有修改用户 `config.toml`。
+
+### 首次失败与根因
+
+探针第一次使用 Node.js `https.request()` 直接连接 `chatgpt.com:443`，得到 `ETIMEDOUT`，真实上游尚未返回 HTTP 状态码。
+
+本机通过 loopback HTTP(S) 代理访问外网；`curl` 会读取系统/环境代理，而 Node.js 的 `https.request()` 默认不会自动使用 `HTTPS_PROXY`。因此失败发生在网络路径，不是订阅认证、目标 URL 或 request schema。
+
+修复方式是：探针先向已配置的 HTTP proxy 发送标准 `CONNECT chatgpt.com:443`，再在 tunnel 内以 `chatgpt.com` 为 SNI 完成 TLS 和证书校验。探针不实施 TLS MITM，也不改变真实目标域名。
+
+正式实现需要同时支持：
+
+1. `HTTPS_PROXY` / `https_proxy` 与操作系统代理发现；
+2. HTTP `CONNECT` 和必要时 SOCKS；
+3. `NO_PROXY` 与 loopback 例外；
+4. 代理认证不落盘、不进入诊断日志；
+5. 跨 macOS、Windows、Linux 的一致行为与可解释错误。
+
+### HTTP fallback 结果
+
+探针主动拒绝本地 WebSocket upgrade，让 Codex 在完成重试后使用 HTTP streaming fallback。真实结果：
+
+| 步骤 | 结果 |
+| --- | --- |
+| `GET /backend-api/codex/models?client_version=0.144.2` | `HTTP 200`，281,116 bytes |
+| `POST /backend-api/codex/responses` | `HTTP 200`，101,312 bytes |
+| Codex 最终消息 | 精确返回 `PMA_SUBSCRIPTION_PROXY_OK` |
+| Codex 进程 | exit code `0` |
+
+该次 `/responses` 请求仍为 zstd：36,862 bytes 压缩、96,158 bytes 解压；顶层字段为 `client_metadata`、`include`、`input`、`model`、`parallel_tool_calls`、`prompt_cache_key`、`reasoning`、`store`、`stream`、`text` 和 `tool_choice`。样本含 7 个 input item，其中 5 个 developer、2 个 user；`additional_tools` 中有 4 个工具定义。上述数字是单次实验 shape，不是稳定协议常量。
+
+### WebSocket 结果
+
+第二轮让探针透明转发 WebSocket upgrade 和后续二进制帧，不解析或持久化 frame payload。真实结果：
+
+| 步骤 | 结果 |
+| --- | --- |
+| model catalog | `HTTP 200` |
+| TLS | 证书校验通过，ALPN `http/1.1` |
+| `wss://chatgpt.com/backend-api/codex/responses` | `HTTP/1.1 101 Switching Protocols` |
+| Codex 最终消息 | 精确返回 `PMA_WEBSOCKET_PROXY_OK` |
+| Codex 进程 | exit code `0` |
+
+### 结论
+
+当前版本中，使用 ChatGPT 订阅登录的 Codex 可以通过显式 loopback Base URL 完成真实透明转发，不需要额外 API key。成立条件是：
+
+- 请求必须回到当前真实的 `chatgpt.com/backend-api/codex/*` 路由，而不是公开 API 路由；
+- 必须保留订阅认证、账号、session/thread 和 Codex 客户端 headers，同时重写 `Host` 并正确校验 `chatgpt.com` TLS；
+- 必须支持 WebSocket、HTTP fallback、model catalog、zstd 和流式回传；
+- 必须继承用户已有的上游网络代理，否则在部分网络环境中会表现为连接超时；
+- 这是当前 `0.144.2` 的实验证据，不是服务端私有协议的长期兼容承诺。
+
+官方配置文档确认 `openai_base_url` 是 built-in OpenAI provider 的代理/路由入口，`-c` 可以做单次运行覆盖。产品化时应优先使用可逆、会话级配置，并在协议或网络条件不满足时安全降级到本地观察，而不是持久修改用户配置或让 Codex 无法继续工作。
 
 ## 能力矩阵
 
@@ -382,11 +473,15 @@ src/server/codex-rollout-watch-service.mjs
 
 在实现深度代理前，至少补齐：
 
-1. 对真实上游的透明 WebSocket 转发和 HTTP fallback。
-2. model catalog、重连、取消、stream error 和代理崩溃恢复。
-3. request/response 大小上限与 zstd 解压炸弹防护。
-4. headers 全链路不落盘证明和自动化回归。
-5. 用户配置漂移、多个 Codex 进程和旧配置恢复。
+已补齐：真实上游的 WebSocket 与 HTTP fallback 透明转发闭环。
+
+仍需补齐：
+
+1. model catalog、重连、取消、stream error 和代理崩溃恢复。
+2. request/response 大小上限与 zstd 解压炸弹防护。
+3. headers 全链路不落盘证明和自动化回归。
+4. 用户配置漂移、多个 Codex 进程和旧配置恢复。
+5. 上游 HTTP/SOCKS/system proxy 的三平台发现、认证和失败诊断。
 6. First-party 协议变化后的失败降级，不影响用户继续使用 Codex。
 
 ## Phase 1 验收标准
