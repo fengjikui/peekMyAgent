@@ -132,8 +132,20 @@ export function rawUpstreamRequestMetadata(request) {
     body_source: raw.body_source,
     headers: raw.headers,
     header_redactions: raw.header_redactions,
+    upstream_evidence: rawUpstreamEvidenceMetadata(request),
     context_delta: request?.context_delta,
     composition: rawUpstreamComposition(request),
+  };
+}
+
+export function rawUpstreamEvidenceMetadata(request) {
+  const evidence = request?.summary?.evidence;
+  if (!evidence || typeof evidence !== "object") return null;
+  return {
+    schema_version: evidence.schema_version ?? null,
+    transport: evidence.transport ?? null,
+    request: evidence.request || null,
+    sections: evidence.sections || null,
   };
 }
 

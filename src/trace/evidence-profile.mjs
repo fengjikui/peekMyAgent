@@ -65,10 +65,11 @@ function sectionEvidenceProfiles(request, codex) {
     },
     tools: {
       source: toolScope === "dynamic_tools_only" ? "session_metadata" : "request",
-      origin: request.origin,
+      origin: codex.tool_schema_origin || request.origin,
       fidelity: toolUnavailable ? "missing" : request.fidelity,
       scope: toolScope,
       available: request.available && !toolUnavailable,
+      count: optionalNonNegativeInteger(codex.tool_schema_count),
     },
     messages: {
       source: "request",
@@ -104,4 +105,10 @@ function artifactProfile(value) {
     exact: fidelity === "exact",
     available: fidelity !== "missing",
   };
+}
+
+function optionalNonNegativeInteger(value) {
+  if (value == null || value === "") return null;
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number >= 0 ? number : null;
 }

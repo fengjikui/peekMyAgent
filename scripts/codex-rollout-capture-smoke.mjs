@@ -76,15 +76,25 @@ try {
   assert.equal(toolEvidence.sections.messages.scope, "observed_upstream_delta");
   assert.equal(toolEvidence.sections.messages.history_complete, false);
   assert.equal(toolEvidence.sections.tools.source, "session_metadata");
+  assert.equal(toolEvidence.sections.tools.origin, "codex_session_meta.dynamic_tools");
   assert.equal(toolEvidence.sections.tools.scope, "dynamic_tools_only");
+  assert.equal(toolEvidence.sections.tools.count, 1);
   assert.equal(toolEvidence.sections.harness.derived, true);
   assert.equal(toolRequest.body.codex.full_request_history_available, false);
   assert.equal(toolRequest.body.system[0].text, "You are Codex. Work carefully.");
   assert.equal(toolRequest.body.tools[0].name, "fixture_app__inspect");
+  assert.equal(toolRequest.body.codex.tool_schema_origin, "codex_session_meta.dynamic_tools");
+  assert.equal(toolRequest.body.codex.tool_schema_count, 1);
   assert.equal(toolRequest.response.body_json.finish_reason, "tool_use");
   const firstSummary = summarizeModelResponse(toolRequest.response);
   assert.equal(firstSummary.tool_calls.length, 1);
   assert.equal(firstSummary.tool_calls[0].id, "call-fixture-1");
+  assert.equal(firstSummary.tool_calls[0].name, "exec_command");
+  assert.equal(
+    toolRequest.body.tools.some((tool) => tool.name === "exec_command"),
+    false,
+    "an observed tool call does not let the rollout normalizer fabricate a missing schema",
+  );
   assert.match(firstSummary.thinking, /inspect the fixture/);
   assert.equal(firstSummary.text, "我先检查文件。");
   assert.equal(JSON.stringify(toolRequest).includes("opaque-fixture-reasoning"), false, "opaque reasoning is never copied into the capture");

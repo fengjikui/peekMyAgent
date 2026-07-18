@@ -50,6 +50,8 @@ export function normalizeCodexRolloutTurn({ source = {}, sessionMeta = {}, turn 
       full_request_history_available: false,
       turn_context: turn.turnContext || null,
       tool_schema_scope: tools.length ? "dynamic_tools_only" : "not_present_in_rollout",
+      tool_schema_origin: tools.length ? "codex_session_meta.dynamic_tools" : null,
+      tool_schema_count: tools.length,
       semantic_event: semanticEvent,
       lifecycle: exchangeLifecycle(turn, exchange),
       event_types: eventTypeCounts(entries),

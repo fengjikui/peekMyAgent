@@ -14,6 +14,7 @@ import {
   rawSemanticEventMetadata,
   rawSectionData,
   rawUpstreamComposition,
+  rawUpstreamEvidenceMetadata,
   rawUpstreamRequestMetadata,
   rawUpstreamRequestValue,
   responseUsesReconstructedDownstream,
@@ -198,7 +199,12 @@ const rolloutSectionRequest = {
       ...reconstructedRequest.summary.evidence,
       sections: {
         system: { source: "request", scope: "observed_upstream_delta" },
-        tools: { source: "session_metadata", scope: "dynamic_tools_only" },
+        tools: {
+          source: "session_metadata",
+          origin: "codex_session_meta.dynamic_tools",
+          scope: "dynamic_tools_only",
+          count: 1,
+        },
         messages: { source: "request", scope: "observed_upstream_delta", history_complete: false },
         harness: { source: "pma_semantic_projection", scope: "observed_upstream_delta", derived: true },
       },
@@ -230,6 +236,12 @@ assert.deepEqual(buildRawSectionEvidenceView(rolloutSectionRequest, "tools", { m
   badge: "rawSectionEvidenceUpstreamReferenceBadge",
   text: "rawSectionEvidenceDynamicToolsReference",
 });
+const rolloutUpstreamEvidence = rawUpstreamEvidenceMetadata(rolloutSectionRequest);
+assert.equal(rolloutUpstreamEvidence.sections.tools.origin, "codex_session_meta.dynamic_tools");
+assert.equal(rolloutUpstreamEvidence.sections.tools.scope, "dynamic_tools_only");
+assert.equal(rolloutUpstreamEvidence.sections.tools.count, 1);
+assert.equal(rawUpstreamRequestMetadata(rolloutSectionRequest).upstream_evidence.sections.tools.count, 1);
+assert.equal("response" in rawUpstreamRequestMetadata(rolloutSectionRequest).upstream_evidence, false);
 
 const exactProxyRequestReconstructedFromBlocks = {
   ...request,
