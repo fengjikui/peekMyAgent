@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath } from "node:url";
 import { CodexDesktopDiscovery } from "../src/adapters/codex-desktop-discovery.mjs";
 import { CodexRolloutCaptureReader } from "../src/server/codex-rollout-capture-reader.mjs";
 import { SourceCaptureReader } from "../src/server/source-capture-reader.mjs";
@@ -11,7 +12,7 @@ import { realUserVisibleText } from "../src/trace/message-semantics.mjs";
 import { summarizeModelResponse } from "../src/trace/model-response-normalizer.mjs";
 import { extractHarnessTranslationParts } from "../src/translation/request-materials.mjs";
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixturePath = path.join(root, "fixtures", "codex-rollout-sanitized.jsonl");
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-codex-rollout-"));
 const rolloutPath = path.join(tmpDir, "rollout.jsonl");

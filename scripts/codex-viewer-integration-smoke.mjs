@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { CodexRolloutCaptureReader } from "../src/server/codex-rollout-capture-reader.mjs";
 import { startViewerServer } from "../src/viewer/server.mjs";
 
-const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixturePath = path.join(projectRoot, "fixtures", "codex-rollout-sanitized.jsonl");
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-codex-viewer-"));
 const rolloutPath = path.join(tmpDir, "rollout.jsonl");
