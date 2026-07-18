@@ -864,7 +864,7 @@ function renderAll() {
 
 function renderHeaderSurface() {
   const { source, stats, requests } = state.data;
-  els.pageTitle.textContent = displaySourceLabel(source.label);
+  els.pageTitle.textContent = source.kind === "codex_rollout_pending" ? t("codexPendingTitle") : displaySourceLabel(source.label);
   els.stats.innerHTML = [
     [t("statRequests"), stats.request_count],
     [t("statResponses"), stats.response_count || 0],
@@ -1483,7 +1483,7 @@ function buildAssistantThinkingView(thinking, request) {
 function rawSectionData(request, section) {
   return buildRawSectionData(request, section, {
     translate: t,
-    harnessMaterials: section === "harness" ? collectHarnessTranslationMaterials(request) : [],
+    harnessMaterials: section === "harness" ? sectionTranslationMaterials(request, "harness") : [],
   });
 }
 
@@ -1926,6 +1926,21 @@ function translationKindLabel(kind) {
   if (kind === "harness_suggestion") return "Suggestion";
   if (kind === "harness_developer") return t("harnessDeveloper");
   if (kind === "harness_codex_context") return t("harnessCodexContext");
+  const codexLabelKey = {
+    harness_codex_environment: "harnessCodexEnvironment",
+    harness_codex_ambient_ui: "harnessCodexAmbientUi",
+    harness_codex_app: "harnessCodexApp",
+    harness_codex_skills: "harnessCodexSkills",
+    harness_codex_apps: "harnessCodexApps",
+    harness_codex_plugins: "harnessCodexPlugins",
+    harness_codex_recommended_plugins: "harnessCodexRecommendedPlugins",
+    harness_codex_collaboration: "harnessCodexCollaboration",
+    harness_codex_permissions: "harnessCodexPermissions",
+    harness_codex_internal: "harnessCodexInternal",
+    harness_codex_lifecycle: "harnessCodexLifecycle",
+    harness_codex_subagent: "harnessCodexSubagent",
+  }[kind];
+  if (codexLabelKey) return t(codexLabelKey);
   return t("description");
 }
 
@@ -2027,6 +2042,7 @@ function extractClientHarnessTranslationParts(messages) {
       if (kind === "harness_reminder") return `${t("harnessReminder")} #${reminderIndex + 1}`;
       if (kind === "harness_developer") return t("harnessDeveloper");
       if (kind === "harness_codex_context") return t("harnessCodexContext");
+      if (kind.startsWith("harness_codex_")) return translationKindLabel(kind);
       return kind;
     },
   });

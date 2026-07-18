@@ -6,6 +6,7 @@ import {
   cleanTitleText,
   compactInjectionText,
   displayMessageText,
+  extractCodexHarnessBlocks,
   isFrameworkReminderMessage,
   isSuggestionModeMessage,
   isToolResultMessage,
@@ -106,6 +107,25 @@ const messages = [
 ];
 assert.equal(lastRealUserMessage(messages).content, "first");
 assert.equal(cleanTitleText(`<session>标题</session> ${reminder}`), "标题");
+
+const codexHarnessMessage = {
+  role: "user",
+  content: `<codex_internal_context>Objective: inspect the active thread.</codex_internal_context>
+<subagent_notification>worker-2 completed</subagent_notification>`,
+};
+const codexHarnessBlocks = extractCodexHarnessBlocks(codexHarnessMessage.content);
+assert.deepEqual(codexHarnessBlocks.map((block) => block.kind), ["harness_codex_internal", "harness_codex_subagent"]);
+assert.deepEqual(codexHarnessBlocks.map((block) => block.category), ["internal", "subagent"]);
+assert.equal(classifyMessageKind(codexHarnessMessage), "harness_injection");
+assert.equal(classifyCurrentEntry([codexHarnessMessage]).kind, "harness_injection");
+assert.equal(realUserVisibleText(codexHarnessMessage), "", "known Codex harness blocks are never presented as user input");
+assert.match(displayMessageText(codexHarnessMessage), /Codex 内部目标/);
+
+const mixedCodexHarnessMessage = {
+  role: "user",
+  content: "<environment_context><cwd>/tmp/project</cwd></environment_context>\n请检查项目。",
+};
+assert.equal(realUserVisibleText(mixedCodexHarnessMessage), "请检查项目。", "stripping a harness block preserves adjacent real user text");
 
 const source = fs.readFileSync(new URL("../src/trace/message-semantics.mjs", import.meta.url), "utf8");
 assert.doesNotMatch(source, /viewer\/|server\/|node:(fs|http|child_process)|process\.env|fetch\s*\(/);

@@ -55,6 +55,7 @@
     "smoke:codex-exact-viewer-integration": "node scripts/codex-exact-viewer-integration-smoke.mjs",
     "smoke:codex-exact-proxy": "node scripts/codex-exact-proxy-smoke.mjs",
     "smoke:run-codex-capture": "node scripts/run-codex-capture-wrapper-smoke.mjs",
+    "smoke:run-codex-desktop": "node --disable-warning=ExperimentalWarning scripts/run-codex-desktop-wrapper-smoke.mjs",
     "smoke:openclaw-proxy": "node scripts/openclaw-proxy-integration-smoke.mjs",
     "smoke:openclaw-subagent": "node scripts/openclaw-subagent-smoke.mjs",
     "smoke:normalize": "node scripts/normalize-smoke.mjs",

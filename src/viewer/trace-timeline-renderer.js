@@ -48,10 +48,11 @@ export function renderTraceNoResults({ translate, escapeHtml }) {
 }
 
 export function renderEmptyTimeline({ summary, translate, escapeHtml }) {
+  const codexPending = summary?.source_kinds?.includes("codex_rollout_pending");
   return `
     <section class="empty-timeline">
-      <h3>${escapeHtml(translate("emptyTimelineTitle"))}</h3>
-      <p>${escapeHtml(translate("emptyTimelineBody"))}</p>
+      <h3>${escapeHtml(translate(codexPending ? "codexPendingTitle" : "emptyTimelineTitle"))}</h3>
+      <p>${escapeHtml(translate(codexPending ? "codexPendingBody" : "emptyTimelineBody"))}</p>
       <div class="empty-grid">
         ${renderSummaryMetric(translate("emptyStatus"), summary?.status || translate("emptyWatching"), { translate, escapeHtml })}
         ${renderSummaryMetric(translate("emptyWatch"), summary?.watch_ids?.join(", ") || translate("emptyNotRecorded"), { translate, escapeHtml })}

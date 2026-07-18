@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import {
   rawResponseSectionValue,
   rawSectionData,
@@ -92,9 +93,9 @@ assert.deepEqual(rawSectionData(request, "tool_results", { translate: () => "res
 assert.deepEqual(
   rawSectionData(request, "harness", {
     translate: () => "Harness",
-    harnessMaterials: [{ kind: "harness", source_text: "injected", metadata: { label: "Reminder", path: "messages[2]" } }],
+    harnessMaterials: [{ kind: "harness_codex_internal", source_text: "injected", metadata: { label: "Objective", category: "internal", tag: "codex_internal_context", path: "messages[2]" } }],
   }),
-  { title: "Harness", value: [{ kind: "harness", label: "Reminder", path: "messages[2]", text: "injected" }] },
+  { title: "Harness", value: [{ kind: "harness_codex_internal", label: "Objective", category: "internal", source_tag: "codex_internal_context", path: "messages[2]", text: "injected" }] },
 );
 
 const downstream = rawResponseSectionValue(request);
@@ -106,5 +107,17 @@ assert.equal(downstream.response_capture.status, 200);
 assert.equal(downstream.response_capture.content_type, "text/event-stream");
 assert.equal(downstream.response_capture.body_json_available, true);
 assert.equal(rawSectionData(request, "response").value.complete_response.text, "done");
+
+const clientSource = fs.readFileSync(new URL("../src/viewer/client.js", import.meta.url), "utf8");
+assert.match(
+  clientSource,
+  /harnessMaterials:\s*section === "harness" \? sectionTranslationMaterials\(request, "harness"\) : \[\]/,
+  "the interactive Harness tab must reuse the section translation material adapter",
+);
+assert.doesNotMatch(
+  clientSource,
+  /collectHarnessTranslationMaterials/,
+  "the Harness tab must not call a removed translation helper",
+);
 
 console.log("raw view model contract smoke passed");

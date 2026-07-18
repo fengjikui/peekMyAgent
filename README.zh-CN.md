@@ -32,7 +32,7 @@ peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 
 
 - 打开本地 dashboard：`http://127.0.0.1:43110`。
 - 通过 `pma claude ...` 启动 Claude Code 并捕获模型请求。
-- 只读观察一条用户明确选择的既有 Codex 会话，或显式启动新的 Codex 进程进行 Responses 精确捕获。
+- 从当前项目打开 Codex Desktop，自动绑定下一条新会话进行零复制 rollout 观察，或显式启动 Codex CLI 进程进行 Responses 精确捕获。
 - 通过 `pma openclaw ...` 启动 OpenClaw 并捕获模型请求。
 - 在左侧切换当前观察的 Agent，让 Codex、Claude Code、OpenClaw 和导入 Trace 分开显示。
 - 在时间线中查看用户输入、System 摘要、Tools、Tool calls、Tool results、Response、token 统计和 Raw JSON。
@@ -137,15 +137,20 @@ pma claude -c --dangerously-skip-permissions
 
 ## 快速开始：Codex
 
-只读观察一条已有的 Codex Desktop/CLI 会话，并保持 rollout 原文仍在 `CODEX_HOME`、不复制进 peekMyAgent 数据库：
+在希望观察的项目目录中，同时打开 Codex Desktop 和等待中的 peekMyAgent 看板：
 
 ```bash
-pma codex --select
+cd <your-project>
+pma codex
 ```
 
-首次运行会让你选择一条会话；以后执行 `pma codex` 会重新打开该选择。非交互场景可先用 `pma codex --list` 查看，再执行 `pma codex --thread <thread-id>`。
+在刚打开的 Codex Desktop 工作区中新建对话并发送第一条消息。等待中的 Source 会保持同一个稳定 ID，并自动绑定该工作区随后创建的第一条新 thread。用户仍在 Codex Desktop 原生界面交互；peekMyAgent 只从 `CODEX_HOME` 增量读取这一条 rollout，不会把历史正文复制进 SQLite。
 
-如果需要查看完整模型上行和 Responses 下行，显式启动一个新的受管 Codex 进程：
+执行 `pma codex -c` 可观察当前项目最近一条可读 thread；执行 `pma codex --resume <thread-id>` 可绑定指定 thread。`pma codex --select` 和 `pma codex --list` 继续作为高级历史观察入口保留。
+
+Desktop 观察提供的是 rollout 语义证据。Codex Desktop 目前没有安全的进程级 provider 覆盖入口，因此 `--capture auto` 会明确说明限制并回退，而不会伪装成精确线上捕获；模型、推理等级和权限设置仍由 Codex Desktop 自己管理。
+
+如果需要查看完整模型上行和 Responses 下行，显式启动一个新的受管 Codex CLI 进程：
 
 ```bash
 cd <your-project>

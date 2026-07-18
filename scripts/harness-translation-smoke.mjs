@@ -42,6 +42,7 @@ function mockServer() {
 
 const compactPrompt =
   "CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.\n\nYour task is to create a detailed summary of the conversation so far.\nWrap your analysis in <analysis> tags then provide a <summary> block.";
+const codexInternalPrompt = "Objective: inspect the active Codex Desktop thread without copying its rollout.";
 
 function dump(name, t, payload) {
   const f = path.join(dumpDir, name);
@@ -61,6 +62,8 @@ dump("r1.request.json", 1000, {
     { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "Bash", input: {} }] },
     { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "ok" }, { type: "text", text: compactPrompt }] },
     { role: "user", content: "<command-name>/compact</command-name>\n<command-message>compact</command-message>\nPlease compact now." },
+    { role: "user", content: `<codex_internal_context>${codexInternalPrompt}</codex_internal_context>` },
+    { role: "user", content: "<subagent_notification>worker-2 completed the inspection</subagent_notification>" },
   ],
 });
 
@@ -92,6 +95,8 @@ try {
   assert.ok(kinds.harness_compact > 0, "extracts /compact prompt even bundled with tool_results");
   assert.ok(kinds.harness_command > 0, "extracts slash command body");
   assert.ok(kinds.harness_suggestion > 0, "extracts suggestion-mode text");
+  assert.ok(kinds.harness_codex_internal > 0, "extracts Codex internal objective tags");
+  assert.ok(kinds.harness_codex_subagent > 0, "extracts Codex subagent event tags");
   assert.ok((gen.translate?.translated || 0) > 0, "translated at least one harness block");
   assert.equal(gen.translate?.concurrency, 100, "dashboard translation concurrency is capped before invoking the worker");
 
@@ -104,6 +109,8 @@ try {
   // cached translation — guards against harness being absent from the lookup map.
   const compactHash = clientHash("harness_compact", compactPrompt);
   assert.ok(entries[compactHash]?.translated_text, "client-computed hash for the compact prompt resolves to a cached translation");
+  const codexInternalHash = clientHash("harness_codex_internal", codexInternalPrompt);
+  assert.ok(entries[codexInternalHash]?.translated_text, "Codex tagged block uses the shared translation cache contract");
 
   const view = await (await fetch(`${viewer.url}/api/view?source=${encodeURIComponent(ingest.source_id)}&compact=1`)).json();
   const requestId = view.requests?.[0]?.id;

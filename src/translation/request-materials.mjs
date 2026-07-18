@@ -42,7 +42,13 @@ export function projectTranslationBodyMaterials(
         kind: part.kind,
         source_text: part.text,
         source_language: "en",
-        metadata: { label: part.label, path: part.path },
+        metadata: {
+          label: part.label,
+          path: part.path,
+          tag: part.tag || null,
+          category: part.category || null,
+          label_key: part.labelKey || null,
+        },
       });
     }
   }
@@ -129,9 +135,12 @@ export function extractHarnessTranslationParts(
       if (developerRemainder) output.push(harnessPart("harness_developer", developerRemainder, messageIndex, label));
     }
     for (const [contextIndex, block] of codexBlocks.entries()) {
-      output.push(harnessPart("harness_codex_context", block.text, messageIndex, label, {
+      output.push(harnessPart(block.kind, block.text, messageIndex, label, {
         contextIndex,
         tag: block.tag,
+        category: block.category,
+        labelKey: block.labelKey,
+        defaultLabel: block.defaultLabel,
       }));
     }
     if (message.role !== "user") return;
@@ -210,16 +219,18 @@ function harnessPart(kind, text, messageIndex, labelForPart, details = {}) {
     text,
     label: labelForPart(kind, { ...details, messageIndex }),
     path,
+    ...details,
   };
 }
 
-function defaultHarnessLabel(kind, { command = "", reminderIndex = 0 } = {}) {
+function defaultHarnessLabel(kind, { command = "", reminderIndex = 0, defaultLabel = "" } = {}) {
   if (kind === "harness_compact") return "compact 压缩指令";
   if (kind === "harness_command") return `命令 ${command}`.trim();
   if (kind === "harness_suggestion") return "Suggestion 模式";
   if (kind === "harness_reminder") return `框架提醒 #${reminderIndex + 1}`;
   if (kind === "harness_developer") return "Codex developer 指令";
   if (kind === "harness_codex_context") return "Codex 上下文注入";
+  if (kind.startsWith("harness_codex_") && defaultLabel) return defaultLabel;
   return kind;
 }
 

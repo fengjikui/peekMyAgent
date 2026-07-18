@@ -60,6 +60,27 @@ assert.deepEqual(harnessParts.map((item) => item.kind), ["harness_command", "har
 assert.equal(harnessParts[0].text, "Inspect the project.");
 assert.equal(harnessParts[1].path, "messages[1].system-reminder[0]");
 
+const codexHarnessParts = extractHarnessTranslationParts([
+  { role: "developer", content: "<skills_instructions>Use verified local skills.</skills_instructions>" },
+  { role: "user", content: "<codex_internal_context>Objective: inspect the active thread.</codex_internal_context>" },
+  { role: "user", content: "<turn_aborted>The previous turn was interrupted.</turn_aborted>" },
+]);
+assert.deepEqual(
+  codexHarnessParts.map((item) => item.kind),
+  ["harness_codex_skills", "harness_codex_internal", "harness_codex_lifecycle"],
+);
+assert.deepEqual(codexHarnessParts.map((item) => item.tag), ["skills_instructions", "codex_internal_context", "turn_aborted"]);
+assert.deepEqual(codexHarnessParts.map((item) => item.category), ["capability", "internal", "lifecycle"]);
+
+const codexProjected = translationMaterialsForRequest({
+  raw: { body: { messages: [
+    { role: "developer", content: "<skills_instructions>Use verified local skills.</skills_instructions>" },
+    { role: "user", content: "<codex_internal_context>Objective: inspect the active thread.</codex_internal_context>" },
+  ] } },
+}, { section: "harness", extractHarnessParts: extractHarnessTranslationParts });
+assert.deepEqual(codexProjected.map((item) => item.kind), ["harness_codex_skills", "harness_codex_internal"]);
+assert.equal(codexProjected[0].metadata.label_key, "harnessCodexSkills");
+
 const toolOnly = createCollector();
 toolOnly.collectRequest(first, source, { section: "tools" });
 assert.deepEqual([...new Set(toolOnly.materials().map((item) => item.kind))].sort(), ["tool_description", "tool_parameter_description"]);

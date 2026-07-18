@@ -36,7 +36,7 @@ See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated
 
 - Open a local dashboard at `http://127.0.0.1:43110`.
 - Start Claude Code through `pma claude ...` and capture its model requests.
-- Select one existing Codex session for read-only rollout observation, or explicitly start a new Codex process with exact Responses capture.
+- Open Codex Desktop from the current project, automatically bind the next new chat for zero-copy rollout observation, or explicitly start a Codex CLI process with exact Responses capture.
 - Start OpenClaw through `pma openclaw ...` and capture its model requests.
 - Switch the sidebar's observed Agent so Codex, Claude Code, OpenClaw, and imported traces stay separate.
 - Inspect requests as a timeline with user input, system summaries, tools, tool calls, tool results, responses, token usage, and raw JSON.
@@ -168,15 +168,20 @@ http://127.0.0.1:43110
 
 ## Quick Start With Codex
 
-Observe one existing Codex Desktop/CLI session without copying its rollout into the peekMyAgent database:
+From the project you want to inspect, open Codex Desktop and a waiting peekMyAgent dashboard:
 
 ```bash
-pma codex --select
+cd <your-project>
+pma codex
 ```
 
-The first run asks you to choose one session. Later, `pma codex` reopens that selected session. Use `pma codex --list` and `pma codex --thread <thread-id>` for a non-interactive selection.
+Create a new chat in the opened Codex Desktop workspace and send its first message. The waiting Source keeps one stable ID and automatically binds the first new thread created for that workspace. Codex remains the interaction surface; peekMyAgent only reads that thread's rollout incrementally from `CODEX_HOME`, without copying the history into its SQLite database.
 
-For exact model requests and Responses output, explicitly start a new Codex process through the verified first-party route allowlist:
+Observe the latest readable thread for the current project with `pma codex -c`, or bind a known thread with `pma codex --resume <thread-id>`. `pma codex --select` and `pma codex --list` remain available as advanced history-inspection commands.
+
+Desktop observation uses semantic rollout evidence. Codex Desktop does not currently expose a safe process-scoped provider override, so `--capture auto` reports that limitation and falls back explicitly instead of pretending to provide exact wire capture. Models, reasoning settings, and permissions remain owned by Codex Desktop.
+
+For exact model requests and Responses output, explicitly start a new Codex CLI process through the verified first-party route allowlist:
 
 ```bash
 cd <your-project>

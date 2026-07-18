@@ -20,6 +20,8 @@ export function rawSectionData(request, section, { translate = (key) => key, har
       value: harnessMaterials.map((item) => ({
         kind: item.kind,
         label: item.metadata?.label,
+        category: item.metadata?.category || null,
+        source_tag: item.metadata?.tag || null,
         path: item.metadata?.path,
         text: item.source_text,
       })),

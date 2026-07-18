@@ -20,6 +20,20 @@ const stateDbPath = path.join(tmpDir, "state_5.sqlite");
 fs.copyFileSync(fixturePath, rolloutPath);
 
 try {
+  const freshDiscovery = new CodexDesktopDiscovery({
+    stateDbPath: path.join(tmpDir, "not-created-yet.sqlite"),
+    selectionPath: path.join(tmpDir, "fresh-selection.json"),
+  });
+  freshDiscovery.beginObservation({
+    sourceId: "codex-live-first-run",
+    workspace: "/tmp/peekmyagent-first-run",
+  });
+  assert.equal(
+    freshDiscovery.listSources()[0]?.kind,
+    "codex_rollout_pending",
+    "a first-run waiting Source must remain visible before Codex creates its state database",
+  );
+
   createStateDb(stateDbPath, rolloutPath);
   const selectionPath = path.join(tmpDir, "codex-observation.json");
   const discovery = new CodexDesktopDiscovery({ stateDbPath, selectionPath, sourceLimit: 5 });
@@ -68,8 +82,8 @@ try {
   const visibleUsers = toolRequest.body.messages.filter((message) => message.role === "user").map(realUserVisibleText).filter(Boolean);
   assert.deepEqual(visibleUsers, ["请检查 fixture 文件并告诉我结果。"]);
   const harness = extractHarnessTranslationParts(toolRequest.body.messages);
-  assert.deepEqual(harness.map((part) => part.kind), ["harness_codex_context", "harness_codex_context"]);
-  assert.deepEqual(harness.map((part) => part.tag), [undefined, undefined]);
+  assert.deepEqual(harness.map((part) => part.kind), ["harness_codex_app", "harness_codex_environment"]);
+  assert.deepEqual(harness.map((part) => part.tag), ["app-context", "environment_context"]);
 
   assert.equal(toolResultRequest.body.codex.exchange_index, 2);
   assert.deepEqual(toolResultRequest.body.messages.map((message) => message.role), ["tool"]);
@@ -93,9 +107,57 @@ try {
   assert.equal(refreshed.captures[2].response.body_json.status, "completed");
   assert.equal(refreshed.captures[2].response.body_json.finish_reason, "end_turn");
 
+  const pending = discovery.beginObservation({
+    sourceId: "codex-live-fixture",
+    workspace: "/tmp/peekmyagent-codex-fixture",
+    baselineThreadIds: ["thread-fixture"],
+    mode: "new",
+    captureMode: "rollout",
+    fallbackReason: "fixture exact proxy unavailable",
+  });
+  assert.equal(pending.kind, "codex_rollout_pending");
+  assert.equal(discovery.listSources()[0].id, "codex-live-fixture");
+  const secondRolloutPath = path.join(tmpDir, "rollout-new.jsonl");
+  fs.copyFileSync(fixturePath, secondRolloutPath);
+  insertStateThread(stateDbPath, "thread-new", secondRolloutPath, 1_752_800_600);
+  const autoBound = discovery.listSources()[0];
+  assert.equal(autoBound.id, "codex-live-fixture", "pending and bound observations keep one stable dashboard source id");
+  assert.equal(autoBound.conversation_id, "thread-new");
+  assert.equal(autoBound.live_status, "observing");
+  assert.match(autoBound.note, /fixture exact proxy unavailable/);
+
   console.log("codex rollout capture smoke passed");
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+
+function insertStateThread(filePath, id, rolloutPath, updatedAt) {
+  const db = new DatabaseSync(filePath);
+  try {
+    db.prepare(`
+      INSERT INTO threads (
+        id, rollout_path, created_at, updated_at, source, model_provider, cwd, title,
+        tokens_used, archived, cli_version, first_user_message, model, thread_source
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      rolloutPath,
+      updatedAt - 1,
+      updatedAt,
+      "desktop",
+      "openai",
+      "/tmp/peekmyagent-codex-fixture",
+      "New fixture Codex trace",
+      128,
+      0,
+      "0.fixture",
+      "new fixture message",
+      "gpt-fixture",
+      "user",
+    );
+  } finally {
+    db.close();
+  }
 }
 
 function createStateDb(filePath, rolloutPath) {

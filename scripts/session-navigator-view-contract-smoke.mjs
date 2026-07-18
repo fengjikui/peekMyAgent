@@ -18,6 +18,8 @@ const translations = {
   exportTrace: "Export Trace",
   importedTraces: "Imported traces",
   liveTrace: "Live trace",
+  codexPendingRequestLabel: "Waiting for first message",
+  codexPendingTitle: "Waiting for a new Codex Desktop session",
   moreActions: "More actions",
   pin: "Pin",
   projectActionsAria: "Project actions",
@@ -136,6 +138,15 @@ assert.match(codexHtml, /Live trace/);
 assert.match(codexHtml, /data-source-action="archive"/);
 assert.doesNotMatch(codexHtml, /data-source-action="delete"/);
 assert.doesNotMatch(codexHtml, /data-project-action="delete"/);
+
+const pendingCodexView = buildSessionNavigatorView({
+  sources: [{ ...sources[3], id: "codex-pending", kind: "codex_rollout_pending", label: "server fallback", conversation_id: null, request_count: 0, live_status: "waiting" }],
+  translate,
+});
+const pendingCodexSource = pendingCodexView.agentGroups[0].projects[0].sourceViews[0];
+assert.equal(pendingCodexSource.label, "Waiting for a new Codex Desktop session");
+assert.equal(pendingCodexSource.requestLabel, "Waiting for first message");
+assert.equal(pendingCodexSource.status, "waiting");
 
 const collapsedView = buildSessionNavigatorView({
   sources,

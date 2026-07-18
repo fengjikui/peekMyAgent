@@ -53,6 +53,25 @@ Codex Responses 的首版分类规则：
 - 现有 SQLite 内容寻址、渐进加载、导出/导入和翻译能力复用。
 - 确定性 fixture 测试与一次隔离的真实多轮、成功工具调用闭环验证。
 
+## Desktop-first 统一入口（已实现）
+
+默认入口不再要求用户先从历史 Codex thread 中选择观察对象。启动语义与 Claude Code wrapper 保持一致，但交互界面优先尊重 Codex 用户以 Desktop 为主的真实习惯：
+
+- `pma codex`：以当前工作目录为项目，打开 Codex Desktop 和对应的 peekMyAgent 看板，建立一个“等待新会话”观察对象；默认目标是在 Desktop 中创建并自动绑定一个新 thread，用户仍在 Codex Desktop 的原生对话框中输入消息。
+- `pma codex -c` / `pma codex --continue`：绑定当前工作目录最近一次可读 thread，并打开对应 Desktop 工作区。
+- `pma codex --resume <thread-id>`：观察明确指定的 Codex thread，并打开其工作区；当前只保证观察绑定，不承诺让已经运行的 Desktop 自动切换到该 thread。
+- 默认工作目录来自执行命令时的 `cwd`；后续可以补充显式目录参数，但不以全量扫描、导入用户全部 Codex 历史作为启动前提。
+- 模型、推理等级、权限和审批策略默认不由 PMA 覆盖，优先沿用 Codex Desktop/App Server 自身默认值。后续可暴露少量明确参数，但不能复制一套容易与 Codex 漂移的设置系统。
+- 现有历史 thread 选择保留为高级的只读观察入口，不再作为默认首次体验；受管 CLI TUI 也保留为高级模式，而不是默认入口。
+
+捕获策略 `auto` 当前会明确回退到只读 rollout 语义观察，并在命令行和看板标明 provenance。用户显式选择 `proxy`/`exact` 时直接给出可解释错误并引导使用 `pma codex capture -- ...`，不能静默伪装成精确捕获；显式选择 `rollout` 时只读取 `$CODEX_HOME` 中绑定 thread 的增量事件。
+
+技术事实是：平台原生 launcher 可以把一个目录交给 Desktop 打开，但现有 Desktop 进程持有自己的私有 app-server stdio 连接，不会自然继承 `pma codex capture` 为 CLI 子进程注入的一次性 provider。macOS 使用 `com.openai.codex` Bundle ID，而不是可能触发大体积安装下载的内置 `codex app`。因此当前实现采用“Desktop 原生交互 + 自动绑定单一 rollout”的可靠路径，并保持模型/权限由 Desktop 继承；不通过全局配置污染、系统级 TLS MITM 或跨平台 UI 自动化强行实现。
+
+等待对象在选择文件中只保存稳定 Source ID、工作区、启动时 thread 基线、捕获模式和回退原因。Source catalog 发现同工作区第一条基线外可读 thread 后原地绑定；rollout 正文不进入 peekMyAgent SQLite。
+
+Codex 特殊标签已采用白名单分类：运行时、能力、策略、内部目标、生命周期和子 Agent 事件进入 Harness 整理视图，并复用现有 marker/hash 翻译缓存；Raw 仍保留原始 role、标签、顺序和 provenance，未知标签不猜测。
+
 ## 暂不承诺
 
 - 默认接管用户已经打开的 Codex Desktop 网络连接。
@@ -67,5 +86,4 @@ Codex Responses 的首版分类规则：
 首版精确代理只提供 `pma codex capture` CLI；Viewer 不提供会让用户误以为可以接管既有 Desktop 进程的开关。
 
 1. rollout 与 proxy exact 同时存在时，时间线默认以哪一个为主证据。
-2. developer 输入中，哪些稳定规则足以命名为“Codex 核心指令”“项目指令”“运行环境”和“临时 Harness 注入”。
-3. 上下文压缩是作为独立 Turn 事件，还是作为前后上下文窗口之间的转换节点。
+2. 上下文压缩是作为独立 Turn 事件，还是作为前后上下文窗口之间的转换节点。

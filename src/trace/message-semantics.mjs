@@ -1,5 +1,20 @@
 import { extractContentText } from "./content-parts.mjs";
 
+const CODEX_HARNESS_TAGS = Object.freeze({
+  environment_context: codexHarnessTag("harness_codex_environment", "runtime", "harnessCodexEnvironment", "Codex 运行环境"),
+  "in-app-browser-context": codexHarnessTag("harness_codex_ambient_ui", "runtime", "harnessCodexAmbientUi", "Codex 界面状态"),
+  "app-context": codexHarnessTag("harness_codex_app", "runtime", "harnessCodexApp", "Codex App 上下文"),
+  skills_instructions: codexHarnessTag("harness_codex_skills", "capability", "harnessCodexSkills", "Codex Skills 注入"),
+  apps_instructions: codexHarnessTag("harness_codex_apps", "capability", "harnessCodexApps", "Codex Apps 注入"),
+  plugins_instructions: codexHarnessTag("harness_codex_plugins", "capability", "harnessCodexPlugins", "Codex Plugins 注入"),
+  recommended_plugins: codexHarnessTag("harness_codex_recommended_plugins", "capability", "harnessCodexRecommendedPlugins", "Codex 推荐 Plugins"),
+  collaboration_mode: codexHarnessTag("harness_codex_collaboration", "policy", "harnessCodexCollaboration", "Codex 协作模式"),
+  "permissions instructions": codexHarnessTag("harness_codex_permissions", "policy", "harnessCodexPermissions", "Codex 权限策略"),
+  codex_internal_context: codexHarnessTag("harness_codex_internal", "internal", "harnessCodexInternal", "Codex 内部目标"),
+  turn_aborted: codexHarnessTag("harness_codex_lifecycle", "lifecycle", "harnessCodexLifecycle", "Codex Turn 生命周期"),
+  subagent_notification: codexHarnessTag("harness_codex_subagent", "subagent", "harnessCodexSubagent", "Codex 子 Agent 事件"),
+});
+
 export function lastMessage(messages, role) {
   for (let index = (messages || []).length - 1; index >= 0; index -= 1) {
     if (messages[index]?.role === role) return messages[index];
@@ -81,6 +96,7 @@ export function classifyMessageKind(message) {
   if (isSuggestionModeMessage(message)) return "agent_internal";
   if (isCompactInjectionMessage(message)) return "compact";
   if (isSkillInjectionMessage(message)) return "harness_injection";
+  if (pureCodexHarnessBlocks(message).length) return "harness_injection";
   if (message?.role === "user" && realUserVisibleText(message)) return "message";
   if (parseCommandMessage(message)) return "command_message";
   if (isToolResultMessage(message)) return "tool_result";
@@ -115,6 +131,15 @@ export function classifyCurrentEntry(messages) {
     if (isSkillInjectionMessage(message)) {
       return { kind: "harness_injection", label: "Skill / Harness 注入", text: textPreview(skillInjectionText(message), 1200) };
     }
+    const codexHarnessBlocks = pureCodexHarnessBlocks(message);
+    if (codexHarnessBlocks.length) {
+      return {
+        kind: "harness_injection",
+        label: codexHarnessBlocks.length === 1 ? codexHarnessBlocks[0].defaultLabel : `Codex Harness 注入 · ${codexHarnessBlocks.length} 块`,
+        text: textPreview(codexHarnessBlocks.map((block) => `${block.defaultLabel}\n${block.text}`).join("\n\n"), 1200),
+        harness_blocks: codexHarnessBlocks,
+      };
+    }
     if (message.role === "user") {
       const real = realUserVisibleText(message);
       if (real) return { kind: "user_input", label: "User input", text: textPreview(real, 1200) };
@@ -134,6 +159,10 @@ export function displayMessageText(message) {
   const text = extractContentText(message?.content);
   if (isCompactInjectionMessage(message)) return "上下文压缩指令：请求模型把前文压缩成 <analysis> + <summary> 总结（harness 注入）";
   if (isSkillInjectionMessage(message)) return `Skill / Harness 注入\n${skillInjectionText(message)}`;
+  const codexHarnessBlocks = pureCodexHarnessBlocks(message);
+  if (codexHarnessBlocks.length) {
+    return codexHarnessBlocks.map((block) => `${block.defaultLabel}\n${block.text}`).join("\n\n");
+  }
   if (isFrameworkReminderMessage(message)) return "Claude Code 框架自动补充提醒";
   if (isTaskNotificationMessage(message)) {
     const { taskId, preview, subagent } = taskNotificationSummary(message);
@@ -168,14 +197,18 @@ export function extractCodexHarnessBlocks(text) {
   let match;
   while ((match = tagged.exec(value))) {
     const content = String(match[2] || "").trim();
-    if (content) output.push({ tag: match[1] || "codex-context", text: content });
+    if (content) output.push(codexHarnessBlock(match[1], content));
   }
   const permissions = codexPermissionsHarnessRegex();
   while ((match = permissions.exec(value))) {
     const content = String(match[1] || "").trim();
-    if (content) output.push({ tag: "permissions instructions", text: content });
+    if (content) output.push(codexHarnessBlock("permissions instructions", content));
   }
   return output;
+}
+
+export function codexHarnessTagDefinition(tag) {
+  return CODEX_HARNESS_TAGS[String(tag || "").toLowerCase()] || null;
 }
 
 export function parseCommandMessage(messageOrText) {
@@ -322,11 +355,28 @@ function codexHarnessBlockRegexes() {
 }
 
 function codexTaggedHarnessRegex() {
-  return /<(environment_context|in-app-browser-context|app-context|skills_instructions|apps_instructions|plugins_instructions|recommended_plugins|collaboration_mode)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+  return /<(environment_context|in-app-browser-context|app-context|skills_instructions|apps_instructions|plugins_instructions|recommended_plugins|collaboration_mode|codex_internal_context|turn_aborted|subagent_notification)\b[^>]*>([\s\S]*?)<\/\1>/gi;
 }
 
 function codexPermissionsHarnessRegex() {
   return /<permissions instructions\b[^>]*>([\s\S]*?)<\/permissions instructions>/gi;
+}
+
+function pureCodexHarnessBlocks(message) {
+  if (!message || !["user", "developer"].includes(message.role)) return [];
+  const text = extractContentText(message.content);
+  const blocks = extractCodexHarnessBlocks(text);
+  return blocks.length && !stripCodexHarnessBlocks(text) ? blocks : [];
+}
+
+function codexHarnessTag(kind, category, labelKey, defaultLabel) {
+  return Object.freeze({ kind, category, labelKey, defaultLabel });
+}
+
+function codexHarnessBlock(tag, text) {
+  const normalizedTag = String(tag || "codex-context").toLowerCase();
+  const definition = codexHarnessTagDefinition(normalizedTag) || codexHarnessTag("harness_codex_context", "context", "harnessCodexContext", "Codex 上下文注入");
+  return { tag: normalizedTag, text, ...definition };
 }
 
 function userTextAfterLocalCommandBlocks(text) {

@@ -5,6 +5,11 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 
 ## [Unreleased]
 
+### Added
+
+- `pma codex` now opens Codex Desktop for the current project, exposes a waiting Source immediately, and binds that stable Source to the next new workspace thread without copying rollout history into peekMyAgent SQLite.
+- Codex XML-like Harness blocks now use a conservative tag registry for runtime, capability, policy, lifecycle, internal, and subagent presentation, with multilingual block translation through the shared cache pipeline.
+
 ### Changed
 
 - Viewer source summaries, single-request details, and complete/compact/cursor timeline responses now use one versioned runtime DTO contract enforced at the Server and browser API boundaries.

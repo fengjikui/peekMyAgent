@@ -29,6 +29,7 @@ import { SourceRepository } from "../server/source-repository.mjs";
 import { SourceLifecycleService } from "../server/source-lifecycle-service.mjs";
 import { SourceCaptureReader } from "../server/source-capture-reader.mjs";
 import { CodexRolloutCaptureReader } from "../server/codex-rollout-capture-reader.mjs";
+import { CodexPendingCaptureReader } from "../server/codex-pending-capture-reader.mjs";
 import { JsonArrayFileIndex } from "../server/json-array-file-index.mjs";
 import { AgentSendService } from "../server/agent-send-service.mjs";
 import { OtelIngestService } from "../server/otel-ingest-service.mjs";
@@ -288,6 +289,7 @@ function sourceCaptureReader(options) {
     fileIndex: jsonArrayFileIndex(options),
     customReaders: {
       codex_rollout_local: codexRolloutCaptureReader(options),
+      codex_rollout_pending: codexPendingCaptureReader(options),
     },
     runtime: {
       resolveWatch: (source) => options.watchRuntime.find({ id: source.id, watch_id: source.live_watch_id }),
@@ -312,6 +314,11 @@ function codexDesktopSources(options) {
 function codexRolloutCaptureReader(options) {
   if (!options.codexRolloutCaptureReader) options.codexRolloutCaptureReader = new CodexRolloutCaptureReader();
   return options.codexRolloutCaptureReader;
+}
+
+function codexPendingCaptureReader(options) {
+  if (!options.codexPendingCaptureReader) options.codexPendingCaptureReader = new CodexPendingCaptureReader();
+  return options.codexPendingCaptureReader;
 }
 
 function jsonArrayFileIndex(options) {

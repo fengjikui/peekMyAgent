@@ -10,6 +10,11 @@ import { normalizeOpenClawProxyCapture } from "../src/adapters/openclaw-proxy.mj
 import { DEFAULT_OPENCLAW_PROFILE, patchOpenClawProviderBaseUrl, prepareOpenClawProfilePatch } from "../src/adapters/openclaw-config.mjs";
 import { normalizeClaudeOtelRequestFile } from "../src/adapters/claude-otel.mjs";
 import { CodexDesktopDiscovery } from "../src/adapters/codex-desktop-discovery.mjs";
+import {
+  createCodexObservationId,
+  launchCodexDesktopWorkspace,
+  resolveCodexDesktopCaptureMode,
+} from "../src/adapters/codex-desktop-session.mjs";
 import { CODEX_CHATGPT_ORIGIN, codexHttpProviderOverrides } from "../src/adapters/codex-exact-proxy.mjs";
 import { disableTraeCn, enableTraeCn, inspectTraeCn, syncTraeCn } from "../src/adapters/trae-cn-integration.mjs";
 import { claudeCodeProjectDir, claudeCodeProxySettingsArgs, claudeCodeUserDir, inspectClaudeCodeSettings, mergeClaudeCodeProcessEnv, resolveClaudeCodeTargetBaseUrl } from "../src/core/claude-code-settings.mjs";
@@ -43,7 +48,8 @@ Usage:
   pma normalize claude-otel <request.json> [--out <file>] [--delete-raw-after-import]
   pma daemon [--host <host>] [--api-port <port>] [--capture-port <port>] [--open]
   pma open [--source <id>] [--print] [--no-open]
-  pma codex [--select] [--thread <id>] [--list] [--print] [--no-open]
+  pma codex [-c|--continue] [--resume <thread-id>] [--capture auto|rollout] [--print] [--no-open]
+  pma codex [--select|--thread <id>|--list]
   pma codex capture [--viewer-url <url>] [--no-open] -- [codex args...]
   pma doctor [--json]
   pma compact [--watch <watch-id>] [--limit <n>] [--no-vacuum] [--json]
@@ -91,8 +97,10 @@ Usage:
 
 Common:
   pma open                         Open the local dashboard.
-  pma codex                        Open the selected Codex session (read-only).
-  pma codex --select               Choose one Codex session to observe.
+  pma codex                        Open Codex Desktop here and observe its next new session.
+  pma codex -c                     Open Codex Desktop and observe this folder's latest session.
+  pma codex --resume <thread-id>   Observe one explicit Codex Desktop session.
+  pma codex --select               Choose an existing session for read-only observation.
   pma codex capture --             Start Codex with exact capture for this process.
   pma claude -c                    Start Claude Code and capture this session.
   pma claude -c --dangerously-skip-permissions
@@ -1470,43 +1478,134 @@ async function openCodexDashboard() {
     process.exitCode = result.exit_code;
     return;
   }
+  assertCodexDesktopOptions(rest);
   const discovery = new CodexDesktopDiscovery();
   if (hasFlag("--clear")) {
     discovery.clearSelection();
     console.log("peekMyAgent Codex observation selection cleared. No Codex history was deleted.");
     return;
   }
-  const candidates = discovery.listCandidates();
   if (hasFlag("--list")) {
-    printCodexCandidates(candidates);
+    printCodexCandidates(discovery.listCandidates());
     return;
   }
-  let selectedSource = null;
-  const explicitThreadId = optionValue("--thread");
-  if (explicitThreadId) selectedSource = discovery.selectThread(explicitThreadId);
-  else if (!hasFlag("--select")) selectedSource = discovery.listSources()[0] || null;
-  if (!selectedSource) {
-    if (!candidates.length) {
-      throw new Error("No readable Codex Desktop sessions were found. Confirm CODEX_HOME, then try again.");
-    }
-    if (!process.stdin.isTTY || !process.stderr.isTTY) {
-      throw new Error("No Codex session is selected. Run `pma codex --list`, then `pma codex --thread <id>`. ");
-    }
-    selectedSource = discovery.selectThread(await promptForCodexThread(candidates));
-  }
+
+  const workspace = safeProcessCwd();
+  const explicitThreadId = optionValue("--resume") || optionValue("-r") || optionValue("--thread");
+  const continueMode = hasFlag("-c") || hasFlag("--continue");
+  if (explicitThreadId && continueMode) throw new Error("Use either --continue or --resume <thread-id>, not both.");
+  const capture = resolveCodexDesktopCaptureMode(optionValue("--capture") || "auto");
   const explicitUrl = optionValue("--viewer-url") || process.env.PEEKMYAGENT_DASHBOARD_URL || null;
   const dashboard = await ensureDashboard({ explicitUrl });
+  const previousSelection = discovery.readSelection();
+
+  let selectedSource;
+  let launchWorkspace = workspace;
+  let launchDesktop = true;
+  let waitingForNewSession = false;
+  if (hasFlag("--select")) {
+    const candidates = discovery.listCandidates();
+    if (!candidates.length) throw new Error("No readable Codex Desktop sessions were found. Confirm CODEX_HOME, then try again.");
+    if (!process.stdin.isTTY || !process.stderr.isTTY) {
+      throw new Error("Interactive selection requires a terminal. Run `pma codex --list`, then `pma codex --resume <thread-id>`. ");
+    }
+    selectedSource = discovery.selectThread(await promptForCodexThread(candidates));
+    launchDesktop = false;
+  } else if (explicitThreadId) {
+    const target = discovery.findCandidate(explicitThreadId);
+    if (!target) throw new Error(`Codex session not found: ${explicitThreadId}`);
+    if (!target.available) throw new Error(`Codex session rollout is no longer readable: ${explicitThreadId}`);
+    launchWorkspace = target.workspace || workspace;
+    selectedSource = beginBoundCodexObservation(discovery, target, {
+      workspace: launchWorkspace,
+      mode: "resume",
+      capture,
+    });
+  } else if (continueMode) {
+    const target = discovery.listCandidates({ workspace, includeArchived: false, limit: 20 })
+      .find((source) => source.available);
+    if (!target) throw new Error(`No resumable Codex Desktop session was found in ${workspace}. Run \`pma codex\` to start observing a new one.`);
+    selectedSource = beginBoundCodexObservation(discovery, target, {
+      workspace,
+      mode: "continue",
+      capture,
+    });
+  } else {
+    const baselineThreadIds = discovery.listCandidates({ workspace, includeArchived: false, limit: 100 })
+      .map((source) => source.conversation_id);
+    selectedSource = discovery.beginObservation({
+      sourceId: createCodexObservationId(),
+      workspace,
+      baselineThreadIds,
+      mode: "new",
+      captureMode: capture.mode,
+      fallbackReason: capture.fallbackReason,
+    });
+    waitingForNewSession = true;
+  }
+
   const sources = await fetchJson(`${trimSlash(dashboard.url)}/api/sources`);
   const source = (Array.isArray(sources) ? sources : []).find((item) => item.id === selectedSource.id && item.available);
   if (!source) {
-    throw new Error("The selected Codex session is no longer readable. Run `pma codex --select` to choose another session.");
+    restoreCodexSelection(discovery, previousSelection, selectedSource.id);
+    throw new Error("The Codex observation source is not readable. Run `pma codex --list` to inspect available sessions.");
   }
   const url = buildDashboardUrl(dashboard.url, source.id);
   const shouldOpen = !hasFlag("--no-open") && !hasFlag("--print");
   if (shouldOpen || hasFlag("--open")) launchBrowserUrl(url);
+  if (launchDesktop) {
+    try {
+      launchCodexDesktopWorkspace(launchWorkspace);
+    } catch (error) {
+      restoreCodexSelection(discovery, previousSelection, selectedSource.id);
+      throw error;
+    }
+  }
   console.log(`peekMyAgent Codex trace: ${url}`);
-  console.log(`observing: ${source.title || source.label || source.conversation_id}`);
-  console.log("read-only: the rollout remains in CODEX_HOME and is not copied into peekMyAgent SQLite");
+  if (launchDesktop) console.log(`Codex Desktop workspace: ${launchWorkspace}`);
+  if (waitingForNewSession) {
+    console.log("waiting: create a new chat in this Codex Desktop workspace and send its first message");
+  } else {
+    console.log(`observing: ${source.title || source.label || source.conversation_id}`);
+  }
+  if (capture.fallbackReason) console.log(`capture: semantic rollout fallback (${capture.fallbackReason})`);
+  else console.log("capture: semantic rollout observation");
+  console.log("storage: the rollout remains in CODEX_HOME and is not copied into peekMyAgent SQLite");
+}
+
+function restoreCodexSelection(discovery, previousSelection, sourceId) {
+  if (previousSelection && typeof previousSelection === "object") discovery.writeSelection(previousSelection);
+  else if (!discovery.cancelObservation(sourceId)) discovery.clearSelection();
+}
+
+function beginBoundCodexObservation(discovery, target, { workspace, mode, capture }) {
+  const pending = discovery.beginObservation({
+    sourceId: createCodexObservationId(),
+    workspace,
+    baselineThreadIds: [],
+    mode,
+    captureMode: capture.mode,
+    fallbackReason: capture.fallbackReason,
+  });
+  return discovery.bindObservation(pending.id, target.conversation_id);
+}
+
+function assertCodexDesktopOptions(values) {
+  const valueOptions = new Set(["--viewer-url", "--capture", "--resume", "-r", "--thread"]);
+  const flags = new Set(["--clear", "--list", "--select", "-c", "--continue", "--no-open", "--open", "--print", "--json", "--help", "-h"]);
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
+    if (flags.has(value)) continue;
+    const assigned = [...valueOptions].find((name) => isOptionAssignment(value, name));
+    if (assigned) continue;
+    if (valueOptions.has(value)) {
+      const next = values[index + 1];
+      if (!next || isFlagLike(next)) throw new Error(`${value} requires a value.`);
+      index += 1;
+      continue;
+    }
+    throw new Error(`Unknown pma codex option: ${value}. Run \`pma codex --help\` for supported Desktop options.`);
+  }
 }
 
 async function runCodexCapture() {

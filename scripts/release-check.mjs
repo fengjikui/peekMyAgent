@@ -142,6 +142,7 @@ const codexCommands = [
   ["npm", "run", "smoke:codex-exact-proxy"],
   ["npm", "run", "smoke:codex-exact-viewer-integration"],
   ["npm", "run", "smoke:run-codex-capture"],
+  ["npm", "run", "smoke:run-codex-desktop"],
 ];
 const persistenceCommands = [
   ["npm", "run", "smoke:persistence-migrations"],

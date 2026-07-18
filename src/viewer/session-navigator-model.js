@@ -126,18 +126,21 @@ function buildSessionItemView(
   source,
   { activeSourceId, openSourceMenuId, translate, displaySourceLabel, shortId },
 ) {
-  const label = displaySourceLabel(source.label);
+  const codexPending = source.kind === "codex_rollout_pending";
+  const label = codexPending ? translate("codexPendingTitle") : displaySourceLabel(source.label);
   return {
     id: source.id || "",
     active: source.id === activeSourceId,
     available: Boolean(source.available),
     pinned: Boolean(source.pinned),
     menuOpen: openSourceMenuId === source.id,
-    status: source.live_watch_id ? source.live_status || "stopped" : "static",
+    status: source.live_status || (source.live_watch_id ? "stopped" : "static"),
     canDelete: source.deletable !== false,
     label,
     subtitle: source.conversation_id ? shortId(source.conversation_id) : source.agent || "",
-    requestLabel: Number.isFinite(source.request_count)
+    requestLabel: codexPending
+      ? translate("codexPendingRequestLabel")
+      : Number.isFinite(source.request_count)
       ? translate("requestUnit", { count: source.request_count })
       : translate("liveTrace"),
     pinLabel: source.pinned ? translate("unpin") : translate("pin"),

@@ -18,6 +18,19 @@ function testPureSourceModel() {
 
   assert.equal(sourceRequiresRefresh(source("a"), source("a")), false);
   assert.equal(sourceRequiresRefresh(source("a"), source("a", { request_count: 2 })), true);
+  assert.equal(
+    sourceRequiresRefresh(
+      source("codex-observation", { live_status: "waiting", request_count: 0, response_count: 0 }),
+      source("codex-observation", {
+        live_status: "observing",
+        conversation_id: "thread-new",
+        request_count: 0,
+        response_count: 0,
+      }),
+    ),
+    true,
+    "a pending Codex Source must refresh in place when it binds to a thread",
+  );
   assert.equal(sourceRequiresRefresh(source("a"), source("a"), { force: true }), true);
   assert.equal(sourceRequiresRefresh(null, null), false);
 
