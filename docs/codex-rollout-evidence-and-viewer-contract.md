@@ -77,7 +77,7 @@ evidence
 data
 ```
 
-当前 Codex `context_compacted` 映射为 `context_lifecycle`：时间线显示窗口编号、替代历史条目、保留消息和不透明 compaction 数量。它不是一次模型请求，因此：
+当前 Codex `context_compacted` 映射为 `context_lifecycle`：时间线使用共享 semantic-event View DTO 显示进入的窗口编号、replacement history 条目数、保留消息数和不透明 compaction 数量，并在默认卡片上直接说明该事件不是模型 HTTP 请求。它不是一次模型请求，因此：
 
 - method 为 `EVENT`，path 为 `/codex/rollout/context_compacted`；
 - 不生成伪 System、Tools、Messages 或 Response；

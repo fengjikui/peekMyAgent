@@ -73,6 +73,27 @@ assert.match(upstream, /&lt;User &amp; result&gt;/);
 assert.doesNotMatch(upstream, /<script>/);
 assert.match(upstream, /trusted-meta/);
 
+const semanticEvent = renderTimelineUpstreamEntry({
+  entry: {
+    requestIndex: 21,
+    kindClass: "semantic-event",
+    label: "Harness context compaction",
+    semanticEvent: {
+      type: "context_compacted",
+      headline: "Entered Window 1 <exact>",
+      facts: "11 retained messages · 1 opaque item",
+      note: "Not a model HTTP request.",
+    },
+    actionsHtml: eventActions,
+  },
+  escapeHtml,
+});
+assert.match(semanticEvent, /data-semantic-event="context_compacted"/);
+assert.match(semanticEvent, /Entered Window 1 &lt;exact&gt;/);
+assert.match(semanticEvent, /11 retained messages/);
+assert.match(semanticEvent, /Not a model HTTP request/);
+assert.doesNotMatch(semanticEvent, /Entered Window 1 <exact>/);
+
 const exchange = renderTimelineToolExchange({
   pairs: [
     {

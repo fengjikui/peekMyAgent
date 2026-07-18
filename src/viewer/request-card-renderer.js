@@ -39,6 +39,7 @@ export function renderTimelineUpstreamEntry({ entry, escapeHtml }) {
     ownerAria = "",
     metaHtml = "",
     actionsHtml = "",
+    semanticEvent = null,
   } = entry;
   return `
     <section class="upstream-entry ${escapeHtml(kindClass)} ${userTurn ? "user-turn" : ""} ${compact ? "compact" : ""}">
@@ -52,8 +53,21 @@ export function renderTimelineUpstreamEntry({ entry, escapeHtml }) {
           ${actionsHtml}
         </div>
       </div>
+      ${semanticEvent ? renderTimelineSemanticEventSummary(semanticEvent, escapeHtml) : ""}
       ${preview ? `<div class="upstream-entry-preview">${escapeHtml(preview)}</div>` : ""}
     </section>
+  `;
+}
+
+function renderTimelineSemanticEventSummary(event, escapeHtml) {
+  return `
+    <div class="semantic-event-summary" data-semantic-event="${escapeHtml(event.type || "unknown")}">
+      <div class="semantic-event-facts">
+        <strong>${escapeHtml(event.headline || "")}</strong>
+        ${event.facts ? `<span>${escapeHtml(event.facts)}</span>` : ""}
+      </div>
+      ${event.note ? `<small>${escapeHtml(event.note)}</small>` : ""}
+    </div>
   `;
 }
 

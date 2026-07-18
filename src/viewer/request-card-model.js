@@ -36,6 +36,7 @@ export function buildTimelineUpstreamView(
 ) {
   const showInlineContent = shouldShowTimelineRequestContent(request, { cleanText });
   const entryPreview = cleanText(request.summary?.entry?.text || "");
+  const semanticEvent = buildTimelineSemanticEventView(request, { translate });
   return {
     requestIndex: request.request_index,
     kindClass: timelineUpstreamKindClass(request),
@@ -43,11 +44,35 @@ export function buildTimelineUpstreamView(
     compact: !showInlineContent,
     label: timelineUpstreamEntryLabel(request, { translate, cleanText, preview }),
     preview:
-      showInlineContent || entryPreview
+      !semanticEvent && (showInlineContent || entryPreview)
         ? timelineUpstreamEntryPreview(request, { translate, cleanText, preview, serialize })
         : "",
+    ...(semanticEvent ? { semanticEvent } : {}),
     showInlineContent,
     sections: timelineUpstreamQuickSections(request),
+  };
+}
+
+export function buildTimelineSemanticEventView(request = {}, { translate = identityTranslate } = {}) {
+  const entry = request.summary?.entry;
+  const event = entry?.semantic_event;
+  if (event?.type !== "context_compacted") return null;
+  const compact = entry.codex_compaction || event.data || {};
+  const windowNumber = compact.window_number ?? "?";
+  const replacementItems = nonNegativeInteger(compact.replacement_item_count);
+  const retainedMessages = nonNegativeInteger(compact.retained_message_count);
+  const opaqueItems = nonNegativeInteger(compact.opaque_compaction_count);
+  return {
+    type: event.type,
+    headline: translate("contextCompactionWindow", {
+      sequence: windowNumber,
+      items: replacementItems,
+    }),
+    facts: translate("contextCompactionComposition", {
+      messages: retainedMessages,
+      opaque: opaqueItems,
+    }),
+    note: translate(opaqueItems ? "contextCompactionOpaqueEvidence" : "contextCompactionEvidence"),
   };
 }
 
@@ -245,6 +270,7 @@ export function timelineUpstreamEntryLabel(
   }
   if (request.summary?.command_message) return commandMessageLabel(request.summary.command_message);
   const entry = request.summary?.entry;
+  if (entry?.semantic_event?.type === "context_compacted") return translate("contextCompactedEvent");
   const knownEntryLabel = localizedTimelineEntryLabel(entry, translate);
   if (knownEntryLabel) return knownEntryLabel;
   if ((request.summary?.current_tool_results?.length || 0) > 0) return translate("toolResultUpstream");
@@ -387,6 +413,11 @@ function defaultNumberFormat(value) {
 
 function defaultCharCount(value) {
   return `${value} chars`;
+}
+
+function nonNegativeInteger(value) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number >= 0 ? number : 0;
 }
 
 function stableSerialize(value) {

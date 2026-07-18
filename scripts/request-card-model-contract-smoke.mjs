@@ -4,6 +4,7 @@ import {
   buildTimelineAssistantResponseView,
   buildTimelineResponseToolCalls,
   buildTimelineRequestIdentity,
+  buildTimelineSemanticEventView,
   buildTimelineToolExchangeView,
   buildTimelineTurnInputView,
   buildTimelineUpstreamView,
@@ -30,6 +31,11 @@ const labels = {
   toolResultUpstream: "Tool result return",
   toolUseUpstream: "Tool use request",
   compactMessage: "Compact prompt",
+  contextCompactedEvent: "Harness compaction",
+  contextCompactionWindow: ({ sequence, items }) => `Window ${sequence} with ${items} replacement items`,
+  contextCompactionComposition: ({ messages, opaque }) => `${messages} messages and ${opaque} opaque items`,
+  contextCompactionEvidence: "Local lifecycle evidence",
+  contextCompactionOpaqueEvidence: "Local lifecycle evidence with opaque content",
   contextCountMessage: "Context count",
   subagentResult: "Subagent result",
   taskNotification: "Task notification",
@@ -194,14 +200,52 @@ const semanticLifecycleRequest = {
     entry: {
       kind: "compact",
       text: "Window 1 compacted",
-      semantic_event: { schema_version: 1, category: "context_lifecycle", type: "context_compacted" },
+      semantic_event: {
+        schema_version: 1,
+        category: "context_lifecycle",
+        type: "context_compacted",
+        data: {
+          window_number: 1,
+          replacement_item_count: 12,
+          retained_message_count: 11,
+          opaque_compaction_count: 1,
+        },
+      },
+      codex_compaction: {
+        window_number: 1,
+        replacement_item_count: 12,
+        retained_message_count: 11,
+        opaque_compaction_count: 1,
+      },
     },
     response: { captured: false },
   },
 };
 assert.equal(isPrimaryTimelineRequest(semanticLifecycleRequest, { cleanText }), true);
 assert.equal(isTimelineSemanticEvent(semanticLifecycleRequest), true);
-assert.equal(buildTimelineUpstreamView(semanticLifecycleRequest, commonOptions).kindClass, "semantic-event");
+assert.equal(timelineUpstreamEntryLabel(semanticLifecycleRequest, commonOptions), "Harness compaction");
+assert.deepEqual(buildTimelineSemanticEventView(semanticLifecycleRequest, commonOptions), {
+  type: "context_compacted",
+  headline: "Window 1 with 12 replacement items",
+  facts: "11 messages and 1 opaque items",
+  note: "Local lifecycle evidence with opaque content",
+});
+assert.deepEqual(buildTimelineUpstreamView(semanticLifecycleRequest, commonOptions), {
+  requestIndex: undefined,
+  kindClass: "semantic-event",
+  userTurn: false,
+  compact: true,
+  label: "Harness compaction",
+  preview: "",
+  semanticEvent: {
+    type: "context_compacted",
+    headline: "Window 1 with 12 replacement items",
+    facts: "11 messages and 1 opaque items",
+    note: "Local lifecycle evidence with opaque content",
+  },
+  showInlineContent: false,
+  sections: [],
+});
 assert.deepEqual(timelineUpstreamQuickSections(semanticLifecycleRequest), []);
 
 const parentSpawnRequest = {

@@ -2032,6 +2032,38 @@ button.turn-story-step:focus-visible {
   background: #fbfbfc;
 }
 
+.semantic-event-summary {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.semantic-event-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.semantic-event-facts strong {
+  font-weight: 700;
+}
+
+.semantic-event-facts span,
+.semantic-event-summary small {
+  color: var(--muted);
+}
+
+.semantic-event-summary small {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 /* A real user input / slash command — the start of a new turn. Just a faint
    tint so it's lightly perceptible as a turn boundary, nothing heavy. */
 .upstream-entry.user-turn {
