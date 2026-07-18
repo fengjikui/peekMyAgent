@@ -1,6 +1,12 @@
 import { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
 
 export function rawSectionData(request, section, { translate = (key) => key, harnessMaterials = [] } = {}) {
+  if (requestHasSemanticEvent(request)) {
+    if (section === "metadata") {
+      return { title: translate("rawEventMetadata"), value: rawSemanticEventMetadata(request) };
+    }
+    return { title: translate("rawEventSource"), value: rawUpstreamRequestValue(request) };
+  }
   const body = request?.raw?.body || {};
   const messages = extractRequestMessages(body);
   if (section === "system") {
@@ -55,7 +61,62 @@ export function rawSectionData(request, section, { translate = (key) => key, har
   if (section === "metadata") {
     return { title: translate("rawRequestMetadata"), value: rawUpstreamRequestMetadata(request) };
   }
-  return { title: translate("rawFullCapture"), value: rawUpstreamRequestValue(request) };
+  return {
+    title: translate(requestUsesReconstructedUpstream(request) ? "rawReconstructedRequest" : "rawFullCapture"),
+    value: rawUpstreamRequestValue(request),
+  };
+}
+
+export function requestHasSemanticEvent(request) {
+  return Boolean(
+    request?.summary?.evidence?.kind === "semantic_event" ||
+      request?.raw?.semantic_event ||
+      request?.raw?.body?.semantic_event ||
+      request?.raw?.body?.codex?.semantic_event,
+  );
+}
+
+export function requestUsesReconstructedUpstream(request) {
+  if (requestHasSemanticEvent(request)) return false;
+  const requestEvidence = request?.summary?.evidence?.request;
+  if (requestEvidence?.available) return requestEvidence.exact === false;
+  if (request?.raw?.body_source === "reconstructed") return true;
+  return request?.raw?.body?.codex?.exact_wire_request === false;
+}
+
+export function responseUsesReconstructedDownstream(request) {
+  if (requestHasSemanticEvent(request)) return false;
+  const responseEvidence = request?.summary?.evidence?.response;
+  if (responseEvidence?.available) return responseEvidence.exact === false;
+  return request?.raw?.body?.codex?.fidelity === "semantic_reconstruction";
+}
+
+export function rawSemanticEventMetadata(request) {
+  const raw = rawUpstreamRequestValue(request);
+  const event = raw.semantic_event || raw.body?.semantic_event || raw.body?.codex?.semantic_event || null;
+  return {
+    capture_id: raw.capture_id,
+    watch_id: raw.watch_id,
+    request_index: raw.request_index,
+    agent_profile: raw.agent_profile,
+    workspace: raw.workspace,
+    conversation_id: raw.conversation_id,
+    received_at: raw.received_at,
+    method: raw.method,
+    path: raw.path,
+    body_source: raw.body_source,
+    evidence: request?.summary?.evidence || null,
+    semantic_event: event
+      ? {
+          schema_version: event.schema_version || null,
+          category: event.category || null,
+          type: event.type || null,
+          actor: event.actor || null,
+          source: event.source || null,
+          evidence: event.evidence || null,
+        }
+      : null,
+  };
 }
 
 export function rawUpstreamRequestValue(request) {

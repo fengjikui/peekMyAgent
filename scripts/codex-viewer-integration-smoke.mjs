@@ -12,7 +12,8 @@ const fixturePath = path.join(projectRoot, "fixtures", "codex-rollout-sanitized.
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-codex-viewer-"));
 const rolloutPath = path.join(tmpDir, "rollout.jsonl");
 const storePath = path.join(tmpDir, "store.sqlite");
-fs.copyFileSync(fixturePath, rolloutPath);
+const fixtureLines = fs.readFileSync(fixturePath, "utf8").trim().split("\n");
+fs.writeFileSync(rolloutPath, `${fixtureLines.slice(0, 7).join("\n")}\n`);
 
 const source = {
   id: "codex-thread-fixture",
@@ -31,6 +32,8 @@ const source = {
   project: "peekmyagent-codex-fixture",
   model: "gpt-fixture",
   stream_live: true,
+  updated_at: "2026-07-18T01:00:01.050Z",
+  token_count: 0,
 };
 
 let viewer;
@@ -52,6 +55,27 @@ try {
   assert.equal(codexSource.deletable, false);
   assert.equal(codexSource.request_count, null);
 
+  const pendingCursorPage = await getJson(
+    `${viewer.url}/api/view?source=${encodeURIComponent(source.id)}&compact=1&initial=1&limit=10`,
+  );
+  assert.equal(pendingCursorPage.requests.length, 1);
+  assert.equal(pendingCursorPage.requests[0].summary.response.captured, false);
+  assert.ok(pendingCursorPage.partial.refresh_cursor);
+
+  fs.appendFileSync(rolloutPath, `${fixtureLines.slice(7).join("\n")}\n`);
+  source.updated_at = "2026-07-18T01:01:01.010Z";
+  source.token_count = 432;
+  const refreshedCursorPage = await getJson(
+    `${viewer.url}/api/view?source=${encodeURIComponent(source.id)}&compact=1&cursor=${encodeURIComponent(pendingCursorPage.partial.refresh_cursor)}&limit=100`,
+  );
+  const refreshedFirstRequest = refreshedCursorPage.requests.find((item) => item.id === pendingCursorPage.requests[0].id);
+  assert.ok(refreshedFirstRequest, "the mutable tail request should be emitted again after its response arrives");
+  assert.equal(refreshedFirstRequest.summary.response.captured, true);
+  assert.match(refreshedFirstRequest.summary.response.text, /我先检查文件/);
+  assert.equal(refreshedFirstRequest.summary.response.tool_calls.length, 1);
+  assert.equal(refreshedCursorPage.partial.loaded_request_count, 3);
+  assert.equal(new Set(refreshedCursorPage.requests.map((item) => item.id)).size, refreshedCursorPage.requests.length);
+
   const timeline = await getJson(`${viewer.url}/api/view?source=${encodeURIComponent(source.id)}&compact=1`);
   assert.equal(timeline.source.id, source.id);
   assert.equal(timeline.requests.length, 3);
@@ -65,6 +89,9 @@ try {
   const firstRequest = timeline.requests[0];
   const secondRequest = timeline.requests[1];
   assert.equal(firstRequest.summary.response.tool_calls.length, 1);
+  assert.equal(firstRequest.summary.current_tool_calls.length, 0, "a response tool call must not leak into the upstream request");
+  assert.equal(secondRequest.summary.current_tool_calls.length, 0, "rollout deltas only expose the locally returned tool result upstream");
+  assert.equal(secondRequest.summary.current_tool_results.length, 1);
   assert.equal(secondRequest.counts.tool_results, 1);
 
   const detail = await getJson(

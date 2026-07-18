@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-const AGENT_SPAWN_TOOL = /^(Agent|Task|sessions_spawn|subagents)$/i;
+const AGENT_SPAWN_TOOL = /^(Agent|Task|sessions_spawn|subagents|spawn_agent)$/i;
 
 export function createSubagentLineageState() {
   return { spawnByPromptKey: new Map() };
@@ -63,8 +63,10 @@ export function buildSubagentGraph(requests, semantics = {}) {
     }
   }
 
-  const returns = collectParentReturns(requests, spawnCalls, semantics);
+  const { returns, launches } = collectParentReturnEvidence(requests, spawnCalls, semantics);
   const returnBySpawnId = new Map(returns.map((item) => [item.spawn_id, item]));
+  const launchBySpawnId = new Map(launches.map((item) => [item.spawn_id, item]));
+  const agentMessages = collectAgentMessages(requests, semantics);
   const sortedChildGroups = [...childGroups.entries()]
     .map(([agentId, group]) => [agentId, [...group].sort(compareRequestsByIndex)])
     .sort((left, right) => compareRequestsByIndex(left[1][0], right[1][0]));
@@ -81,24 +83,66 @@ export function buildSubagentGraph(requests, semantics = {}) {
       semantics,
     });
   });
+  const usedSpawnIds = new Set(branches.map((branch) => branch.spawn?.id).filter(Boolean));
+  const usedAgentIds = new Set(branches.map((branch) => branch.agent_id).filter(Boolean));
+  for (const spawn of spawnCalls) {
+    if (usedSpawnIds.has(spawn.id) || !isCodexAgentSpawn(spawn)) continue;
+    const launch = launchBySpawnId.get(spawn.id) || null;
+    const matchingMessages = agentMessages.filter((item) => messageMatchesSpawn(item, spawn, launch));
+    const agentId = matchingMessages[0]?.summary?.author || launch?.agent_id || codexAgentIdFromSpawn(spawn);
+    branches.push(
+      buildAgentMessageBranch({
+        agentId,
+        messages: matchingMessages,
+        index: branches.length,
+        spawn,
+        launch,
+        semantics,
+      }),
+    );
+    usedSpawnIds.add(spawn.id);
+    if (agentId) usedAgentIds.add(agentId);
+  }
+  for (const item of agentMessages) {
+    const agentId = item.summary?.author || item.summary?.name;
+    if (!agentId || usedAgentIds.has(agentId)) continue;
+    const matchingMessages = agentMessages.filter((candidate) => candidate.summary?.author === agentId);
+    branches.push(
+      buildAgentMessageBranch({
+        agentId,
+        messages: matchingMessages,
+        index: branches.length,
+        spawn: null,
+        launch: null,
+        semantics,
+      }),
+    );
+    usedAgentIds.add(agentId);
+  }
+
+  const graphReturns = branches.map((branch) => branch.return).filter(Boolean);
 
   annotateRequestsWithBranches(branches, requestById);
   return {
-    version: 1,
+    version: 2,
     branch_count: branches.length,
     spawn_count: spawnCalls.length,
-    return_count: returns.length,
-    confidence: branches.length ? (spawnCalls.length >= branches.length && returns.length ? "high" : "medium") : "none",
+    return_count: graphReturns.length,
+    confidence: branches.length
+      ? branches.every((branch) => ["high_ordered", "high_agent_id", "high_agent_message"].includes(branch.confidence))
+        ? "high"
+        : "medium"
+      : "none",
     signals: {
-      child_instance: "x-claude-code-agent-id",
-      child_type: "debug source agent:*",
+      child_instance: agentMessages.length ? "agent_message author" : "x-claude-code-agent-id",
+      child_type: agentMessages.length ? "spawn_agent task_name" : "debug source agent:*",
       request_response_pair: "capture_id/request_index",
-      parent_spawn: "response Agent tool_use",
-      parent_return: "request Agent tool_result",
+      parent_spawn: agentMessages.length ? "response spawn_agent tool call" : "response Agent tool_use",
+      parent_return: agentMessages.length ? "upstream agent_message author/recipient" : "request Agent tool_result",
     },
     branches,
-    spawns: spawnCalls,
-    returns,
+    spawns: spawnCalls.map(publicSpawn),
+    returns: graphReturns,
   };
 }
 
@@ -151,13 +195,25 @@ function collectSpawnPrompts(requests, semantics) {
   return spawnByPromptKey;
 }
 
-function collectParentReturns(requests, spawnCalls, semantics) {
+function collectParentReturnEvidence(requests, spawnCalls, semantics) {
   const returns = [];
+  const launches = [];
   const spawnById = new Map(spawnCalls.map((call) => [call.id, call]));
   for (const request of requests || []) {
     for (const result of request.summary?.current_tool_results || []) {
       const spawn = result.id ? spawnById.get(result.id) : null;
       if (!spawn) continue;
+      if (isCodexAgentSpawn(spawn)) {
+        const payload = parseToolResultPayload(result.content);
+        launches.push({
+          spawn_id: spawn.id,
+          parent_request_id: request.id,
+          parent_request_index: request.request_index,
+          agent_id: payload?.task_name || null,
+          result_preview: semantics.previewText(result.content, 260),
+        });
+        continue;
+      }
       returns.push({
         spawn_id: spawn.id,
         parent_request_id: request.id,
@@ -166,11 +222,12 @@ function collectParentReturns(requests, spawnCalls, semantics) {
       });
     }
   }
-  return returns;
+  return { returns, launches };
 }
 
 function spawnRecord(call, request, order, semantics) {
   const traceSpawn = call.trace?.agent_spawn || null;
+  const argumentsValue = call.arguments || {};
   return {
     id: call.id || `spawn-${request.request_index}-${order + 1}`,
     name: call.name || "Agent",
@@ -179,11 +236,18 @@ function spawnRecord(call, request, order, semantics) {
     order,
     label: spawnLabel(call),
     description: semantics.previewText(
-      traceSpawn?.description || call.arguments?.description || call.arguments?.taskName || call.arguments?.subagent_type || "",
+      traceSpawn?.description ||
+        call.arguments?.description ||
+        call.arguments?.taskName ||
+        call.arguments?.task_name ||
+        call.arguments?.subagent_type ||
+        "",
       120,
     ),
     prompt_preview: traceSpawn?.prompt_preview || semantics.previewText(spawnPrompt(call), 220),
     subagent_type: spawnType(call),
+    context_mode: argumentsValue.fork_turns || null,
+    task_message_visibility: taskMessageVisibility(argumentsValue.message),
     raw_arguments: call.arguments ?? null,
   };
 }
@@ -208,6 +272,54 @@ function buildBranch({ agentId, group, index, spawn, returned, semantics }) {
     request_tool_result_count: group.reduce((sum, request) => sum + (request.summary?.current_tool_results?.length || 0), 0),
     status: returned ? "returned" : group.some((request) => request.summary?.response?.finish_reason === "end_turn") ? "completed" : "running",
     steps: group.map((request, stepIndex) => branchStep(request, stepIndex, semantics)),
+  };
+}
+
+function buildAgentMessageBranch({ agentId, messages, index, spawn, launch, semantics }) {
+  const ordered = [...(messages || [])].sort((left, right) => compareRequestsByIndex(left.request, right.request));
+  const returnedMessage = [...ordered].reverse().find((item) => item.summary?.status === "completed") || null;
+  const returned = returnedMessage
+    ? {
+        id: `return:${spawn?.id || agentId || index + 1}`,
+        spawn_id: spawn?.id || `agent:${agentId || index + 1}`,
+        parent_request_id: returnedMessage.request.id,
+        parent_request_index: returnedMessage.request.request_index,
+        result_preview: semantics.previewText(returnedMessage.summary?.result || returnedMessage.summary?.preview || "", 260),
+      }
+    : null;
+  const label = spawn?.description || spawn?.label || returnedMessage?.summary?.name || `Subagent ${index + 1}`;
+  return {
+    id: `branch-${index + 1}-${agentId || spawn?.id || "agent-message"}`,
+    label,
+    agent_id: agentId || spawn?.id || `agent-message-${index + 1}`,
+    agent_type: "Codex Agent",
+    confidence: spawn && ordered.length ? "high_agent_message" : ordered.length ? "high_agent_id" : "medium_spawn_only",
+    linkage_note: returnedMessage
+      ? "通过 spawn_agent task_name 与 agent_message author 强关联；启动回执与业务结果分开呈现。"
+      : ordered.length
+        ? "已捕获子 Agent 消息，但尚未观察到 FINAL_ANSWER 业务结果。"
+        : "已捕获 spawn_agent 启动及回执，尚未观察到对应 agent_message 业务结果。",
+    spawn: spawn ? publicSpawn(spawn) : null,
+    launch,
+    return: returned,
+    request_ids: ordered.map((item) => item.request.id),
+    request_indexes: ordered.map((item) => item.request.request_index),
+    first_request_index: ordered[0]?.request?.request_index || spawn?.parent_request_index || null,
+    last_request_index: ordered.at(-1)?.request?.request_index || spawn?.parent_request_index || null,
+    response_tool_call_count: 0,
+    request_tool_result_count: 0,
+    status: returned ? "returned" : "running",
+    steps: ordered.map((item) => ({
+      request_id: item.request.id,
+      request_index: item.request.request_index,
+      response_id: null,
+      response_captured: true,
+      finish_reason: item.summary?.message_type || "agent_message",
+      event_type: "agent_message",
+      response_tool_calls: [],
+      request_tool_results: [],
+      response_preview: semantics.previewText(item.summary?.result || item.summary?.preview || "", 220),
+    })),
   };
 }
 
@@ -248,7 +360,31 @@ function annotateRequestsWithBranches(branches, requestById) {
       };
     }
     annotateParentBranch(requestById.get(branch.spawn?.parent_request_id), "spawn_branch_ids", branch.id);
+    annotateParentBranch(requestById.get(branch.launch?.parent_request_id), "launch_branch_ids", branch.id);
     annotateParentBranch(requestById.get(branch.return?.parent_request_id), "returned_branch_ids", branch.id);
+    annotateParentEvent(requestById.get(branch.spawn?.parent_request_id), "agent_spawn_events", {
+      branch_id: branch.id,
+      spawn_id: branch.spawn?.id || null,
+      name: branch.spawn?.name || null,
+      label: branch.spawn?.label || branch.label || null,
+      description: branch.spawn?.description || null,
+      subagent_type: branch.spawn?.subagent_type || branch.agent_type || null,
+      context_mode: branch.spawn?.context_mode || null,
+      task_message_visibility: branch.spawn?.task_message_visibility || null,
+      prompt_preview: branch.spawn?.prompt_preview || null,
+    });
+    annotateParentEvent(requestById.get(branch.launch?.parent_request_id), "agent_launch_events", {
+      branch_id: branch.id,
+      spawn_id: branch.launch?.spawn_id || branch.spawn?.id || null,
+      agent_id: branch.launch?.agent_id || branch.agent_id || null,
+      result_preview: branch.launch?.result_preview || null,
+    });
+    annotateParentEvent(requestById.get(branch.return?.parent_request_id), "agent_return_events", {
+      branch_id: branch.id,
+      spawn_id: branch.return?.spawn_id || branch.spawn?.id || null,
+      agent_id: branch.agent_id || null,
+      result_preview: branch.return?.result_preview || null,
+    });
   }
 }
 
@@ -257,6 +393,14 @@ function annotateParentBranch(request, field, branchId) {
   request.trace ||= {};
   request.trace[field] ||= [];
   request.trace[field].push(branchId);
+}
+
+function annotateParentEvent(request, field, event) {
+  if (!request || !event?.branch_id) return;
+  request.trace ||= {};
+  request.trace[field] ||= [];
+  if (request.trace[field].some((item) => item.branch_id === event.branch_id && item.spawn_id === event.spawn_id)) return;
+  request.trace[field].push(event);
 }
 
 function publicSpawn(spawn) {
@@ -269,6 +413,8 @@ function publicSpawn(spawn) {
     description: spawn.description,
     prompt_preview: spawn.prompt_preview,
     subagent_type: spawn.subagent_type,
+    context_mode: spawn.context_mode || null,
+    task_message_visibility: spawn.task_message_visibility || null,
   };
 }
 
@@ -293,7 +439,16 @@ function spawnType(call) {
 function spawnLabel(call) {
   const traceSpawn = call.trace?.agent_spawn || null;
   const args = call.arguments || {};
-  return traceSpawn?.description || args.description || args.taskName || traceSpawn?.subagent_type || args.subagent_type || call.name || "Agent";
+  return (
+    traceSpawn?.description ||
+    args.description ||
+    args.taskName ||
+    args.task_name ||
+    traceSpawn?.subagent_type ||
+    args.subagent_type ||
+    call.name ||
+    "Agent"
+  );
 }
 
 function spawnPromptKey(call, normalizePrompt) {
@@ -302,6 +457,50 @@ function spawnPromptKey(call, normalizePrompt) {
 
 function isAgentSpawnTool(name) {
   return AGENT_SPAWN_TOOL.test(String(name || ""));
+}
+
+function isCodexAgentSpawn(spawn) {
+  return String(spawn?.name || "").toLowerCase() === "spawn_agent";
+}
+
+function collectAgentMessages(requests, semantics) {
+  if (typeof semantics.extractAgentMessages !== "function") return [];
+  const output = [];
+  for (const request of requests || []) {
+    for (const item of semantics.extractAgentMessages(request) || []) {
+      if (!item?.summary) continue;
+      output.push({ request, message: item.message || null, summary: item.summary });
+    }
+  }
+  return output;
+}
+
+function messageMatchesSpawn(item, spawn, launch) {
+  const author = String(item?.summary?.author || "").trim();
+  if (!author) return false;
+  if (launch?.agent_id && author === launch.agent_id) return true;
+  const taskName = String(spawn?.raw_arguments?.task_name || spawn?.description || "").trim();
+  return Boolean(taskName && (author === taskName || author.endsWith(`/${taskName}`)));
+}
+
+function codexAgentIdFromSpawn(spawn) {
+  const taskName = String(spawn?.raw_arguments?.task_name || spawn?.description || "").trim();
+  return taskName || `spawn:${spawn?.id || "unknown"}`;
+}
+
+function parseToolResultPayload(content) {
+  if (content && typeof content === "object") return content;
+  try {
+    const parsed = JSON.parse(String(content || ""));
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function taskMessageVisibility(value) {
+  if (typeof value !== "string" || !value.trim()) return "missing";
+  return /^gAAAA[A-Za-z0-9_=-]+$/.test(value.trim()) ? "encrypted_in_rollout" : "visible";
 }
 
 function compareRequestsByIndex(left, right) {

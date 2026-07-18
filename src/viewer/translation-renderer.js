@@ -105,12 +105,12 @@ export function renderTranslationBlock({
   const actionId = registerAction({
     kind: block.kind,
     sourceText: block.sourceText,
-    metadata: { ...block.metadata, label: block.label },
+    metadata: { ...block.metadata, label: block.actionLabel || block.label },
   });
   return `
     <article class="translation-block ${escapeHtml(block.kindClass)} ${compact ? "compact" : ""} ${block.hit ? "hit" : "miss"}" ${searchTarget ? 'data-raw-search-target="true"' : ""}>
       <header>
-        <strong>${escapeHtml(block.label)}</strong>
+        ${block.label ? `<strong>${escapeHtml(block.label)}</strong>` : ""}
         <span class="translation-block-meta">
           <span class="translation-kind">${escapeHtml(block.kindLabel || block.kind)}</span>
           <span class="translation-cache-state">${escapeHtml(block.hit ? translate("cacheState", { language: targetLanguageLabel }) : translate("missingTranslation"))}</span>

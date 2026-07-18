@@ -1,4 +1,5 @@
 import { codexRolloutProvenance } from "../core/provenance.mjs";
+import { createCaptureSemanticEvent } from "../trace/capture-semantic-event.mjs";
 
 const OPAQUE_REASONING_PREVIEW = "<encrypted reasoning retained only in the original Codex rollout>";
 
@@ -15,25 +16,30 @@ export function normalizeCodexRolloutTurn({ source = {}, sessionMeta = {}, turn 
   const roundIndex = positiveRoundIndex(exchange?.roundIndex);
   const exchangeId = `${turnId}-exchange-${roundIndex}`;
   const entries = exchange?.entries || turn.entries || [];
+  const semanticEvent = codexSemanticEvent(entries);
   const responseItems = entries.filter((entry) => entry?.type === "response_item").map((entry) => entry.payload).filter(Boolean);
   const requestInput = (exchange?.requestItems || responseItems.filter(isUpstreamResponseItem)).map(cloneWithoutOpaqueReasoning);
   const responseOutput = exchange?.responseItems
     ? downstreamItemsFromEntries(entries, exchange.responseItems)
     : downstreamItemsFromEntries(entries);
   const messages = requestInput.map(responseItemToMessage).filter(Boolean);
-  const system = normalizeBaseInstructions(sessionMeta.base_instructions);
-  const tools = normalizeDynamicTools(sessionMeta.dynamic_tools);
+  const system = semanticEvent ? [] : normalizeBaseInstructions(sessionMeta.base_instructions);
+  const tools = semanticEvent ? [] : normalizeDynamicTools(sessionMeta.dynamic_tools);
   const tokenInfo = exchange?.tokenInfo || latestTokenInfo(entries);
   const status = exchangeStatus(turn, exchange);
   const finishReason = exchangeFinishReason({ turn, exchange, responseOutput });
   const body = {
     model: turn.turnContext?.model || source.model || null,
-    stream: true,
-    input: requestInput,
-    system,
-    tools,
-    messages,
-    reasoning: normalizeReasoningConfig(turn.turnContext),
+    stream: !semanticEvent,
+    ...(semanticEvent
+      ? {}
+      : {
+          input: requestInput,
+          system,
+          tools,
+          messages,
+          reasoning: normalizeReasoningConfig(turn.turnContext),
+        }),
     codex: {
       evidence_mode: "local_rollout",
       fidelity: "semantic_reconstruction",
@@ -46,6 +52,7 @@ export function normalizeCodexRolloutTurn({ source = {}, sessionMeta = {}, turn 
       full_request_history_available: false,
       turn_context: turn.turnContext || null,
       tool_schema_scope: tools.length ? "dynamic_tools_only" : "not_present_in_rollout",
+      semantic_event: semanticEvent,
       lifecycle: exchangeLifecycle(turn, exchange),
       event_types: eventTypeCounts(entries),
       rollout_events: entries.map(cloneWithoutOpaqueReasoning),
@@ -71,7 +78,7 @@ export function normalizeCodexRolloutTurn({ source = {}, sessionMeta = {}, turn 
   const receivedAt = exchange?.startedAt || turn.startedAt || firstTimestamp(entries) || source.created_at || new Date(0).toISOString();
   const responseReceivedAt = exchange?.completedAt || lastTimestamp(entries) || receivedAt;
   const captureId = `codex-${threadId || "thread"}-${exchangeId}`;
-  const responsePresent = responseOutput.length > 0 || Boolean(exchange?.complete || turn.completedEvent);
+  const responsePresent = !semanticEvent && (responseOutput.length > 0 || Boolean(exchange?.complete || turn.completedEvent));
 
   return {
     capture_id: captureId,
@@ -81,8 +88,8 @@ export function normalizeCodexRolloutTurn({ source = {}, sessionMeta = {}, turn 
     agent_profile: "Codex",
     workspace: turn.turnContext?.cwd || source.workspace || sessionMeta.cwd || null,
     received_at: receivedAt,
-    method: "POST",
-    path: "/v1/responses",
+    method: semanticEvent ? "EVENT" : "POST",
+    path: semanticEvent ? `/codex/rollout/${semanticEvent.type}` : "/v1/responses",
     headers: {
       "content-type": "application/json",
       "x-peekmyagent-evidence": "codex_rollout_local",
@@ -91,8 +98,14 @@ export function normalizeCodexRolloutTurn({ source = {}, sessionMeta = {}, turn 
     },
     body_source: "reconstructed",
     body,
+    ...(semanticEvent ? { semantic_event: semanticEvent } : {}),
     raw_body_length: byteLength(body),
-    provenance: codexRolloutProvenance({ threadId, turnId: exchangeId, hasResponse: responsePresent }),
+    provenance: codexRolloutProvenance({
+      threadId,
+      turnId: exchangeId,
+      hasResponse: responsePresent,
+      semanticEvent: Boolean(semanticEvent),
+    }),
     ...(responsePresent
       ? {
           upstream_status: turn.aborted ? 499 : 200,
@@ -247,6 +260,15 @@ export function normalizeDynamicTools(dynamicTools) {
 
 export function responseItemToMessage(item) {
   if (!item || typeof item !== "object") return null;
+  if (item.type === "agent_message") {
+    return {
+      role: "user",
+      content: normalizeMessageContent(item.content),
+      codex_item_type: "agent_message",
+      author: item.author || null,
+      recipient: item.recipient || null,
+    };
+  }
   if (item.type === "message" && ["developer", "system", "user"].includes(item.role)) {
     return {
       role: item.role,
@@ -269,7 +291,7 @@ export function responseItemToMessage(item) {
 export function isUpstreamResponseItem(item) {
   if (!item || typeof item !== "object") return false;
   if (item.type === "message") return ["developer", "system", "user"].includes(item.role);
-  return item.type === "function_call_output" || item.type === "custom_tool_call_output";
+  return item.type === "function_call_output" || item.type === "custom_tool_call_output" || item.type === "agent_message";
 }
 
 export function isDownstreamResponseItem(item) {
@@ -364,6 +386,44 @@ function normalizeToolOutput(output) {
 function normalizeReasoningConfig(context) {
   const effort = context?.effort || null;
   return effort ? { effort } : null;
+}
+
+function codexSemanticEvent(entries) {
+  const compacted = (entries || []).find((entry) => entry?.type === "compacted");
+  const notified = (entries || []).some(
+    (entry) => entry?.type === "event_msg" && entry.payload?.type === "context_compacted",
+  );
+  if (!compacted && !notified) return null;
+  const payload = compacted?.payload || {};
+  const replacementHistory = Array.isArray(payload.replacement_history) ? payload.replacement_history : [];
+  const itemTypes = {};
+  let retainedMessageCount = 0;
+  let opaqueCompactionCount = 0;
+  for (const item of replacementHistory) {
+    const key = [item?.type || "unknown", item?.role].filter(Boolean).join(":");
+    itemTypes[key] = (itemTypes[key] || 0) + 1;
+    if (item?.type === "message") retainedMessageCount += 1;
+    if (item?.type === "compaction" || item?.encrypted_content) opaqueCompactionCount += 1;
+  }
+  return createCaptureSemanticEvent({
+    category: "context_lifecycle",
+    type: "context_compacted",
+    actor: "harness",
+    source: "codex_rollout",
+    evidence: { origin: "codex_rollout", fidelity: compacted ? "exact" : "partial", exact_wire_event: false },
+    data: {
+      window_id: payload.window_id || null,
+      previous_window_id: payload.previous_window_id || null,
+      first_window_id: payload.first_window_id || null,
+      window_number: finiteNumber(payload.window_number),
+      replacement_item_count: replacementHistory.length,
+      retained_message_count: retainedMessageCount,
+      opaque_compaction_count: opaqueCompactionCount,
+      replacement_item_types: itemTypes,
+      notification_present: notified,
+      message: typeof payload.message === "string" ? payload.message : null,
+    },
+  });
 }
 
 function latestTokenInfo(entries) {

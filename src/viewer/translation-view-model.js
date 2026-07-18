@@ -147,12 +147,15 @@ function toolTranslationGroupView(group, { translatedTextFor, labelForKind }) {
   return {
     toolName: group.toolName,
     description: group.description
-      ? translationBlockView({
-          material: group.description,
-          label: `${group.toolName} · description`,
-          translatedTextFor,
-          labelForKind,
-        })
+      ? {
+          ...translationBlockView({
+            material: group.description,
+            label: "",
+            translatedTextFor,
+            labelForKind,
+          }),
+          actionLabel: group.toolName,
+        }
       : null,
     parameters: {
       items: parameters,

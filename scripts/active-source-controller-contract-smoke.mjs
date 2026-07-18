@@ -20,6 +20,14 @@ function testPureSourceModel() {
   assert.equal(sourceRequiresRefresh(source("a"), source("a", { request_count: 2 })), true);
   assert.equal(
     sourceRequiresRefresh(
+      source("codex", { kind: "codex_rollout_local", updated_at: "2026-07-18T01:00:00Z", token_count: 120 }),
+      source("codex", { kind: "codex_rollout_local", updated_at: "2026-07-18T01:00:01Z", token_count: 140 }),
+    ),
+    true,
+    "a selected Codex rollout must refresh when its mutable tail grows",
+  );
+  assert.equal(
+    sourceRequiresRefresh(
       source("codex-observation", { live_status: "waiting", request_count: 0, response_count: 0 }),
       source("codex-observation", {
         live_status: "observing",

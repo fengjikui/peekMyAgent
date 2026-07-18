@@ -40,9 +40,11 @@ import {
   timelineUpstreamQuickSections,
 } from "./request-card-model.js";
 import {
+  requestHasSemanticEvent,
+  requestUsesReconstructedUpstream,
+  responseUsesReconstructedDownstream,
   rawResponseSectionValue,
   rawSectionData as buildRawSectionData,
-  rawUpstreamRequestValue,
 } from "./raw-view-model.js";
 import {
   collectRawSearchEntries,
@@ -92,6 +94,7 @@ import { buildUpstreamDetailView } from "./upstream-detail-model.js";
 import { renderUpstreamDetail as renderUpstreamDetailView } from "./upstream-detail-renderer.js";
 import {
   normalizeTranslationSourceText as normalizeTranslationText,
+  sanitizeTranslationOutput,
   translationLookupKey,
 } from "./translation-blocks.js";
 import {
@@ -410,7 +413,9 @@ const rawInspectorController = new RawInspectorController({
     requestNeedsDetail(request) || (section === "system_diff" && requestNeedsDetail(previousRequest(request))),
   loadDetails: (request, section) => ensureDetailsForRawSection(request, section),
   titleFor: (request, section, mode) =>
-    `Request ${request.request_index} · ${mode === "response" ? responseRawSectionLabel(section) : rawSectionLabel(section)}`,
+    requestHasSemanticEvent(request)
+      ? `${t("rawEventTitle", { index: request.request_index })} · ${rawSectionLabel(section, request)}`
+      : `Request ${request.request_index} · ${mode === "response" ? responseRawSectionLabel(section, request) : rawSectionLabel(section, request)}`,
   renderLoading: () => renderRequestDetailLoading(),
   renderContent: (request, section, mode) => renderRawSections(request, section, mode),
   renderError: (error) => renderRequestDetailError(error),
@@ -883,9 +888,12 @@ function renderHeaderSurface() {
 }
 
 function renderViewControls() {
+  const captureMode = state.data?.source?.workbench?.capture_label || "";
+  const captureModeLabel = captureMode ? captureLabelText(captureMode) : t("sessionInfo");
+  const captureModeHelp = captureMode ? captureLabelHelp(captureMode) : t("sessionInfo");
   els.viewControls.innerHTML =
     `<button class="stat stat-button ${state.latestOnly && !traceQueryActive() ? "active" : ""}" type="button" data-latest-only ${traceQueryActive() ? `disabled title="${escapeHtml(t("latestDisabledBySearch"))}"` : ""}>${state.latestOnly && !traceQueryActive() ? t("showAllTurns") : t("latestOnly")}</button>` +
-    `<button class="stat stat-button session-info-trigger" type="button" data-session-info>${t("sessionInfo")}</button>`;
+    `<button class="stat stat-button session-info-trigger" type="button" data-session-info title="${escapeHtml(captureModeHelp)}">${escapeHtml(captureModeLabel)}</button>`;
   bindViewControlEvents();
   bindSessionInfoControls();
 }
@@ -1675,6 +1683,15 @@ function showSystemDiff(id) {
 function renderRawSections(request, activeSection = "full", mode = "request") {
   const body = request.raw?.body || {};
   if (mode === "response") return renderResponseOnlyRawSection(request, activeSection);
+  if (requestHasSemanticEvent(request)) {
+    const eventSection = activeSection === "metadata" ? "metadata" : "full";
+    const sectionData = rawSectionData(request, eventSection);
+    return `
+      ${renderRawStickyControls(request, eventSection, mode)}
+      ${renderRawSourceNotice({ title: t("rawEventNoticeTitle"), text: t("rawEventNotice"), escapeHtml })}
+      ${normalizedRawSearchQuery() ? renderRawSearchResults(request, eventSection, mode) : renderRawDetail(sectionData.title, sectionData.value)}
+    `;
+  }
   if (activeSection === "system_diff") {
     return `
       ${renderRawStickyControls(request, activeSection, mode)}
@@ -1692,7 +1709,7 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
   return `
     ${renderRawStickyControls(request, activeSection, mode)}
     ${normalizedRawSearchQuery() ? renderRawSearchResults(request, activeSection, mode) : `
-    ${renderRawDetail(t("rawFullCapture"), rawUpstreamRequestValue(request))}
+    ${renderRawDetail(sectionData.title, sectionData.value)}
     ${renderRawDetail("system", body.system ?? null)}
     ${renderRawDetail("tools", body.tools ?? null)}
     ${renderRawDetail("messages / history", body.messages ?? null)}
@@ -1718,7 +1735,7 @@ function renderResponseOnlyRawSection(request, activeSection) {
         ? renderRawSearchResults(request, section, "response")
         : section === "tool_calls"
         ? renderRawDetail("response tool_use", { [t("currentResponseToolUse")]: request.summary?.response?.tool_calls || [] })
-        : renderRawDetail("response", rawResponseSectionValue(request));
+        : renderRawDetail(responseRawSectionLabel("response", request), rawResponseSectionValue(request));
   return `
     ${renderRawStickyControls(request, section, "response")}
     ${detail}
@@ -1747,7 +1764,7 @@ function renderResponseOnlyToolsSchemaSection(request) {
 
 function renderRawSearchControls(request, section, mode = "request") {
   const query = rawSearchController.query;
-  const scope = rawSearchScopeLabel(section, mode);
+  const scope = rawSearchScopeLabel(section, mode, request);
   const matches = normalizedRawSearchQuery() ? rawSearchMatchCount(request, section, mode) : 0;
   return renderRawSearchControlsView({
     query,
@@ -1768,7 +1785,7 @@ function rawSearchMatchCount(request, section, mode = "request") {
 
 function renderRawSearchResults(request, section, mode = "request") {
   const query = normalizedRawSearchQuery();
-  const scope = rawSearchScopeLabel(section, mode);
+  const scope = rawSearchScopeLabel(section, mode, request);
   const entries = rawSearchEntriesForSection(request, section, mode);
   return renderRawSearchResultsView({ query, scope, entries, translate: t, escapeHtml, highlightSnippet: highlightSearchSnippet, renderPre });
 }
@@ -1786,7 +1803,7 @@ function rawSearchCandidateEntries(request, section, mode = "request") {
     return rawSearchEntries(rawResponseSectionValue(request), "response");
   }
   if (["tools", "harness", "system"].includes(section)) {
-    return rawSearchEntries(rawSectionData(request, section).value, rawSectionLabel(section));
+    return rawSearchEntries(rawSectionData(request, section).value, rawSectionLabel(section, request));
   }
   if (section === "system_diff") {
     const previous = previousRequest(request);
@@ -1798,7 +1815,7 @@ function rawSearchCandidateEntries(request, section, mode = "request") {
       "system_diff",
     );
   }
-  return rawSearchEntries(rawSectionData(request, section).value, rawSectionLabel(section));
+  return rawSearchEntries(rawSectionData(request, section).value, rawSectionLabel(section, request));
 }
 
 function rawSearchEntries(value, rootPath) {
@@ -1809,11 +1826,11 @@ function normalizedRawSearchQuery() {
   return rawSearchController.normalizedQuery();
 }
 
-function rawSearchScopeLabel(section, mode = "request") {
+function rawSearchScopeLabel(section, mode = "request", request = null) {
   if (mode === "response" && section === "tools") return "Tools schema";
   if (mode === "response" && section === "tool_calls") return "Response tool_use";
-  if (mode === "response") return responseRawSectionLabel(section);
-  return rawSectionLabel(section);
+  if (mode === "response") return responseRawSectionLabel(section, request);
+  return rawSectionLabel(section, request);
 }
 
 function highlightSearchSnippet(text, query) {
@@ -1950,12 +1967,14 @@ function translationSectionStats(request, section) {
 
 function translatedTextFor(kind, sourceText) {
   const source = normalizeTranslationText(sourceText);
-  return source ? translationCacheController.translationLookup.get(translationLookupKey(kind, source))?.translated_text || "" : "";
+  const translated = source ? translationCacheController.translationLookup.get(translationLookupKey(kind, source))?.translated_text || "" : "";
+  return sanitizeTranslationOutput(kind, translated);
 }
 
-function rawSectionLabel(section) {
+function rawSectionLabel(section, request = null) {
+  if (requestHasSemanticEvent(request)) return section === "metadata" ? t("rawEventMetadata") : t("rawEventSource");
   const labels = {
-    full: t("rawFull"),
+    full: t(requestUsesReconstructedUpstream(request) ? "rawReconstructedRequest" : "rawFull"),
     system: "System",
     system_diff: "System diff",
     tools: "Tools",
@@ -1970,10 +1989,10 @@ function rawSectionLabel(section) {
   return labels[section] || "Raw";
 }
 
-function responseRawSectionLabel(section) {
+function responseRawSectionLabel(section, request = null) {
   if (section === "tool_calls") return "Response tool_use";
   if (section === "tools") return "Tools schema";
-  return "Response raw";
+  return responseUsesReconstructedDownstream(request) ? t("rawReconstructedResponse") : "Response";
 }
 
 function renderSystemDiff(request) {
@@ -2126,12 +2145,14 @@ function cleanDisplayText(value) {
 
 function captureLabelText(label) {
   if (label === "exact proxy capture") return t("exactProxyCapture");
+  if (label === "Codex local semantic trace") return t("codexSemanticCapture");
   if (label === "otel raw body") return t("otelRawBody");
   return label || t("unknownCapture");
 }
 
 function captureLabelHelp(label) {
   if (label === "exact proxy capture") return t("exactProxyHelp");
+  if (label === "Codex local semantic trace") return t("codexSemanticHelp");
   if (label === "otel raw body") return t("otelRawHelp");
   return t("captureHelp");
 }

@@ -6,6 +6,7 @@ import {
   isSkippableTranslationMaterial,
   normalizeTranslationSourceText,
   parseTranslationMarkerBlocks,
+  sanitizeTranslationOutput,
   systemTranslationKind,
   translationLookupKey,
   translationResponseFormatInstruction,
@@ -64,6 +65,23 @@ assert.deepEqual(
 const markerText = `preface ignored\r\n@@PEEK_TRANSLATION ${nodeHash}\r\n译文\r\n@@PEEK_END_TRANSLATION\r\ntrailer ignored`;
 assert.deepEqual(parseTranslationMarkerBlocks(markerText), [{ hash: nodeHash, translated_text: "译文" }]);
 assert.throws(() => parseTranslationMarkerBlocks("not a marker response", { required: true }), /did not contain marker blocks/);
+assert.equal(
+  sanitizeTranslationOutput("tool_description", 'kind: tool_description\nmetadata: {"tool_name":"Bash"}\n执行 shell 命令。'),
+  "执行 shell 命令。",
+);
+assert.equal(
+  sanitizeTranslationOutput("system_prompt", 'kind: tool_description\nmetadata: {"tool_name":"Bash"}\n执行 shell 命令。'),
+  'kind: tool_description\nmetadata: {"tool_name":"Bash"}\n执行 shell 命令。',
+  "a mismatched envelope must remain untouched",
+);
+assert.equal(
+  sanitizeTranslationOutput(
+    "harness_developer",
+    '第一块。\n\nkind: harness_developer\nmetadata: {"chunk_index":2}\n第二块。\n\nkind: harness_developer\nmetadata: {"chunk_index":3}\n第三块。',
+  ),
+  "第一块。\n\n第二块。\n\n第三块。",
+  "routing envelopes leaked between translated chunks must be removed",
+);
 assert.match(translationResponseFormatInstruction(), /@@PEEK_TRANSLATION <hash>/);
 assert.match(formatTranslationSourceBlock({ hash: nodeHash, kind, metadata: { source: "test" }, source_text: normalized }), /@@PEEK_SOURCE/);
 

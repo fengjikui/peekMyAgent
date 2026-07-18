@@ -26,7 +26,12 @@ export function lastRealUserMessage(messages) {
   for (let index = (messages || []).length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message?.role !== "user") continue;
-    if (isSuggestionModeMessage(message) || isFrameworkReminderMessage(message) || isTaskNotificationMessage(message)) continue;
+    if (
+      isSuggestionModeMessage(message) ||
+      isFrameworkReminderMessage(message) ||
+      isTaskNotificationMessage(message) ||
+      isCodexAgentMessage(message)
+    ) continue;
     if (realUserVisibleText(message) || parseCommandMessage(message)) return message;
   }
   return null;
@@ -46,6 +51,30 @@ export function isSuggestionModeMessage(message) {
 export function isTaskNotificationMessage(message) {
   if (!message || message.role !== "user") return false;
   return /^\s*<task-notification[\s>]/i.test(extractContentText(message.content));
+}
+
+export function isCodexAgentMessage(message) {
+  return message?.codex_item_type === "agent_message" && Boolean(message.author || message.recipient);
+}
+
+export function codexAgentMessageSummary(message) {
+  const text = extractContentText(message?.content).trim();
+  const field = (name) => (text.match(new RegExp(`^${name}:\\s*(.+)$`, "im")) || [])[1]?.trim() || "";
+  const marker = /^Payload:\s*/im;
+  const payloadIndex = text.search(marker);
+  const result = payloadIndex >= 0 ? text.slice(payloadIndex).replace(marker, "").trim() : text;
+  const author = String(message?.author || field("Sender") || "").trim();
+  const name = author.split("/").filter(Boolean).at(-1) || author || "Subagent";
+  const messageType = field("Message Type");
+  return {
+    name,
+    author: author || null,
+    recipient: message?.recipient || field("Task name") || null,
+    message_type: messageType || null,
+    status: /FINAL_ANSWER/i.test(messageType) ? "completed" : null,
+    result,
+    preview: textPreview(`子 Agent「${name}」${/FINAL_ANSWER/i.test(messageType) ? "完成" : "回流"} — ${result}`, 420),
+  };
 }
 
 export function taskNotificationSummary(message) {
@@ -91,6 +120,7 @@ export function isToolResultMessage(message) {
 }
 
 export function classifyMessageKind(message) {
+  if (isCodexAgentMessage(message)) return "subagent_result";
   if (isTaskNotificationMessage(message)) return taskNotificationSummary(message).subagent ? "subagent_result" : "task_notification";
   if (isFrameworkReminderMessage(message)) return "framework_reminder";
   if (isSuggestionModeMessage(message)) return "agent_internal";
@@ -112,6 +142,15 @@ export function classifyCurrentEntry(messages) {
     if (!message) continue;
     if (isFrameworkReminderMessage(message)) continue;
     if (message.role === "system") continue;
+    if (isCodexAgentMessage(message)) {
+      const subagent = codexAgentMessageSummary(message);
+      return {
+        kind: "subagent_result",
+        label: "子 Agent 结果回流",
+        text: subagent.preview,
+        subagent,
+      };
+    }
     if (isTaskNotificationMessage(message)) {
       const { taskId, preview, subagent } = taskNotificationSummary(message);
       if (subagent) {
@@ -157,6 +196,10 @@ export function classifyCurrentEntry(messages) {
 
 export function displayMessageText(message) {
   const text = extractContentText(message?.content);
+  if (isCodexAgentMessage(message)) {
+    const subagent = codexAgentMessageSummary(message);
+    return `子 Agent 结果回流 · ${subagent.name}\n${subagent.result}`;
+  }
   if (isCompactInjectionMessage(message)) return "上下文压缩指令：请求模型把前文压缩成 <analysis> + <summary> 总结（harness 注入）";
   if (isSkillInjectionMessage(message)) return `Skill / Harness 注入\n${skillInjectionText(message)}`;
   const codexHarnessBlocks = pureCodexHarnessBlocks(message);
@@ -182,6 +225,7 @@ export function userVisibleText(message) {
 
 export function realUserVisibleText(message) {
   if (!message) return "";
+  if (isCodexAgentMessage(message)) return "";
   const rawText = extractContentText(message.content);
   const textAfterLocalCommands = userTextAfterLocalCommandBlocks(rawText);
   if (textAfterLocalCommands) return textAfterLocalCommands;
@@ -192,19 +236,10 @@ export function realUserVisibleText(message) {
 
 export function extractCodexHarnessBlocks(text) {
   const value = String(text || "");
-  const output = [];
-  const tagged = codexTaggedHarnessRegex();
-  let match;
-  while ((match = tagged.exec(value))) {
-    const content = String(match[2] || "").trim();
-    if (content) output.push(codexHarnessBlock(match[1], content));
-  }
-  const permissions = codexPermissionsHarnessRegex();
-  while ((match = permissions.exec(value))) {
-    const content = String(match[1] || "").trim();
-    if (content) output.push(codexHarnessBlock("permissions instructions", content));
-  }
-  return output;
+  return codexHarnessSpans(value)
+    .map((span) => ({ ...span, content: value.slice(span.contentStart, span.contentEnd).trim() }))
+    .filter((span) => span.content)
+    .map((span) => codexHarnessBlock(span.tag, span.content));
 }
 
 export function codexHarnessTagDefinition(tag) {
@@ -345,21 +380,50 @@ function stripDisplayWrapperTags(text) {
 }
 
 export function stripCodexHarnessBlocks(text) {
-  let value = String(text || "");
-  for (const regex of codexHarnessBlockRegexes()) value = value.replace(regex, "");
-  return value.replace(/\n{3,}/g, "\n\n").trim();
+  const value = String(text || "");
+  const spans = codexHarnessSpans(value);
+  if (!spans.length) return value.trim();
+  const output = [];
+  let cursor = 0;
+  for (const span of spans) {
+    output.push(value.slice(cursor, span.start));
+    cursor = span.end;
+  }
+  output.push(value.slice(cursor));
+  return output.join("").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function codexHarnessBlockRegexes() {
-  return [codexTaggedHarnessRegex(), codexPermissionsHarnessRegex()];
+function codexHarnessSpans(text) {
+  const value = String(text || "");
+  const tokens = codexHarnessTokenRegex();
+  const stack = [];
+  const spans = [];
+  let match;
+  while ((match = tokens.exec(value))) {
+    const closing = Boolean(match[1]);
+    const tag = String(match[2] || "").toLowerCase();
+    if (!closing) {
+      stack.push({ tag, start: match.index, contentStart: tokens.lastIndex });
+      continue;
+    }
+    const opening = stack.at(-1);
+    if (!opening || opening.tag !== tag) continue;
+    stack.pop();
+    if (!stack.length) {
+      spans.push({
+        tag,
+        start: opening.start,
+        contentStart: opening.contentStart,
+        contentEnd: match.index,
+        end: tokens.lastIndex,
+      });
+    }
+  }
+  return spans;
 }
 
-function codexTaggedHarnessRegex() {
-  return /<(environment_context|in-app-browser-context|app-context|skills_instructions|apps_instructions|plugins_instructions|recommended_plugins|collaboration_mode|codex_internal_context|turn_aborted|subagent_notification)\b[^>]*>([\s\S]*?)<\/\1>/gi;
-}
-
-function codexPermissionsHarnessRegex() {
-  return /<permissions instructions\b[^>]*>([\s\S]*?)<\/permissions instructions>/gi;
+function codexHarnessTokenRegex() {
+  return /<(\/?)\s*(environment_context|in-app-browser-context|app-context|skills_instructions|apps_instructions|plugins_instructions|recommended_plugins|collaboration_mode|codex_internal_context|turn_aborted|subagent_notification|permissions instructions)\b[^>]*>/gi;
 }
 
 function pureCodexHarnessBlocks(message) {

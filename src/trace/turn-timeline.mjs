@@ -63,6 +63,8 @@ function createTurn(index, userText, commandMessage, semantics) {
     parent_spawn_count: 0,
     tool_call_count: 0,
     tool_result_count: 0,
+    tool_call_keys: new Set(),
+    tool_result_keys: new Set(),
     raw_body_bytes: 0,
     context_delta: { new_messages: 0, new_tool_calls: 0, new_tool_results: 0, new_roles: {} },
   };
@@ -82,8 +84,13 @@ function addRequestToTurn(turn, request, semantics) {
   else turn.main_request_count += 1;
   if (request.is_subagent) turn.subagent_count += 1;
   if (request.source_hint?.type === "parent_spawn") turn.parent_spawn_count += 1;
-  turn.tool_call_count += request.summary?.current_tool_calls?.length || 0;
-  turn.tool_result_count += request.summary?.current_tool_results?.length || 0;
+  addDistinctToolEvents(turn.tool_call_keys, [
+    ...(request.summary?.current_tool_calls || []),
+    ...(typeof semantics.responseToolCalls === "function" ? semantics.responseToolCalls(request) : []),
+  ]);
+  addDistinctToolEvents(turn.tool_result_keys, request.summary?.current_tool_results || []);
+  turn.tool_call_count = turn.tool_call_keys.size;
+  turn.tool_result_count = turn.tool_result_keys.size;
   mergeContextDelta(turn.context_delta, request.context_delta);
 }
 
@@ -98,12 +105,20 @@ function mergeContextDelta(target, delta) {
 }
 
 function finalizeTurn(turn) {
+  const { tool_call_keys, tool_result_keys, ...publicTurn } = turn;
   return {
-    ...turn,
+    ...publicTurn,
     request_count: turn.request_ids.length,
     has_internal_requests: turn.internal_request_count > 0,
     has_tool_exchange: turn.tool_call_count > 0 || turn.tool_result_count > 0,
   };
+}
+
+function addDistinctToolEvents(keys, events) {
+  for (const event of events || []) {
+    const id = String(event?.id || event?.tool_call_id || event?.tool_use_id || "").trim();
+    keys.add(id ? `id:${id}` : Symbol("anonymous-tool-event"));
+  }
 }
 
 function assertSemantics(semantics) {

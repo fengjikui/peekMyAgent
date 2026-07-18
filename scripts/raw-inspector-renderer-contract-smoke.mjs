@@ -33,6 +33,36 @@ assert.match(responseNav, /rawNavReference/);
 assert.match(responseNav, /Tools schema/);
 assert.match(responseNav, /data-raw-mode="response"/);
 
+const reconstructedResponseNav = renderResponseRawNavigation({
+  request: { ...request, summary: { evidence: { response: { available: true, exact: false } } } },
+  activeSection: "response",
+  translate,
+  escapeHtml,
+});
+assert.match(reconstructedResponseNav, /rawReconstructedResponse/);
+
+const eventNav = renderRequestRawNavigation({
+  request: { ...request, summary: { evidence: { kind: "semantic_event" } } },
+  activeSection: "system",
+  hasPrevious: true,
+  translate,
+  escapeHtml,
+});
+assert.match(eventNav, /rawEventSource/);
+assert.match(eventNav, /rawEventMetadata/);
+assert.doesNotMatch(eventNav, />System</);
+assert.doesNotMatch(eventNav, /System diff/);
+
+const reconstructedNav = renderRequestRawNavigation({
+  request: { ...request, summary: { evidence: { request: { available: true, exact: false } } } },
+  activeSection: "full",
+  hasPrevious: false,
+  translate,
+  escapeHtml,
+});
+assert.match(reconstructedNav, /rawReconstructedRequest/);
+assert.doesNotMatch(reconstructedNav, />rawFull</);
+
 const controls = renderRawSearchControls({ query: 'Claude"', scope: "System", matches: 3, position: "2/3", translate, escapeHtml });
 assert.match(controls, /2\/3/);
 assert.match(controls, /data-raw-search-nav="previous"/);

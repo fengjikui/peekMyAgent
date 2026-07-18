@@ -1,0 +1,131 @@
+# Codex rollout 证据与 Viewer 契约
+
+更新时间：2026-07-18
+
+本文记录 Codex Desktop 本地 rollout 在 peekMyAgent 中如何成为可解释 Trace，以及共享 Viewer 如何诚实区分网络原文、语义重建和 Harness 生命周期事件。产品启动与会话选择见 [Codex 捕获产品决策](codex-capture-product-decisions.md)，底层实验见 [Codex Desktop 捕获研究](codex-desktop-capture-research.md)。
+
+## 核心原则
+
+peekMyAgent 面向希望学习 Harness 工作机制的用户。默认视图必须先回答“这一轮发生了什么”，再允许下钻到“这条结论来自哪份证据”。任何 adapter 都不得为了复用请求卡而把本地事件伪装成 HTTP 请求，也不得把语义重建称为完整 wire capture。
+
+证据有两个互不替代的维度：
+
+1. **artifact fidelity**：request 或 response 正文是 `exact`、`partial` 还是 `missing`。
+2. **association confidence**：上下行依靠同一 capture 生命周期、trace/span、thread/turn 还是启发式顺序关联。
+
+持久化层使用内容块重建 JSON，只表示存储表示法，不会把原本 exact 的 Proxy Capture 降为语义重建；同样，也不会把 rollout 重建升级成 exact wire evidence。
+
+## 当前证据类型
+
+| 来源 | request | response | 关联 | Viewer 默认文案 |
+| --- | --- | --- | --- | --- |
+| Capture Proxy | 原始网络正文，未截断时 `exact` | 原始网络正文，未截断时 `exact` | 同一 capture 生命周期 | 完整请求 / Response |
+| Claude OTel raw body | Agent 遥测正文，可为 `exact` | Agent 遥测正文，可为 `exact` | trace/span 或最终文件顺序 | 由 provenance 决定 |
+| Codex rollout | observed upstream delta 的语义重建，`partial` | rollout downstream item 的语义重建，`partial` | thread + turn/exchange，`high` | 重建上行 / 重建下行 |
+| semantic event | 本地 Harness 生命周期事件 | 不存在 | 不适用 | 事件原文 / 事件 Metadata |
+
+`src/trace/evidence-profile.mjs` 将 adapter provenance 和 capture 内的限制条件投影为 `summary.evidence`。Viewer 只消费这个共享画像，不按 `agent_profile === "Codex"` 写第二套完整度判断。
+
+## Codex rollout 映射
+
+`src/adapters/codex-rollout-normalizer.mjs` 只读选中 thread 的 rollout JSONL，并按稳定 turn/exchange 映射为共享 Capture 形状：
+
+- `session_meta.base_instructions` 映射为 System 参考；它来自本地 rollout，不宣称等同于 wire request 的逐字 `instructions`。
+- `session_meta.dynamic_tools` 映射为 Tools schema；当前只覆盖 rollout 中公开的动态工具，内置工具可能缺失。
+- 当前 exchange 之前观察到的 `developer/system/user` message、工具结果与 `agent_message` 映射为 observed upstream delta。
+- `reasoning`、assistant message、function/custom tool call 和 web search call 映射为重建下行。
+- 加密 reasoning 和子 Agent task payload 默认只显示存在性与安全摘要；原始 rollout 仍是最终本地证据。
+- usage、finish reason、model、cwd、thread id、turn id 和 context window 在有本地事件时保留。
+
+因此 rollout 模式明确声明：
+
+```text
+exact_wire_request = false
+input_scope = observed_upstream_delta
+full_request_history_available = false
+tool_schema_scope = dynamic_tools_only | not_present_in_rollout
+```
+
+## Harness 注入
+
+Codex 会在普通 developer/user message 中放入 XML-like Harness 标签。共享语义层只识别白名单：
+
+- runtime：运行环境、界面状态、App 上下文；
+- capability：Skills、Apps、Plugins 与推荐插件；
+- policy：协作模式与权限策略；
+- internal：内部目标；
+- lifecycle：Turn 生命周期；
+- subagent：子 Agent 通知。
+
+标签解析采用平衡扫描。若注入正文为了讲解规则再次出现一对同名标签，内层示例属于外层正文，不会提前结束区块。整理/翻译视图按标签分类；未知标签和全部原始 role、顺序、正文仍保留在 Raw 中。
+
+## 生命周期事件
+
+`src/trace/capture-semantic-event.mjs` 定义版本化 semantic event：
+
+```text
+schema_version
+category: context_lifecycle | agent_lifecycle | harness_lifecycle
+type
+actor: harness | agent | user
+source
+evidence
+data
+```
+
+当前 Codex `context_compacted` 映射为 `context_lifecycle`：时间线显示窗口编号、替代历史条目、保留消息和不透明 compaction 数量。它不是一次模型请求，因此：
+
+- method 为 `EVENT`，path 为 `/codex/rollout/context_compacted`；
+- 不生成伪 System、Tools、Messages 或 Response；
+- Raw 只显示事件原文和事件证据元数据；
+- 原始 replacement history 继续保留在本地 rollout 证据中。
+
+未来 Harness 的暂停、恢复、checkpoint、memory commit 或 delegation lifecycle 若没有对应模型交换，也应走 semantic event，而不是创建假的 user request。
+
+## Viewer 默认信息架构
+
+### 普通模型交换
+
+1. 中栏先显示用户可见输入、Assistant 回复、thinking 摘要和本轮工具交换。
+2. 上行详情包含 System、Tools、Messages、Harness 注入和本次工具结果；不会把本次 response 的 tool call 混入上行。
+3. Response 详情包含本次重建/原始下行、tool call、usage 与 stop reason。
+4. Response 中的 Tools schema 放在“上行参考”，明确它由 Harness 在请求前注入，不是模型返回内容。
+5. Raw 标题由证据画像决定使用“完整”还是“重建”，所有派生展示都可回到原始证据。
+
+### 子 Agent
+
+默认看板按 Agent 实例组织，事件条按时间顺序保留交错关系：
+
+```text
+spawn -> launch acknowledgement -> child activity -> business result return
+```
+
+Codex `spawn_agent` 是启动信号；紧随其后的 `function_call_output` 若只返回 task name，是启动确认而非业务结果；带 `FINAL_ANSWER` 的 `agent_message` 才是结果回流。看板同时显示继承/隔离上下文、稳定子 Agent 编号、spawn/launch/return 请求号和关联信号。原始 call id、author、recipient 与 rollout event 仍可在详情中查看。
+
+## 新 Harness adapter 接入约束
+
+新 adapter 应输出共享 Capture/provenance，而不是新增一套 Viewer：
+
+1. 保存或引用原始来源，不丢弃未知字段。
+2. 明确 request/response 的 origin、fidelity、artifact 和 association。
+3. 将模型交换映射到共享 System、Tools、Messages、tool call/result、response 原语。
+4. 将非模型生命周期映射为 semantic event。
+5. provider 独有标签只在 Trace Domain 建立白名单语义；Raw 不改写。
+6. 子 Agent adapter 提供可验证的 spawn、child identity、return 关联证据；缺失时诚实标记低置信度。
+7. Viewer 通过 evidence profile、协议画像和共享领域 DTO 展示；不得在 renderer 散落 provider 分支。
+
+只有协议确实独有的信息才增加可选领域字段。字段命名可以保留 provider 原词，但默认解释文案必须说明它对应上行、下行还是 Harness 本地事件。
+
+## 回归证据
+
+确定性契约至少覆盖：
+
+- rollout request/response 重建与 limitations；
+- exact Proxy 与 rollout 在 Raw 中的不同标签；
+- semantic event 不出现请求/回复标签；
+- 同名嵌套 Harness 标签不会截断；
+- response tool call 不进入上行 current tool calls；
+- spawn、启动确认、结果回流和跨页关联；
+- compact 首屏、迟到 response 覆盖与稳定 request id。
+
+功能改动还需使用真实 Codex Desktop thread 验证普通多轮、工具闭环、Skill、并行子 Agent、压缩及压缩后继续对话，并用真实浏览器查看时间线、Raw、翻译和多 Agent 看板。测试产生的临时观察对象和进程应在验证后清理。

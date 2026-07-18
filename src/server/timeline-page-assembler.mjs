@@ -41,7 +41,7 @@ export class TimelinePageAssembler {
 
     annotateSubagentLineage(pageRequests, this.lineageSemantics, { state: state.lineage });
     annotateRequestContextChanges(pageRequests, this.contextSemantics, { state: state.context });
-    state.requests.push(...pageRequests.map(projectTimelineRequest));
+    upsertPageRequests(state.requests, pageRequests.map(projectTimelineRequest));
 
     clearDerivedTimelineAnnotations(state.requests);
     const turns = this.buildTurns(state.requests);
@@ -52,8 +52,9 @@ export class TimelinePageAssembler {
     const initialPage = priorRequestIds.size === 0;
     const turnDelta = entityDelta(state.turnSnapshots, turns, (turn) => turn.id);
     const graphDelta = subagentGraphDelta(state.graphSnapshots, agentTrace);
+    const requestById = new Map(state.requests.map((request) => [request.id, request]));
     const outputPageRequests = pageRequests
-      .map((request) => state.requests.find((item) => item.id === request.id))
+      .map((request) => requestById.get(request.id))
       .filter(Boolean)
       .map(projectTimelineRequest);
     const stats = this.buildStats(state.requests, agentTrace, {
@@ -81,6 +82,35 @@ export class TimelinePageAssembler {
       page,
     };
   }
+}
+
+function upsertPageRequests(requests, pageRequests) {
+  const indexById = new Map(requests.map((request, index) => [request.id, index]));
+  for (const request of pageRequests) {
+    const existingIndex = indexById.get(request.id);
+    if (existingIndex === undefined) {
+      indexById.set(request.id, requests.length);
+      requests.push(request);
+      continue;
+    }
+    requests[existingIndex] = preserveStableRequestAnnotations(requests[existingIndex], request);
+  }
+}
+
+function preserveStableRequestAnnotations(previous, next) {
+  const trace = { ...(next.trace || {}) };
+  for (const key of ["context_chain_key", "previous_context_request_index"]) {
+    if (previous.trace?.[key] !== undefined) trace[key] = previous.trace[key];
+  }
+  return {
+    ...next,
+    is_subagent: previous.is_subagent,
+    subagent_type: previous.subagent_type,
+    source_hint: previous.source_hint,
+    changes: previous.changes || next.changes,
+    context_delta: previous.context_delta || next.context_delta,
+    trace,
+  };
 }
 
 function clearDerivedTimelineAnnotations(requests) {

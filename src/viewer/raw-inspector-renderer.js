@@ -1,8 +1,25 @@
+import {
+  requestHasSemanticEvent,
+  requestUsesReconstructedUpstream,
+  responseUsesReconstructedDownstream,
+} from "./raw-view-model.js";
+
 export function renderRequestRawNavigation({ request, activeSection, hasPrevious, translate, escapeHtml }) {
+  if (requestHasSemanticEvent(request)) {
+    return `<div class="raw-section-nav request-sections">${renderSectionButtons(
+      [
+        ["full", translate("rawEventSource")],
+        ["metadata", translate("rawEventMetadata")],
+      ],
+      request.id,
+      activeSection === "metadata" ? "metadata" : "full",
+      escapeHtml,
+    )}</div>`;
+  }
   const hasToolUse = (request.summary?.current_tool_calls || []).length > 0;
   const hasToolResult = (request.summary?.current_tool_results || []).length > 0;
   const sections = [
-    ["full", translate("rawFull")],
+    ["full", translate(requestUsesReconstructedUpstream(request) ? "rawReconstructedRequest" : "rawFull")],
     ["system", "System"],
     ...(hasPrevious ? [["system_diff", "System diff"]] : []),
     ["tools", "Tools"],
@@ -17,7 +34,7 @@ export function renderRequestRawNavigation({ request, activeSection, hasPrevious
 
 export function renderResponseRawNavigation({ request, activeSection, translate, escapeHtml }) {
   const downstream = [
-    ["response", "Response"],
+    ["response", responseUsesReconstructedDownstream(request) ? translate("rawReconstructedResponse") : "Response"],
     ["tool_calls", "tool_use"],
   ];
   return `

@@ -11,6 +11,7 @@ import { childProcessSpawnConfig } from "../src/core/platform.mjs";
 import {
   formatTranslationSourceBlock,
   parseTranslationMarkerBlocks as parseMarkerTranslations,
+  sanitizeTranslationOutput,
   translationResponseFormatInstruction,
 } from "../src/translation/blocks.mjs";
 import { sha256Text } from "../src/translation/hash.mjs";
@@ -332,7 +333,7 @@ function cacheEntryForMaterial(original, translatedText, extra = {}) {
     kind: original.kind,
     source_language: original.source_language,
     target_language: targetLanguage,
-    translated_text: String(translatedText || "").trim(),
+    translated_text: sanitizeTranslationOutput(original.kind, translatedText),
     notes: "",
     source_chars: original.source_text.length,
     updated_at: new Date().toISOString(),

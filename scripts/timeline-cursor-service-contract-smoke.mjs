@@ -7,10 +7,12 @@ let tokenIndex = 0;
 const sources = new Map([
   ["live", { id: "live", live_watch_id: "watch-live", available: true }],
   ["stored", { id: "stored", kind: "persisted_capture", available: true }],
+  ["codex", { id: "codex", kind: "codex_rollout_local", stream_live: true, updated_at: "t1", available: true }],
 ]);
 const captures = new Map([
   ["live", [capture(1), capture(2), capture(3)]],
   ["stored", [capture(1), capture(2), capture(3)]],
+  ["codex", [capture(1), capture(2, { response: null })]],
 ]);
 
 const service = new TimelineCursorService({
@@ -74,6 +76,20 @@ assert.equal(storedTail.partial.refresh_cursor, null, "completed stored cursors 
 assert.throws(() => service.next({ sourceId: "stored", cursor: "opaque-2" }), /expired or not found/);
 assert.throws(() => service.next({ sourceId: "stored", cursor: "opaque-1" }), /does not belong/);
 
+const codexInitial = service.start({ sourceId: "codex", limit: 10 });
+assert.deepEqual(codexInitial.requests.map((item) => item.id), ["request-1", "request-2"]);
+captures.get("codex")[1] = capture(2, { response: { captured: true, text: "completed" } });
+captures.get("codex").push(capture(3));
+sources.set("codex", { ...sources.get("codex"), updated_at: "t2" });
+const codexRefresh = service.next({ sourceId: "codex", cursor: codexInitial.partial.refresh_cursor });
+assert.deepEqual(
+  codexRefresh.requests.map((item) => item.id),
+  ["request-2", "request-3"],
+  "a mutable Codex tail re-reads only the previous tail and newly appended requests",
+);
+assert.equal(codexRefresh.partial.loaded_request_count, 3, "same-id tail updates must not duplicate a request");
+assert.equal(codexRefresh.requests[0].response.text, "completed");
+
 now += 100;
 assert.throws(() => service.next({ sourceId: "live", cursor: "opaque-1" }), /expired or not found/);
 console.log("timeline cursor service contract smoke passed");
@@ -85,7 +101,11 @@ function fakeAssembler() {
     },
     append(state, page) {
       const requests = page.captures.map((item) => ({ ...item }));
-      state.requests.push(...requests);
+      for (const request of requests) {
+        const index = state.requests.findIndex((item) => item.id === request.id);
+        if (index < 0) state.requests.push(request);
+        else state.requests[index] = request;
+      }
       return {
         source: state.source,
         stats: { request_count: state.requests.length },
@@ -98,6 +118,6 @@ function fakeAssembler() {
   };
 }
 
-function capture(index) {
-  return { id: `request-${index}`, request_index: index };
+function capture(index, extra = {}) {
+  return { id: `request-${index}`, request_index: index, ...extra };
 }

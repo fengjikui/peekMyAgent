@@ -127,9 +127,10 @@ const toolsHtml = renderTranslationSection({ view: toolsView, emptyText: "empty"
 assert.match(toolsHtml, /tool-translation-group/);
 assert.match(toolsHtml, /data-raw-search-target="true"/);
 assert.match(toolsHtml, /启动一个专注的子 Agent。/);
+assert.doesNotMatch(toolsHtml, /Agent · description/);
 assert.match(toolsHtml, /data-translation-retranslate="action-2"/);
 assert.equal(actionDescriptors.length, 2);
-assert.equal(actionDescriptors[0].metadata.label, "Agent · description");
+assert.equal(actionDescriptors[0].metadata.label, "Agent");
 assert.equal(actionDescriptors[1].materials.length, 1);
 assert.equal(actionDescriptors[1].materials[0].metadata.field_name, "prompt");
 

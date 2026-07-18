@@ -6,7 +6,7 @@ const user = (text) => ({ role: "user", content: text });
 const toolUse = { role: "assistant", content: [{ type: "tool_use", id: "call-1", name: "Bash", input: { command: "pwd" } }] };
 const toolResult = { role: "user", content: [{ type: "tool_result", tool_use_id: "call-1", content: "/tmp" }] };
 const requests = [
-  request(1, [user("hello")]),
+  request(1, [user("hello")], { responseToolCalls: [{ id: "response-call", name: "Bash" }] }),
   request(2, [user("hello"), toolUse, toolResult]),
   request(3, [user("child task")], { agentId: "agent-a" }),
   request(4, [user("child task"), { role: "assistant", content: "done" }], { agentId: "agent-a" }),
@@ -30,11 +30,14 @@ const semantics = {
   previewMessage: (message) => ({ role: message.role, kind: "message", text: String(message.content) }),
   previewText: (value, limit) => String(value || "").slice(0, limit),
   isInternalRequest: () => false,
+  responseToolCalls: (item) => item.summary.response?.tool_calls || [],
   isRealUserMessage: (message) => message.role === "user" && !Array.isArray(message.content),
 };
 
 annotateRequestContextChanges(requests, semantics);
 assert.equal(requests[0].context_delta.baseline, true);
+assert.equal(requests[0].summary.current_tool_calls.length, 0, "downstream response calls are not upstream context events");
+assert.equal(requests[0].summary.response.tool_calls.length, 1);
 assert.equal(requests[1].context_delta.previous_request_index, 1);
 assert.equal(requests[1].context_delta.reused_messages, 1);
 assert.equal(requests[1].context_delta.new_messages, 2);
@@ -71,7 +74,7 @@ assert.throws(
 
 console.log("context delta contract smoke passed");
 
-function request(index, messages, { agentId = "" } = {}) {
+function request(index, messages, { agentId = "", responseToolCalls = [] } = {}) {
   return {
     id: `request-${index}`,
     request_index: index,
@@ -85,6 +88,7 @@ function request(index, messages, { agentId = "" } = {}) {
     summary: {
       tool_calls: [],
       tool_results: [],
+      response: { tool_calls: responseToolCalls },
       history_stack: messages.map((message, messageIndex) => ({ index: messageIndex + 1, role: message.role })),
     },
   };

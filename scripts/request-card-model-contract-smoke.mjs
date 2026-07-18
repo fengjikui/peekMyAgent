@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import {
   buildTimelineAssistantResponseView,
+  buildTimelineResponseToolCalls,
   buildTimelineRequestIdentity,
   buildTimelineToolExchangeView,
   buildTimelineTurnInputView,
@@ -33,6 +34,8 @@ const labels = {
   taskNotification: "Task notification",
   frameworkReminder: "Framework reminder",
   agentInternal: "Agent internal",
+  agentContextInherited: "Inherited parent context",
+  agentContextIsolated: "Isolated context",
   resultReturnPreview: ({ count }) => `${count} tool results`,
   truncated: "truncated",
 };
@@ -116,6 +119,28 @@ assert.deepEqual(responseView.thinking, {
 });
 assert.equal(responseView.toolCalls[0].name, "Bash");
 
+const semanticSpawnCalls = buildTimelineResponseToolCalls(
+  {
+    trace: {
+      agent_spawn_events: [
+        {
+          branch_id: "branch-1",
+          spawn_id: "spawn-1",
+          label: "context_probe",
+          context_mode: "all",
+          task_message_visibility: "encrypted_in_rollout",
+        },
+      ],
+    },
+  },
+  [{ id: "spawn-1", name: "spawn_agent", arguments: { message: "gAAAA-secret-ciphertext" } }],
+  translate,
+);
+assert.equal(semanticSpawnCalls[0].displayName, "spawn_agent · context_probe");
+assert.equal(semanticSpawnCalls[0].suppressArguments, true);
+assert.deepEqual(semanticSpawnCalls[0].displayLines, ["Inherited parent context", "agentTaskEncrypted"]);
+assert.equal(JSON.stringify(semanticSpawnCalls).includes("gAAAA-secret-ciphertext"), true, "raw arguments remain available to Raw consumers");
+
 const commandRequest = {
   id: "request-command",
   source_hint: { type: "main" },
@@ -134,6 +159,20 @@ assert.equal(shouldShowTimelineRequestContent(commandRequest, { cleanText }), fa
 assert.equal(isPrimaryTimelineRequest(commandRequest, { cleanText }), true);
 assert.equal(timelineUpstreamEntryLabel(commandRequest, commonOptions), "Command /compact");
 assert.equal(buildTimelineAssistantResponseView(commandRequest, commonOptions), null);
+
+const semanticLifecycleRequest = {
+  id: "request-compaction",
+  source_hint: { type: "main" },
+  summary: {
+    entry: {
+      kind: "compact",
+      text: "Window 1 compacted",
+      semantic_event: { schema_version: 1, category: "context_lifecycle", type: "context_compacted" },
+    },
+    response: { captured: false },
+  },
+};
+assert.equal(isPrimaryTimelineRequest(semanticLifecycleRequest, { cleanText }), true);
 
 const parentSpawnRequest = {
   id: "request-parent-spawn",

@@ -146,6 +146,32 @@ const toolOnlyResponse = renderTimelineAssistantResponse({
 assert.doesNotMatch(toolOnlyResponse, /responseNoText/);
 assert.match(toolOnlyResponse, /tool_use Read \(call-tool-only\)/);
 
+const semanticSpawnResponse = renderTimelineAssistantResponse({
+  view: {
+    requestId: "request-agent-spawn",
+    visibleText: "",
+    toolCalls: [
+      {
+        id: "spawn-1",
+        name: "spawn_agent",
+        arguments: { message: "gAAAA-secret-ciphertext" },
+        displayName: "spawn_agent · context_probe",
+        displayLines: ["Inherited parent context", "Task payload hidden"],
+        suppressArguments: true,
+      },
+    ],
+  },
+  translate,
+  escapeHtml,
+  renderMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
+  renderTranslationMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
+  renderPre,
+  serialize: JSON.stringify,
+});
+assert.match(semanticSpawnResponse, /spawn_agent · context_probe/);
+assert.match(semanticSpawnResponse, /Inherited parent context/);
+assert.doesNotMatch(semanticSpawnResponse, /gAAAA-secret-ciphertext/);
+
 const card = renderTimelineRequestCard({
   requestId: 'request-<7>',
   requestIndex: 7,

@@ -13,10 +13,7 @@ export function annotateRequestContextChanges(requests, semantics = {}, { state 
     const previous = previousByContextKey.get(contextKey) || null;
     const currentToolMessages = semantics.isInternalRequest(request) ? [] : currentToolEventMessages(request, previous, semantics);
     const currentToolCalls = currentToolMessages ? semantics.extractToolCalls(currentToolMessages) : request.summary.tool_calls;
-    request.summary.current_tool_calls = mergeToolCalls(
-      currentToolCalls,
-      typeof semantics.responseToolCalls === "function" ? semantics.responseToolCalls(request) : [],
-    );
+    request.summary.current_tool_calls = currentToolCalls || [];
     request.summary.current_tool_results = currentToolMessages
       ? semantics.extractToolResults(currentToolMessages).map((result) => ({ ...result, content: semantics.previewText(result.content, 800) }))
       : request.summary.tool_results;
@@ -28,17 +25,6 @@ export function annotateRequestContextChanges(requests, semantics = {}, { state 
     previousByContextKey.set(contextKey, request);
   }
   return requests;
-}
-
-function mergeToolCalls(primary, additional) {
-  const merged = [...(primary || [])];
-  const ids = new Set(merged.map((call) => call?.id).filter(Boolean));
-  for (const call of additional || []) {
-    if (call?.id && ids.has(call.id)) continue;
-    merged.push(call);
-    if (call?.id) ids.add(call.id);
-  }
-  return merged;
 }
 
 function contextPreviousRequests(state) {

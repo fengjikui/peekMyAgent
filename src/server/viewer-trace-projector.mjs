@@ -1,14 +1,18 @@
 import crypto from "node:crypto";
+import { captureSemanticEntry } from "../trace/capture-semantic-event.mjs";
 import { annotateRequestContextChanges } from "../trace/context-delta.mjs";
 import { extractContentText, extractToolCalls, extractToolResults } from "../trace/content-parts.mjs";
+import { captureEvidenceProfile } from "../trace/evidence-profile.mjs";
 import {
   classifyCurrentEntry,
   classifyMessageKind,
   cleanTitleText,
+  codexAgentMessageSummary,
   commandPreviewText,
   commandUserVisibleText,
   displayMessageText,
   isCompactInjectionMessage,
+  isCodexAgentMessage,
   isFrameworkReminderMessage,
   isSkillInjectionMessage,
   isSuggestionModeMessage,
@@ -107,13 +111,15 @@ export function createViewerTraceProjector({
     const currentUser = lastRealUserMessage(messages);
     const currentUserRealText = realUserVisibleText(currentUser);
     const commandMessage = currentUserRealText ? null : parseCommandMessage(currentUser);
-    const entry = isContextTokenCountingRequest(capture)
-      ? {
-          kind: "context_count",
-          label: "上下文统计 (/context)",
-          text: "Claude Code 为 /context 统计上下文 token 用量发出的内部请求",
-        }
-      : classifyCurrentEntry(messages);
+    const entry =
+      captureSemanticEntry(capture.semantic_event) ||
+      (isContextTokenCountingRequest(capture)
+        ? {
+            kind: "context_count",
+            label: "上下文统计 (/context)",
+            text: "Claude Code 为 /context 统计上下文 token 用量发出的内部请求",
+          }
+        : classifyCurrentEntry(messages));
     const currentUserText =
       entry.kind === "compact" || entry.kind === "context_count"
         ? ""
@@ -191,6 +197,7 @@ export function createViewerTraceProjector({
         roles: messages.map((message) => message.role || "unknown"),
         history_stack: summarizeHistoryStack(messages, currentUser),
         response: responseSummary,
+        evidence: captureEvidenceProfile(capture),
         protocol: protocolProfile,
         composition: analyzeRequestComposition({
           body,
@@ -260,10 +267,6 @@ export function createViewerTraceProjector({
       previewMessage: messageDeltaPreview,
       previewText: textPreview,
       isInternalRequest,
-      responseToolCalls(request) {
-        if (request?.raw?.provenance?.transport !== "codex_rollout_local" && request?.protocol !== "openai_responses") return [];
-        return request.summary?.response?.tool_calls || [];
-      },
       isRealUserMessage(message) {
         return (
           message?.role === "user" &&
@@ -282,6 +285,7 @@ export function createViewerTraceProjector({
       titleFor: turnTitle,
       cleanUserText: cleanTitleText,
       previewText: textPreview,
+      responseToolCalls: (request) => request.summary?.response?.tool_calls || [],
     });
   }
 
@@ -289,6 +293,11 @@ export function createViewerTraceProjector({
     return {
       extractHistoryToolCalls(request) {
         return extractToolCalls(extractRequestMessages(request.raw?.body || {}));
+      },
+      extractAgentMessages(request) {
+        return extractRequestMessages(request.raw?.body || {})
+          .filter(isCodexAgentMessage)
+          .map((message) => ({ message, summary: codexAgentMessageSummary(message) }));
       },
       firstUserPromptText,
       normalizePrompt: normalizeTranslationSourceText,
@@ -438,7 +447,10 @@ export function createViewerTraceProjector({
         new Set(requests.map((request) => request.trace?.claude_agent_id).filter(Boolean)).size ||
         subagentCount,
       main_count: requests.length - subagentCount,
-      tool_call_count: distinctToolEventCount(requests, (request) => request.summary?.current_tool_calls),
+      tool_call_count: distinctToolEventCount(requests, (request) => [
+        ...(request.summary?.current_tool_calls || []),
+        ...(request.summary?.response?.tool_calls || []),
+      ]),
       tool_result_count: distinctToolEventCount(requests, (request) => request.summary?.current_tool_results),
       raw_body_bytes: requests.reduce((sum, request) => sum + request.counts.raw_body_bytes, 0),
     };

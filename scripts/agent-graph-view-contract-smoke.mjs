@@ -77,6 +77,7 @@ assert.deepEqual(view.visibleBranches.map((entry) => [entry.branch.id, entry.ind
 ]);
 assert.deepEqual(view.statusCounts, { returned: 1, completed: 0, running: 1 });
 assert.deepEqual(view.spawnIndexes, [6, 13]);
+assert.deepEqual(view.launchIndexes, []);
 assert.deepEqual(view.returnIndexes, [16]);
 assert.deepEqual(view.summary, {
   branches: 2,
@@ -102,6 +103,37 @@ assert.deepEqual(returnedOnly.visibleBranches.map((entry) => [entry.branch.id, e
 const runningOnly = buildAgentGraphView({ turn, trace, activeFilter: "running" });
 assert.deepEqual(runningOnly.visibleBranches.map((entry) => [entry.branch.id, entry.index]), [["branch-b", 1]]);
 assert.equal(buildAgentGraphView({ turn: { id: "empty", agent_branches: [] }, trace }), null);
+
+const codexReturnView = buildAgentGraphView({
+  turn: { id: "turn-codex", agent_branches: ["branch-codex"] },
+  trace: {
+    branches: [
+      {
+        ...branch({
+          id: "branch-codex",
+          agentId: "/root/probe",
+          label: "Probe context",
+          agentType: "Codex Agent",
+          firstRequestIndex: 33,
+          requestIndexes: [33],
+          status: "returned",
+          toolCalls: 0,
+          toolResults: 0,
+          spawnIndex: 30,
+          returnIndex: 33,
+          steps: [{ request_id: "request-33", request_index: 33, event_type: "agent_message", finish_reason: "FINAL_ANSWER" }],
+        }),
+        launch: { parent_request_id: "request-31", parent_request_index: 31, result_preview: "task accepted" },
+      },
+    ],
+  },
+});
+assert.deepEqual(
+  codexReturnView.events.map((event) => [event.requestIndex, event.type]),
+  [[30, "spawn"], [31, "launch"], [33, "return"]],
+  "the agent_message step represents the return once instead of duplicating the return edge",
+);
+assert.deepEqual(codexReturnView.launchIndexes, [31]);
 
 const manyBranches = Array.from({ length: 26 }, (_, index) =>
   branch({
@@ -147,13 +179,14 @@ const html = renderAgentGraph(view, {
 
 assert.match(html, /data-agent-dashboard="turn-7" open/);
 assert.match(html, /multiAgentSummary:count=2/);
+assert.match(html, /branchInnerTools:calls=1,results=1/);
 assert.match(html, /general-purpose \/ Explore/);
 assert.match(html, /data-agent-status-filter="turn-7" data-agent-filter-value="all" aria-pressed="true"/);
 assert.match(html, /data-agent-branch-jump="branch-a"/);
 assert.match(html, /data-agent-branch-toggle="branch-a" aria-expanded="true"/);
 assert.match(html, /data-agent-branch-toggle="branch-b" aria-expanded="false"/);
 assert.match(html, /data-agent-jump="request-15"/);
-assert.match(html, /childSeq:index=2 tool_result/);
+assert.match(html, /childSeq:index=2 agentEventToolResult/);
 assert.match(html, /Inspect &lt;disk&gt;/);
 assert.doesNotMatch(html, /<unsafe>/);
 

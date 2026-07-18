@@ -34,7 +34,7 @@ pma CLI / adapter
 | Proxy 请求/回复捕获 | `src/core/capture-proxy.mjs`、`provenance.mjs` | UI 文案 |
 | Watch 新建/复用/恢复、暂停/停止、共享代理和动态路由 | `src/server/watch-runtime-service.mjs`、[Service 契约](watch-runtime-service-contract.md) | 在 Router、wrapper、Source service 或 Agent send 各维护一份 watch Map/恢复策略 |
 | Claude Code OTel 关联与入库 | `src/core/otel-capture.mjs`、`otel-events.mjs`、`src/server/otel-ingest-service.mjs`、`src/adapters/claude-otel.mjs`、[Service 契约](otel-ingest-service-contract.md) | 在 HTTP route 复制配对算法，或让 core 解析层直接写 Store |
-| Codex Desktop-first 等待/绑定、rollout 观察与精确 Responses 捕获 | `src/adapters/codex-desktop-session.mjs`、`codex-desktop-discovery.mjs`、`codex-rollout-normalizer.mjs`、`codex-exact-proxy.mjs`、`src/server/codex-pending-capture-reader.mjs`、`codex-rollout-capture-reader.mjs`、[产品决策](codex-capture-product-decisions.md) | 扫描并导入全部 Codex 历史、把 rollout 冒充 wire request，或把订阅认证转发到非 first-party host |
+| Codex Desktop-first 等待/绑定、rollout 观察与精确 Responses 捕获 | `src/adapters/codex-desktop-session.mjs`、`codex-desktop-discovery.mjs`、`codex-rollout-normalizer.mjs`、`codex-exact-proxy.mjs`、`src/server/codex-pending-capture-reader.mjs`、`codex-rollout-capture-reader.mjs`、`src/trace/evidence-profile.mjs`、`capture-semantic-event.mjs`、[证据与 Viewer 契约](codex-rollout-evidence-and-viewer-contract.md) | 扫描并导入全部 Codex 历史、把 rollout 冒充 wire request，或把订阅认证转发到非 first-party host |
 | 页面向 Agent 独立发送消息 | `src/server/agent-send-service.mjs`、`src/viewer/agent-composer-*`、[Service 契约](agent-send-service-contract.md) | renderer 启动进程、Service 直接拥有 watch 恢复，或暗示消息会进入原终端上下文 |
 | OpenClaw/Trae 或新 Agent | `src/adapters/`、对应 integration 和适配器 fixture | 在 Server/Client 散落 provider 条件分支，或混淆不同来源的证据等级 |
 | SQLite 连接/写入/维护与 schema migration | `src/core/persistence-store.mjs`、`src/persistence/migrations/`、[Response 写入事务契约](capture-response-transaction-contract.md) | 绕过 migration 直接改 schema、拆散 response 原子写入，或让 read repository 拥有连接生命周期/写事务 |
@@ -42,6 +42,7 @@ pma CLI / adapter
 | content、thinking、tool use、tool result 基础解析 | `src/trace/content-parts.mjs`、对应 contract smoke | 在上行/下行各维护一份 block 解析 |
 | 真实用户输入、slash command、Harness/Codex 标签注入、任务通知 | `src/trace/message-semantics.mjs`、`src/translation/request-materials.mjs`、对应 contract smoke | 在 Server/Turn/标题/UI 各写一套 marker 正则，或用泛化 XML 规则改写 Raw 证据 |
 | 请求协议/provider、main/subagent/metadata 来源画像 | `src/trace/request-profile.mjs`、对应 contract smoke | 在 Server/Viewer/adapter 中散落 model、path 或 header 判断 |
+| exact/partial/semantic request-response 证据与 Harness 生命周期事件 | `src/trace/evidence-profile.mjs`、`capture-semantic-event.mjs`、adapter provenance、[证据与 Viewer 契约](codex-rollout-evidence-and-viewer-contract.md) | 用 `body_source` 推断网络完整度、把本地生命周期事件伪装成模型请求，或在 Viewer 按 Agent 名称重猜证据等级 |
 | 请求 System/Tools/消息/工具交互字符构成 | `src/trace/request-composition.mjs`、对应 contract smoke | 在 Viewer Server 或 Renderer 中重新统计 payload |
 | 模型下行 JSON/SSE、usage、stop reason | `src/trace/model-response-normalizer.mjs`、对应 contract smoke | 在 Viewer Server/renderer 按 provider 重写解析 |
 | Turn、context delta、子 Agent 血缘 | `src/trace/` 和对应 contract smoke | Viewer 中重新猜测关系 |

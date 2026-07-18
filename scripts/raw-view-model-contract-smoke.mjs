@@ -2,11 +2,15 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  requestHasSemanticEvent,
+  requestUsesReconstructedUpstream,
   rawResponseSectionValue,
+  rawSemanticEventMetadata,
   rawSectionData,
   rawUpstreamComposition,
   rawUpstreamRequestMetadata,
   rawUpstreamRequestValue,
+  responseUsesReconstructedDownstream,
 } from "../src/viewer/raw-view-model.js";
 
 const request = {
@@ -107,6 +111,70 @@ assert.equal(downstream.response_capture.status, 200);
 assert.equal(downstream.response_capture.content_type, "text/event-stream");
 assert.equal(downstream.response_capture.body_json_available, true);
 assert.equal(rawSectionData(request, "response").value.complete_response.text, "done");
+
+const semanticEventRequest = {
+  id: "event-1",
+  raw: {
+    capture_id: "event-capture-1",
+    watch_id: "watch-1",
+    request_index: 21,
+    method: "EVENT",
+    path: "/codex/rollout/context_compacted",
+    body_source: "reconstructed",
+    body: {
+      codex: {
+        semantic_event: {
+          schema_version: 1,
+          category: "context_lifecycle",
+          type: "context_compacted",
+          actor: "harness",
+          source: "codex_rollout",
+          evidence: { origin: "codex_rollout", fidelity: "exact", exact_wire_event: false },
+          data: { retained_message_count: 11 },
+        },
+      },
+    },
+  },
+  summary: { evidence: { kind: "semantic_event", limitations: ["exact_wire_unavailable"] } },
+};
+assert.equal(requestHasSemanticEvent(semanticEventRequest), true);
+assert.equal(rawSectionData(semanticEventRequest, "full", { translate: (key) => key }).title, "rawEventSource");
+assert.equal(rawSectionData(semanticEventRequest, "metadata", { translate: (key) => key }).title, "rawEventMetadata");
+assert.equal(rawSemanticEventMetadata(semanticEventRequest).semantic_event.type, "context_compacted");
+assert.deepEqual(rawSemanticEventMetadata(semanticEventRequest).evidence.limitations, ["exact_wire_unavailable"]);
+assert.equal(requestUsesReconstructedUpstream(semanticEventRequest), false, "semantic events use event labels instead of request fidelity labels");
+
+const reconstructedRequest = {
+  ...request,
+  summary: {
+    ...request.summary,
+    evidence: { request: { available: true, exact: false } },
+  },
+};
+assert.equal(requestUsesReconstructedUpstream(reconstructedRequest), true);
+assert.equal(rawSectionData(reconstructedRequest, "full", { translate: (key) => key }).title, "rawReconstructedRequest");
+
+const exactProxyRequestReconstructedFromBlocks = {
+  ...request,
+  raw: { ...request.raw, body_source: "reconstructed" },
+  summary: {
+    ...request.summary,
+    evidence: { request: { origin: "network_proxy", available: true, exact: true } },
+  },
+};
+assert.equal(
+  requestUsesReconstructedUpstream(exactProxyRequestReconstructedFromBlocks),
+  false,
+  "an exact proxy artifact remains a full request even when its persisted JSON was rebuilt from content blocks",
+);
+assert.equal(responseUsesReconstructedDownstream(reconstructedRequest), false, "request and response fidelity are evaluated independently");
+assert.equal(
+  responseUsesReconstructedDownstream({
+    ...request,
+    summary: { ...request.summary, evidence: { response: { available: true, exact: false } } },
+  }),
+  true,
+);
 
 const clientSource = fs.readFileSync(new URL("../src/viewer/client.js", import.meta.url), "utf8");
 assert.match(

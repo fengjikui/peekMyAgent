@@ -119,9 +119,34 @@ export function buildTimelineAssistantResponseView(
       response.truncated ? translate("truncated") : "",
       ...formatTimelineResponseUsageMeta(response.usage, { formatCompactNumber }),
     ].filter(Boolean),
-    toolCalls: response.tool_calls || [],
+    toolCalls: buildTimelineResponseToolCalls(request, response.tool_calls || [], translate),
     thinking,
   };
+}
+
+export function buildTimelineResponseToolCalls(request = {}, toolCalls = [], translate = identityTranslate) {
+  const spawnEvents = Array.isArray(request.trace?.agent_spawn_events) ? request.trace.agent_spawn_events : [];
+  return (Array.isArray(toolCalls) ? toolCalls : []).map((call) => {
+    const spawn = spawnEvents.find((item) => item?.spawn_id && item.spawn_id === call?.id);
+    if (!spawn) return call;
+    const label = spawn.label || spawn.description || spawn.subagent_type || call.name || "Agent";
+    const displayLines = [];
+    if (spawn.context_mode === "all") displayLines.push(translate("agentContextInherited"));
+    else if (spawn.context_mode) displayLines.push(translate("agentContextIsolated"));
+    if (spawn.task_message_visibility === "encrypted_in_rollout") {
+      displayLines.push(translate("agentTaskEncrypted"));
+    } else if (spawn.prompt_preview) {
+      displayLines.push(spawn.prompt_preview);
+    } else if (spawn.task_message_visibility === "missing") {
+      displayLines.push(translate("agentTaskUnavailable"));
+    }
+    return {
+      ...call,
+      displayName: `${call.name || "Agent"} · ${label}`,
+      displayLines,
+      suppressArguments: true,
+    };
+  });
 }
 
 export function shouldShowTimelineRequestContent(request = {}, { cleanText = defaultCleanText } = {}) {
@@ -143,6 +168,7 @@ export function shouldShowTimelineAssistantResponse(request = {}) {
 
 export function isPrimaryTimelineRequest(request = {}, options = {}) {
   if (request.source_hint?.type === "metadata") return false;
+  if (request.summary?.entry?.semantic_event) return true;
   if (request.is_subagent) return false;
   if ((request.summary?.current_tool_results?.length || 0) > 0) return false;
   return shouldShowTimelineRequestContent(request, options) || Boolean(request.summary?.command_message);
@@ -216,6 +242,15 @@ export function timelineUpstreamEntryPreview(
     return commandMessagePreview(request.summary.command_message, { cleanText, preview });
   }
   const entry = request.summary?.entry;
+  if (entry?.kind === "compact" && entry.codex_compaction) {
+    const compact = entry.codex_compaction;
+    return translate("codexCompactionPreview", {
+      sequence: compact.window_number ?? "?",
+      items: compact.replacement_item_count || 0,
+      messages: compact.retained_message_count || 0,
+      opaque: compact.opaque_compaction_count || 0,
+    });
+  }
   if ((entry?.kind === "compact" || entry?.kind === "task_notification" || entry?.kind === "subagent_result") && entry.text) {
     return preview(cleanText(entry.text), 420);
   }

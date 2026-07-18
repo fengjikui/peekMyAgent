@@ -51,6 +51,7 @@ export function buildAgentGraphView({
     summaryDots: branchEntries.slice(0, AGENT_SUMMARY_DOT_LIMIT).map(({ color }) => color),
     summaryOverflow: Math.max(0, branches.length - AGENT_SUMMARY_DOT_LIMIT),
     spawnIndexes: uniqueIndexes(branches, (branch) => branch.spawn?.parent_request_index),
+    launchIndexes: uniqueIndexes(branches, (branch) => branch.launch?.parent_request_index),
     returnIndexes: uniqueIndexes(branches, (branch) => branch.return?.parent_request_index),
     statusCounts,
     confidence: trace?.confidence,
@@ -79,10 +80,19 @@ export function agentFlowEvents(branchEntries = []) {
     if (branch.spawn?.parent_request_index) {
       events.push(agentEvent(branchIndex, "spawn", branch.spawn.parent_request_id, branch.spawn.parent_request_index, events.length));
     }
+    if (branch.launch?.parent_request_index) {
+      events.push(agentEvent(branchIndex, "launch", branch.launch.parent_request_id, branch.launch.parent_request_index, events.length));
+    }
     for (const step of branch.steps || []) {
       events.push(agentEvent(branchIndex, agentStepEventType(step), step.request_id, step.request_index, events.length));
     }
-    if (branch.return?.parent_request_index) {
+    const returnAlreadyRepresented = (branch.steps || []).some(
+      (step) =>
+        step.event_type === "agent_message" &&
+        step.request_id === branch.return?.parent_request_id &&
+        Number(step.request_index || 0) === Number(branch.return?.parent_request_index || 0),
+    );
+    if (branch.return?.parent_request_index && !returnAlreadyRepresented) {
       events.push(agentEvent(branchIndex, "return", branch.return.parent_request_id, branch.return.parent_request_index, events.length));
     }
   }
@@ -90,6 +100,7 @@ export function agentFlowEvents(branchEntries = []) {
 }
 
 export function agentStepEventType(step = {}) {
+  if (step.event_type === "agent_message") return "return";
   if (step.request_tool_results?.length) return "tool_result";
   if (step.response_tool_calls?.length) return "tool_use";
   if (step.finish_reason === "end_turn") return "done";

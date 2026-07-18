@@ -17,14 +17,18 @@ export function renderAgentGraph(view, { translate, escapeHtml, shortId, shortPr
 function renderAgentDashboard(view, dependencies) {
   const { translate, escapeHtml } = dependencies;
   const { returned, completed, running } = view.statusCounts;
+  const tools = view.summary.calls || view.summary.results
+    ? ` · ${translate("branchInnerTools", { calls: view.summary.calls, results: view.summary.results })}`
+    : "";
   return `
     <div class="agent-branch-head">
       <div>
-        <p>${escapeHtml(translate("branchSummary", view.summary))}</p>
+        <p>${escapeHtml(translate("branchSummary", { ...view.summary, tools }))}</p>
         <p class="agent-branch-status-line">${escapeHtml(translate("branchStatusSummary", { returned, completed, running }))}</p>
       </div>
       <div class="agent-branch-head-meta">
         ${view.spawnIndexes.length ? `<span>spawn #${escapeHtml(view.spawnIndexes.join(", #"))}</span>` : ""}
+        ${view.launchIndexes.length ? `<span>launch #${escapeHtml(view.launchIndexes.join(", #"))}</span>` : ""}
         ${view.returnIndexes.length ? `<span>return #${escapeHtml(view.returnIndexes.join(", #"))}</span>` : ""}
         <span>${escapeHtml(branchConfidenceLabel(view.confidence, translate))}</span>
       </div>
@@ -84,6 +88,7 @@ function renderAgentBranch(entry, dependencies) {
         expanded
           ? `<div class="agent-branch-body">
               ${branch.spawn ? renderBranchEdge(translate("parentCall"), branch.spawn.parent_request_id, `#${branch.spawn.parent_request_index} · ${branch.spawn.label || branch.spawn.id}`, dependencies) : ""}
+              ${branch.launch ? renderBranchEdge(translate("launchAcknowledgement"), branch.launch.parent_request_id, `#${branch.launch.parent_request_index} · ${shortPreview(branch.launch.result_preview, 90)}`, dependencies) : ""}
               <div class="agent-branch-steps">
                 ${(branch.steps || []).map((step) => renderAgentBranchStep(step, dependencies)).join("")}
               </div>
@@ -103,9 +108,10 @@ function renderAgentMapCard(entry, dependencies) {
   const name = agentBranchName(entry, translate);
   const indexes = [
     branch.spawn?.parent_request_index ? `#${branch.spawn.parent_request_index}` : "",
+    branch.launch?.parent_request_index ? `#${branch.launch.parent_request_index}` : "",
     ...(branch.request_indexes || []).slice(0, 4).map((requestIndex) => `#${requestIndex}`),
     branch.return?.parent_request_index ? `#${branch.return.parent_request_index}` : "",
-  ].filter(Boolean);
+  ].filter((value, index, values) => value && values.indexOf(value) === index);
   const overflow = Math.max(0, (branch.request_indexes?.length || 0) - 4);
   return `
     <button class="agent-map-card ${escapeHtml(branch.status || "unknown")}" type="button" data-agent-branch-jump="${escapeHtml(branch.id)}" style="--branch-color:${escapeHtml(color)}" title="${escapeHtml(branch.linkage_note || translate("jumpToAgentBranch"))}">
@@ -137,9 +143,22 @@ function renderAgentEvent(event, translate, escapeHtml) {
   return `
     <button class="agent-event" type="button" data-agent-jump="${escapeHtml(event.requestId || "")}">
       <strong>#${escapeHtml(event.requestIndex || "")}</strong>
-      <span>${escapeHtml(`${translate("childSeq", { index: event.branchIndex + 1 })} ${event.type}`)}</span>
+      <span>${escapeHtml(`${translate("childSeq", { index: event.branchIndex + 1 })} ${agentEventTypeLabel(event.type, translate)}`)}</span>
     </button>
   `;
+}
+
+function agentEventTypeLabel(type, translate) {
+  const key = {
+    spawn: "agentEventSpawn",
+    launch: "agentEventLaunch",
+    return: "agentEventReturn",
+    tool_use: "agentEventToolUse",
+    tool_result: "agentEventToolResult",
+    done: "agentEventDone",
+    request: "agentEventRequest",
+  }[type];
+  return key ? translate(key) : type;
 }
 
 function renderBranchEdge(label, requestId, text, { translate, escapeHtml }) {
@@ -154,7 +173,14 @@ function renderBranchEdge(label, requestId, text, { translate, escapeHtml }) {
 function renderAgentBranchStep(step, { translate, escapeHtml, shortId, shortPreview }) {
   const responseCalls = step.response_tool_calls || [];
   const requestResults = step.request_tool_results || [];
-  const title = responseCalls.length ? translate("requestTools", { tools: responseCalls.map((call) => call.name).join(", ") }) : step.finish_reason === "end_turn" ? translate("subagentReply") : translate("modelRequest");
+  const title =
+    step.event_type === "agent_message"
+      ? translate("subagentReply")
+      : responseCalls.length
+        ? translate("requestTools", { tools: responseCalls.map((call) => call.name).join(", ") })
+        : step.finish_reason === "end_turn"
+          ? translate("subagentReply")
+          : translate("modelRequest");
   return `
     <button class="agent-branch-step" type="button" data-agent-jump="${escapeHtml(step.request_id)}">
       <span class="step-request">#${escapeHtml(step.request_index)}</span>
@@ -177,8 +203,23 @@ function agentBranchCompactSummary(branch, translate) {
   const requestCount = branch.request_ids?.length || 0;
   const toolUse = branch.response_tool_call_count || 0;
   const toolResult = branch.request_tool_result_count || 0;
-  const edges = [branch.spawn ? `spawn #${branch.spawn.parent_request_index}` : "", branch.return ? `return #${branch.return.parent_request_index}` : ""].filter(Boolean).join(" · ");
-  return [translate("turnRequests", { count: requestCount }), toolUse || toolResult ? translate("turnTools", { calls: toolUse, results: toolResult }) : "", edges].filter(Boolean).join(" · ");
+  const edges = [
+    branch.spawn ? `spawn #${branch.spawn.parent_request_index}` : "",
+    branch.launch ? `launch #${branch.launch.parent_request_index}` : "",
+    branch.return ? `return #${branch.return.parent_request_index}` : "",
+  ].filter(Boolean).join(" · ");
+  return [
+    agentContextLabel(branch.spawn?.context_mode, translate),
+    translate("turnRequests", { count: requestCount }),
+    toolUse || toolResult ? translate("turnTools", { calls: toolUse, results: toolResult }) : "",
+    edges,
+  ].filter(Boolean).join(" · ");
+}
+
+function agentContextLabel(mode, translate) {
+  if (mode === "all") return translate("agentContextInherited");
+  if (mode === "none") return translate("agentContextIsolated");
+  return "";
 }
 
 function branchStatusLabel(status, translate) {

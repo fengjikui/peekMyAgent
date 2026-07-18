@@ -69,6 +69,17 @@ export function parseTranslationMarkerBlocks(text, { required = false } = {}) {
   return output;
 }
 
+export function sanitizeTranslationOutput(kind, value) {
+  const text = String(value || "").trim();
+  const expectedKind = String(kind || "").trim();
+  if (!expectedKind) return text;
+  return text
+    .replace(/(^|\r?\n)kind:\s*([^\r\n]+)\r?\nmetadata:\s*\{[^\r\n]*\}\r?\n/g, (match, prefix, routedKind) =>
+      routedKind.trim() === expectedKind ? prefix : match,
+    )
+    .trim();
+}
+
 export function formatTranslationSourceBlock(item) {
   return `@@PEEK_SOURCE ${item.hash}\nkind: ${item.kind}\nmetadata: ${JSON.stringify(item.metadata || {})}\n${item.source_text}\n@@PEEK_END_SOURCE`;
 }

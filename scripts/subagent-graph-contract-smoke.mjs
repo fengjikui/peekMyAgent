@@ -6,6 +6,7 @@ import {
   buildSubagentGraph,
   createSubagentLineageState,
 } from "../src/trace/subagent-graph.mjs";
+import { codexAgentMessageSummary, isCodexAgentMessage } from "../src/trace/message-semantics.mjs";
 
 const prompts = {
   header: "Inspect the request timeline and report the important invariant.",
@@ -68,6 +69,11 @@ const semantics = {
     }
     return output;
   },
+  extractAgentMessages(item) {
+    return (item.raw?.body?.messages || [])
+      .filter(isCodexAgentMessage)
+      .map((message) => ({ message, summary: codexAgentMessageSummary(message) }));
+  },
   firstUserPromptText(item) {
     const message = (item.raw?.body?.messages || []).find((entry) => entry?.role === "user" && typeof entry.content === "string");
     return message?.content || "";
@@ -111,7 +117,7 @@ assert.throws(
 );
 
 const graph = buildSubagentGraph(requests, semantics);
-assert.equal(graph.version, 1);
+assert.equal(graph.version, 2);
 assert.equal(graph.branch_count, 2);
 assert.equal(graph.spawn_count, 2);
 assert.equal(graph.return_count, 2);
@@ -142,6 +148,47 @@ attachSubagentGraphToTurns(turns, graph);
 assert.deepEqual(turns[0].agent_branches, graph.branches.map((branch) => branch.id));
 assert.equal(turns[0].agent_branch_count, 2);
 assert.equal(turns[1].agent_branch_count, 0);
+
+const codexSpawn = toolCall("spawn-codex-probe", "spawn_agent", {
+  task_name: "/root/context_probe",
+  fork_turns: "all",
+  message: "Inspect the inherited context.",
+});
+const codexRequests = [
+  request(11, {
+    response: response("codex-spawn", "tool_use", { tool_calls: [codexSpawn], text: "Starting a child agent." }),
+  }),
+  request(12, {
+    currentToolResults: [{ id: codexSpawn.id, content: JSON.stringify({ task_name: "/root/context_probe" }) }],
+    response: response("codex-wait", "tool_use", { text: "Waiting for the child result." }),
+  }),
+  request(13, {
+    messages: [codexAgentMessage({ author: "/root/context_probe", result: "The child inherited the selected turns." })],
+    response: response("codex-parent-final", "end_turn", { text: "The child result arrived." }),
+  }),
+];
+const codexGraph = buildSubagentGraph(codexRequests, semantics);
+assert.equal(codexGraph.version, 2);
+assert.equal(codexGraph.branch_count, 1);
+assert.equal(codexGraph.spawn_count, 1);
+assert.equal(codexGraph.return_count, 1, "FINAL_ANSWER agent_message is the Codex business return");
+assert.equal(codexGraph.returns[0].spawn_id, codexSpawn.id);
+assert.equal(codexGraph.spawns[0].context_mode, "all");
+assert.equal(codexGraph.spawns[0].task_message_visibility, "visible");
+assert.equal("raw_arguments" in codexGraph.spawns[0], false, "public graph never exposes raw or encrypted spawn arguments");
+assert.equal(codexGraph.branches[0].launch.parent_request_index, 12, "spawn tool output is only a launch acknowledgement");
+assert.equal(codexGraph.branches[0].return.parent_request_index, 13);
+assert.equal(codexGraph.branches[0].status, "returned");
+assert.equal(codexGraph.branches[0].steps[0].event_type, "agent_message");
+assert.equal(codexRequests[1].trace.returned_branch_ids, undefined, "launch acknowledgement is never annotated as a return");
+assert.deepEqual(codexRequests[0].trace.spawn_branch_ids, [codexGraph.branches[0].id]);
+assert.deepEqual(codexRequests[1].trace.launch_branch_ids, [codexGraph.branches[0].id]);
+assert.deepEqual(codexRequests[2].trace.returned_branch_ids, [codexGraph.branches[0].id]);
+assert.equal(codexRequests[0].trace.agent_spawn_events[0].spawn_id, codexSpawn.id);
+assert.equal(codexRequests[0].trace.agent_spawn_events[0].context_mode, "all");
+assert.equal("raw_arguments" in codexRequests[0].trace.agent_spawn_events[0], false);
+assert.equal(codexRequests[1].trace.agent_launch_events[0].agent_id, "/root/context_probe");
+assert.equal(codexRequests[2].trace.agent_return_events[0].result_preview, "The child inherited the selected turns.");
 
 console.log("subagent graph contract smoke passed");
 
@@ -178,4 +225,14 @@ function response(messageId, finishReason, { tool_calls = [], text = "" } = {}) 
 
 function toolCall(id, name, argumentsValue) {
   return { id, name, arguments: argumentsValue };
+}
+
+function codexAgentMessage({ author, result }) {
+  return {
+    role: "user",
+    codex_item_type: "agent_message",
+    author,
+    recipient: "/root",
+    content: `Message Type: FINAL_ANSWER\nSender: ${author}\nPayload:\n${result}`,
+  };
 }

@@ -78,7 +78,7 @@ export function fallbackTimelineTurns(requests, { requestExcerpt = defaultReques
     request_count: 1,
     main_request_count: request.source_hint?.type === "metadata" ? 0 : 1,
     internal_request_count: request.source_hint?.type === "metadata" ? 1 : 0,
-    subagent_count: request.is_subagent ? 1 : 0,
+    subagent_count: traceRequestHasSubagentActivity(request) ? 1 : 0,
     parent_spawn_count: request.source_hint?.type === "parent_spawn" ? 1 : 0,
     tool_call_count: request.summary?.current_tool_calls?.length || 0,
     tool_result_count: request.summary?.current_tool_results?.length || 0,
@@ -129,8 +129,19 @@ export function traceFilterCounts(requests) {
     issues: list.filter(traceRequestHasIssue).length,
     slow: list.filter(traceRequestIsSlow).length,
     tools: list.filter(traceRequestHasTools).length,
-    subagents: list.filter((request) => request.is_subagent).length,
+    subagents: list.filter(traceRequestHasSubagentActivity).length,
   };
+}
+
+export function traceRequestHasSubagentActivity(request) {
+  return Boolean(
+    request?.is_subagent ||
+      request?.summary?.entry?.kind === "subagent_result" ||
+      request?.trace?.agent_branch ||
+      request?.trace?.spawn_branch_ids?.length ||
+      request?.trace?.launch_branch_ids?.length ||
+      request?.trace?.returned_branch_ids?.length,
+  );
 }
 
 export function traceRequestHasIssue(request) {
@@ -211,7 +222,7 @@ function traceRequestMatchesFilter(request, filter) {
   if (filter === "issues") return traceRequestHasIssue(request);
   if (filter === "slow") return traceRequestIsSlow(request);
   if (filter === "tools") return traceRequestHasTools(request);
-  if (filter === "subagents") return Boolean(request?.is_subagent);
+  if (filter === "subagents") return traceRequestHasSubagentActivity(request);
   return true;
 }
 

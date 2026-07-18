@@ -6,9 +6,14 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { CodexDesktopDiscovery } from "../src/adapters/codex-desktop-discovery.mjs";
+import {
+  normalizeCodexRolloutTask,
+  responseItemToMessage,
+} from "../src/adapters/codex-rollout-normalizer.mjs";
 import { CodexRolloutCaptureReader } from "../src/server/codex-rollout-capture-reader.mjs";
 import { SourceCaptureReader } from "../src/server/source-capture-reader.mjs";
-import { realUserVisibleText } from "../src/trace/message-semantics.mjs";
+import { captureEvidenceProfile } from "../src/trace/evidence-profile.mjs";
+import { codexAgentMessageSummary, isCodexAgentMessage, realUserVisibleText } from "../src/trace/message-semantics.mjs";
 import { summarizeModelResponse } from "../src/trace/model-response-normalizer.mjs";
 import { extractHarnessTranslationParts } from "../src/translation/request-materials.mjs";
 
@@ -96,6 +101,68 @@ try {
   assert.equal(activeRequest.response.body_json.finish_reason, null);
   assert.equal(result.command.mode, "codex_rollout_local");
   assert.equal(result.command.exact_wire_request, false);
+
+  const compaction = normalizeCodexRolloutTask({
+    source: { conversation_id: "thread-compact", workspace: "/tmp/compact" },
+    sessionMeta: { id: "thread-compact", base_instructions: "not part of a lifecycle event" },
+    turn: {
+      turnId: "turn-compact",
+      entries: [
+        rolloutRecord("event_msg", { type: "task_started", turn_id: "turn-compact" }),
+        rolloutRecord("compacted", {
+          previous_window_id: "window-1",
+          window_id: "window-2",
+          first_window_id: "window-1",
+          window_number: 2,
+          replacement_history: [
+            { type: "message", role: "user", content: [{ type: "input_text", text: "retained" }] },
+            { type: "compaction", encrypted_content: "opaque-history" },
+          ],
+        }),
+        rolloutRecord("event_msg", { type: "context_compacted" }),
+        rolloutRecord("event_msg", { type: "task_complete", turn_id: "turn-compact" }),
+      ],
+    },
+  });
+  assert.equal(compaction.length, 1);
+  assert.equal(compaction[0].method, "EVENT");
+  assert.equal(compaction[0].path, "/codex/rollout/context_compacted");
+  assert.equal("response" in compaction[0], false, "compaction is a Harness lifecycle event, not a fake model response");
+  assert.equal("messages" in compaction[0].body, false);
+  assert.equal("system" in compaction[0].body, false);
+  assert.equal("tools" in compaction[0].body, false);
+  assert.deepEqual(compaction[0].semantic_event.data, {
+    window_id: "window-2",
+    previous_window_id: "window-1",
+    first_window_id: "window-1",
+    window_number: 2,
+    replacement_item_count: 2,
+    retained_message_count: 1,
+    opaque_compaction_count: 1,
+    replacement_item_types: { "message:user": 1, compaction: 1 },
+    notification_present: true,
+    message: null,
+  });
+  const compactionEvidence = captureEvidenceProfile(compaction[0]);
+  assert.equal(compactionEvidence.kind, "semantic_event");
+  assert.equal(compactionEvidence.request.exact, true, "the rollout lifecycle event itself is exactly observed");
+  assert.equal(compactionEvidence.response.available, false);
+  assert.deepEqual(compactionEvidence.limitations, ["exact_wire_unavailable"]);
+
+  const agentMessage = responseItemToMessage({
+    type: "agent_message",
+    author: "/root/context_probe",
+    recipient: "/root",
+    content: [
+      {
+        type: "input_text",
+        text: "Message Type: FINAL_ANSWER\nSender: /root/context_probe\nPayload:\nContext inherited.",
+      },
+    ],
+  });
+  assert.equal(isCodexAgentMessage(agentMessage), true);
+  assert.equal(codexAgentMessageSummary(agentMessage).status, "completed");
+  assert.equal(codexAgentMessageSummary(agentMessage).result, "Context inherited.");
 
   fs.appendFileSync(
     rolloutPath,
@@ -205,4 +272,8 @@ function createStateDb(filePath, rolloutPath) {
   } finally {
     db.close();
   }
+}
+
+function rolloutRecord(type, payload) {
+  return { timestamp: "2026-07-18T01:00:00.000Z", type, payload };
 }

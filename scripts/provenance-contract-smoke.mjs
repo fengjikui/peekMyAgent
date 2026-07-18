@@ -9,6 +9,7 @@ import {
   proxyCaptureProvenance,
   validateCaptureProvenance,
 } from "../src/core/provenance.mjs";
+import { captureEvidenceProfile } from "../src/trace/evidence-profile.mjs";
 
 const upstream = http.createServer(async (req, res) => {
   await readBody(req);
@@ -48,6 +49,15 @@ try {
   assert.equal(completed.provenance.association.confidence, "exact");
   assert.equal(completed.provenance.association.evidence.capture_id, completed.capture_id);
   assert.equal(validateCaptureProvenance(completed.provenance).ok, true);
+  assert.deepEqual(captureEvidenceProfile(completed), {
+    schema_version: 1,
+    kind: "request_response",
+    transport: "capture_proxy",
+    request: { origin: "network_proxy", fidelity: "exact", artifact: "http_request", exact: true, available: true },
+    response: { origin: "network_proxy", fidelity: "exact", artifact: "http_response", exact: true, available: true },
+    association: { method: "capture_lifecycle", confidence: "exact" },
+    limitations: [],
+  });
 
   const normalized = normalizeOpenClawProxyCapture(completed);
   assert.deepEqual(normalized.provenance, completed.provenance, "OpenClaw normalization preserves proxy provenance");

@@ -7,6 +7,7 @@ import {
   filterTraceTurns,
   timelineWindow,
   traceFilterCounts,
+  traceRequestHasSubagentActivity,
   traceRequestHasIssue,
   traceRequestHasTools,
   traceRequestIsSlow,
@@ -35,6 +36,10 @@ assert.equal(traceRequestHasIssue(requests[2]), true);
 assert.equal(traceRequestIsSlow(requests[1]), true);
 assert.equal(traceRequestHasTools(requests[1]), true);
 assert.equal(traceRequestHasTools(requests[2]), true);
+assert.equal(traceRequestHasSubagentActivity(requests[3]), true);
+assert.equal(traceRequestHasSubagentActivity({ trace: { spawn_branch_ids: ["branch-1"] } }), true);
+assert.equal(traceRequestHasSubagentActivity({ trace: { launch_branch_ids: ["branch-1"] } }), true);
+assert.equal(traceRequestHasSubagentActivity({ summary: { entry: { kind: "subagent_result" } } }), true);
 
 const issueView = buildTraceTimelineView({ turns, requests, filter: "issues" });
 assert.equal(issueView.queryActive, true);

@@ -13,6 +13,7 @@ import {
   lastRealUserMessage,
   parseCommandMessage,
   realUserVisibleText,
+  stripCodexHarnessBlocks,
   taskNotificationSummary,
   userVisibleText,
 } from "../src/trace/message-semantics.mjs";
@@ -126,6 +127,17 @@ const mixedCodexHarnessMessage = {
   content: "<environment_context><cwd>/tmp/project</cwd></environment_context>\n请检查项目。",
 };
 assert.equal(realUserVisibleText(mixedCodexHarnessMessage), "请检查项目。", "stripping a harness block preserves adjacent real user text");
+
+const nestedCodexHarnessExample = `<collaboration_mode>
+The active mode changes only when instructions contain a different
+<collaboration_mode>Plan</collaboration_mode> wrapper.
+Continue in the selected mode.
+</collaboration_mode>
+Developer remainder.`;
+const nestedCodexHarnessBlocks = extractCodexHarnessBlocks(nestedCodexHarnessExample);
+assert.equal(nestedCodexHarnessBlocks.length, 1, "a same-name tag example remains inside its outer harness block");
+assert.match(nestedCodexHarnessBlocks[0].text, /Continue in the selected mode\./);
+assert.equal(stripCodexHarnessBlocks(nestedCodexHarnessExample), "Developer remainder.");
 
 const source = fs.readFileSync(new URL("../src/trace/message-semantics.mjs", import.meta.url), "utf8");
 assert.doesNotMatch(source, /viewer\/|server\/|node:(fs|http|child_process)|process\.env|fetch\s*\(/);

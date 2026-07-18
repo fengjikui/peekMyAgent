@@ -72,6 +72,15 @@ assert.deepEqual(
 assert.deepEqual(codexHarnessParts.map((item) => item.tag), ["skills_instructions", "codex_internal_context", "turn_aborted"]);
 assert.deepEqual(codexHarnessParts.map((item) => item.category), ["capability", "internal", "lifecycle"]);
 
+const nestedCodexHarnessParts = extractHarnessTranslationParts([
+  {
+    role: "developer",
+    content: `<collaboration_mode>Use <collaboration_mode>Plan</collaboration_mode> only when selected. Keep working.</collaboration_mode>`,
+  },
+]);
+assert.deepEqual(nestedCodexHarnessParts.map((item) => item.kind), ["harness_codex_collaboration"]);
+assert.match(nestedCodexHarnessParts[0].text, /Keep working\./);
+
 const codexProjected = translationMaterialsForRequest({
   raw: { body: { messages: [
     { role: "developer", content: "<skills_instructions>Use verified local skills.</skills_instructions>" },

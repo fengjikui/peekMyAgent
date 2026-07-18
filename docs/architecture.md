@@ -66,6 +66,8 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/server/timeline-page-assembler.mjs` | 跨页 Context/Agent 状态、compact request、Turn patch 和 Agent entity delta 组装 |
 | `src/server/viewer-trace-projector.mjs` | Capture 到 Viewer request/Turn/Agent/stats/workbench DTO 的无 I/O 单一投影边界 |
 | `src/trace/content-parts.mjs` | 上行/下行共用的 content、thinking、tool use 与 tool result 最小协议原语 |
+| `src/trace/evidence-profile.mjs` | request/response/semantic event 的来源、完整度、关联方式和限制条件统一证据画像 |
+| `src/trace/capture-semantic-event.mjs` | 上下文、Agent 与 Harness 生命周期事件的版本化领域契约；事件不伪装成 HTTP 请求 |
 | `src/trace/message-semantics.mjs` | 真实用户输入、命令、Harness 注入、工具结果与任务/子 Agent 回流语义 |
 | `src/trace/request-profile.mjs` | System 提取、协议/provider 能力画像以及 main/subagent/parent-spawn/metadata 来源提示 |
 | `src/trace/request-composition.mjs` | System、Tools、参数、历史消息、工具交互与回复规模的字符近似诊断 |
@@ -184,7 +186,9 @@ Desktop 默认 `--capture auto` 会明确回退到 rollout 语义观察，因为
 
 OpenAI Responses 的 `instructions`、`tools`/`additional_tools` 和 `input` 已映射到共享请求语义；Responses JSON/SSE 的 reasoning、message、function/custom tool call、usage、status 和终止响应由共享下行 normalizer 解析。存储层将 instructions、单工具 schema、单条 input/message 和工具结果分别写入内容寻址 blob，同一会话后续请求复用相同 hash。
 
-Codex 会把部分 Harness 信息包在 XML-like 标签中，但原始 role 仍可能是普通 message。共享消息语义层只识别经过验证的白名单标签：运行环境与界面状态、Skills/Apps/Plugins 能力注入、协作/权限策略、内部目标、Turn 生命周期和子 Agent 通知。整理视图按 `runtime`、`capability`、`policy`、`internal`、`lifecycle`、`subagent` 分类并接入现有分块翻译缓存；Raw 始终保留原 role、标签、顺序和来源。未知标签不做泛化 XML 猜测，避免把真实用户文本误判为 Harness 注入。
+Codex 会把部分 Harness 信息包在 XML-like 标签中，但原始 role 仍可能是普通 message。共享消息语义层只识别经过验证的白名单标签：运行环境与界面状态、Skills/Apps/Plugins 能力注入、协作/权限策略、内部目标、Turn 生命周期和子 Agent 通知。提取器使用白名单平衡标签扫描，而不是非贪婪正则；因此正文中用于解释机制的同名标签示例不会截断外层注入块。整理视图按 `runtime`、`capability`、`policy`、`internal`、`lifecycle`、`subagent` 分类并接入现有分块翻译缓存；Raw 始终保留原 role、标签、顺序和来源。未知标签不做泛化 XML 猜测，避免把真实用户文本误判为 Harness 注入。
+
+rollout 观察与网络代理并不提供同一种证据。`captureEvidenceProfile()` 将 request artifact、response artifact、关联方式和限制条件投影成共享 `summary.evidence`；Viewer 由该证据决定显示“完整请求 / Response”还是“重建上行 / 重建下行”，不能仅根据持久化层是否重建 JSON 作判断。`context_compacted` 等没有模型 HTTP 交换的记录使用版本化 semantic event，时间线展示 Harness 生命周期，Raw 只提供“事件原文 / 事件 Metadata”，不会附带 System、Tools 或 Response 标签。当前完整边界、Codex 字段映射和未来 Harness adapter 约束见 [Codex rollout 证据与 Viewer 契约](codex-rollout-evidence-and-viewer-contract.md)。
 
 ## 页面独立发送
 
@@ -242,7 +246,7 @@ sequenceDiagram
     API-->>UI: Raw/detail DTO
 ```
 
-达到渐进加载门限的 Source 首屏默认只取前 32 个请求，后续以最多 100 条为一页继续读取，不再后台下载一份完整 compact Trace。Server cursor 保留跨页 Context Delta、Turn 和子 Agent 血缘所需状态；后续页只发送新增 request、旧 request annotation patch、变化的 Turn 和 Agent entity。live Source 到达当前尾部后保留 refresh cursor，新增 capture 只续读增量。时间线超过阈值时只渲染一个窗口，点开 Raw/细节再按 request 获取详细内容。
+达到渐进加载门限的 Source 首屏默认只取前 32 个请求，后续以最多 100 条为一页继续读取，不再后台下载一份完整 compact Trace。Server cursor 保留跨页 Context Delta、Turn 和子 Agent 血缘所需状态；后续页只发送新增 request、旧 request annotation patch、变化的 Turn 和 Agent entity。live Source 到达当前尾部后保留 refresh cursor，新增 capture 只续读增量；Codex rollout 的最后一条请求属于可变快照，Source revision 变化时会重读该尾项并按稳定 request id 覆盖，使稍后到达的回复进入现有卡片而不制造重复请求。时间线超过阈值时只渲染一个窗口，点开 Raw/细节再按 request 获取详细内容。
 
 cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 session 数量上限；它不是持久化 id，也不向浏览器暴露 SQLite 或文件 offset。file/import Source 的原始 Trace 保持只读，私有 sidecar 只保存对象 byte range 并由源文件指纹自动失效。完整/compact snapshot 和 cursor delta 的 envelope 由共享 `TraceTimelineResponse` 契约约束，内部 Turn/Agent 实体仍由领域协议拥有。完整协议和失效回退见 [Viewer API DTO 契约](viewer-api-dto-contract.md)、[Timeline Cursor 分页契约](timeline-pagination-contract.md)与 [JSON Array File Index 契约](json-array-file-index-contract.md)。旧 `/api/view?compact=1` 完整响应继续保留兼容。
 

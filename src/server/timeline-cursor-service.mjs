@@ -48,7 +48,7 @@ export class TimelineCursorService {
     session.state.source = source;
 
     if (!pageResult.captures.length) {
-      session.readerCursor = String(pageResult.page?.offset ?? session.readerCursor ?? 0);
+      session.readerCursor = readerCursorAfterPage(source, pageResult, session.readerCursor);
       const retainSession = isLiveSource(source);
       if (!retainSession) this.sessions.delete(token);
       return withCursorPartial(emptyPagePayload(session, pageResult), pageResult, session.state.requests.length, {
@@ -59,7 +59,7 @@ export class TimelineCursorService {
 
     const payload = session.assembler.append(session.state, pageResult);
     session.lastPayload = payload;
-    session.readerCursor = pageResult.page?.next_cursor || String((pageResult.page?.offset || 0) + pageResult.captures.length);
+    session.readerCursor = readerCursorAfterPage(source, pageResult, session.readerCursor);
     const hasMore = Boolean(pageResult.page?.has_more && session.readerCursor);
     const retainSession = hasMore || isLiveSource(source);
     if (!retainSession) this.sessions.delete(token);
@@ -93,7 +93,7 @@ export class TimelineCursorService {
     this.sessions.set(token, {
       source,
       pageSize,
-      readerCursor: pageResult.page.next_cursor,
+      readerCursor: readerCursorAfterPage(source, pageResult),
       assembler,
       state,
       lastPayload: payload,
@@ -141,6 +141,24 @@ function emptyPagePayload(session, pageResult) {
 
 function isLiveSource(source) {
   return Boolean(source?.live_watch_id || source?.stream_live);
+}
+
+function readerCursorAfterPage(source, pageResult, fallback = null) {
+  const page = pageResult.page || {};
+  if (page.has_more && page.next_cursor !== null && page.next_cursor !== undefined) {
+    return String(page.next_cursor);
+  }
+  const offset = Number(page.offset);
+  const loadedCount = Number(page.loaded_count ?? pageResult.captures?.length ?? 0);
+  if (!Number.isFinite(offset) || !Number.isFinite(loadedCount)) return String(fallback ?? 0);
+  if (isMutableTailSource(source) && loadedCount > 0) {
+    return String(Math.max(0, offset + loadedCount - 1));
+  }
+  return String(Math.max(0, offset + loadedCount));
+}
+
+function isMutableTailSource(source) {
+  return source?.kind === "codex_rollout_local";
 }
 
 function requiredFunction(value, name) {

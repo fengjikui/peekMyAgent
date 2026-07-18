@@ -237,7 +237,10 @@ export function sourceRequiresRefresh(before, after, { force = false } = {}) {
     after.response_count !== before?.response_count ||
     after.live_status !== before?.live_status ||
     after.last_seen !== before?.last_seen ||
-    after.last_response_seen !== before?.last_response_seen
+    after.last_response_seen !== before?.last_response_seen ||
+    after.updated_at !== before?.updated_at ||
+    after.token_count !== before?.token_count ||
+    after.conversation_id !== before?.conversation_id
   );
 }
 

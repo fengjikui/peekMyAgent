@@ -90,10 +90,14 @@ export function importedTraceProvenance(capture = {}) {
   });
 }
 
-export function codexRolloutProvenance({ threadId = null, turnId = null, hasResponse = true } = {}) {
+export function codexRolloutProvenance({ threadId = null, turnId = null, hasResponse = true, semanticEvent = false } = {}) {
   return createCaptureProvenance({
     transport: "codex_rollout_local",
-    request: { origin: "codex_rollout", fidelity: "partial", artifact: "semantic_request_reconstruction" },
+    request: {
+      origin: "codex_rollout",
+      fidelity: semanticEvent ? "exact" : "partial",
+      artifact: semanticEvent ? "semantic_lifecycle_event" : "semantic_request_reconstruction",
+    },
     response: hasResponse
       ? { origin: "codex_rollout", fidelity: "partial", artifact: "semantic_response_reconstruction" }
       : { origin: "codex_rollout", fidelity: "missing", artifact: null },

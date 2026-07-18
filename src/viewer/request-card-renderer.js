@@ -164,7 +164,15 @@ function renderTimelineAssistantToolCalls({ toolCalls, translate, escapeHtml, re
     <section class="assistant-tool-calls">
       <p class="block-title">${escapeHtml(translate("assistantToolUse", { count: toolCalls.length }))}</p>
       <div class="assistant-tool-list">
-        ${toolCalls.map((call) => renderPre(`tool_use ${call.name || "unknown"}${call.id ? ` (${call.id})` : ""}\n${serialize(call.arguments ?? null)}`)).join("")}
+        ${toolCalls
+          .map((call) => {
+            const title = `tool_use ${call.displayName || call.name || "unknown"}${call.id ? ` (${call.id})` : ""}`;
+            const body = call.suppressArguments
+              ? (call.displayLines || []).filter(Boolean).join("\n")
+              : serialize(call.arguments ?? null);
+            return renderPre(body ? `${title}\n${body}` : title);
+          })
+          .join("")}
       </div>
     </section>
   `;
