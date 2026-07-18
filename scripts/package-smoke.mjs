@@ -176,9 +176,12 @@ const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pat
 assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);
 
 const MAX_PACKAGE_ENTRIES = 140;
-// Keep modest module-growth headroom without relaxing the release path allowlist.
-const MAX_PACKED_BYTES = 270_000;
-const MAX_UNPACKED_BYTES = 1_150_000;
+// The Codex rollout and exact-proxy adapters are shipped runtime code. Keep a
+// narrow post-feature budget while the path allowlist continues to prevent
+// fixtures, design docs, captures, and other release-unsafe files from leaking
+// into the package.
+const MAX_PACKED_BYTES = 285_000;
+const MAX_UNPACKED_BYTES = 1_225_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);
 assert.ok(
