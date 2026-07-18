@@ -371,6 +371,57 @@ HTTP request body 使用 zstd 压缩。解压后的请求包含：
 
 官方配置文档确认 `openai_base_url` 是 built-in OpenAI provider 的代理/路由入口，`-c` 可以做单次运行覆盖。产品化时应优先使用可逆、会话级配置，并在协议或网络条件不满足时安全降级到本地观察，而不是持久修改用户配置或让 Codex 无法继续工作。
 
+## 实验八：连续多轮与工具调用闭环
+
+### 目标
+
+实验七证明了单轮请求可以通过 ChatGPT 订阅态真实转发。实验八进一步验证两个产品关键点：
+
+1. 同一个 Codex thread 连续 resume 时，后续请求是否携带此前的用户消息和 Assistant 回复；
+2. 模型发起工具调用后，本地工具结果是否会被准确放入下一次完整请求，并最终得到模型续答。
+
+### 方法
+
+实验在隔离的只读临时目录中使用同一个 thread 完成以下阶段：
+
+1. 第一轮要求模型记住一个一次性暗号并返回固定确认文本。
+2. 第二轮不重复暗号，只要求模型回忆前一轮内容。
+3. 后续轮要求模型通过 shell 工具真实执行 `wc -c`，再依据工具结果返回固定格式文本。
+
+探针继续主动拒绝 WebSocket，使 Codex 回退到可审计的 HTTP streaming Responses 通道。每次 `/responses` 交换分别保存原始 zstd request、解压 JSON、原始 SSE、解析事件和不含认证值的 metadata。真实 Trace 只保留在 Git 忽略的本机临时目录，没有提交到仓库。
+
+### 结果
+
+| 验证点 | 结果 |
+| --- | --- |
+| thread 连续性 | 所有轮次使用同一 thread id |
+| 第二轮历史 | 完整 request 同时包含第一轮 user message 和 Assistant 确认文本 |
+| 无提示回忆 | 模型准确返回第一轮暗号 |
+| 工具下发 | 第一次 `/responses` 的 SSE 返回 `custom_tool_call`，工具名为 `exec` |
+| 本地执行 | Codex 执行指定 `wc -c` 命令并获得 exit code `0` 和真实字节数 |
+| 结果回传 | 下一次 `/responses` request 包含相同 `call_id` 的 `custom_tool_call` 与 `custom_tool_call_output` |
+| 最终回复 | 模型依据回传结果返回预期固定文本 |
+| 上游状态 | 关键 `/responses` 请求均为 HTTP 200 |
+| 认证落盘 | 只保存 header 名称和存在性；Bearer/JWT 值未进入 request、response 或 metadata 文件 |
+
+工具阶段确实是两次模型交换，而不是 Codex 在本地直接生成最终答案：
+
+```text
+完整历史 + 本轮用户要求
+  -> /responses
+  <- custom_tool_call(exec, call_id)
+  -> Codex 本地执行命令
+  -> 完整历史 + custom_tool_call + custom_tool_call_output
+  -> /responses
+  <- 最终 Assistant 文本
+```
+
+实验还保留了一次工作目录错误：模型下发的命令成功转发，但本地执行返回 `No such file or directory`；该错误文本随后也被完整放入 `custom_tool_call_output` 并送回模型。修正启动目录后，同一 thread 的下一轮工具闭环成功。这说明深度捕获不仅能复盘成功工具调用，也能准确复盘“模型决策正确、Harness 执行环境错误”的失败链路。
+
+### 结论
+
+在当前 Codex `0.144.2` 和当前 first-party 协议下，显式 loopback Base URL 已经能够观测完整的多轮上下文与工具闭环：历史消息、工具调用参数、调用标识、执行结果和最终模型回复都可以关联。正式 adapter 仍必须把协议版本、来源和失败降级写清楚，不能把这次实验证据描述成长期稳定的公开 API 契约。
+
 ## 能力矩阵
 
 | 能力 | 本地观察 | `debug prompt-input` | OTel | 深度代理 | 托管 app-server |
@@ -473,7 +524,7 @@ src/server/codex-rollout-watch-service.mjs
 
 在实现深度代理前，至少补齐：
 
-已补齐：真实上游的 WebSocket 与 HTTP fallback 透明转发闭环。
+已补齐：真实上游的 WebSocket 与 HTTP fallback 透明转发闭环，以及同 thread 多轮历史和成功/失败工具结果回传闭环。
 
 仍需补齐：
 
