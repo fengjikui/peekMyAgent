@@ -153,14 +153,20 @@ function describeObservedToolSemantics(call = {}, translate = identityTranslate)
   const semantic = call.semantic;
   if (!semantic || typeof semantic !== "object") return call;
   const nested = Array.isArray(semantic.nested_tool_names) ? semantic.nested_tool_names.filter(Boolean) : [];
-  const nameParts = [call.name || "unknown"];
-  if (nested.length) nameParts.push(`→ ${nested.join(", ")}`);
-  if (semantic.kind === "skill_load") {
-    nameParts.push(`· ${translate("skillLoadObserved", { skill: semantic.skill_name || "unknown" })}`);
-  } else if (semantic.kind === "skill_instruction_read") {
-    nameParts.push(`· ${translate("skillInstructionReadObserved", { skill: semantic.skill_name || "unknown" })}`);
+  const displayLines = [];
+  if (nested.length) {
+    displayLines.push(translate("nestedToolDispatchObserved", { tools: nested.join(", ") }));
   }
-  return { ...call, displayName: nameParts.join(" ") };
+  if (semantic.kind === "skill_load") {
+    displayLines.push(translate("skillLoadObserved", { skill: semantic.skill_name || "unknown" }));
+  } else if (semantic.kind === "skill_instruction_read") {
+    displayLines.push(translate("skillInstructionReadObserved", { skill: semantic.skill_name || "unknown" }));
+  }
+  return {
+    ...call,
+    displayName: call.name || "unknown",
+    displayLines,
+  };
 }
 
 export function shouldShowTimelineRequestContent(request = {}, { cleanText = defaultCleanText } = {}) {

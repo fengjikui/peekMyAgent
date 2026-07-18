@@ -190,7 +190,7 @@ Desktop 默认 `--capture auto` 会明确回退到 rollout 语义观察，因为
 
 OpenAI Responses 的 `instructions`、`tools`/`additional_tools` 和 `input` 已映射到共享请求语义；Responses JSON/SSE 的 reasoning、message、function/custom tool call、usage、status 和终止响应由共享下行 normalizer 解析。Codex rollout 的语义重建同样只保留规范 `input`，需要 role 语义的共享模块再统一投影 message，不在 Raw body 中复制第二份 `messages`。存储层将 instructions、单工具 schema、单条 input/message 和工具结果分别写入内容寻址 blob，同一会话后续请求复用相同 hash。
 
-部分 Harness 会通过一个外层工具执行内部工具路由，例如 Codex rollout 中的 `exec` 参数包含 `tools.web__run(...)` 或 `tools.exec_command(...)`，Skill 加载也可能表现为读取 `skills/<name>/SKILL.md`。`tool-call-semantics.mjs` 只依据捕获到的工具名与参数添加 `semantic` 观察证据，Timeline 可显示 `exec -> web__run` 或“读取 Skill 指令”，同时完整保留原始工具名和参数。该标注不证明未出现在 Trace 中的服务器端调用，也不能替代 Raw 证据。
+部分 Harness 会通过一个外层工具执行内部工具路由，例如 Codex rollout 中的 `exec` 参数包含 `tools.web__run(...)` 或 `tools.exec_command(...)`，Skill 加载也可能表现为读取 `skills/<name>/SKILL.md`。`tool-call-semantics.mjs` 只依据捕获到的工具名与参数添加 `semantic` 观察证据，同时完整保留原始工具名和参数。默认 Timeline 必须区分“模型选择的外层工具”和“参数中观测到的内部派发”，例如显示“模型调用 `exec`（内部派发 `web__run`）”，不能把两者压成一个未经解释的工具名；该标注不证明未出现在 Trace 中的服务器端调用，也不能替代 Raw 证据。
 
 Codex 会把部分 Harness 信息包在 XML-like 标签中，但原始 role 仍可能是普通 message。共享消息语义层只识别经过验证的白名单标签：运行环境与界面状态、Skills/Apps/Plugins 能力注入、协作/权限与多 Agent 启动策略、内部目标、Turn 生命周期和子 Agent 通知。提取器使用白名单平衡标签扫描，而不是非贪婪正则；因此正文中用于解释机制的同名标签示例不会截断外层注入块。无标签 developer 正文只在命中真实 rollout 验证过的强指纹时识别为 Memory 注入或多 Agent 编排，否则保留通用类型。整理视图按 `runtime`、`capability`、`policy`、`memory`、`orchestration`、`internal`、`lifecycle`、`subagent` 分类并接入现有分块翻译缓存；Raw 始终保留原 role、标签、顺序和来源。未知标签不做泛化 XML 猜测，避免把真实用户文本误判为 Harness 注入。
 

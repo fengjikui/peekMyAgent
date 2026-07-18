@@ -52,10 +52,7 @@ export function buildTurnStoryView({
       events.push(
         storyStep({
           kind: descriptor.kind === "skill" ? "skill-result" : "tool-result",
-          label:
-            descriptor.kind === "skill"
-              ? translate("turnStorySkillResult", { skill: descriptor.name })
-              : translate("turnStoryToolResult", { tool: descriptor.name }),
+          label: resultStoryLabel(descriptor, translate),
           request,
           order: eventOrder(request, resultOffset++),
         }),
@@ -69,12 +66,7 @@ export function buildTurnStoryView({
       events.push(
         storyStep({
           kind: descriptor.kind === "skill" ? "skill" : "tool-call",
-          label:
-            descriptor.kind === "skill"
-              ? translate(descriptor.semanticKind === "skill_load" ? "skillLoadObserved" : "skillInstructionReadObserved", {
-                  skill: descriptor.name,
-                })
-              : translate("turnStoryCallTool", { tool: descriptor.name }),
+          label: callStoryLabel(descriptor, translate),
           request,
           order: eventOrder(request, callOffset++),
         }),
@@ -188,19 +180,61 @@ function responseToolCallIndex(requests) {
 
 function toolDescriptor(call) {
   const semantic = call?.semantic || {};
+  const outerName = call?.name || "tool";
+  const nestedNames = (semantic.nested_tool_names || []).filter(Boolean);
   if (semantic.kind === "skill_load" || semantic.kind === "skill_instruction_read") {
     return {
       kind: "skill",
-      name: semantic.skill_name || call?.name || "unknown",
+      name: semantic.skill_name || outerName || "unknown",
+      outerName,
+      nestedNames,
       semanticKind: semantic.kind,
     };
   }
-  const nestedNames = (semantic.nested_tool_names || []).filter(Boolean);
   return {
     kind: "tool",
-    name: nestedNames.length ? nestedNames.join(" / ") : call?.name || "tool",
+    name: outerName,
+    outerName,
+    nestedNames,
     semanticKind: semantic.kind || null,
   };
+}
+
+function callStoryLabel(descriptor, translate) {
+  const nested = descriptor.nestedNames.join(" / ");
+  if (descriptor.kind === "skill") {
+    if (nested) {
+      return translate("turnStorySkillViaTool", {
+        outer: descriptor.outerName,
+        skill: descriptor.name,
+        nested,
+      });
+    }
+    return translate(descriptor.semanticKind === "skill_load" ? "skillLoadObserved" : "skillInstructionReadObserved", {
+      skill: descriptor.name,
+    });
+  }
+  if (nested) {
+    return translate("turnStoryCallNestedTool", { outer: descriptor.outerName, nested });
+  }
+  return translate("turnStoryCallTool", { tool: descriptor.name });
+}
+
+function resultStoryLabel(descriptor, translate) {
+  const nested = descriptor.nestedNames.join(" / ");
+  if (descriptor.kind === "skill") {
+    if (nested) {
+      return translate("turnStorySkillResultViaTool", {
+        outer: descriptor.outerName,
+        skill: descriptor.name,
+      });
+    }
+    return translate("turnStorySkillResult", { skill: descriptor.name });
+  }
+  if (nested) {
+    return translate("turnStoryNestedToolResult", { outer: descriptor.outerName, nested });
+  }
+  return translate("turnStoryToolResult", { tool: descriptor.name });
 }
 
 function shouldAggregateAgentCall(call, orchestrationCallIds, hasBranches) {

@@ -41,8 +41,8 @@ assert.deepEqual(
   toolView.steps.map((step) => [step.kind, step.label, step.requestIndex]),
   [
     ["user", "turnStoryUserRequest", 1],
-    ["tool-call", "turnStoryCallTool:tool=exec_command", 1],
-    ["tool-result", "turnStoryToolResult:tool=exec_command", 2],
+    ["tool-call", "turnStoryCallNestedTool:outer=exec,nested=exec_command", 1],
+    ["tool-result", "turnStoryNestedToolResult:outer=exec,nested=exec_command", 2],
     ["answer", "turnStoryFinalAnswer", 2],
   ],
 );
@@ -70,8 +70,8 @@ const skillRequests = [
 const skillView = buildTurnStoryView({ turn: { id: "turn-skill" }, requests: skillRequests, translate });
 assert.deepEqual(skillView.steps.map((step) => step.label), [
   "turnStoryUserRequest",
-  "skillInstructionReadObserved:skill=using-superpowers",
-  "turnStorySkillResult:skill=using-superpowers",
+  "turnStorySkillViaTool:outer=exec,skill=using-superpowers,nested=exec_command",
+  "turnStorySkillResultViaTool:outer=exec,skill=using-superpowers",
   "turnStoryFinalAnswer",
 ]);
 

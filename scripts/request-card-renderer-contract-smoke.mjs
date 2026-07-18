@@ -195,6 +195,32 @@ assert.match(semanticSpawnResponse, /spawn_agent · context_probe/);
 assert.match(semanticSpawnResponse, /Inherited parent context/);
 assert.doesNotMatch(semanticSpawnResponse, /gAAAA-secret-ciphertext/);
 
+const nestedDispatchResponse = renderTimelineAssistantResponse({
+  view: {
+    requestId: "request-nested-dispatch",
+    visibleText: "",
+    toolCalls: [
+      {
+        id: "call-exec",
+        name: "exec",
+        displayName: "exec",
+        displayLines: ["Captured arguments show an internal dispatch to exec_command"],
+        arguments: { code: "tools.exec_command({ cmd: 'pwd' })" },
+      },
+    ],
+  },
+  translate,
+  escapeHtml,
+  renderMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
+  renderTranslationMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
+  renderPre,
+  serialize: JSON.stringify,
+});
+assert.match(nestedDispatchResponse, /tool_use exec \(call-exec\)/);
+assert.match(nestedDispatchResponse, /internal dispatch to exec_command/);
+assert.match(nestedDispatchResponse, /tools\.exec_command/);
+assert.doesNotMatch(nestedDispatchResponse, /tool_use exec → exec_command/);
+
 const card = renderTimelineRequestCard({
   requestId: 'request-<7>',
   requestIndex: 7,

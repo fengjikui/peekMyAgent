@@ -37,6 +37,7 @@ const labels = {
   agentInternal: "Agent internal",
   agentContextInherited: "Inherited parent context",
   agentContextIsolated: "Isolated context",
+  nestedToolDispatchObserved: ({ tools }) => `Internal dispatch ${tools}`,
   skillLoadObserved: ({ skill }) => `Load Skill ${skill}`,
   skillInstructionReadObserved: ({ skill }) => `Read Skill instructions ${skill}`,
   resultReturnPreview: ({ count }) => `${count} tool results`,
@@ -160,7 +161,11 @@ const observedSkillRead = buildTimelineResponseToolCalls(
   ],
   translate,
 );
-assert.equal(observedSkillRead[0].displayName, "exec → exec_command · Read Skill instructions review");
+assert.equal(observedSkillRead[0].displayName, "exec");
+assert.deepEqual(observedSkillRead[0].displayLines, [
+  "Internal dispatch exec_command",
+  "Read Skill instructions review",
+]);
 assert.equal(observedSkillRead[0].arguments.includes("SKILL.md"), true, "observed annotations never replace original arguments");
 
 const commandRequest = {

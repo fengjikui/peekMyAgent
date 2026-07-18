@@ -187,9 +187,9 @@ function renderTimelineAssistantToolCalls({ toolCalls, translate, escapeHtml, re
         ${toolCalls
           .map((call) => {
             const title = `tool_use ${call.displayName || call.name || "unknown"}${call.id ? ` (${call.id})` : ""}`;
-            const body = call.suppressArguments
-              ? (call.displayLines || []).filter(Boolean).join("\n")
-              : serialize(call.arguments ?? null);
+            const semanticLines = (call.displayLines || []).filter(Boolean).join("\n");
+            const argumentText = call.suppressArguments ? "" : serialize(call.arguments ?? null);
+            const body = [semanticLines, argumentText].filter(Boolean).join("\n\n");
             return renderPre(body ? `${title}\n${body}` : title);
           })
           .join("")}

@@ -93,7 +93,7 @@ data
 复杂 Turn 默认先显示一条紧凑的机制流程，再展示请求卡证据。例如：
 
 ```text
-用户请求 -> 调用 exec_command -> exec_command 结果回传 -> 最终回答
+用户请求 -> 模型调用 exec（内部派发 exec_command） -> exec 结果回传（含 exec_command） -> 最终回答
 用户请求 -> 读取 Skill 指令 -> Skill 内容回传 -> 调用工具 -> 结果回传 -> 最终回答
 用户请求 -> 启动 2 个子 Agent -> 启动确认 2/2 -> 结果回流 2/2 -> 最终回答
 用户请求 -> 最终回答 -> Harness 压缩上下文
