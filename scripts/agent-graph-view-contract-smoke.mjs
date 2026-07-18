@@ -76,6 +76,7 @@ assert.deepEqual(view.visibleBranches.map((entry) => [entry.branch.id, entry.ind
   ["branch-b", 1, false],
 ]);
 assert.deepEqual(view.statusCounts, { returned: 1, completed: 0, running: 1 });
+assert.equal(view.showStatusFilters, false);
 assert.deepEqual(view.spawnIndexes, [6, 13]);
 assert.deepEqual(view.launchIndexes, []);
 assert.deepEqual(view.returnIndexes, [16]);
@@ -154,9 +155,11 @@ const manyBranches = Array.from({ length: 26 }, (_, index) =>
 const pagedView = buildAgentGraphView({
   turn: { id: "turn-many", agent_branches: manyBranches.map((item) => item.id) },
   trace: { branches: manyBranches },
+  dashboardOpen: true,
   branchLimit: 24,
 });
 assert.equal(pagedView.visibleBranches.length, 24);
+assert.equal(pagedView.showStatusFilters, true);
 assert.equal(pagedView.hiddenBranchCount, 2);
 assert.equal(pagedView.nextPageCount, 2);
 assert.equal(pagedView.summaryDots.length, 8);
@@ -179,16 +182,28 @@ const html = renderAgentGraph(view, {
 
 assert.match(html, /data-agent-dashboard="turn-7" open/);
 assert.match(html, /multiAgentSummary:count=2/);
-assert.match(html, /branchInnerTools:calls=1,results=1/);
+assert.match(html, /agentFilterRunning:count=1 · agentFilterReturned:count=1/);
 assert.match(html, /general-purpose \/ Explore/);
-assert.match(html, /data-agent-status-filter="turn-7" data-agent-filter-value="all" aria-pressed="true"/);
-assert.match(html, /data-agent-branch-jump="branch-a"/);
+assert.doesNotMatch(html, /data-agent-status-filter=/, "small boards should not spend space on status filters");
 assert.match(html, /data-agent-branch-toggle="branch-a" aria-expanded="true"/);
 assert.match(html, /data-agent-branch-toggle="branch-b" aria-expanded="false"/);
 assert.match(html, /data-agent-jump="request-15"/);
 assert.match(html, /childSeq:index=2 agentEventToolResult/);
+assert.match(html, /agentInterleavedTimeline:count=5/);
+assert.match(html, /agentLinkageEvidence:confidence=highConfidence/);
+assert.match(html, /agentLinkageSignal:signal=x-claude-code-agent-id/);
+assert.match(html, /agentPathSpawn:index=6/);
+assert.match(html, /agentPathReturn:index=16/);
 assert.match(html, /Inspect &lt;disk&gt;/);
 assert.doesNotMatch(html, /<unsafe>/);
+
+const pagedHtml = renderAgentGraph(pagedView, {
+  translate,
+  escapeHtml,
+  shortId: (value) => String(value || "").slice(0, 7),
+  shortPreview: (value, limit) => String(value || "").slice(0, limit),
+});
+assert.match(pagedHtml, /data-agent-status-filter="turn-many" data-agent-filter-value="all" aria-pressed="true"/);
 
 const modelSource = fs.readFileSync(new URL("../src/viewer/agent-graph-model.js", import.meta.url), "utf8");
 const rendererSource = fs.readFileSync(new URL("../src/viewer/agent-graph-renderer.js", import.meta.url), "utf8");

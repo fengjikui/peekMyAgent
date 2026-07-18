@@ -1,6 +1,7 @@
 export const AGENT_BRANCH_PAGE_SIZE = 24;
 export const AGENT_EVENT_LIMIT = 80;
 export const AGENT_SUMMARY_DOT_LIMIT = 8;
+export const AGENT_STATUS_FILTER_THRESHOLD = 6;
 
 const AGENT_BRANCH_COLORS = ["#2563eb", "#16a34a", "#b4690e", "#7c3aed", "#dc2626", "#0891b2", "#db2777", "#65a30d"];
 const AGENT_STATUS_FILTERS = new Set(["all", "running", "completed", "returned"]);
@@ -54,6 +55,7 @@ export function buildAgentGraphView({
     launchIndexes: uniqueIndexes(branches, (branch) => branch.launch?.parent_request_index),
     returnIndexes: uniqueIndexes(branches, (branch) => branch.return?.parent_request_index),
     statusCounts,
+    showStatusFilters: branches.length > AGENT_STATUS_FILTER_THRESHOLD,
     confidence: trace?.confidence,
     summary: {
       branches: branches.length,

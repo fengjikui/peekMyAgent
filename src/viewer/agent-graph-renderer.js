@@ -1,6 +1,7 @@
 export function renderAgentGraph(view, { translate, escapeHtml, shortId, shortPreview }) {
   if (!view) return "";
   const typeNames = [...new Set(view.typeEntries.map((entry) => agentBranchName(entry, translate)))];
+  const summaryStatus = agentSummaryStatus(view.statusCounts, translate);
   return `
     <details class="agent-branch-map" aria-label="${escapeHtml(translate("multiAgentAria"))}" data-agent-dashboard="${escapeHtml(view.turnId)}" ${view.dashboardOpen ? "open" : ""}>
       <summary class="agent-branch-summary" data-agent-dashboard-toggle="${escapeHtml(view.turnId)}">
@@ -8,6 +9,7 @@ export function renderAgentGraph(view, { translate, escapeHtml, shortId, shortPr
         ${view.summaryOverflow ? `<span class="agent-summary-more">+${escapeHtml(String(view.summaryOverflow))}</span>` : ""}
         <strong>${escapeHtml(translate("multiAgentSummary", { count: view.branchCount }))}</strong>
         <span class="agent-branch-summary-types">${escapeHtml(typeNames.join(" / "))}</span>
+        <span class="agent-branch-summary-status">${escapeHtml(summaryStatus)}</span>
       </summary>
       ${view.dashboardOpen ? renderAgentDashboard(view, { translate, escapeHtml, shortId, shortPreview }) : ""}
     </details>
@@ -16,36 +18,8 @@ export function renderAgentGraph(view, { translate, escapeHtml, shortId, shortPr
 
 function renderAgentDashboard(view, dependencies) {
   const { translate, escapeHtml } = dependencies;
-  const { returned, completed, running } = view.statusCounts;
-  const tools = view.summary.calls || view.summary.results
-    ? ` · ${translate("branchInnerTools", { calls: view.summary.calls, results: view.summary.results })}`
-    : "";
   return `
-    <div class="agent-branch-head">
-      <div>
-        <p>${escapeHtml(translate("branchSummary", { ...view.summary, tools }))}</p>
-        <p class="agent-branch-status-line">${escapeHtml(translate("branchStatusSummary", { returned, completed, running }))}</p>
-      </div>
-      <div class="agent-branch-head-meta">
-        ${view.spawnIndexes.length ? `<span>spawn #${escapeHtml(view.spawnIndexes.join(", #"))}</span>` : ""}
-        ${view.launchIndexes.length ? `<span>launch #${escapeHtml(view.launchIndexes.join(", #"))}</span>` : ""}
-        ${view.returnIndexes.length ? `<span>return #${escapeHtml(view.returnIndexes.join(", #"))}</span>` : ""}
-        <span>${escapeHtml(branchConfidenceLabel(view.confidence, translate))}</span>
-      </div>
-    </div>
-    <div class="agent-branch-toolbar">
-      <div class="agent-status-filters" role="group" aria-label="${escapeHtml(translate("agentStatusFilterAria"))}">
-        ${renderAgentFilterButton(view.turnId, "all", translate("agentFilterAll", { count: view.branchCount }), view.activeFilter, escapeHtml)}
-        ${renderAgentFilterButton(view.turnId, "running", translate("agentFilterRunning", { count: running }), view.activeFilter, escapeHtml)}
-        ${renderAgentFilterButton(view.turnId, "completed", translate("agentFilterCompleted", { count: completed }), view.activeFilter, escapeHtml)}
-        ${renderAgentFilterButton(view.turnId, "returned", translate("agentFilterReturned", { count: returned }), view.activeFilter, escapeHtml)}
-      </div>
-      <span>${escapeHtml(translate("agentShowingCount", { shown: view.visibleBranches.length, total: view.filteredCount }))}</span>
-    </div>
-    <div class="agent-flow-map">
-      ${view.visibleBranches.map((entry) => renderAgentMapCard(entry, dependencies)).join("")}
-    </div>
-    ${renderAgentEventStrip(view, dependencies)}
+    ${view.showStatusFilters ? renderAgentStatusToolbar(view, dependencies) : ""}
     <div class="agent-branch-details" aria-label="${escapeHtml(translate("subagentDetails"))}">
       <div class="agent-branch-grid">
         ${
@@ -59,6 +33,23 @@ function renderAgentDashboard(view, dependencies) {
           ? `<button class="agent-branch-load-more" type="button" data-agent-branch-more="${escapeHtml(view.turnId)}">${escapeHtml(translate("showMoreAgents", { count: view.nextPageCount }))}</button>`
           : ""
       }
+    </div>
+    ${renderAgentEventStrip(view, dependencies)}
+    ${renderAgentEvidence(view, dependencies)}
+  `;
+}
+
+function renderAgentStatusToolbar(view, { translate, escapeHtml }) {
+  const { returned, completed, running } = view.statusCounts;
+  return `
+    <div class="agent-branch-toolbar">
+      <div class="agent-status-filters" role="group" aria-label="${escapeHtml(translate("agentStatusFilterAria"))}">
+        ${renderAgentFilterButton(view.turnId, "all", translate("agentFilterAll", { count: view.branchCount }), view.activeFilter, escapeHtml)}
+        ${renderAgentFilterButton(view.turnId, "running", translate("agentFilterRunning", { count: running }), view.activeFilter, escapeHtml)}
+        ${renderAgentFilterButton(view.turnId, "completed", translate("agentFilterCompleted", { count: completed }), view.activeFilter, escapeHtml)}
+        ${renderAgentFilterButton(view.turnId, "returned", translate("agentFilterReturned", { count: returned }), view.activeFilter, escapeHtml)}
+      </div>
+      <span>${escapeHtml(translate("agentShowingCount", { shown: view.visibleBranches.length, total: view.filteredCount }))}</span>
     </div>
   `;
 }
@@ -101,41 +92,30 @@ function renderAgentBranch(entry, dependencies) {
   `;
 }
 
-function renderAgentMapCard(entry, dependencies) {
-  const { branch, index, color } = entry;
-  const { translate, escapeHtml, shortPreview } = dependencies;
-  const title = branch.label || branch.agent_type || translate("subagentFallback", { index: index + 1 });
-  const name = agentBranchName(entry, translate);
-  const indexes = [
-    branch.spawn?.parent_request_index ? `#${branch.spawn.parent_request_index}` : "",
-    branch.launch?.parent_request_index ? `#${branch.launch.parent_request_index}` : "",
-    ...(branch.request_indexes || []).slice(0, 4).map((requestIndex) => `#${requestIndex}`),
-    branch.return?.parent_request_index ? `#${branch.return.parent_request_index}` : "",
-  ].filter((value, index, values) => value && values.indexOf(value) === index);
-  const overflow = Math.max(0, (branch.request_indexes?.length || 0) - 4);
-  return `
-    <button class="agent-map-card ${escapeHtml(branch.status || "unknown")}" type="button" data-agent-branch-jump="${escapeHtml(branch.id)}" style="--branch-color:${escapeHtml(color)}" title="${escapeHtml(branch.linkage_note || translate("jumpToAgentBranch"))}">
-      <span class="agent-map-topline">
-        <span class="agent-map-dot" aria-hidden="true"></span>
-        <strong>${escapeHtml(name)}</strong>
-        <span class="agent-map-seq">${escapeHtml(translate("childSeq", { index: index + 1 }))}</span>
-        <em>${escapeHtml(branchStatusLabel(branch.status, translate))}</em>
-      </span>
-      <span class="agent-map-title">${escapeHtml(shortPreview(title, 44))}</span>
-      <span class="agent-map-indexes">${escapeHtml(indexes.join(" → ") || translate("noRecordedRequests"))}${overflow ? ` <span>+${escapeHtml(String(overflow))}</span>` : ""}</span>
-    </button>
-  `;
-}
-
 function renderAgentEventStrip(view, { translate, escapeHtml }) {
   if (!view.events.length) return "";
   return `
-    <div class="agent-event-strip" aria-label="${escapeHtml(translate("eventOrder"))}">
-      <span class="agent-event-label">${escapeHtml(translate("eventOrderCount", { shown: view.events.length, total: view.eventCount }))}</span>
+    <details class="agent-event-strip" aria-label="${escapeHtml(translate("eventOrder"))}">
+      <summary class="agent-event-label">${escapeHtml(translate("agentInterleavedTimeline", { count: view.eventCount }))}</summary>
       <div class="agent-event-list">
         ${view.events.map((event) => renderAgentEvent(event, translate, escapeHtml)).join("")}
       </div>
-    </div>
+    </details>
+  `;
+}
+
+function renderAgentEvidence(view, { translate, escapeHtml }) {
+  const evidence = [
+    translate("agentLinkageSignal", { signal: view.summary.signal }),
+    view.spawnIndexes.length ? translate("agentSpawnEvidence", { indexes: requestIndexes(view.spawnIndexes) }) : "",
+    view.launchIndexes.length ? translate("agentLaunchEvidence", { indexes: requestIndexes(view.launchIndexes) }) : "",
+    view.returnIndexes.length ? translate("agentReturnEvidence", { indexes: requestIndexes(view.returnIndexes) }) : "",
+  ].filter(Boolean);
+  return `
+    <details class="agent-linkage-evidence">
+      <summary>${escapeHtml(translate("agentLinkageEvidence", { confidence: branchConfidenceLabel(view.confidence, translate) }))}</summary>
+      <div>${evidence.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+    </details>
   `;
 }
 
@@ -204,9 +184,9 @@ function agentBranchCompactSummary(branch, translate) {
   const toolUse = branch.response_tool_call_count || 0;
   const toolResult = branch.request_tool_result_count || 0;
   const edges = [
-    branch.spawn ? `spawn #${branch.spawn.parent_request_index}` : "",
-    branch.launch ? `launch #${branch.launch.parent_request_index}` : "",
-    branch.return ? `return #${branch.return.parent_request_index}` : "",
+    branch.spawn ? translate("agentPathSpawn", { index: branch.spawn.parent_request_index }) : "",
+    branch.launch ? translate("agentPathLaunch", { index: branch.launch.parent_request_index }) : "",
+    branch.return ? translate("agentPathReturn", { index: branch.return.parent_request_index }) : "",
   ].filter(Boolean).join(" · ");
   return [
     agentContextLabel(branch.spawn?.context_mode, translate),
@@ -214,6 +194,18 @@ function agentBranchCompactSummary(branch, translate) {
     toolUse || toolResult ? translate("turnTools", { calls: toolUse, results: toolResult }) : "",
     edges,
   ].filter(Boolean).join(" · ");
+}
+
+function agentSummaryStatus(statusCounts, translate) {
+  return [
+    statusCounts.running ? translate("agentFilterRunning", { count: statusCounts.running }) : "",
+    statusCounts.completed ? translate("agentFilterCompleted", { count: statusCounts.completed }) : "",
+    statusCounts.returned ? translate("agentFilterReturned", { count: statusCounts.returned }) : "",
+  ].filter(Boolean).join(" · ");
+}
+
+function requestIndexes(indexes) {
+  return indexes.map((index) => `#${index}`).join(", ");
 }
 
 function agentContextLabel(mode, translate) {

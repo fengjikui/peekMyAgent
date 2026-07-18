@@ -376,98 +376,9 @@ select {
   background: linear-gradient(180deg, #f9fbff 0%, #f5f8fd 100%);
 }
 
-.agent-branch-head {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-}
-
-.agent-branch-head p {
-  margin: 1px 0 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.agent-branch-head-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: flex-start;
-}
-
-.agent-branch-head-meta span {
-  padding: 2px 7px;
-  border: 1px solid #d6e2f7;
-  border-radius: 999px;
-  background: #fff;
-  color: #31599f;
-  font-size: 10px;
-  font-weight: 650;
-}
-
-.agent-flow-map {
-  display: grid;
-  gap: 6px;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  min-width: 0;
-  max-width: 100%;
-}
-
-.agent-map-card {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-  padding: 7px 8px 7px 9px;
-  border: 1px solid #cfdcf2;
-  border-radius: 6px;
-  background: #fff;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    border-color 140ms ease,
-    background 140ms ease,
-    box-shadow 140ms ease;
-}
-
-.agent-map-card:hover {
-  border-color: #9dbcf3;
-  background: #f5f9ff;
-  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.08);
-}
-
-.agent-map-topline {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-
-.agent-map-dot {
-  flex: 0 0 auto;
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  /* Per-agent color so different subagents are distinguishable at a glance. */
-  background: var(--branch-color, var(--accent));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--branch-color, var(--accent)) 18%, transparent);
-}
-
-/* Per-agent color accent on both the compact map card and the detail card. */
-.agent-map-card {
-  border-left: 2px solid var(--branch-color, var(--line-soft));
-}
-
+/* Per-agent color keeps parallel branches distinguishable without duplicating the flow map. */
 .agent-branch-card {
   border-left: 2px solid var(--branch-color, var(--line-soft));
-}
-
-.agent-map-seq {
-  font-size: 10px;
-  color: var(--muted);
 }
 
 .agent-type-chip {
@@ -504,9 +415,22 @@ select {
 }
 
 .agent-branch-summary-types {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--muted);
   font-size: 11px;
   font-weight: 600;
+}
+
+.agent-branch-summary-status {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: #47607f;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .agent-summary-dot {
@@ -529,68 +453,61 @@ select {
   font-weight: 650;
 }
 
-.agent-map-topline strong,
-.agent-map-topline em,
-.agent-map-title,
-.agent-map-indexes {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-map-topline strong {
-  color: #1f4d9b;
-  font-size: 10px;
-  font-weight: 760;
-}
-
-.agent-map-topline em {
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 9px;
-  font-style: normal;
-  font-weight: 700;
-}
-
-.agent-map-title {
-  color: var(--text);
-  font-size: 11px;
-  font-weight: 750;
-}
-
-.agent-map-indexes {
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 9px;
-}
-
-.agent-map-indexes span {
-  color: var(--accent);
-  font-weight: 800;
-}
-
-.agent-event-strip {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 6px;
-  align-items: center;
+.agent-event-strip,
+.agent-linkage-evidence {
+  display: block;
   padding: 6px 7px;
   border: 1px dashed #d4def1;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.66);
 }
 
-.agent-event-label {
+.agent-event-label,
+.agent-linkage-evidence > summary {
   color: var(--muted);
   font-size: 10px;
   font-weight: 760;
+  list-style: none;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.agent-event-label::-webkit-details-marker,
+.agent-linkage-evidence > summary::-webkit-details-marker {
+  display: none;
+}
+
+.agent-event-label::before,
+.agent-linkage-evidence > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 12px;
+  color: #8190a8;
+}
+
+.agent-event-strip[open] > .agent-event-label::before,
+.agent-linkage-evidence[open] > summary::before {
+  content: "▾";
+}
+
+.agent-event-strip[open] > .agent-event-label,
+.agent-linkage-evidence[open] > summary {
+  margin-bottom: 6px;
 }
 
 .agent-event-list {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+.agent-linkage-evidence > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
 }
 
 .agent-event {
