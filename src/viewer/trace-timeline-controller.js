@@ -11,6 +11,7 @@ export class TraceTimelineController {
     onUpstreamPanelToggle,
     onTurnWindowJump,
     onRaw,
+    onRequestJump,
     onAgentJump,
     onAgentBranchJump,
     onAgentBranchToggle,
@@ -33,7 +34,7 @@ export class TraceTimelineController {
     this.onUpstreamPanelToggle = requiredFunction(onUpstreamPanelToggle, "onUpstreamPanelToggle");
     this.onTurnWindowJump = requiredFunction(onTurnWindowJump, "onTurnWindowJump");
     this.onRaw = requiredFunction(onRaw, "onRaw");
-    this.onAgentJump = requiredFunction(onAgentJump, "onAgentJump");
+    this.onRequestJump = requiredFunction(onRequestJump || onAgentJump, "onRequestJump");
     this.onAgentBranchJump = requiredFunction(onAgentBranchJump, "onAgentBranchJump");
     this.onAgentBranchToggle = requiredFunction(onAgentBranchToggle, "onAgentBranchToggle");
     this.onSupportingTimelineToggle = requiredFunction(onSupportingTimelineToggle, "onSupportingTimelineToggle");
@@ -127,7 +128,7 @@ export class TraceTimelineController {
     else if (action.type === "upstream-toggle") this.onUpstreamToggle(action.requestId);
     else if (action.type === "turn-window-jump") this.onTurnWindowJump(action.turnId);
     else if (action.type === "raw") this.onRaw(action);
-    else if (action.type === "agent-jump") this.onAgentJump(action.requestId);
+    else if (action.type === "request-jump") this.onRequestJump(action.requestId);
     else if (action.type === "agent-branch-jump") this.onAgentBranchJump(action.branchId);
     else if (action.type === "agent-branch-toggle") this.onAgentBranchToggle(action.branchId);
     else if (action.type === "supporting-timeline-toggle") this.onSupportingTimelineToggle(action.turnId);
@@ -182,7 +183,8 @@ export function timelineAction(target, root) {
         mode: element.dataset.rawMode || "request",
       }),
     ],
-    ["[data-agent-jump]", (element) => ({ type: "agent-jump", requestId: element.dataset.agentJump })],
+    ["[data-request-jump]", (element) => ({ type: "request-jump", requestId: element.dataset.requestJump })],
+    ["[data-agent-jump]", (element) => ({ type: "request-jump", requestId: element.dataset.agentJump })],
     ["[data-agent-branch-jump]", (element) => ({ type: "agent-branch-jump", branchId: element.dataset.agentBranchJump })],
     ["[data-agent-branch-toggle]", (element) => ({ type: "agent-branch-toggle", branchId: element.dataset.agentBranchToggle })],
     [

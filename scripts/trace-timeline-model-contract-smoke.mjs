@@ -46,6 +46,8 @@ assert.equal(issueView.queryActive, true);
 assert.equal(issueView.matchCount, 1);
 assert.deepEqual(issueView.filteredTurns.map((item) => item.id), ["t2"]);
 assert.deepEqual(issueView.filteredTurns[0].request_ids, ["r3"]);
+assert.deepEqual(issueView.filteredTurns[0].all_request_ids, ["r2", "r3"]);
+assert.equal(issueView.filteredTurns[0].trace_filter, "issues");
 
 const toolView = buildTraceTimelineView({ turns, requests, filter: "tools", resultLimit: 1 });
 assert.equal(toolView.matchCount, 2);

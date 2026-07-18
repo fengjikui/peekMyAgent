@@ -65,6 +65,7 @@ const callbacks = Object.fromEntries(
     "onUpstreamPanelToggle",
     "onTurnWindowJump",
     "onRaw",
+    "onRequestJump",
     "onAgentJump",
     "onAgentBranchJump",
     "onAgentBranchToggle",
@@ -151,6 +152,15 @@ assert.deepEqual(calls.find(([name]) => name === "onAgentStatusFilter"), [
 const panel = fakeElement("[data-upstream-panel]", { upstreamPanel: "request-9" }, timelineRoot);
 timelineRoot.emit("toggle", eventFor(panel));
 assert.deepEqual(calls.find(([name]) => name === "onUpstreamPanelToggle"), ["onUpstreamPanelToggle", panel]);
+
+const requestJump = fakeElement("[data-request-jump]", { requestJump: "request-12" }, timelineRoot);
+timelineRoot.emit("click", eventFor(requestJump));
+assert.deepEqual(calls.find(([name]) => name === "onRequestJump"), ["onRequestJump", "request-12"]);
+assert.deepEqual(
+  timelineAction(fakeElement("[data-agent-jump]", { agentJump: "legacy-request" }, timelineRoot), timelineRoot),
+  { type: "request-jump", requestId: "legacy-request" },
+  "legacy Agent graph actions remain compatible during the generic jump migration",
+);
 
 assert.deepEqual(
   timelineAction(fakeElement("[data-agent-branch-jump]", { agentBranchJump: "branch-1" }, timelineRoot), timelineRoot),

@@ -80,6 +80,8 @@ import {
   translationSectionStats as summarizeTranslationSection,
 } from "./translation-view-model.js";
 import { TurnRailController } from "./turn-rail.js";
+import { buildTurnStoryView } from "./turn-story-model.js";
+import { renderTurnStory as renderTurnStoryView } from "./turn-story-renderer.js";
 import {
   buildTraceTimelineView,
   findTurnLeadRequest,
@@ -227,7 +229,7 @@ const traceTimelineController = new TraceTimelineController({
   onRaw({ requestId, section, mode }) {
     rawInspectorController.show(requestId, section, { mode });
   },
-  onAgentJump: jumpToRequest,
+  onRequestJump: jumpToRequest,
   onAgentBranchJump: jumpToAgentBranch,
   onAgentBranchToggle: toggleAgentBranch,
   onSupportingTimelineToggle(turnId) {
@@ -1200,6 +1202,8 @@ function renderTurnGroup(turn, requestMap) {
             <span class="trace-match-turn-title">${escapeHtml(turnTitleText(turn))}</span>
           </div>
         </header>
+        ${turn.trace_filter === "subagents" ? renderTurnStoryForTurn(turn, requestMap) : ""}
+        ${turn.trace_filter === "subagents" ? renderAgentBranchesForTurn(turn, requestMap) : ""}
         <div class="turn-request-list trace-match-requests">${requests.map(renderTurnRequest).join("")}</div>
       </section>
     `;
@@ -1220,6 +1224,7 @@ function renderTurnGroup(turn, requestMap) {
           <span class="turn-number">Turn ${escapeHtml(turn.index)}</span>
         </div>
       </header>
+      ${renderTurnStoryForTurn(turn, requestMap)}
       ${
         primaryRequests.length
           ? `<div class="turn-request-list primary-requests">${primaryRequests.map((request) => renderTurnRequest(request, request.id === lead?.id ? turn : null)).join("")}</div>`
@@ -1230,6 +1235,17 @@ function renderTurnGroup(turn, requestMap) {
       ${renderSupportingRequests(supportingRequests, turn.id)}
     </section>
   `;
+}
+
+function renderTurnStoryForTurn(turn, requestMap) {
+  const requestIds = turn.all_request_ids || turn.request_ids || [];
+  const view = buildTurnStoryView({
+    turn,
+    requests: requestIds.map((id) => requestMap.get(id)).filter(Boolean),
+    agentTrace: state.data?.agent_trace,
+    translate: t,
+  });
+  return renderTurnStoryView(view, { translate: t, escapeHtml });
 }
 
 function isPrimaryTurnRequest(request) {
@@ -1533,6 +1549,10 @@ function jumpToRequest(requestId) {
   const request = state.data?.requests?.find((item) => item.id === requestId);
   if (!request) return;
   if (request.turn_id && request.turn_id !== state.activeId) jumpToTurn(request.turn_id, false);
+  if (!els.timeline.querySelector(`[data-card="${cssEscape(requestId)}"]`) && request.turn_id) {
+    state.openSupportingTimelines.add(request.turn_id);
+    renderTimelineSurface();
+  }
   markActiveRequest(requestId, true);
 }
 

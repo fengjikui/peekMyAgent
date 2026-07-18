@@ -53,6 +53,8 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/upstream-detail-model.js", javascriptAsset("upstream-detail-model.js")],
   ["/upstream-detail-renderer.js", javascriptAsset("upstream-detail-renderer.js")],
   ["/turn-rail.js", javascriptAsset("turn-rail.js")],
+  ["/turn-story-model.js", javascriptAsset("turn-story-model.js")],
+  ["/turn-story-renderer.js", javascriptAsset("turn-story-renderer.js")],
   [
     "/translation-blocks.js",
     { base: "project", file: path.join("src", "translation", "blocks.mjs"), contentType: "text/javascript; charset=utf-8" },

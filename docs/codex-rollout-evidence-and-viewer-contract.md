@@ -84,6 +84,21 @@ data
 
 ## Viewer 默认信息架构
 
+### Turn 机制流程
+
+复杂 Turn 默认先显示一条紧凑的机制流程，再展示请求卡证据。例如：
+
+```text
+用户请求 -> 调用 exec_command -> exec_command 结果回传 -> 最终回答
+用户请求 -> 读取 Skill 指令 -> Skill 内容回传 -> 调用工具 -> 结果回传 -> 最终回答
+用户请求 -> 启动 2 个子 Agent -> 启动确认 2/2 -> 结果回流 2/2 -> 最终回答
+用户请求 -> 最终回答 -> Harness 压缩上下文
+```
+
+`turn-story-model.js` 只读取共享 `summary.entry`、`summary.response.tool_calls`、`summary.current_tool_results`、semantic event 和 `agent_trace`，不读取 Agent 名称。外层工具已带有高置信嵌套工具语义时，流程优先显示实际观察到的内部工具名；原始外层调用仍保留在请求卡和 Raw。子 Agent 流程按实例图聚合 spawn、launch acknowledgement 和 result return，不把每个底层 orchestration call 重复铺开。没有工具交换、Harness 生命周期事件或子 Agent 分支的普通问答不显示机制流程；底层即使夹有隐藏请求，也不能制造装饰性流程。
+
+每个可定位步骤都保存 request id/index，并通过共享请求跳转动作回到证据；该动作同时供多 Agent 看板使用。流程是导航和解释层，不会替代原始顺序、字段或证据完整度标签。
+
 ### 普通模型交换
 
 1. 中栏先显示用户可见输入、Assistant 回复、thinking 摘要和本轮工具交换。
@@ -129,6 +144,8 @@ Codex `spawn_agent` 是启动信号；紧随其后的 `function_call_output` 若
 - semantic event 不出现请求/回复标签；
 - 同名嵌套 Harness 标签不会截断；
 - response tool call 不进入上行 current tool calls；
+- Turn 机制流程按请求顺序关联工具/Skill 结果，并可跳回对应请求证据；
+- “子 Agent”筛选保留所属 Turn 的机制流程与多 Agent 看板；
 - spawn、启动确认、结果回流和跨页关联；
 - compact 首屏、迟到 response 覆盖与稳定 request id。
 

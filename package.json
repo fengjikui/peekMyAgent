@@ -108,6 +108,7 @@
     "smoke:viewer-i18n-contract": "node scripts/viewer-i18n-contract-smoke.mjs",
     "smoke:viewer-timeline-surface-contract": "node scripts/viewer-timeline-surface-contract-smoke.mjs",
     "smoke:turn-rail-contract": "node scripts/turn-rail-contract-smoke.mjs",
+    "smoke:turn-story-view-contract": "node scripts/turn-story-view-contract-smoke.mjs",
     "smoke:markdown-safety": "node scripts/markdown-safety-smoke.mjs",
     "smoke:claude-internal-turn": "node scripts/claude-internal-request-turn-smoke.mjs",
     "smoke:run-claude": "node scripts/run-claude-wrapper-smoke.mjs",

@@ -101,9 +101,11 @@ export function filterTraceTurns({ turns, requests, filter = "all", query = "", 
     remaining -= visibleRequestIds.length;
     matchedTurns.push({
       ...turn,
+      all_request_ids: turn.request_ids,
       request_ids: visibleRequestIds,
       request_count: visibleRequestIds.length,
       trace_filter_active: true,
+      trace_filter: normalizedFilter,
       trace_match_count: matchedRequestIds.length,
     });
   }

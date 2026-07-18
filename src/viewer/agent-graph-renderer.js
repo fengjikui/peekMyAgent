@@ -121,7 +121,7 @@ function renderAgentEvidence(view, { translate, escapeHtml }) {
 
 function renderAgentEvent(event, translate, escapeHtml) {
   return `
-    <button class="agent-event" type="button" data-agent-jump="${escapeHtml(event.requestId || "")}">
+    <button class="agent-event" type="button" data-request-jump="${escapeHtml(event.requestId || "")}">
       <strong>#${escapeHtml(event.requestIndex || "")}</strong>
       <span>${escapeHtml(`${translate("childSeq", { index: event.branchIndex + 1 })} ${agentEventTypeLabel(event.type, translate)}`)}</span>
     </button>
@@ -143,7 +143,7 @@ function agentEventTypeLabel(type, translate) {
 
 function renderBranchEdge(label, requestId, text, { translate, escapeHtml }) {
   return `
-    <button class="branch-edge" type="button" data-agent-jump="${escapeHtml(requestId || "")}">
+    <button class="branch-edge" type="button" data-request-jump="${escapeHtml(requestId || "")}">
       <span>${escapeHtml(label)}</span>
       <strong>${escapeHtml(text || translate("emptyNotRecorded"))}</strong>
     </button>
@@ -162,7 +162,7 @@ function renderAgentBranchStep(step, { translate, escapeHtml, shortId, shortPrev
           ? translate("subagentReply")
           : translate("modelRequest");
   return `
-    <button class="agent-branch-step" type="button" data-agent-jump="${escapeHtml(step.request_id)}">
+    <button class="agent-branch-step" type="button" data-request-jump="${escapeHtml(step.request_id)}">
       <span class="step-request">#${escapeHtml(step.request_index)}</span>
       <span class="step-body">
         <strong>${escapeHtml(title)}</strong>

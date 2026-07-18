@@ -1880,11 +1880,96 @@ select {
 }
 
 .turn-number {
+  flex: 0 0 auto;
   color: var(--accent);
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.turn-story {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 2px 2px;
+  color: var(--muted);
+}
+
+.turn-story-label {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 760;
+  line-height: 1.4;
+}
+
+.turn-story-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 4px;
+  min-width: 0;
+}
+
+.turn-story-segment {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+
+.turn-story-step {
+  min-width: 0;
+  padding: 1px 3px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #566071;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 620;
+  line-height: 1.45;
+  text-align: left;
+}
+
+button.turn-story-step {
+  cursor: pointer;
+}
+
+button.turn-story-step:hover,
+button.turn-story-step:focus-visible {
+  background: #edf4ff;
+  color: var(--accent);
+  outline: none;
+}
+
+.turn-story-step.skill,
+.turn-story-step.skill-result {
+  color: #6550a5;
+}
+
+.turn-story-step.agent-spawn,
+.turn-story-step.agent-launch,
+.turn-story-step.agent-return {
+  color: #176a52;
+}
+
+.turn-story-step.lifecycle {
+  color: #9a5a08;
+}
+
+.turn-story-step.collapsed,
+.turn-story-arrow {
+  color: #a1a7b2;
+}
+
+.turn-story-arrow {
+  flex: 0 0 auto;
+  font-size: 10px;
+  line-height: 1.45;
 }
 
 .turn-heading h3,

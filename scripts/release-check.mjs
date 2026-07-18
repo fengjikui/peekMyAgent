@@ -120,6 +120,7 @@ const viewerCommands = [
   ["npm", "run", "smoke:viewer-i18n-contract"],
   ["npm", "run", "smoke:viewer-timeline-surface-contract"],
   ["npm", "run", "smoke:turn-rail-contract"],
+  ["npm", "run", "smoke:turn-story-view-contract"],
   ["npm", "run", "smoke:markdown-safety"],
   ["npm", "run", "smoke:claude-internal-turn"],
   ["npm", "run", "smoke:suggestion-mode"],
