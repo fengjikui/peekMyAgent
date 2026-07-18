@@ -1,4 +1,17 @@
 const SENSITIVE_HEADER = /authorization|api[-_]?key|x-api-key|cookie|token|secret|session/i;
+const SENSITIVE_IDENTITY_HEADERS = new Set([
+  "chatgpt-account-id",
+  "openai-organization",
+  "openai-project",
+  "thread-id",
+  "x-client-request-id",
+  "x-codex-installation-id",
+  "x-codex-parent-thread-id",
+  "x-codex-thread-id",
+  "x-codex-turn-metadata",
+  "x-codex-turn-state",
+  "x-codex-window-id",
+]);
 const SECRET_TEXT =
   /(sk-[A-Za-z0-9_-]{12,}|sk-ant-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9_]{12,}|Bearer\s+[A-Za-z0-9._-]{12,})/g;
 
@@ -6,7 +19,7 @@ export function redactHeaders(headers = {}) {
   const redacted = {};
   const redactions = [];
   for (const [key, value] of Object.entries(headers || {})) {
-    if (SENSITIVE_HEADER.test(key)) {
+    if (isSensitiveHeader(key)) {
       redacted[key] = "[REDACTED:header]";
       redactions.push({ field_path: `headers.${key}`, reason: "sensitive_header" });
     } else {
@@ -14,6 +27,11 @@ export function redactHeaders(headers = {}) {
     }
   }
   return { headers: redacted, redactions };
+}
+
+function isSensitiveHeader(key) {
+  const normalized = String(key || "").toLowerCase();
+  return SENSITIVE_HEADER.test(normalized) || SENSITIVE_IDENTITY_HEADERS.has(normalized);
 }
 
 export function redactText(value, fieldPath = "content") {

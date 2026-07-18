@@ -136,6 +136,13 @@ const protocolCommands = [
   ["npm", "run", "smoke:proxy-anthropic"],
   ["npm", "run", "smoke:proxy-attribution"],
 ];
+const codexCommands = [
+  ["npm", "run", "smoke:codex-rollout-capture"],
+  ["npm", "run", "smoke:codex-viewer-integration"],
+  ["npm", "run", "smoke:codex-exact-proxy"],
+  ["npm", "run", "smoke:codex-exact-viewer-integration"],
+  ["npm", "run", "smoke:run-codex-capture"],
+];
 const persistenceCommands = [
   ["npm", "run", "smoke:persistence-migrations"],
   ["npm", "run", "smoke:sqlite-capture-read-repository"],
@@ -155,22 +162,22 @@ const otelCommands = [
 const profiles = {
   current: {
     description: "Core cross-platform release gate for the current host.",
-    commands: [...coreCommands, ...protocolCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
+    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
   },
   linux: {
     description: "Linux host release gate. Run this on a real Linux machine or Linux CI runner.",
     requirePlatform: "linux",
-    commands: [...coreCommands, ...protocolCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
+    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
   },
   macos: {
     description: "macOS host release gate. Run this on a real macOS machine or macOS CI runner.",
     requirePlatform: "darwin",
-    commands: [...coreCommands, ...protocolCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
+    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
   },
   windows: {
     description: "Windows host gate. Run this on a real Windows machine.",
     requirePlatform: "win32",
-    commands: [...coreCommands, ...protocolCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
+    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
   },
 };
 

@@ -1,6 +1,6 @@
 # Coding Agent 代码库地图
 
-更新时间：2026-07-16
+更新时间：2026-07-18
 
 本文帮助 Codex、Claude Code 和其他 Coding Agent 在几分钟内找到正确改动边界。它不是第二份架构事实源：运行行为以[当前架构](architecture.md)为准，未来设计以[重构路线图](refactoring-roadmap.md)为准，协作和验证规则以仓库根目录的 `AGENTS.md` 为准。
 
@@ -34,8 +34,9 @@ pma CLI / adapter
 | Proxy 请求/回复捕获 | `src/core/capture-proxy.mjs`、`provenance.mjs` | UI 文案 |
 | Watch 新建/复用/恢复、暂停/停止、共享代理和动态路由 | `src/server/watch-runtime-service.mjs`、[Service 契约](watch-runtime-service-contract.md) | 在 Router、wrapper、Source service 或 Agent send 各维护一份 watch Map/恢复策略 |
 | Claude Code OTel 关联与入库 | `src/core/otel-capture.mjs`、`otel-events.mjs`、`src/server/otel-ingest-service.mjs`、`src/adapters/claude-otel.mjs`、[Service 契约](otel-ingest-service-contract.md) | 在 HTTP route 复制配对算法，或让 core 解析层直接写 Store |
+| Codex 单会话观察与精确 Responses 捕获 | `src/adapters/codex-desktop-discovery.mjs`、`codex-rollout-normalizer.mjs`、`codex-exact-proxy.mjs`、`src/server/codex-rollout-capture-reader.mjs`、[产品决策](codex-capture-product-decisions.md) | 扫描并导入全部 Codex 历史、把 rollout 冒充 wire request，或把订阅认证转发到非 first-party host |
 | 页面向 Agent 独立发送消息 | `src/server/agent-send-service.mjs`、`src/viewer/agent-composer-*`、[Service 契约](agent-send-service-contract.md) | renderer 启动进程、Service 直接拥有 watch 恢复，或暗示消息会进入原终端上下文 |
-| OpenClaw/Trae 或新 Agent | `src/adapters/`、对应 integration、适配器 fixture；Codex 接入先读[桌面捕获研究](codex-desktop-capture-research.md) | 在 Server/Client 散落 provider 条件分支，或把 rollout 语义 Trace 冒充为 wire exact request |
+| OpenClaw/Trae 或新 Agent | `src/adapters/`、对应 integration 和适配器 fixture | 在 Server/Client 散落 provider 条件分支，或混淆不同来源的证据等级 |
 | SQLite 连接/写入/维护与 schema migration | `src/core/persistence-store.mjs`、`src/persistence/migrations/`、[Response 写入事务契约](capture-response-transaction-contract.md) | 绕过 migration 直接改 schema、拆散 response 原子写入，或让 read repository 拥有连接生命周期/写事务 |
 | persisted Capture 分页、窗口、body 重建与 response 水合 | `src/persistence/repositories/sqlite-capture-read-repository.mjs`、[读取仓库契约](sqlite-capture-read-repository-contract.md) | 在 Source reader、HTTP route 或 Viewer projector 重写 SQLite 查询和 blob 水合 |
 | content、thinking、tool use、tool result 基础解析 | `src/trace/content-parts.mjs`、对应 contract smoke | 在上行/下行各维护一份 block 解析 |
@@ -45,7 +46,7 @@ pma CLI / adapter
 | 模型下行 JSON/SSE、usage、stop reason | `src/trace/model-response-normalizer.mjs`、对应 contract smoke | 在 Viewer Server/renderer 按 provider 重写解析 |
 | Turn、context delta、子 Agent 血缘 | `src/trace/` 和对应 contract smoke | Viewer 中重新猜测关系 |
 | Source 列表、读取、重命名/归档/删除 | `src/server/source-*` provider/repository/service | HTTP route 直接操作文件或 SQLite |
-| 左侧 Source/项目导航与菜单 | `src/viewer/session-navigator-*`；应用副作用在 `client.js` | 每次渲染重新绑定按钮或 renderer 直接调用 API |
+| 左侧观察对象、Source/项目导航与菜单 | `src/viewer/session-navigator-*`；应用副作用在 `client.js` | 混排不同 Agent、每次渲染重新绑定按钮或 renderer 直接调用 API |
 | Trace 导入导出与脱敏 | `src/server/trace-bundle-service.mjs`、`src/core/redaction.mjs` | 浏览器自行拼 bundle |
 | Viewer 翻译材料提取、刷新、Harness 提示词与 occurrence | `src/translation/request-materials.mjs`、`src/translation/materials.mjs`、`src/server/viewer-translation-adapter.mjs`、[材料契约](translation-material-contract.md)、[Adapter 契约](viewer-translation-adapter-contract.md) | 在 HTTP route 或 `client.js` 重写 System/Tools/Harness 提取、marker 正则、hash 或 occurrence |
 | Viewer 翻译缓存、用户动作、语言偏好、生成异步阶段和语言/Source 竞态 | `translation-cache-controller.js`、`translation-action-controller.js`、`translation-action-model.js`、`translation-generation-operation.js`、`translation-language-catalog.js`、`language-preferences-controller.js`、[Cache Controller 契约](translation-cache-controller-contract.md)、[Action Controller 契约](translation-action-controller-contract.md)、[语言偏好契约](language-preferences-controller-contract.md) | 在 `client.js` 恢复第二份语言目录、localStorage key、cache/action registry、复制格式或生成序列，绕过 operation runner 直接串 provider/cache 副作用，或让任一控制器拥有其他 feature 的 HTML |

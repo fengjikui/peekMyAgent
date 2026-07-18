@@ -161,6 +161,23 @@ export function realUserVisibleText(message) {
   return stripDisplayWrapperTags(stripFrameworkReminderBlocks(text));
 }
 
+export function extractCodexHarnessBlocks(text) {
+  const value = String(text || "");
+  const output = [];
+  const tagged = codexTaggedHarnessRegex();
+  let match;
+  while ((match = tagged.exec(value))) {
+    const content = String(match[2] || "").trim();
+    if (content) output.push({ tag: match[1] || "codex-context", text: content });
+  }
+  const permissions = codexPermissionsHarnessRegex();
+  while ((match = permissions.exec(value))) {
+    const content = String(match[1] || "").trim();
+    if (content) output.push({ tag: "permissions instructions", text: content });
+  }
+  return output;
+}
+
 export function parseCommandMessage(messageOrText) {
   const text =
     typeof messageOrText === "string"
@@ -270,7 +287,7 @@ function realUserVisibleTextPart(part) {
 }
 
 function cleanRealUserTextPart(text) {
-  let value = stripFrameworkReminderBlocks(String(text || ""));
+  let value = stripCodexHarnessBlocks(stripFrameworkReminderBlocks(String(text || "")));
   if (/<local-command-|<command-(?:name|message|args)\b/i.test(value)) value = userTextAfterLocalCommandBlocks(value);
   else value = stripDisplayWrapperTags(value);
   if (!value) return "";
@@ -292,6 +309,24 @@ function stripDisplayWrapperTags(text) {
     .replace(commandMessageRegex(), "$1")
     .replace(commandNameRegex(), "$1")
     .trim();
+}
+
+export function stripCodexHarnessBlocks(text) {
+  let value = String(text || "");
+  for (const regex of codexHarnessBlockRegexes()) value = value.replace(regex, "");
+  return value.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function codexHarnessBlockRegexes() {
+  return [codexTaggedHarnessRegex(), codexPermissionsHarnessRegex()];
+}
+
+function codexTaggedHarnessRegex() {
+  return /<(environment_context|in-app-browser-context|app-context|skills_instructions|apps_instructions|plugins_instructions|recommended_plugins|collaboration_mode)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+}
+
+function codexPermissionsHarnessRegex() {
+  return /<permissions instructions\b[^>]*>([\s\S]*?)<\/permissions instructions>/gi;
 }
 
 function userTextAfterLocalCommandBlocks(text) {

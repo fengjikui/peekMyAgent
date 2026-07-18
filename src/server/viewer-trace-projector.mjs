@@ -24,6 +24,8 @@ import { summarizeModelResponse } from "../trace/model-response-normalizer.mjs";
 import { analyzeRequestComposition } from "../trace/request-composition.mjs";
 import {
   extractSystemParts,
+  extractRequestMessages,
+  extractRequestTools,
   inferProtocolProfile,
   inferRequestSource,
   isContextTokenCountingRequest,
@@ -98,9 +100,9 @@ export function createViewerTraceProjector({
   function summarizeCapture(capture, source, index, debugSource) {
     const body = capture.body || {};
     const responseSummary = summarizeModelResponse(capture.response);
-    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const messages = extractRequestMessages(body);
     const systemParts = extractSystemParts(body, messages);
-    const tools = Array.isArray(body.tools) ? body.tools : [];
+    const tools = extractRequestTools(body);
     const lastUser = lastMessage(messages, "user");
     const currentUser = lastRealUserMessage(messages);
     const currentUserRealText = realUserVisibleText(currentUser);
@@ -155,7 +157,9 @@ export function createViewerTraceProjector({
       fingerprints: {
         system: hashJson(systemParts.map((part) => part.text)),
         tools: hashJson(tools.map((tool) => tool.function?.name || tool.name || tool.type || "unknown")),
-        params: hashJson(Object.fromEntries(Object.entries(body).filter(([key]) => !["messages", "system", "tools"].includes(key)))),
+        params: hashJson(Object.fromEntries(
+          Object.entries(body).filter(([key]) => !["messages", "input", "system", "instructions", "tools", "additional_tools"].includes(key)),
+        )),
       },
       counts: {
         messages: messages.length,
@@ -256,6 +260,10 @@ export function createViewerTraceProjector({
       previewMessage: messageDeltaPreview,
       previewText: textPreview,
       isInternalRequest,
+      responseToolCalls(request) {
+        if (request?.raw?.provenance?.transport !== "codex_rollout_local" && request?.protocol !== "openai_responses") return [];
+        return request.summary?.response?.tool_calls || [];
+      },
       isRealUserMessage(message) {
         return (
           message?.role === "user" &&
@@ -280,7 +288,7 @@ export function createViewerTraceProjector({
   function lineageSemantics() {
     return {
       extractHistoryToolCalls(request) {
-        return extractToolCalls(Array.isArray(request.raw?.body?.messages) ? request.raw.body.messages : []);
+        return extractToolCalls(extractRequestMessages(request.raw?.body || {}));
       },
       firstUserPromptText,
       normalizePrompt: normalizeTranslationSourceText,
@@ -296,8 +304,7 @@ export function createViewerTraceProjector({
   }
 
   function firstUserPromptText(request) {
-    const messages = request.raw?.body?.messages;
-    if (!Array.isArray(messages)) return "";
+    const messages = extractRequestMessages(request.raw?.body || {});
     for (const message of messages) {
       if (message?.role !== "user") continue;
       if (isToolResultMessage(message)) continue;
@@ -431,15 +438,15 @@ export function createViewerTraceProjector({
         new Set(requests.map((request) => request.trace?.claude_agent_id).filter(Boolean)).size ||
         subagentCount,
       main_count: requests.length - subagentCount,
-      tool_call_count: requests.reduce((sum, request) => sum + request.counts.tool_calls, 0),
-      tool_result_count: requests.reduce((sum, request) => sum + request.counts.tool_results, 0),
+      tool_call_count: distinctToolEventCount(requests, (request) => request.summary?.current_tool_calls),
+      tool_result_count: distinctToolEventCount(requests, (request) => request.summary?.current_tool_results),
       raw_body_bytes: requests.reduce((sum, request) => sum + request.counts.raw_body_bytes, 0),
     };
   }
 
   function inferCaptureTitle(capture) {
     const body = capture?.body || {};
-    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const messages = extractRequestMessages(body);
     const user = messages.find(
       (message) =>
         message?.role === "user" &&
@@ -519,6 +526,19 @@ function stableJson(value) {
     .sort()
     .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
     .join(",")}}`;
+}
+
+function distinctToolEventCount(requests, selectEvents) {
+  const ids = new Set();
+  let anonymous = 0;
+  for (const request of requests || []) {
+    for (const event of selectEvents(request) || []) {
+      const id = String(event?.id || event?.tool_call_id || event?.tool_use_id || "").trim();
+      if (id) ids.add(id);
+      else anonymous += 1;
+    }
+  }
+  return ids.size + anonymous;
 }
 
 function shortenId(value) {

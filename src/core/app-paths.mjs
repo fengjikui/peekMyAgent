@@ -35,6 +35,25 @@ export function importedTracesDir(options = {}) {
   return joinPlatformPath(options.platform || process.platform, defaultStateDir(options), "imports");
 }
 
+export function codexHomeDir({ env = process.env, platform = process.platform } = {}) {
+  if (env.CODEX_HOME) return env.CODEX_HOME;
+  const home = userHome({ env, platform });
+  if (!home) throw new Error("Could not resolve the Codex home directory. Set CODEX_HOME.");
+  return joinPlatformPath(platform, home, ".codex");
+}
+
+export function codexStateDbPath(options = {}) {
+  const env = options.env || process.env;
+  const platform = options.platform || process.platform;
+  return env.PEEKMYAGENT_CODEX_STATE_DB || joinPlatformPath(platform, codexHomeDir(options), "state_5.sqlite");
+}
+
+export function codexObservationSelectionPath(options = {}) {
+  const env = options.env || process.env;
+  const platform = options.platform || process.platform;
+  return env.PEEKMYAGENT_CODEX_SELECTION_PATH || joinPlatformPath(platform, defaultStateDir(options), "codex-observation.json");
+}
+
 export function appConfigDir(appName, { env = process.env, platform = process.platform, override } = {}) {
   if (!appName) throw new Error("appConfigDir requires an app name.");
   if (override) return override;

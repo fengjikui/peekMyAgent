@@ -4,7 +4,7 @@
 
 peekMyAgent is a local-first dashboard for inspecting what coding agents send to model providers.
 
-It helps you understand how tools such as Claude Code and OpenClaw assemble system prompts, user messages, tool definitions, tool results, history, model parameters, and raw request bodies before they reach the remote model.
+It helps you understand how tools such as Claude Code, Codex, and OpenClaw assemble system prompts, user messages, tool definitions, tool results, history, model parameters, and raw request bodies before they reach the remote model.
 
 peekMyAgent is not meant to "steal hidden prompts". It is an observability tool for your own local agent sessions, in environments where you explicitly choose to record and inspect the traffic.
 
@@ -36,7 +36,9 @@ See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated
 
 - Open a local dashboard at `http://127.0.0.1:43110`.
 - Start Claude Code through `pma claude ...` and capture its model requests.
+- Select one existing Codex session for read-only rollout observation, or explicitly start a new Codex process with exact Responses capture.
 - Start OpenClaw through `pma openclaw ...` and capture its model requests.
+- Switch the sidebar's observed Agent so Codex, Claude Code, OpenClaw, and imported traces stay separate.
 - Inspect requests as a timeline with user input, system summaries, tools, tool calls, tool results, responses, token usage, and raw JSON.
 - Inspect Claude Code subagent traffic and group child-agent requests.
 - Open the dashboard from inside Claude Code with `/peekmyagent`.
@@ -47,7 +49,7 @@ See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated
 
 - macOS, Windows, or Linux.
 - Node.js 24 or newer. peekMyAgent currently uses Node's built-in `node:sqlite` runtime for its local store.
-- Claude Code and/or OpenClaw already installed and working.
+- Claude Code, Codex, and/or OpenClaw already installed and working for the integration you want to use.
 - Your model provider configuration should already work in the terminal where you run the Agent.
 
 If `claude` does not work by itself, fix that first:
@@ -163,6 +165,25 @@ The dashboard runs locally by default:
 ```text
 http://127.0.0.1:43110
 ```
+
+## Quick Start With Codex
+
+Observe one existing Codex Desktop/CLI session without copying its rollout into the peekMyAgent database:
+
+```bash
+pma codex --select
+```
+
+The first run asks you to choose one session. Later, `pma codex` reopens that selected session. Use `pma codex --list` and `pma codex --thread <thread-id>` for a non-interactive selection.
+
+For exact model requests and Responses output, explicitly start a new Codex process through the verified first-party route allowlist:
+
+```bash
+cd <your-project>
+pma codex capture --
+```
+
+Pass Codex arguments after `--`, for example `pma codex capture -- exec "Inspect this repository"`. This supplies an HTTP-only Responses provider to that child process so the local proxy can observe the exact wire request. It does not edit `~/.codex/config.toml` and does not attach to an already-running Codex Desktop process.
 
 ## Resume A Claude Code Session
 

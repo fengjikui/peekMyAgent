@@ -1,4 +1,4 @@
-import { buildSessionNavigatorView, groupSourcesByAgentAndProject } from "./session-navigator-model.js";
+import { buildSessionNavigatorView, groupSourcesByAgentAndProject, sourceFamilyKey } from "./session-navigator-model.js";
 import { renderSessionNavigator } from "./session-navigator-renderer.js";
 
 const DEFAULT_COLLAPSE_KEY = "peekmyagent.collapsedProjects";
@@ -15,6 +15,7 @@ export class SessionNavigatorController {
     displaySourceLabel,
     shortId,
     onSourceSelect,
+    onFamilySelect = () => {},
     onSourceAction,
     onProjectAction,
     collapseStorageKey = DEFAULT_COLLAPSE_KEY,
@@ -25,6 +26,7 @@ export class SessionNavigatorController {
     if (typeof translate !== "function") throw new Error("translate is required");
     if (typeof escapeHtml !== "function") throw new Error("escapeHtml is required");
     if (typeof onSourceSelect !== "function") throw new Error("onSourceSelect is required");
+    if (typeof onFamilySelect !== "function") throw new Error("onFamilySelect must be a function");
     if (typeof onSourceAction !== "function") throw new Error("onSourceAction is required");
     if (typeof onProjectAction !== "function") throw new Error("onProjectAction is required");
 
@@ -35,6 +37,7 @@ export class SessionNavigatorController {
     this.escapeHtml = escapeHtml;
     this.modelDependencies = { projectNameFromWorkspace, projectGroupKey, displaySourceLabel, shortId };
     this.onSourceSelect = onSourceSelect;
+    this.onFamilySelect = onFamilySelect;
     this.onSourceAction = onSourceAction;
     this.onProjectAction = onProjectAction;
     this.collapseStorageKey = collapseStorageKey;
@@ -42,18 +45,38 @@ export class SessionNavigatorController {
     this.activeSourceId = null;
     this.openSourceMenuId = null;
     this.openProjectMenuKey = null;
+    this.selectedFamilyKey = null;
     this.collapsedProjects = this.readCollapsedProjects();
 
     this.handleClick = (event) => this.onClick(event);
+    this.handleChange = (event) => this.onChange(event);
     this.handleDocumentClick = (event) => this.onDocumentClick(event);
     this.element.addEventListener("click", this.handleClick);
+    this.element.addEventListener("change", this.handleChange);
     this.documentTarget.addEventListener("click", this.handleDocumentClick);
   }
 
   render({ sources = [], activeSourceId = null } = {}) {
     this.sources = sources;
     this.activeSourceId = activeSourceId;
+    const activeSource = sources.find((source) => source.id === activeSourceId);
+    if (activeSource) this.selectedFamilyKey = sourceFamilyKey(activeSource);
+    else if (!sources.some((source) => sourceFamilyKey(source) === this.selectedFamilyKey)) {
+      this.selectedFamilyKey = sources[0] ? sourceFamilyKey(sources[0]) : null;
+    }
     this.renderCurrent();
+  }
+
+  onChange(event) {
+    const select = this.closestWithin(event.target, "[data-source-family-select]");
+    if (!select) return;
+    const familyKey = select.value;
+    const familySources = this.sources.filter((source) => sourceFamilyKey(source) === familyKey);
+    if (!familySources.length) return;
+    this.selectedFamilyKey = familyKey;
+    this.closeMenus();
+    this.renderCurrent();
+    this.onFamilySelect({ familyKey, sources: familySources });
   }
 
   onClick(event) {
@@ -134,9 +157,15 @@ export class SessionNavigatorController {
   }
 
   renderCurrent() {
+    const activeSource = this.sources.find((source) => source.id === this.activeSourceId);
+    const visibleActiveSourceId =
+      activeSource && sourceFamilyKey(activeSource) === this.selectedFamilyKey
+        ? this.activeSourceId
+        : null;
     const view = buildSessionNavigatorView({
       sources: this.sources,
-      activeSourceId: this.activeSourceId,
+      activeSourceId: visibleActiveSourceId,
+      selectedFamilyKey: this.selectedFamilyKey,
       collapsedProjects: this.collapsedProjects,
       openSourceMenuId: this.openSourceMenuId,
       openProjectMenuKey: this.openProjectMenuKey,
@@ -176,10 +205,12 @@ export class SessionNavigatorController {
 
   destroy() {
     this.element.removeEventListener("click", this.handleClick);
+    this.element.removeEventListener("change", this.handleChange);
     this.documentTarget.removeEventListener("click", this.handleDocumentClick);
     this.element.innerHTML = "";
     this.sources = [];
     this.activeSourceId = null;
+    this.selectedFamilyKey = null;
     this.closeMenus();
   }
 }

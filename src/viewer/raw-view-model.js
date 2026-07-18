@@ -1,16 +1,19 @@
+import { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
+
 export function rawSectionData(request, section, { translate = (key) => key, harnessMaterials = [] } = {}) {
   const body = request?.raw?.body || {};
-  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const messages = extractRequestMessages(body);
   if (section === "system") {
     return {
       title: "system",
       value: {
         body_system: body.system ?? null,
+        ...(body.instructions !== undefined ? { body_instructions: body.instructions } : {}),
         message_system: messages.filter((message) => message.role === "system"),
       },
     };
   }
-  if (section === "tools") return { title: "tools", value: body.tools ?? null };
+  if (section === "tools") return { title: "tools", value: extractRequestTools(body) };
   if (section === "harness") {
     return {
       title: translate("rawHarnessTitle"),
@@ -22,7 +25,12 @@ export function rawSectionData(request, section, { translate = (key) => key, har
       })),
     };
   }
-  if (section === "messages") return { title: "messages / history", value: messages };
+  if (section === "messages") {
+    return {
+      title: Array.isArray(body.input) ? "input / history" : "messages / history",
+      value: Array.isArray(body.input) ? body.input : messages,
+    };
+  }
   if (section === "upstream_tool_calls") {
     return {
       title: "upstream tool_use",
@@ -120,6 +128,7 @@ export function rawResponseSectionValue(request) {
           tool_use: response.tool_calls || [],
           stop_reason: response.finish_reason || null,
           finish_reason: response.finish_reason || null,
+          status: response.response_status || null,
           usage: response.usage || null,
           stream: Boolean(response.stream),
           event_count: response.event_count || 0,
@@ -134,6 +143,7 @@ export function rawResponseSectionValue(request) {
           tool_use: response.tool_calls || [],
           usage: response.usage || null,
           finish_reason: response.finish_reason || null,
+          response_status: response.response_status || null,
           stream: Boolean(response.stream),
           event_count: response.event_count || 0,
           truncated: Boolean(response.truncated),

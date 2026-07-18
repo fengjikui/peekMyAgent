@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 import { normalizeOpenClawProxyCapture } from "../src/adapters/openclaw-proxy.mjs";
 import { DEFAULT_OPENCLAW_PROFILE, patchOpenClawProviderBaseUrl, prepareOpenClawProfilePatch } from "../src/adapters/openclaw-config.mjs";
 import { normalizeClaudeOtelRequestFile } from "../src/adapters/claude-otel.mjs";
+import { CodexDesktopDiscovery } from "../src/adapters/codex-desktop-discovery.mjs";
+import { CODEX_CHATGPT_ORIGIN, codexHttpProviderOverrides } from "../src/adapters/codex-exact-proxy.mjs";
 import { disableTraeCn, enableTraeCn, inspectTraeCn, syncTraeCn } from "../src/adapters/trae-cn-integration.mjs";
 import { claudeCodeProjectDir, claudeCodeProxySettingsArgs, claudeCodeUserDir, inspectClaudeCodeSettings, mergeClaudeCodeProcessEnv, resolveClaudeCodeTargetBaseUrl } from "../src/core/claude-code-settings.mjs";
 import { defaultStateDir, defaultStorePath, ideRegistryPath as defaultIdeRegistryPath, viewerRegistryPath as resolveViewerRegistryPath } from "../src/core/app-paths.mjs";
@@ -41,6 +43,8 @@ Usage:
   pma normalize claude-otel <request.json> [--out <file>] [--delete-raw-after-import]
   pma daemon [--host <host>] [--api-port <port>] [--capture-port <port>] [--open]
   pma open [--source <id>] [--print] [--no-open]
+  pma codex [--select] [--thread <id>] [--list] [--print] [--no-open]
+  pma codex capture [--viewer-url <url>] [--no-open] -- [codex args...]
   pma doctor [--json]
   pma compact [--watch <watch-id>] [--limit <n>] [--no-vacuum] [--json]
   pma clear --all-sessions [--json]
@@ -78,6 +82,7 @@ Notes:
 
 Usage:
   pma open
+  pma codex
   pma claude -c
   pma claude -c --dangerously-skip-permissions
   pma claude -r <session-id>
@@ -86,6 +91,9 @@ Usage:
 
 Common:
   pma open                         Open the local dashboard.
+  pma codex                        Open the selected Codex session (read-only).
+  pma codex --select               Choose one Codex session to observe.
+  pma codex capture --             Start Codex with exact capture for this process.
   pma claude -c                    Start Claude Code and capture this session.
   pma claude -c --dangerously-skip-permissions
                                    Start Claude Code without permission prompts in a trusted repo.
@@ -294,6 +302,8 @@ try {
     await startForegroundDaemon();
   } else if (command === "open" || command === "dashboard") {
     await openDashboard();
+  } else if (command === "codex") {
+    await openCodexDashboard();
   } else if (command === "doctor") {
     const result = await runDoctor();
     printDoctor(result);
@@ -1452,6 +1462,156 @@ async function openDashboard() {
   console.log(`peekMyAgent dashboard: ${url}`);
 }
 
+async function openCodexDashboard() {
+  if (hasFlag("--help") || hasFlag("-h")) usage(0);
+  if (rest[0] === "capture") {
+    rest = rest.slice(1);
+    const result = await runCodexCapture();
+    process.exitCode = result.exit_code;
+    return;
+  }
+  const discovery = new CodexDesktopDiscovery();
+  if (hasFlag("--clear")) {
+    discovery.clearSelection();
+    console.log("peekMyAgent Codex observation selection cleared. No Codex history was deleted.");
+    return;
+  }
+  const candidates = discovery.listCandidates();
+  if (hasFlag("--list")) {
+    printCodexCandidates(candidates);
+    return;
+  }
+  let selectedSource = null;
+  const explicitThreadId = optionValue("--thread");
+  if (explicitThreadId) selectedSource = discovery.selectThread(explicitThreadId);
+  else if (!hasFlag("--select")) selectedSource = discovery.listSources()[0] || null;
+  if (!selectedSource) {
+    if (!candidates.length) {
+      throw new Error("No readable Codex Desktop sessions were found. Confirm CODEX_HOME, then try again.");
+    }
+    if (!process.stdin.isTTY || !process.stderr.isTTY) {
+      throw new Error("No Codex session is selected. Run `pma codex --list`, then `pma codex --thread <id>`. ");
+    }
+    selectedSource = discovery.selectThread(await promptForCodexThread(candidates));
+  }
+  const explicitUrl = optionValue("--viewer-url") || process.env.PEEKMYAGENT_DASHBOARD_URL || null;
+  const dashboard = await ensureDashboard({ explicitUrl });
+  const sources = await fetchJson(`${trimSlash(dashboard.url)}/api/sources`);
+  const source = (Array.isArray(sources) ? sources : []).find((item) => item.id === selectedSource.id && item.available);
+  if (!source) {
+    throw new Error("The selected Codex session is no longer readable. Run `pma codex --select` to choose another session.");
+  }
+  const url = buildDashboardUrl(dashboard.url, source.id);
+  const shouldOpen = !hasFlag("--no-open") && !hasFlag("--print");
+  if (shouldOpen || hasFlag("--open")) launchBrowserUrl(url);
+  console.log(`peekMyAgent Codex trace: ${url}`);
+  console.log(`observing: ${source.title || source.label || source.conversation_id}`);
+  console.log("read-only: the rollout remains in CODEX_HOME and is not copied into peekMyAgent SQLite");
+}
+
+async function runCodexCapture() {
+  const parsed = parseCodexCaptureArgs(rest);
+  const explicitUrl = optionValueIn(parsed.wrapperArgs, "--viewer-url") || process.env.PEEKMYAGENT_DASHBOARD_URL || null;
+  const dashboard = await ensureDashboard({ explicitUrl });
+  const workspace = safeProcessCwd();
+  const watch = await postJson(`${trimSlash(dashboard.url)}/api/watch/start`, {
+    agent: "Codex",
+    mode: "single_session",
+    workspace,
+    conversation_id: null,
+    started_by: "codex-wrapper",
+    reuse: false,
+    target_base_url: CODEX_CHATGPT_ORIGIN,
+    kind: "codex_proxy_exact",
+    confidence: "exact",
+    label: "Codex · exact capture",
+    note: "Only the Codex process started by this command is captured through the verified first-party route allowlist.",
+  }, { headers: { "x-peekmyagent-intent": "watch-start" } });
+
+  const sourceUrl = buildDashboardUrl(dashboard.url, watch.id);
+  if (!hasFlagIn(parsed.wrapperArgs, "--no-open") || hasFlagIn(parsed.wrapperArgs, "--open")) {
+    launchBrowserUrl(sourceUrl);
+  }
+  const childArgs = [...codexHttpProviderOverrides(watch.base_url), ...parsed.childArgs];
+  console.error("peekMyAgent Codex capture: exact Responses API (explicit opt-in)");
+  printRunStarted({ viewerUrl: dashboard.url, watch, command: "codex", args: parsed.childArgs });
+  console.error("config: one-process HTTP-only provider override; ~/.codex/config.toml is unchanged");
+  return runChildWithWatchCleanup({
+    command: "codex",
+    args: childArgs,
+    env: process.env,
+    viewerUrl: dashboard.url,
+    watch,
+    openclawProfile: null,
+  });
+}
+
+function parseCodexCaptureArgs(values) {
+  const separatorIndex = values.indexOf("--");
+  const wrapperArgs = separatorIndex === -1 ? values : values.slice(0, separatorIndex);
+  const allowedFlags = new Set(["--no-open", "--open"]);
+  for (let index = 0; index < wrapperArgs.length; index += 1) {
+    const value = wrapperArgs[index];
+    if (allowedFlags.has(value)) continue;
+    if (value === "--viewer-url") {
+      const next = wrapperArgs[index + 1];
+      if (!next || isFlagLike(next)) throw new Error("--viewer-url requires a value.");
+      index += 1;
+      continue;
+    }
+    if (isOptionAssignment(value, "--viewer-url")) continue;
+    throw new Error(`Unknown pma codex capture option: ${value}. Put Codex arguments after --.`);
+  }
+  return {
+    wrapperArgs,
+    childArgs: separatorIndex === -1 ? [] : values.slice(separatorIndex + 1),
+  };
+}
+
+async function promptForCodexThread(candidates) {
+  const visible = candidates.slice(0, 20);
+  console.error("Choose one Codex session to observe (read-only; no Trace copy is created):");
+  visible.forEach((source, index) => {
+    const project = source.project ? ` · ${source.project}` : "";
+    const updated = source.updated_at ? ` · ${source.updated_at.slice(0, 16).replace("T", " ")}` : "";
+    console.error(`  ${index + 1}. ${source.title || source.label}${project}${updated}`);
+  });
+  const terminal = readline.createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    const answer = await terminal.question(`Select 1-${visible.length}: `);
+    const index = Number(answer) - 1;
+    if (!Number.isInteger(index) || index < 0 || index >= visible.length) throw new Error("Invalid Codex session selection.");
+    return visible[index].conversation_id;
+  } finally {
+    terminal.close();
+  }
+}
+
+function printCodexCandidates(candidates) {
+  if (hasFlag("--json")) {
+    process.stdout.write(`${JSON.stringify(candidates.map(codexCandidateSummary), null, 2)}\n`);
+    return;
+  }
+  if (!candidates.length) {
+    console.log("No readable Codex Desktop sessions found.");
+    return;
+  }
+  for (const source of candidates) {
+    const summary = codexCandidateSummary(source);
+    console.log(`${summary.thread_id}\t${summary.updated_at || "-"}\t${summary.project || "-"}\t${summary.title || "Untitled Codex session"}`);
+  }
+}
+
+function codexCandidateSummary(source) {
+  return {
+    thread_id: source.conversation_id,
+    title: source.title || source.label || null,
+    project: source.project || null,
+    updated_at: source.updated_at || null,
+    model: source.model || null,
+  };
+}
+
 async function shutdownDashboard() {
   const explicitUrl = optionValue("--viewer-url") || process.env.PEEKMYAGENT_DASHBOARD_URL || null;
   const targets = daemonControlTargets(explicitUrl);
@@ -1655,7 +1815,15 @@ async function startForegroundDaemon() {
   const host = optionValue("--host") || process.env.PEEKMYAGENT_DAEMON_HOST || DEFAULT_DAEMON_HOST;
   const apiPort = parsePort(optionValue("--api-port") || process.env.PEEKMYAGENT_DAEMON_PORT || DEFAULT_DAEMON_API_PORT, "api port");
   const capturePort = parsePort(optionValue("--capture-port") || process.env.PEEKMYAGENT_CAPTURE_PORT || DEFAULT_DAEMON_CAPTURE_PORT, "capture port");
-  const daemon = await startViewerServer({ cwd: safeProcessCwd(), host, port: apiPort, captureHost: host, capturePort, exitOnShutdown: true });
+  const daemon = await startViewerServer({
+    cwd: safeProcessCwd(),
+    host,
+    port: apiPort,
+    captureHost: host,
+    capturePort,
+    codexLocal: !hasFlag("--no-codex"),
+    exitOnShutdown: true,
+  });
   console.log(`peekMyAgent daemon: ${daemon.url}`);
   console.log(`peekMyAgent capture proxy: ${daemon.captureUrl}`);
   console.log("Press Ctrl-C to stop.");
@@ -1678,7 +1846,7 @@ async function startForegroundDevViewer() {
   const portValue = optionValue("--port");
   const port = portValue ? Number(portValue) : 0;
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error(`Invalid --port: ${portValue}`);
-  const viewer = await startViewerServer({ cwd: safeProcessCwd(), demo, evidencePath, port });
+  const viewer = await startViewerServer({ cwd: safeProcessCwd(), demo, evidencePath, port, codexLocal: hasFlag("--codex") });
   console.log(`peekMyAgent dev viewer: ${viewer.url}`);
   console.log(`demo=${demo || "none"}${evidencePath ? ` evidence=${evidencePath}` : ""}`);
   console.log("Press Ctrl-C to stop.");

@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import http from "node:http";
-import https from "node:https";
 import { proxyCaptureProvenance } from "./provenance.mjs";
 import { redactHeaders } from "./redaction.mjs";
+import { createUpstreamHttpTransport } from "./upstream-http-transport.mjs";
 
 export const DEFAULT_WATCH_ID = "default";
 const MAX_CAPTURED_REQUEST_BYTES = 64 * 1024 * 1024;
@@ -23,6 +23,10 @@ export function listen(server, host = "127.0.0.1", port = 0) {
 }
 
 export function readBody(req, { maxBytes = MAX_CAPTURED_REQUEST_BYTES } = {}) {
+  return readBodyBuffer(req, { maxBytes }).then((body) => body.toString("utf8"));
+}
+
+export function readBodyBuffer(req, { maxBytes = MAX_CAPTURED_REQUEST_BYTES } = {}) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let total = 0;
@@ -35,7 +39,7 @@ export function readBody(req, { maxBytes = MAX_CAPTURED_REQUEST_BYTES } = {}) {
       }
       chunks.push(chunk);
     });
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
 }
@@ -91,6 +95,12 @@ export function resolveRequestAttribution(req, fallback = {}) {
 export function buildCaptureRecord({
   req,
   bodyText,
+  bodyJson,
+  rawBodyLength,
+  decodedBodyLength,
+  contentEncoding,
+  captureAdapter,
+  upstreamPath,
   attribution,
   requestIndex,
   captureId = crypto.randomUUID(),
@@ -110,9 +120,13 @@ export function buildCaptureRecord({
     original_url: attribution.originalUrl,
     headers,
     header_redactions: redactions,
-    body: parseJson(bodyText),
-    raw_body_length: Buffer.byteLength(bodyText),
+    body: bodyJson === undefined ? parseJson(bodyText) : bodyJson,
+    raw_body_length: rawBodyLength ?? Buffer.byteLength(bodyText || ""),
   };
+  if (decodedBodyLength != null) capture.decoded_body_length = decodedBodyLength;
+  if (contentEncoding && contentEncoding !== "identity") capture.request_content_encoding = contentEncoding;
+  if (captureAdapter) capture.capture_adapter = captureAdapter;
+  if (upstreamPath && upstreamPath !== attribution.forwardPath) capture.upstream_path = upstreamPath;
   capture.provenance = proxyCaptureProvenance(capture);
   return capture;
 }
@@ -125,6 +139,8 @@ export async function startCaptureProxy({
   defaultAttribution = {},
   preserveTargetPathPrefix = false,
   shouldCapture,
+  captureAdapter = null,
+  transport = null,
   onCapture,
   onCaptureUpdate,
   onCaptureSkipped,
@@ -132,6 +148,8 @@ export async function startCaptureProxy({
   if (!targetBaseUrl) throw new Error("targetBaseUrl is required");
   assertSupportedUpstreamUrl(targetBaseUrl);
   const captures = captureStore || [];
+  const upstreamTransport = transport || createUpstreamHttpTransport();
+  const ownsTransport = !transport;
   const requestCounters = requestCountersFromCaptures(captures);
   const sockets = new Set();
   const server = http.createServer(async (req, res) => {
@@ -145,17 +163,31 @@ export async function startCaptureProxy({
       writeProxyJson(res, browserGuard.status, { error: browserGuard.message });
       return;
     }
-    let bodyText;
+    let bodyBuffer;
     try {
-      bodyText = await readBody(req);
+      bodyBuffer = await readBodyBuffer(req);
     } catch (error) {
       writeProxyJson(res, error.statusCode || 400, { error: error.message });
       return;
     }
     const attribution = resolveRequestAttribution(req, defaultAttribution);
-    const shouldCaptureRequest = shouldCapture ? shouldCapture(attribution) !== false : true;
+    let adapted;
+    try {
+      adapted = adaptCaptureRequest({ adapter: captureAdapter, req, attribution, bodyBuffer });
+    } catch (error) {
+      writeProxyJson(res, error.statusCode || 400, { error: error.message });
+      return;
+    }
+    const shouldCaptureRequest = adapted.capture && (shouldCapture ? shouldCapture(attribution) !== false : true);
     const capture = shouldCaptureRequest
-      ? buildCaptureRecord({ req, bodyText, attribution, requestIndex: nextRequestIndex(requestCounters, attribution.watchId) })
+      ? buildCaptureRecord({
+          req,
+          ...adapted.decoded,
+          captureAdapter: captureAdapter?.id || null,
+          upstreamPath: adapted.forwardPath,
+          attribution,
+          requestIndex: nextRequestIndex(requestCounters, attribution.watchId),
+        })
       : null;
     if (capture) {
       captures.push(capture);
@@ -164,9 +196,8 @@ export async function startCaptureProxy({
       await onCaptureSkipped(attribution);
     }
 
-    const upstreamUrl = resolveUpstreamUrl(targetBaseUrl, attribution.forwardPath, preserveTargetPathPrefix);
-    const client = upstreamUrl.protocol === "https:" ? https : http;
-    const upstreamReq = client.request(
+    const upstreamUrl = resolveUpstreamUrl(targetBaseUrl, adapted.forwardPath, preserveTargetPathPrefix);
+    const upstreamReq = upstreamTransport.request(
       upstreamUrl,
       {
         method: req.method,
@@ -183,7 +214,7 @@ export async function startCaptureProxy({
       writeProxyJson(res, 502, { error: error.message });
       if (capture && onCaptureUpdate) Promise.resolve(onCaptureUpdate(capture)).catch(() => {});
     });
-    upstreamReq.end(bodyText);
+    upstreamReq.end(bodyBuffer);
   });
   attachProxyProtocolGuards(server);
   server.on("connection", (socket) => {
@@ -211,6 +242,7 @@ export async function startCaptureProxy({
     },
     close() {
       for (const socket of sockets) socket.destroy();
+      if (ownsTransport) upstreamTransport.close?.();
       return new Promise((resolve, reject) => {
         server.close((error) => {
           if (error && error.code !== "ERR_SERVER_NOT_RUNNING") reject(error);
@@ -227,12 +259,16 @@ export async function startSharedCaptureProxy({
   captures: captureStore,
   getWatch,
   getWatchForAgentRoute,
+  captureAdapterForWatch,
+  transport = null,
   onCapture,
   onCaptureUpdate,
   onCaptureSkipped,
 } = {}) {
   if (typeof getWatch !== "function") throw new Error("getWatch is required");
   const captures = captureStore || [];
+  const upstreamTransport = transport || createUpstreamHttpTransport();
+  const ownsTransport = !transport;
   const requestCounters = requestCountersFromCaptures(captures);
   const sockets = new Set();
   const server = http.createServer(async (req, res) => {
@@ -246,20 +282,23 @@ export async function startSharedCaptureProxy({
       writeProxyJson(res, browserGuard.status, { error: browserGuard.message });
       return;
     }
-    let bodyText;
+    let bodyBuffer;
     try {
-      bodyText = await readBody(req);
+      bodyBuffer = await readBodyBuffer(req);
     } catch (error) {
       writeProxyJson(res, error.statusCode || 400, { error: error.message });
       return;
     }
     const initialAttribution = resolveRequestAttribution(req, {});
+    const preliminary = initialAttribution.agentRoute
+      ? adaptCaptureRequest({ adapter: null, req, attribution: initialAttribution, bodyBuffer })
+      : null;
     const watch = initialAttribution.agentRoute
       ? await getWatchForAgentRoute?.({
           route: initialAttribution.agentRoute,
           req,
-          body: parseJson(bodyText),
-          bodyText,
+          body: preliminary.decoded.bodyJson,
+          bodyText: preliminary.decoded.bodyText,
           attribution: initialAttribution,
         })
       : await getWatch(initialAttribution.watchId);
@@ -283,9 +322,24 @@ export async function startSharedCaptureProxy({
       workspace: watch.workspace,
       conversationId: watch.conversation_id,
     });
-    const shouldCapture = watch.status !== "paused";
+    const captureAdapter = captureAdapterForWatch?.(watch) || null;
+    let adapted;
+    try {
+      adapted = adaptCaptureRequest({ adapter: captureAdapter, req, attribution, bodyBuffer });
+    } catch (error) {
+      writeProxyJson(res, error.statusCode || 400, { error: error.message });
+      return;
+    }
+    const shouldCapture = watch.status !== "paused" && adapted.capture;
     const capture = shouldCapture
-      ? buildCaptureRecord({ req, bodyText, attribution, requestIndex: nextRequestIndex(requestCounters, attribution.watchId) })
+      ? buildCaptureRecord({
+          req,
+          ...adapted.decoded,
+          captureAdapter: captureAdapter?.id || null,
+          upstreamPath: adapted.forwardPath,
+          attribution,
+          requestIndex: nextRequestIndex(requestCounters, attribution.watchId),
+        })
       : null;
     if (capture) {
       captures.push(capture);
@@ -294,9 +348,8 @@ export async function startSharedCaptureProxy({
       await onCaptureSkipped(watch);
     }
 
-    const upstreamUrl = resolveUpstreamUrl(watch.target_base_url, attribution.forwardPath, true);
-    const client = upstreamUrl.protocol === "https:" ? https : http;
-    const upstreamReq = client.request(
+    const upstreamUrl = resolveUpstreamUrl(watch.target_base_url, adapted.forwardPath, true);
+    const upstreamReq = upstreamTransport.request(
       upstreamUrl,
       {
         method: req.method,
@@ -313,7 +366,7 @@ export async function startSharedCaptureProxy({
       writeProxyJson(res, 502, { error: error.message });
       if (capture && onCaptureUpdate) Promise.resolve(onCaptureUpdate(capture, watch)).catch(() => {});
     });
-    upstreamReq.end(bodyText);
+    upstreamReq.end(bodyBuffer);
   });
   attachProxyProtocolGuards(server);
   server.on("connection", (socket) => {
@@ -341,6 +394,7 @@ export async function startSharedCaptureProxy({
     },
     close() {
       for (const socket of sockets) socket.destroy();
+      if (ownsTransport) upstreamTransport.close?.();
       return new Promise((resolve, reject) => {
         server.close((error) => {
           if (error && error.code !== "ERR_SERVER_NOT_RUNNING") reject(error);
@@ -359,6 +413,36 @@ function parseAgentRoutePath(pathname) {
     installId: safeDecode(match[2]),
     protocol: safeDecode(match[3]),
     forwardPath: match[4] || "/",
+  };
+}
+
+function adaptCaptureRequest({ adapter, req, attribution, bodyBuffer }) {
+  const route = adapter?.resolveRequest
+    ? adapter.resolveRequest({
+        method: req.method,
+        forwardPath: attribution.forwardPath,
+        headers: req.headers || {},
+      })
+    : { forwardPath: attribution.forwardPath, capture: true };
+  const decoded = adapter?.decodeRequest
+    ? adapter.decodeRequest({ bodyBuffer, headers: req.headers || {} })
+    : decodeUtf8Request(bodyBuffer);
+  return {
+    capture: route.capture !== false,
+    forwardPath: route.forwardPath || attribution.forwardPath,
+    decoded,
+  };
+}
+
+function decodeUtf8Request(bodyBuffer) {
+  const body = Buffer.isBuffer(bodyBuffer) ? bodyBuffer : Buffer.from(bodyBuffer || "");
+  const bodyText = body.toString("utf8");
+  return {
+    bodyText,
+    bodyJson: parseJson(bodyText),
+    rawBodyLength: body.length,
+    decodedBodyLength: body.length,
+    contentEncoding: "identity",
   };
 }
 

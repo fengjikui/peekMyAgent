@@ -140,7 +140,7 @@ function emptyPagePayload(session, pageResult) {
 }
 
 function isLiveSource(source) {
-  return Boolean(source?.live_watch_id);
+  return Boolean(source?.live_watch_id || source?.stream_live);
 }
 
 function requiredFunction(value, name) {

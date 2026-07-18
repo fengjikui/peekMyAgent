@@ -11,6 +11,8 @@ import { openPersistenceStore } from "../core/persistence-store.mjs";
 import { sourceIdForWatch } from "../core/source-identifiers.mjs";
 import { clearViewerRegistry, writeViewerRegistry } from "../core/viewer-registry.mjs";
 import { resolveTraeCnDynamicRoute } from "../adapters/trae-cn-integration.mjs";
+import { CodexDesktopDiscovery } from "../adapters/codex-desktop-discovery.mjs";
+import { CODEX_CHATGPT_ORIGIN, createCodexExactProxyAdapter } from "../adapters/codex-exact-proxy.mjs";
 import {
   assertSafeBindHost,
   httpError,
@@ -26,6 +28,7 @@ import { createViewerRouter } from "../server/viewer-router.mjs";
 import { SourceRepository } from "../server/source-repository.mjs";
 import { SourceLifecycleService } from "../server/source-lifecycle-service.mjs";
 import { SourceCaptureReader } from "../server/source-capture-reader.mjs";
+import { CodexRolloutCaptureReader } from "../server/codex-rollout-capture-reader.mjs";
 import { JsonArrayFileIndex } from "../server/json-array-file-index.mjs";
 import { AgentSendService } from "../server/agent-send-service.mjs";
 import { OtelIngestService } from "../server/otel-ingest-service.mjs";
@@ -84,7 +87,7 @@ const viewerTraceProjector = createViewerTraceProjector({
   },
 });
 
-export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.0.1", port = 0, demo, evidencePath, storePath, persistenceStore, capturePort = null, captureHost = host, exitOnShutdown = false, unsafeAllowRemote = false } = {}) {
+export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.0.1", port = 0, demo, evidencePath, storePath, persistenceStore, capturePort = null, captureHost = host, codexLocal = false, codexDesktopDiscovery = null, codexRolloutReader = null, exitOnShutdown = false, unsafeAllowRemote = false } = {}) {
   assertSafeBindHost(host, { unsafeAllowRemote });
   assertSafeBindHost(captureHost, { unsafeAllowRemote });
   const store = persistenceStore || openPersistenceStore(storePath);
@@ -92,12 +95,15 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
   const sourceMeta = readSourceMeta(sourceMetaPath, sourceMetadataPolicy());
   const importsDir = importedTracesDir();
   const closeStore = !persistenceStore;
+  const codexExactProxyAdapter = createCodexExactProxyAdapter();
+  const captureAdapterForWatch = (watch) => watch?.kind === "codex_proxy_exact" ? codexExactProxyAdapter : null;
   const watchRuntime = new WatchRuntimeService({
     cwd,
     store,
     resolveTargetBaseUrl,
     labelFor: (agent, mode) => `${agent} · ${modeLabel(mode)}`,
     resolveDynamicRoute: ({ route, body }) => resolveTraeCnDynamicRoute({ route, body }),
+    captureAdapterForWatch,
     inferCaptureTitle: viewerTraceProjector.inferCaptureTitle,
     conflict: (message) => httpError(409, message),
     metadata: {
@@ -117,6 +123,7 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
           port: capturePort,
           getWatch: (watchId) => watchRuntime.resolveForCapture(watchId),
           getWatchForAgentRoute: (context) => watchRuntime.resolveForAgentRoute(context),
+          captureAdapterForWatch,
           onCapture: (capture, watch) => watchRuntime.onCapture(capture, watch),
           onCaptureUpdate: (capture, watch) => watchRuntime.onCaptureUpdate(capture, watch),
           onCaptureSkipped: (watch) => watchRuntime.onCaptureSkipped(watch),
@@ -134,6 +141,9 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
     store,
     importsDir,
     sharedCaptureProxy,
+    codexLocal: Boolean(codexLocal),
+    codexDesktopDiscovery,
+    codexRolloutCaptureReader: codexRolloutReader,
     requestShutdown() {
       const forceExitTimer = exitOnShutdown
         ? setTimeout(() => {
@@ -249,10 +259,11 @@ function viewerTranslationAdapter(options) {
   });
 }
 
-function baseSources({ cwd, demo, evidencePath, watchRuntime }, { includeStats = true } = {}) {
+function baseSources(options, { includeStats = true } = {}) {
+  const { cwd, demo, evidencePath, watchRuntime } = options;
   const fileSources = listFileSources({ cwd, demo, evidencePath, includeStats, summarizeDirectory: sourceListStats });
   if (evidencePath) return fileSources;
-  return [...activeWatchSources(watchRuntime), ...fileSources];
+  return [...activeWatchSources(watchRuntime), ...codexDesktopSources(options), ...fileSources];
 }
 
 function listSources(options) {
@@ -275,6 +286,9 @@ function sourceCaptureReader(options) {
     store: options.store,
     files: { readJson, readOptionalJson },
     fileIndex: jsonArrayFileIndex(options),
+    customReaders: {
+      codex_rollout_local: codexRolloutCaptureReader(options),
+    },
     runtime: {
       resolveWatch: (source) => options.watchRuntime.find({ id: source.id, watch_id: source.live_watch_id }),
       capturesForWatch: (watch) => options.watchRuntime.capturesFor(watch),
@@ -282,6 +296,22 @@ function sourceCaptureReader(options) {
     },
     errors: { requestNotFound: (requestId) => httpError(404, `Request not found: ${requestId}`) },
   });
+}
+
+function codexDesktopSources(options) {
+  if (!options.codexLocal) return [];
+  if (!options.codexDesktopDiscovery) options.codexDesktopDiscovery = new CodexDesktopDiscovery();
+  try {
+    return options.codexDesktopDiscovery.listSources().map((source) => ({ ...source, stream_live: true }));
+  } catch (error) {
+    console.warn(`peekMyAgent Codex discovery skipped: ${error.message}`);
+    return [];
+  }
+}
+
+function codexRolloutCaptureReader(options) {
+  if (!options.codexRolloutCaptureReader) options.codexRolloutCaptureReader = new CodexRolloutCaptureReader();
+  return options.codexRolloutCaptureReader;
 }
 
 function jsonArrayFileIndex(options) {
@@ -754,6 +784,7 @@ function liveWatchCommand(watch) {
 }
 
 function resolveTargetBaseUrl(agent, cwd = defaultWorkspace()) {
+  if (/codex/i.test(agent)) return CODEX_CHATGPT_ORIGIN;
   if (/claude/i.test(agent)) return resolveClaudeCodeTargetBaseUrl({ cwd, env: process.env });
   if (/openclaw/i.test(agent)) {
     return process.env.PEEK_OPENCLAW_TARGET_BASE_URL || process.env.OPENCLAW_BASE_URL || process.env.OPENAI_BASE_URL || process.env.DEEPSEEK_BASE_URL || null;
@@ -771,6 +802,12 @@ function modeLabel(mode) {
 }
 
 function watchInstructions(watch) {
+  if (/codex/i.test(watch.agent)) {
+    return [
+      `openai_base_url=${watch.base_url}/v1`,
+      "推荐直接运行 `pma codex capture -- [codex args...]`；它只覆盖该进程，不修改 Codex 用户配置。",
+    ];
+  }
   if (/claude/i.test(watch.agent)) {
     return [
       `ANTHROPIC_BASE_URL=${watch.base_url}`,
@@ -814,11 +851,14 @@ function displayProjectName(workspace) {
 }
 
 function captureLabel(source) {
-  if (source.confidence === "exact" && source.kind === "proxy_capture") return "exact proxy capture";
+  const captureKind = source.capture_kind || source.kind;
+  if (captureKind === "codex_proxy_exact") return "Codex exact Responses capture";
+  if (source.confidence === "exact" && captureKind === "proxy_capture") return "exact proxy capture";
   if (source.kind === "otel_raw_body") return "otel raw body";
   if (source.kind === "official_debug") return "official debug timeline";
   if (source.kind === "imported_history") return "imported history";
   if (source.kind === "imported_trace") return "imported trace";
+  if (source.kind === "codex_rollout_local") return "Codex local semantic trace";
   return source.confidence || "unknown";
 }
 

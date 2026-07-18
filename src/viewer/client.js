@@ -359,6 +359,10 @@ const sessionNavigatorController = new SessionNavigatorController({
   displaySourceLabel,
   shortId,
   onSourceSelect: loadSource,
+  onFamilySelect: ({ sources }) => {
+    const preferred = sources.find((source) => source.available) || sources[0];
+    if (preferred && preferred.id !== state.activeSourceId) void loadSource(preferred.id);
+  },
   onSourceAction: ({ action, source }) => handleSourceAction(action, source),
   onProjectAction: ({ action, projectGroup }) => handleProjectAction(action, projectGroup),
 });
@@ -1920,6 +1924,8 @@ function translationKindLabel(kind) {
   if (kind === "harness_compact") return t("harnessCompact");
   if (kind === "harness_command") return t("harnessCommand");
   if (kind === "harness_suggestion") return "Suggestion";
+  if (kind === "harness_developer") return t("harnessDeveloper");
+  if (kind === "harness_codex_context") return t("harnessCodexContext");
   return t("description");
 }
 
@@ -2019,6 +2025,8 @@ function extractClientHarnessTranslationParts(messages) {
       if (kind === "harness_command") return t("harnessCommand");
       if (kind === "harness_suggestion") return t("harnessSuggestion");
       if (kind === "harness_reminder") return `${t("harnessReminder")} #${reminderIndex + 1}`;
+      if (kind === "harness_developer") return t("harnessDeveloper");
+      if (kind === "harness_codex_context") return t("harnessCodexContext");
       return kind;
     },
   });

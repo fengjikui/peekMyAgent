@@ -424,6 +424,7 @@ export class PersistenceStore {
         mode: row.mode || null,
         confidence: row.confidence || "exact",
         kind: "persisted_capture",
+        capture_kind: row.kind || "proxy_capture",
         available: true,
         note: "本地 SQLite 持久化捕获；Raw 会优先使用原始 body，缺失时由 request tree 重建。",
         store_watch_id: row.watch_id,

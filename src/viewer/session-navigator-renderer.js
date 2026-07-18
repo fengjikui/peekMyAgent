@@ -2,14 +2,36 @@ export function renderSessionNavigator(view, { escapeHtml, translate }) {
   if (!view) return "";
   if (typeof escapeHtml !== "function") throw new Error("escapeHtml is required");
   if (typeof translate !== "function") throw new Error("translate is required");
-  return view.agentGroups.map((agentGroup) => renderAgentGroup(agentGroup, { escapeHtml, translate })).join("");
+  return `
+    ${renderFamilySelector(view, { escapeHtml, translate })}
+    <div class="source-family-sessions">
+      ${view.agentGroups.map((agentGroup) => renderAgentGroup(agentGroup, { escapeHtml, translate })).join("")}
+    </div>
+  `;
+}
+
+function renderFamilySelector(view, { escapeHtml, translate }) {
+  if (!view.families?.length) return "";
+  return `
+    <label class="source-family-control">
+      <span>${escapeHtml(translate("observedAgent"))}</span>
+      <select data-source-family-select aria-label="${escapeHtml(translate("observedAgentAria"))}">
+        ${view.families
+          .map(
+            (family) =>
+              `<option value="${escapeHtml(family.key)}" ${family.active ? "selected" : ""}>${escapeHtml(family.label)} · ${family.count}</option>`,
+          )
+          .join("")}
+      </select>
+    </label>
+  `;
 }
 
 function renderAgentGroup(agentGroup, dependencies) {
   const { escapeHtml } = dependencies;
   return `
     <section class="source-agent-group">
-      <p class="source-agent-title">${escapeHtml(agentGroup.agent)}</p>
+      ${agentGroup.showTitle ? `<p class="source-agent-title">${escapeHtml(agentGroup.agent)}</p>` : ""}
       ${agentGroup.projects.map((projectGroup) => renderProjectGroup(projectGroup, dependencies)).join("")}
     </section>
   `;
@@ -38,7 +60,7 @@ function renderProjectMenu(projectGroup, { escapeHtml, translate }) {
   if (!projectGroup.menuOpen) return "";
   return `<div class="session-menu project-menu" role="menu">
     <button type="button" role="menuitem" data-project-action="archive" data-project-key="${escapeHtml(projectGroup.key)}">${escapeHtml(translate("archiveProject"))}</button>
-    <button class="danger" type="button" role="menuitem" data-project-action="delete" data-project-key="${escapeHtml(projectGroup.key)}">${escapeHtml(translate("deleteProjectData"))}</button>
+    ${projectGroup.canDelete ? `<button class="danger" type="button" role="menuitem" data-project-action="delete" data-project-key="${escapeHtml(projectGroup.key)}">${escapeHtml(translate("deleteProjectData"))}</button>` : ""}
   </div>`;
 }
 
@@ -67,6 +89,6 @@ function renderSessionMenu(source, { escapeHtml, translate }) {
     <button type="button" role="menuitem" data-source-action="rename" data-source-id="${escapeHtml(source.id)}">${escapeHtml(translate("rename"))}</button>
     <button type="button" role="menuitem" data-source-action="export" data-source-id="${escapeHtml(source.id)}">${escapeHtml(translate("exportTrace"))}</button>
     <button type="button" role="menuitem" data-source-action="archive" data-source-id="${escapeHtml(source.id)}">${escapeHtml(translate("archive"))}</button>
-    <button class="danger" type="button" role="menuitem" data-source-action="delete" data-source-id="${escapeHtml(source.id)}">${escapeHtml(translate("deleteData"))}</button>
+    ${source.canDelete ? `<button class="danger" type="button" role="menuitem" data-source-action="delete" data-source-id="${escapeHtml(source.id)}">${escapeHtml(translate("deleteData"))}</button>` : ""}
   </div>`;
 }

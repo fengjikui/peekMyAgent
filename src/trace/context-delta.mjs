@@ -1,4 +1,5 @@
 import { commonMessagePrefixLength } from "./message-equivalence.mjs";
+import { extractRequestMessages } from "./request-profile.mjs";
 
 export function createContextDeltaState() {
   return { previousByContextKey: new Map() };
@@ -11,7 +12,11 @@ export function annotateRequestContextChanges(requests, semantics = {}, { state 
     const contextKey = requestContextChainKey(request);
     const previous = previousByContextKey.get(contextKey) || null;
     const currentToolMessages = semantics.isInternalRequest(request) ? [] : currentToolEventMessages(request, previous, semantics);
-    request.summary.current_tool_calls = currentToolMessages ? semantics.extractToolCalls(currentToolMessages) : request.summary.tool_calls;
+    const currentToolCalls = currentToolMessages ? semantics.extractToolCalls(currentToolMessages) : request.summary.tool_calls;
+    request.summary.current_tool_calls = mergeToolCalls(
+      currentToolCalls,
+      typeof semantics.responseToolCalls === "function" ? semantics.responseToolCalls(request) : [],
+    );
     request.summary.current_tool_results = currentToolMessages
       ? semantics.extractToolResults(currentToolMessages).map((result) => ({ ...result, content: semantics.previewText(result.content, 800) }))
       : request.summary.tool_results;
@@ -23,6 +28,17 @@ export function annotateRequestContextChanges(requests, semantics = {}, { state 
     previousByContextKey.set(contextKey, request);
   }
   return requests;
+}
+
+function mergeToolCalls(primary, additional) {
+  const merged = [...(primary || [])];
+  const ids = new Set(merged.map((call) => call?.id).filter(Boolean));
+  for (const call of additional || []) {
+    if (call?.id && ids.has(call.id)) continue;
+    merged.push(call);
+    if (call?.id) ids.add(call.id);
+  }
+  return merged;
 }
 
 function contextPreviousRequests(state) {
@@ -103,11 +119,11 @@ function countMessageRoles(messages, semantics) {
 }
 
 function currentToolEventMessages(request, previous, semantics) {
-  const messages = Array.isArray(request?.raw?.body?.messages) ? request.raw.body.messages : null;
-  if (!messages) return null;
+  const messages = extractRequestMessages(request?.raw?.body || {});
+  if (!messages.length) return null;
   const latestTurnMessages = messagesAfterLatestRealUserInput(messages, semantics);
-  const previousMessages = Array.isArray(previous?.raw?.body?.messages) ? previous.raw.body.messages : null;
-  if (!previousMessages) return latestTurnMessages;
+  const previousMessages = extractRequestMessages(previous?.raw?.body || {});
+  if (!previousMessages.length) return latestTurnMessages;
   const prefixLength = commonMessagePrefixLength(previousMessages, messages);
   const suffix = messages.slice(prefixLength);
   return suffix.length ? suffix : latestTurnMessages;
@@ -121,7 +137,7 @@ function messagesAfterLatestRealUserInput(messages, semantics) {
 }
 
 function requestMessages(request) {
-  return Array.isArray(request?.raw?.body?.messages) ? request.raw.body.messages : [];
+  return extractRequestMessages(request?.raw?.body || {});
 }
 
 function assertSemantics(semantics) {

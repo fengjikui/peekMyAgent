@@ -86,6 +86,43 @@ assert.deepEqual(openAi.tool_calls[0], { id: "call-stream", name: "Bash", argume
 assert.equal(openAi.complete_response.stream, true);
 assert.ok(openAi.event_count >= 7);
 
+const responsesStream = sse([
+  { type: "response.created", response: { id: "resp-codex", model: "gpt-5-codex", status: "in_progress" } },
+  { type: "response.reasoning_summary_text.delta", delta: "inspect " },
+  { type: "response.reasoning_summary_text.delta", delta: "carefully" },
+  { type: "response.output_text.delta", delta: "intermediate text" },
+  { type: "response.output_item.added", output_index: 1, item: { type: "custom_tool_call", id: "item-codex", call_id: "call-codex", name: "exec", input: "" } },
+  { type: "response.custom_tool_call_input.delta", output_index: 1, item_id: "item-codex", delta: '{"cmd":' },
+  { type: "response.custom_tool_call_input.done", output_index: 1, item_id: "item-codex", input: '{"cmd":"pwd"}' },
+  { type: "response.output_item.done", output_index: 1, item: { type: "custom_tool_call", id: "item-codex", call_id: "call-codex", name: "exec", input: '{"cmd":"pwd"}' } },
+  {
+    type: "response.completed",
+    response: {
+      id: "resp-codex",
+      model: "gpt-5-codex",
+      status: "completed",
+      output: [
+        { type: "reasoning", summary: [{ type: "summary_text", text: "inspect carefully" }] },
+        { type: "message", role: "assistant", content: [{ type: "output_text", text: "final text" }] },
+        { type: "custom_tool_call", id: "item-codex", call_id: "call-codex", name: "exec", input: '{"cmd":"pwd"}' },
+      ],
+      usage: { input_tokens: 17, output_tokens: 9 },
+    },
+  },
+]);
+const responses = summarizeModelResponse({
+  headers: { "content-type": "text/event-stream" },
+  body_text: responsesStream,
+  status: 200,
+});
+assert.equal(responses.message_id, "resp-codex");
+assert.equal(responses.text, "final text", "terminal response is authoritative over streamed deltas");
+assert.equal(responses.thinking, "inspect carefully");
+assert.equal(responses.response_status, "completed");
+assert.equal(responses.finish_reason, "completed");
+assert.deepEqual(responses.tool_calls, [{ id: "call-codex", name: "exec", arguments: { cmd: "pwd" } }]);
+assert.equal(responses.complete_response.status, "completed");
+
 const anthropicStream = sse([
   { type: "message_start", message: { id: "msg-sse", role: "assistant", model: "claude-stream", content: [] } },
   { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } },

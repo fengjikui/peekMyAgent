@@ -1,0 +1,25 @@
+{"timestamp":"2026-07-18T01:00:00.000Z","type":"session_meta","payload":{"id":"thread-fixture","cwd":"/tmp/peekmyagent-codex-fixture","base_instructions":{"text":"You are Codex. Work carefully."},"dynamic_tools":[{"type":"namespace","name":"fixture_app","description":"Fixture tools","tools":[{"name":"inspect","description":"Inspect one fixture value.","inputSchema":{"type":"object","properties":{"value":{"type":"string","description":"Value to inspect."}},"required":["value"]}}]}]}}
+{"timestamp":"2026-07-18T01:00:01.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1","model_context_window":200000}}
+{"timestamp":"2026-07-18T01:00:01.010Z","type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"input_text","text":"<app-context>Fixture desktop instructions.</app-context>"}]}}
+{"timestamp":"2026-07-18T01:00:01.020Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context><cwd>/tmp/fixture</cwd></environment_context>"}]}}
+{"timestamp":"2026-07-18T01:00:01.030Z","type":"turn_context","payload":{"turn_id":"turn-1","model":"gpt-fixture","cwd":"/tmp/peekmyagent-codex-fixture","effort":"medium"}}
+{"timestamp":"2026-07-18T01:00:01.040Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"请检查 fixture 文件并告诉我结果。"}]}}
+{"timestamp":"2026-07-18T01:00:01.050Z","type":"event_msg","payload":{"type":"user_message","message":"请检查 fixture 文件并告诉我结果。"}}
+{"timestamp":"2026-07-18T01:00:02.000Z","type":"response_item","payload":{"type":"reasoning","id":"reasoning-1","summary":[],"encrypted_content":"opaque-fixture-reasoning"}}
+{"timestamp":"2026-07-18T01:00:02.010Z","type":"event_msg","payload":{"type":"agent_reasoning","text":"I should inspect the fixture with a tool."}}
+{"timestamp":"2026-07-18T01:00:02.020Z","type":"event_msg","payload":{"type":"agent_message","message":"我先检查文件。","phase":"commentary"}}
+{"timestamp":"2026-07-18T01:00:02.030Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"我先检查文件。"}]}}
+{"timestamp":"2026-07-18T01:00:02.040Z","type":"response_item","payload":{"type":"function_call","name":"exec_command","call_id":"call-fixture-1","arguments":"{\"cmd\":\"printf fixture-ok\"}"}}
+{"timestamp":"2026-07-18T01:00:02.050Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call-fixture-1","output":"fixture-ok"}}
+{"timestamp":"2026-07-18T01:00:02.060Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":120,"cached_input_tokens":80,"output_tokens":20},"total_token_usage":{"input_tokens":120,"cached_input_tokens":80,"output_tokens":20},"model_context_window":200000}}}
+{"timestamp":"2026-07-18T01:00:03.000Z","type":"event_msg","payload":{"type":"agent_reasoning","text":"The tool returned fixture-ok, so I can answer."}}
+{"timestamp":"2026-07-18T01:00:03.010Z","type":"event_msg","payload":{"type":"agent_message","message":"检查完成：fixture-ok。","phase":"final_answer"}}
+{"timestamp":"2026-07-18T01:00:03.020Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"检查完成：fixture-ok。"}]}}
+{"timestamp":"2026-07-18T01:00:03.030Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":40,"cached_input_tokens":160,"output_tokens":12},"total_token_usage":{"input_tokens":160,"cached_input_tokens":240,"output_tokens":32},"model_context_window":200000}}}
+{"timestamp":"2026-07-18T01:00:03.040Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"turn-1","completed_at":"2026-07-18T01:00:03.040Z"}}
+{"timestamp":"2026-07-18T01:00:03.050Z","type":"event_msg","payload":{"type":"thread_settings_applied"}}
+{"timestamp":"2026-07-18T01:01:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-2","model_context_window":200000}}
+{"timestamp":"2026-07-18T01:01:00.010Z","type":"turn_context","payload":{"turn_id":"turn-2","model":"gpt-fixture","cwd":"/tmp/peekmyagent-codex-fixture","effort":"low"}}
+{"timestamp":"2026-07-18T01:01:00.020Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"第二轮现在还在生成。"}]}}
+{"timestamp":"2026-07-18T01:01:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"正在处理第二轮。","phase":"commentary"}}
+{"timestamp":"2026-07-18T01:01:01.010Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"正在处理第二轮。"}]}}

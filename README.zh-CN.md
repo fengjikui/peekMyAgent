@@ -1,6 +1,6 @@
 # peekMyAgent
 
-peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 Claude Code、OpenClaw 等 coding agent 在调用模型前真正发送出去的请求。
+peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 Claude Code、Codex、OpenClaw 等 coding agent 的执行链路和模型请求。
 
 它可以帮助你理解 Agent 如何组织 system prompt、用户消息、工具定义、工具调用、工具结果、历史上下文、模型参数和原始 JSON。peekMyAgent 不是用来“破解隐藏提示词”的工具，而是面向你自己授权的本地 Agent 会话的可观测性工具。
 
@@ -32,7 +32,9 @@ peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 
 
 - 打开本地 dashboard：`http://127.0.0.1:43110`。
 - 通过 `pma claude ...` 启动 Claude Code 并捕获模型请求。
+- 只读观察一条用户明确选择的既有 Codex 会话，或显式启动新的 Codex 进程进行 Responses 精确捕获。
 - 通过 `pma openclaw ...` 启动 OpenClaw 并捕获模型请求。
+- 在左侧切换当前观察的 Agent，让 Codex、Claude Code、OpenClaw 和导入 Trace 分开显示。
 - 在时间线中查看用户输入、System 摘要、Tools、Tool calls、Tool results、Response、token 统计和 Raw JSON。
 - 识别并展示 Claude Code 子 Agent 请求流。
 - 在 Claude Code 内通过 `/peekmyagent` 打开 dashboard。
@@ -43,7 +45,7 @@ peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 
 
 - macOS、Windows 或 Linux。
 - Node.js 24 或更新版本。peekMyAgent 当前使用 Node 内置的 `node:sqlite` 作为本地存储运行时。
-- 已安装并可正常使用 Claude Code 或 OpenClaw。
+- 已安装并可正常使用你准备观察的 Claude Code、Codex 或 OpenClaw。
 - 模型供应商配置需要先在原 Agent 中可用。
 
 如果 `claude` 本身不能运行，请先修好 Claude Code 配置：
@@ -132,6 +134,25 @@ pma claude -c --dangerously-skip-permissions
 ```
 
 这个参数属于 Claude Code，不属于 peekMyAgent。它会绕过 Claude Code 的常规权限检查，只建议在你信任的仓库中使用。
+
+## 快速开始：Codex
+
+只读观察一条已有的 Codex Desktop/CLI 会话，并保持 rollout 原文仍在 `CODEX_HOME`、不复制进 peekMyAgent 数据库：
+
+```bash
+pma codex --select
+```
+
+首次运行会让你选择一条会话；以后执行 `pma codex` 会重新打开该选择。非交互场景可先用 `pma codex --list` 查看，再执行 `pma codex --thread <thread-id>`。
+
+如果需要查看完整模型上行和 Responses 下行，显式启动一个新的受管 Codex 进程：
+
+```bash
+cd <your-project>
+pma codex capture --
+```
+
+Codex 参数放在 `--` 后，例如 `pma codex capture -- exec "检查这个仓库"`。该命令只为这个子进程注入一个 HTTP-only Responses provider，让本地代理能够观察精确的线上请求；它不会修改 `~/.codex/config.toml`，也不会接管已经运行的 Codex Desktop 进程。
 
 ## 快速开始：OpenClaw
 

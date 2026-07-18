@@ -62,6 +62,47 @@ assert.deepEqual(
   [0, 1, 2, 3],
 );
 
+const responsesRequest = {
+  model: "gpt-codex-test",
+  instructions: "Stable Codex instructions.",
+  input: [
+    { type: "message", role: "user", content: [{ type: "input_text", text: "Inspect one file." }] },
+    { type: "function_call", call_id: "call-1", name: "read_file", arguments: "{\"path\":\"README.md\"}" },
+    { type: "function_call_output", call_id: "call-1", output: "peekMyAgent" },
+  ],
+  tools: [{ type: "function", name: "read_file", parameters: { type: "object" } }],
+  additional_tools: [{ type: "custom", name: "apply_patch", description: "Apply a patch." }],
+};
+const changedResponsesRequest = {
+  ...responsesRequest,
+  input: [
+    ...responsesRequest.input,
+    { type: "message", role: "user", content: [{ type: "input_text", text: "Now summarize it." }] },
+  ],
+};
+const responsesTree = buildOrderedRequestTree(responsesRequest, { requestId: "responses-1" });
+const changedResponsesTree = buildOrderedRequestTree(changedResponsesRequest, { requestId: "responses-2" });
+
+assert.deepEqual(reconstructFromRequestTree(responsesTree), responsesRequest);
+assert.deepEqual(reconstructFromRequestTree(changedResponsesTree), changedResponsesRequest);
+assert.equal(blobsByKind(responsesTree, "system_block").length, 1);
+assert.equal(blobsByKind(responsesTree, "system_block")[0].hash, blobsByKind(changedResponsesTree, "system_block")[0].hash);
+assert.equal(blobsByKind(responsesTree, "tool_schema").length, 2);
+assert.deepEqual(
+  blobsByKind(responsesTree, "tool_schema").map((blob) => blob.hash),
+  blobsByKind(changedResponsesTree, "tool_schema").map((blob) => blob.hash),
+);
+assert.equal(blobsByKind(responsesTree, "message").length, 2);
+assert.equal(blobsByKind(responsesTree, "tool_result").length, 1);
+assert.deepEqual(
+  blobsByKind(responsesTree, "message").map((blob) => blob.hash),
+  blobsByKind(changedResponsesTree, "message").slice(0, 2).map((blob) => blob.hash),
+);
+assert.equal(
+  blobsByKind(responsesTree, "tool_result")[0].hash,
+  blobsByKind(changedResponsesTree, "tool_result")[0].hash,
+);
+
 console.log("request-tree smoke passed");
 
 function blobsByKind(tree, kind) {

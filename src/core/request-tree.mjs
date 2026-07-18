@@ -133,9 +133,20 @@ function compareChildOrder(left, right) {
 function blockKindForValue(value, path) {
   if (path === "$.system" && !Array.isArray(value)) return "system_block";
   if (/^\$\.system\[\d+\]$/.test(path)) return "system_block";
-  if (/^\$\.tools\[\d+\]$/.test(path)) return "tool_schema";
+  if (path === "$.instructions" && !Array.isArray(value)) return "system_block";
+  if (/^\$\.instructions\[\d+\]$/.test(path)) return "system_block";
+  if (/^\$\.(?:tools|additional_tools)\[\d+\]$/.test(path)) return "tool_schema";
   if (/^\$\.messages\[\d+\]$/.test(path)) return value?.role === "tool" ? "tool_result" : "message";
+  if (path === "$.input" && !Array.isArray(value)) return "message";
+  if (/^\$\.input\[\d+\]$/.test(path)) return responsesInputBlockKind(value);
   return null;
+}
+
+function responsesInputBlockKind(value) {
+  const type = String(value?.type || "").toLowerCase();
+  const role = String(value?.role || "").toLowerCase();
+  if (role === "tool" || type.endsWith("_output") || type === "function_call_output") return "tool_result";
+  return "message";
 }
 
 function isScalar(value) {

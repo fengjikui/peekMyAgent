@@ -1,15 +1,22 @@
 import { extractContentText, extractToolCalls } from "./content-parts.mjs";
+import { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
 import {
   isFrameworkReminderMessage,
   isSuggestionModeMessage,
   userVisibleText,
 } from "./message-semantics.mjs";
 
-export function extractSystemParts(body = {}, messages = body?.messages) {
+export { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
+
+export function extractSystemParts(body = {}, messages = extractRequestMessages(body)) {
   const output = [];
   if (typeof body?.system === "string") output.push({ source: "body.system", text: body.system });
   if (Array.isArray(body?.system)) {
     for (const part of body.system) output.push({ source: "body.system", text: extractContentText(part) });
+  }
+  if (typeof body?.instructions === "string") output.push({ source: "body.instructions", text: body.instructions });
+  if (Array.isArray(body?.instructions)) {
+    for (const part of body.instructions) output.push({ source: "body.instructions", text: extractContentText(part) });
   }
   for (const message of Array.isArray(messages) ? messages : []) {
     if (message?.role === "system") output.push({ source: "messages.system", text: extractContentText(message.content) });
@@ -52,7 +59,7 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
   if (typeof apiSource === "string" && apiSource.startsWith("agent:")) {
     return { type: "subagent", label: apiSource, confidence: "high" };
   }
-  const calls = extractToolCalls(Array.isArray(body.messages) ? body.messages : []);
+  const calls = extractToolCalls(extractRequestMessages(body));
   if (calls.some((call) => /^(Agent|sessions_spawn|subagents)$/.test(call.name))) {
     return { type: "parent_spawn", label: "启动子代理", confidence: "high" };
   }

@@ -1,6 +1,7 @@
 export function buildSessionNavigatorView({
   sources = [],
   activeSourceId = null,
+  selectedFamilyKey = null,
   collapsedProjects = {},
   openSourceMenuId = null,
   openProjectMenuKey = null,
@@ -12,19 +13,33 @@ export function buildSessionNavigatorView({
 } = {}) {
   if (typeof translate !== "function") throw new Error("translate is required");
 
+  const families = buildSourceFamilyOptions(sources, {
+    activeSourceId,
+    selectedFamilyKey,
+    translate,
+  });
+  const activeFamily = families.find((family) => family.active) || families[0] || null;
+  const visibleSources = activeFamily
+    ? sources.filter((source) => sourceFamilyKey(source) === activeFamily.key)
+    : [];
+
   return {
-    agentGroups: groupSourcesByAgentAndProject(sources, {
+    families,
+    activeFamilyKey: activeFamily?.key || null,
+    agentGroups: groupSourcesByAgentAndProject(visibleSources, {
       translate,
       projectNameFromWorkspace,
       projectGroupKey,
     }).map((agentGroup) => ({
       agent: agentGroup.agent,
+      showTitle: activeFamily?.kind === "imported",
       projects: agentGroup.projects.map((projectGroup) => {
         const collapsed = collapsedProjects[projectGroup.key] === true;
         return {
           ...projectGroup,
           collapsed,
           menuOpen: openProjectMenuKey === projectGroup.key,
+          canDelete: projectGroup.sources.every((source) => source.deletable !== false),
           sourceViews: collapsed
             ? []
             : projectGroup.sources.map((source) =>
@@ -40,6 +55,46 @@ export function buildSessionNavigatorView({
       }),
     })),
   };
+}
+
+export function buildSourceFamilyOptions(
+  sources,
+  { activeSourceId = null, selectedFamilyKey = null, translate } = {},
+) {
+  if (typeof translate !== "function") throw new Error("translate is required");
+  const familyMap = new Map();
+  for (const source of sources || []) {
+    const key = sourceFamilyKey(source);
+    if (!familyMap.has(key)) {
+      familyMap.set(key, {
+        key,
+        kind: key === "imported" ? "imported" : "agent",
+        label: key === "imported" ? translate("importedTraces") : String(source.agent || translate("unknownAgent")),
+        count: 0,
+        sources: [],
+      });
+    }
+    const family = familyMap.get(key);
+    family.count += 1;
+    family.sources.push(source);
+  }
+
+  const families = [...familyMap.values()];
+  const activeSource = (sources || []).find((source) => source.id === activeSourceId);
+  const requestedKey = activeSource ? sourceFamilyKey(activeSource) : selectedFamilyKey;
+  const activeKey = families.some((family) => family.key === requestedKey)
+    ? requestedKey
+    : families[0]?.key || null;
+  return families.map((family) => ({
+    ...family,
+    active: family.key === activeKey,
+  }));
+}
+
+export function sourceFamilyKey(source) {
+  const kind = String(source?.kind || "").toLowerCase();
+  if (kind === "imported_trace" || kind === "imported_history") return "imported";
+  return `agent:${String(source?.agent || "unknown").trim().toLowerCase() || "unknown"}`;
 }
 
 export function groupSourcesByAgentAndProject(
@@ -79,9 +134,12 @@ function buildSessionItemView(
     pinned: Boolean(source.pinned),
     menuOpen: openSourceMenuId === source.id,
     status: source.live_watch_id ? source.live_status || "stopped" : "static",
+    canDelete: source.deletable !== false,
     label,
     subtitle: source.conversation_id ? shortId(source.conversation_id) : source.agent || "",
-    requestLabel: translate("requestUnit", { count: source.request_count || 0 }),
+    requestLabel: Number.isFinite(source.request_count)
+      ? translate("requestUnit", { count: source.request_count })
+      : translate("liveTrace"),
     pinLabel: source.pinned ? translate("unpin") : translate("pin"),
   };
 }

@@ -16,7 +16,9 @@ export function analyzeRequestComposition({
   responseSummary = null,
   rawBodyLength = 0,
 } = {}) {
-  const params = Object.fromEntries(Object.entries(body || {}).filter(([key]) => !["messages", "system", "tools"].includes(key)));
+  const params = Object.fromEntries(
+    Object.entries(body || {}).filter(([key]) => !["messages", "input", "system", "instructions", "tools", "additional_tools"].includes(key)),
+  );
   const messageParts = analyzeMessageComposition(messages || [], currentUser);
   const totalPayloadChars = Number(rawBodyLength) || jsonCharLength(body || {});
   const messagesChars = messageParts.total_chars;

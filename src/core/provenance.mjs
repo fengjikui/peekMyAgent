@@ -90,6 +90,21 @@ export function importedTraceProvenance(capture = {}) {
   });
 }
 
+export function codexRolloutProvenance({ threadId = null, turnId = null, hasResponse = true } = {}) {
+  return createCaptureProvenance({
+    transport: "codex_rollout_local",
+    request: { origin: "codex_rollout", fidelity: "partial", artifact: "semantic_request_reconstruction" },
+    response: hasResponse
+      ? { origin: "codex_rollout", fidelity: "partial", artifact: "semantic_response_reconstruction" }
+      : { origin: "codex_rollout", fidelity: "missing", artifact: null },
+    association: {
+      method: "codex_turn_id",
+      confidence: turnId ? "high" : "heuristic",
+      evidence: { thread_id: threadId, turn_id: turnId },
+    },
+  });
+}
+
 function normalizeArtifact(value, name) {
   const artifact = value && typeof value === "object" ? value : {};
   const fidelity = artifact.fidelity || "missing";

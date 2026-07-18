@@ -2,17 +2,20 @@ import path from "node:path";
 import { watchIdFromSourceId } from "../core/source-identifiers.mjs";
 
 export class SourceCaptureReader {
-  constructor({ watches, store, files, fileIndex, runtime, errors } = {}) {
+  constructor({ watches, store, files, fileIndex, customReaders, runtime, errors } = {}) {
     this.watches = watches || new Map();
     this.store = store || null;
     this.files = files || {};
     this.fileIndex = fileIndex || null;
+    this.customReaders = customReaders || {};
     this.runtime = runtime || {};
     this.errors = errors || {};
   }
 
   read(source, { limit = 0, includeCompanions = true } = {}) {
     this.assertAvailable(source);
+    const customReader = this.customReaderFor(source);
+    if (customReader) return customReader.read(source, { limit, includeCompanions });
     if (source.live_watch_id) return this.readLive(source, { limit, includeCompanions });
     if (source.kind === "persisted_capture") return this.readPersisted(source, { limit });
     return this.readFile(source, { limit, includeCompanions });
@@ -24,6 +27,8 @@ export class SourceCaptureReader {
 
   readPage(source, { cursor = 0, limit = 32, includeCompanions = true } = {}) {
     this.assertAvailable(source);
+    const customReader = this.customReaderFor(source);
+    if (customReader) return customReader.readPage(source, { cursor, limit, includeCompanions });
     const offset = pageOffset(cursor);
     const pageLimit = pageSize(limit);
     if (source.live_watch_id) return this.readLivePage(source, { offset, limit: pageLimit, includeCompanions });
@@ -33,6 +38,8 @@ export class SourceCaptureReader {
 
   readRequestWindow(source, requestId, { previousCount = 1 } = {}) {
     this.assertAvailable(source);
+    const customReader = this.customReaderFor(source);
+    if (customReader) return customReader.readRequestWindow(source, requestId, { previousCount });
     if (source.live_watch_id) return this.readLiveWindow(source, requestId, { previousCount });
     if (source.kind === "persisted_capture") return this.readPersistedWindow(source, requestId, { previousCount });
     return this.readFileWindow(source, requestId, { previousCount });
@@ -210,6 +217,15 @@ export class SourceCaptureReader {
     return typeof this.errors.requestNotFound === "function"
       ? this.errors.requestNotFound(requestId)
       : new Error(`Request not found: ${requestId}`);
+  }
+
+  customReaderFor(source) {
+    const reader = this.customReaders?.[source?.kind];
+    if (!reader) return null;
+    for (const method of ["read", "readPage", "readRequestWindow"]) {
+      if (typeof reader[method] !== "function") throw new Error(`Custom source reader ${source.kind} is missing ${method}()`);
+    }
+    return reader;
   }
 }
 

@@ -72,6 +72,10 @@ const VIEWER_STATIC_ASSETS = new Map([
     "/trace/message-semantics.mjs",
     { base: "project", file: path.join("src", "trace", "message-semantics.mjs"), contentType: "text/javascript; charset=utf-8" },
   ],
+  [
+    "/shared/request-payload.mjs",
+    { base: "project", file: path.join("src", "shared", "request-payload.mjs"), contentType: "text/javascript; charset=utf-8" },
+  ],
 ]);
 
 export function resolveViewerStaticAsset(pathname, { viewerDir, projectRoot }) {

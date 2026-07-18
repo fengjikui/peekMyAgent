@@ -28,6 +28,7 @@ export function summarizeModelResponse(response) {
     tool_calls: parsed.tool_calls || [],
     usage: parsed.usage,
     finish_reason: parsed.finish_reason || null,
+    response_status: parsed.response_status || null,
     complete_response: assembleCompleteResponse(parsed, { stream, truncated: Boolean(response.truncated) }),
     latency_ms: response.duration_ms ?? null,
     status: response.status ?? null,
@@ -65,6 +66,7 @@ export function summarizeJsonResponse(body) {
     tool_calls: dedupeToolCalls(toolCalls),
     usage: body.usage || null,
     finish_reason: uniqueValues(finishReasons).join(", ") || null,
+    response_status: body.status || null,
     event_count: 0,
   };
 }
@@ -78,16 +80,34 @@ export function summarizeSseResponse(text) {
   const toolCalls = [];
   const toolCallBlocks = new Map();
   const openAiToolCallBlocks = new Map();
+  const responsesToolCallBlocks = new Map();
   const finishReasons = [];
   let usage = null;
   let messageId = null;
   let role = null;
   let model = null;
+  let responseStatus = null;
+  let terminalResponse = null;
 
   for (const event of events) {
     if (!event.data || event.data === "[DONE]") continue;
     const data = parseJson(event.data);
     if (!data || typeof data !== "object") continue;
+    if (/^response\.(?:completed|failed|incomplete)$/.test(data.type || "") && data.response && typeof data.response === "object") {
+      terminalResponse = data.response;
+      responseStatus = data.response.status || data.type.replace(/^response\./, "");
+      continue;
+    }
+    if (data.type === "response.created" && data.response) {
+      messageId = data.response.id || messageId;
+      model = data.response.model || model;
+      responseStatus = data.response.status || responseStatus;
+    }
+    if (data.type === "response.output_text.delta" && typeof data.delta === "string") textParts.push(data.delta);
+    if (/^response\.reasoning_(?:summary_)?text\.delta$/.test(data.type || "") && typeof data.delta === "string") {
+      thinkingParts.push(data.delta);
+    }
+    collectResponsesToolCallEvent(data, responsesToolCallBlocks);
     if (data.model) model = data.model;
     if (Array.isArray(data.choices)) {
       collectStreamingChoices(data.choices, {
@@ -135,6 +155,21 @@ export function summarizeSseResponse(text) {
     if (data.message?.usage) usage = data.message.usage;
   }
 
+  if (terminalResponse) {
+    const terminal = summarizeJsonResponse(terminalResponse);
+    return {
+      ...terminal,
+      text: terminal.text || textParts.filter(Boolean).join("") || fallbackTextParts.filter(Boolean).join("\n"),
+      thinking: terminal.thinking || thinkingParts.filter(Boolean).join("") || fallbackThinkingParts.filter(Boolean).join("\n"),
+      tool_calls: terminal.tool_calls.length
+        ? terminal.tool_calls
+        : dedupeToolCalls(finalizeResponsesStreamToolCalls(responsesToolCallBlocks)),
+      response_status: terminal.response_status || responseStatus,
+      finish_reason: terminal.finish_reason || terminal.response_status || responseStatus || null,
+      event_count: events.length,
+    };
+  }
+
   return {
     message_id: messageId,
     role,
@@ -144,9 +179,11 @@ export function summarizeSseResponse(text) {
     tool_calls: dedupeToolCalls([
       ...mergeStreamToolCallInputs(toolCalls, toolCallBlocks),
       ...finalizeOpenAiStreamToolCalls(openAiToolCallBlocks),
+      ...finalizeResponsesStreamToolCalls(responsesToolCallBlocks),
     ]),
     usage,
     finish_reason: uniqueValues(finishReasons).join(", ") || null,
+    response_status: responseStatus,
     event_count: events.length,
   };
 }
@@ -173,6 +210,7 @@ export function assembleCompleteResponse(parsed, { stream = false, truncated = f
     tool_use: parsed?.tool_calls || [],
     stop_reason: parsed?.finish_reason || null,
     finish_reason: parsed?.finish_reason || null,
+    status: parsed?.response_status || null,
     usage: parsed?.usage || null,
     stream: Boolean(stream),
     event_count: parsed?.event_count || 0,
@@ -190,6 +228,7 @@ function emptyResponseSummary() {
     thinking_preview: "",
     usage: null,
     finish_reason: null,
+    response_status: null,
     latency_ms: null,
     status: null,
     stream: false,
@@ -208,6 +247,7 @@ function emptyParsedResponse() {
     tool_calls: [],
     usage: null,
     finish_reason: null,
+    response_status: null,
     event_count: 0,
   };
 }
@@ -228,12 +268,87 @@ function collectChoiceResponse(choices, output) {
 
 function collectOutputResponse(items, output) {
   for (const item of items) {
-    if (Array.isArray(item?.content)) output.textParts.push(extractContentText(item.content));
-    if (Array.isArray(item?.content)) output.thinkingParts.push(extractThinkingText(item.content));
-    if (Array.isArray(item?.content)) output.toolCalls.push(...extractToolCallsFromContent(item.content));
-    if (item?.content && typeof item.content === "object" && !Array.isArray(item.content)) output.thinkingParts.push(extractThinkingText(item.content));
-    if (item?.content) output.textParts.push(extractContentText(item.content));
+    if (!item || typeof item !== "object") continue;
+    if (item.type === "reasoning") {
+      const reasoningText = extractResponsesReasoningText(item);
+      if (reasoningText) output.thinkingParts.push(reasoningText);
+      continue;
+    }
+    if (["function_call", "custom_tool_call"].includes(item.type)) {
+      output.toolCalls.push({
+        name: item.name || item.function?.name || "unknown",
+        id: item.call_id || item.id || null,
+        arguments: parseMaybeJson(item.arguments ?? item.input ?? item.function?.arguments),
+      });
+      continue;
+    }
+    if (Array.isArray(item.content)) {
+      output.textParts.push(extractContentText(item.content));
+      output.thinkingParts.push(extractThinkingText(item.content));
+      output.toolCalls.push(...extractToolCallsFromContent(item.content));
+    } else if (item.content && typeof item.content === "object") {
+      output.thinkingParts.push(extractThinkingText(item.content));
+      output.textParts.push(extractContentText(item.content));
+    } else if (item.content) {
+      output.textParts.push(extractContentText(item.content));
+    }
+    if (typeof item.output_text === "string") output.textParts.push(item.output_text);
   }
+}
+
+function extractResponsesReasoningText(item) {
+  const values = [];
+  for (const part of Array.isArray(item?.summary) ? item.summary : []) {
+    if (typeof part === "string") values.push(part);
+    else if (part?.text) values.push(part.text);
+  }
+  for (const part of Array.isArray(item?.content) ? item.content : []) {
+    if (typeof part === "string") values.push(part);
+    else if (part?.text) values.push(part.text);
+  }
+  if (typeof item?.text === "string") values.push(item.text);
+  return values.filter(Boolean).join("\n");
+}
+
+function collectResponsesToolCallEvent(data, blocks) {
+  const type = String(data?.type || "");
+  const item = data?.item;
+  if (["response.output_item.added", "response.output_item.done"].includes(type) && isResponsesToolCall(item)) {
+    const key = responsesToolCallKey(data, item, blocks.size);
+    const current = blocks.get(key) || { id: null, name: null, argumentsText: "", finalArguments: undefined };
+    current.id = item.call_id || item.id || current.id;
+    current.name = item.name || item.function?.name || current.name;
+    if (type === "response.output_item.done") {
+      current.finalArguments = item.arguments ?? item.input ?? item.action ?? item.function?.arguments;
+    }
+    blocks.set(key, current);
+    return;
+  }
+  if (!/(?:function_call_arguments|custom_tool_call_input)\.(?:delta|done)$/.test(type)) return;
+  const key = responsesToolCallKey(data, null, blocks.size);
+  const current = blocks.get(key) || { id: data.call_id || data.item_id || null, name: data.name || null, argumentsText: "", finalArguments: undefined };
+  if (type.endsWith(".delta")) current.argumentsText += data.delta || "";
+  else current.finalArguments = data.arguments ?? data.input ?? data.text ?? data.delta ?? current.argumentsText;
+  blocks.set(key, current);
+}
+
+function responsesToolCallKey(data, item, fallback) {
+  if (data?.output_index != null) return `output:${data.output_index}`;
+  return item?.call_id || data?.call_id || item?.id || data?.item_id || fallback;
+}
+
+function isResponsesToolCall(item) {
+  return ["function_call", "custom_tool_call", "local_shell_call", "computer_call"].includes(item?.type);
+}
+
+function finalizeResponsesStreamToolCalls(blocks) {
+  return [...blocks.values()]
+    .filter((block) => block.id || block.name || block.argumentsText || block.finalArguments !== undefined)
+    .map((block) => ({
+      name: block.name || "unknown",
+      id: block.id || null,
+      arguments: parseMaybeJson(block.finalArguments !== undefined ? block.finalArguments : block.argumentsText),
+    }));
 }
 
 function collectStreamingChoices(choices, output) {

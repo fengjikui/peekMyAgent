@@ -12,6 +12,7 @@ export class WatchRuntimeService {
     resolveTargetBaseUrl,
     labelFor = (agent, mode) => `${agent} · ${mode}`,
     resolveDynamicRoute,
+    captureAdapterForWatch,
     inferCaptureTitle,
     metadata,
     now = () => new Date().toISOString(),
@@ -26,6 +27,7 @@ export class WatchRuntimeService {
     this.resolveTargetBaseUrl = resolveTargetBaseUrl;
     this.labelFor = labelFor;
     this.resolveDynamicRoute = resolveDynamicRoute || null;
+    this.captureAdapterForWatch = typeof captureAdapterForWatch === "function" ? captureAdapterForWatch : () => null;
     this.inferCaptureTitle = typeof inferCaptureTitle === "function" ? inferCaptureTitle : () => null;
     this.metadata = metadata || {};
     this.now = now;
@@ -422,6 +424,7 @@ export class WatchRuntimeService {
       onCapture: (capture) => this.onCapture(capture, watch),
       onCaptureUpdate: (capture) => this.onCaptureUpdate(capture, watch),
       onCaptureSkipped: () => this.onCaptureSkipped(watch),
+      captureAdapter: this.captureAdapterForWatch(watch),
     });
     watch.proxy = proxy;
     watch.proxy_shared = false;

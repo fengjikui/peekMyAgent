@@ -4,6 +4,7 @@ import {
 } from "./blocks.mjs";
 import { translationMaterialHash } from "./hash.mjs";
 import { projectTranslationBodyMaterials } from "./request-materials.mjs";
+import { extractRequestMessages } from "../shared/request-payload.mjs";
 
 export { extractTranslationSystemParts } from "./request-materials.mjs";
 
@@ -48,7 +49,7 @@ export class TranslationMaterialCollector {
   }
 
   collectBody(body, occurrence, { section = "" } = {}) {
-    const messages = Array.isArray(body?.messages) ? body.messages : [];
+    const messages = extractRequestMessages(body || {});
     if (!section || section === "system") this.collectSystem(body || {}, messages, occurrence);
     if (!section || section === "harness") this.collectHarness(messages, occurrence);
     if (!section || section === "tools") this.collectTools(body || {}, occurrence);

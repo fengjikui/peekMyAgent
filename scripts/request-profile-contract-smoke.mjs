@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
   extractSystemParts,
+  extractRequestMessages,
+  extractRequestTools,
   inferProtocol,
   inferProtocolProfile,
   inferProvider,
@@ -24,6 +26,29 @@ assert.deepEqual(
   ],
   "system blocks retain their request location",
 );
+
+const responsesBody = {
+  instructions: "Codex system contract",
+  input: [
+    { role: "developer", content: [{ type: "input_text", text: "Harness instruction" }] },
+    { role: "user", content: [{ type: "input_text", text: "Inspect disk usage" }] },
+    { type: "custom_tool_call", call_id: "call-codex", name: "exec", input: '{"cmd":"df -h"}' },
+    { type: "custom_tool_call_output", call_id: "call-codex", output: "disk-ok" },
+  ],
+  tools: [{ type: "function", name: "read_file", description: "Read a file" }],
+  additional_tools: [{ type: "custom", name: "exec", description: "Run a command" }],
+};
+const responsesMessages = extractRequestMessages(responsesBody);
+assert.deepEqual(responsesMessages.map((message) => message.role), ["developer", "user", "assistant", "tool"]);
+assert.deepEqual(responsesMessages[2].content[0], {
+  type: "tool_use",
+  id: "call-codex",
+  name: "exec",
+  input: { cmd: "df -h" },
+});
+assert.equal(responsesMessages[3].tool_call_id, "call-codex");
+assert.deepEqual(extractRequestTools(responsesBody).map((tool) => tool.name), ["read_file", "exec"]);
+assert.deepEqual(extractSystemParts(responsesBody), [{ source: "body.instructions", text: "Codex system contract" }]);
 
 assert.equal(isContextTokenCountingRequest({ path: "/v1/messages/count_tokens?beta=1" }), true);
 assert.equal(isContextTokenCountingRequest({ original_url: "https://api.example/v1/messages/count_tokens" }), true);

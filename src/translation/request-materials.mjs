@@ -8,10 +8,13 @@ import {
   translationToolName,
 } from "./blocks.mjs";
 import { extractContentText } from "../trace/content-parts.mjs";
+import { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
 import {
   compactInjectionText,
+  extractCodexHarnessBlocks,
   isSuggestionModeMessage,
   parseCommandMessage,
+  stripCodexHarnessBlocks,
 } from "../trace/message-semantics.mjs";
 
 export function projectTranslationBodyMaterials(
@@ -19,7 +22,7 @@ export function projectTranslationBodyMaterials(
   { section = "", contentText = extractContentText, extractHarnessParts = () => [] } = {},
 ) {
   const source = body && typeof body === "object" ? body : {};
-  const messages = Array.isArray(source.messages) ? source.messages : [];
+  const messages = extractRequestMessages(source);
   const materials = [];
 
   if (!section || section === "system") {
@@ -45,7 +48,7 @@ export function projectTranslationBodyMaterials(
   }
 
   if (!section || section === "tools") {
-    const tools = Array.isArray(source.tools) ? source.tools : [];
+    const tools = extractRequestTools(source);
     tools.forEach((tool, toolIndex) => {
       const toolName = translationToolName(tool);
       const description = translationToolDescription(tool);
@@ -99,6 +102,10 @@ export function extractTranslationSystemParts(body, messages, contentText = extr
   if (Array.isArray(body?.system)) {
     body.system.forEach((part) => output.push({ source: "body.system", text: extract(part) }));
   }
+  if (typeof body?.instructions === "string") output.push({ source: "body.instructions", text: body.instructions });
+  if (Array.isArray(body?.instructions)) {
+    body.instructions.forEach((part) => output.push({ source: "body.instructions", text: extract(part) }));
+  }
   for (const message of messages || []) {
     if (message?.role === "system") output.push({ source: "messages.system", text: extract(message.content) });
   }
@@ -114,8 +121,20 @@ export function extractHarnessTranslationParts(
   const output = [];
 
   (Array.isArray(messages) ? messages : []).forEach((message, messageIndex) => {
-    if (!message || message.role !== "user") return;
+    if (!message || !["user", "developer"].includes(message.role)) return;
     const fullText = extract(message.content);
+    const codexBlocks = extractCodexHarnessBlocks(fullText);
+    if (message.role === "developer") {
+      const developerRemainder = stripCodexHarnessBlocks(fullText);
+      if (developerRemainder) output.push(harnessPart("harness_developer", developerRemainder, messageIndex, label));
+    }
+    for (const [contextIndex, block] of codexBlocks.entries()) {
+      output.push(harnessPart("harness_codex_context", block.text, messageIndex, label, {
+        contextIndex,
+        tag: block.tag,
+      }));
+    }
+    if (message.role !== "user") return;
     const compact = compactInjectionText(message);
     if (compact) {
       output.push(harnessPart("harness_compact", compact, messageIndex, label));
@@ -180,7 +199,10 @@ export function dedupeToolTranslationMaterials(materials) {
 
 function harnessPart(kind, text, messageIndex, labelForPart, details = {}) {
   const reminderIndex = Number.isInteger(details.reminderIndex) ? details.reminderIndex : null;
-  const path = reminderIndex == null
+  const contextIndex = Number.isInteger(details.contextIndex) ? details.contextIndex : null;
+  const path = contextIndex != null
+    ? `messages[${messageIndex}].codex-context[${contextIndex}]`
+    : reminderIndex == null
     ? `messages[${messageIndex}]`
     : `messages[${messageIndex}].system-reminder[${reminderIndex}]`;
   return {
@@ -196,6 +218,8 @@ function defaultHarnessLabel(kind, { command = "", reminderIndex = 0 } = {}) {
   if (kind === "harness_command") return `命令 ${command}`.trim();
   if (kind === "harness_suggestion") return "Suggestion 模式";
   if (kind === "harness_reminder") return `框架提醒 #${reminderIndex + 1}`;
+  if (kind === "harness_developer") return "Codex developer 指令";
+  if (kind === "harness_codex_context") return "Codex 上下文注入";
   return kind;
 }
 
