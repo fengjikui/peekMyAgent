@@ -32,11 +32,12 @@ export function buildTimelineUpstreamView(
     cleanText = defaultCleanText,
     preview = defaultPreview,
     serialize = stableSerialize,
+    formatCompactNumber = defaultNumberFormat,
   } = {},
 ) {
   const showInlineContent = shouldShowTimelineRequestContent(request, { cleanText });
   const entryPreview = cleanText(request.summary?.entry?.text || "");
-  const semanticEvent = buildTimelineSemanticEventView(request, { translate });
+  const semanticEvent = buildTimelineSemanticEventView(request, { translate, formatCompactNumber });
   return {
     requestIndex: request.request_index,
     kindClass: timelineUpstreamKindClass(request),
@@ -53,7 +54,10 @@ export function buildTimelineUpstreamView(
   };
 }
 
-export function buildTimelineSemanticEventView(request = {}, { translate = identityTranslate } = {}) {
+export function buildTimelineSemanticEventView(
+  request = {},
+  { translate = identityTranslate, formatCompactNumber = defaultNumberFormat } = {},
+) {
   const entry = request.summary?.entry;
   const event = entry?.semantic_event;
   if (event?.type !== "context_compacted") return null;
@@ -62,17 +66,35 @@ export function buildTimelineSemanticEventView(request = {}, { translate = ident
   const replacementItems = nonNegativeInteger(compact.replacement_item_count);
   const retainedMessages = nonNegativeInteger(compact.retained_message_count);
   const opaqueItems = nonNegativeInteger(compact.opaque_compaction_count);
+  const retainedUserMessages = nonNegativeInteger(compact.retained_message_roles?.user);
+  const estimatedTokens = nonNegativeFiniteNumber(compact.post_compaction_estimated_context_tokens);
+  const replacementHistoryContinues = compact.history_effect === "replace_live_history";
+  const composition =
+    retainedMessages > 0 && retainedUserMessages === retainedMessages
+      ? translate("contextCompactionUserComposition", { messages: retainedMessages, opaque: opaqueItems })
+      : translate("contextCompactionComposition", { messages: retainedMessages, opaque: opaqueItems });
+  const facts = [
+    composition,
+    estimatedTokens != null
+      ? translate("contextCompactionEstimate", { tokens: formatCoarseEstimate(estimatedTokens, formatCompactNumber) })
+      : "",
+  ].filter(Boolean);
+  const note = replacementHistoryContinues
+    ? [
+        translate("contextCompactionHistoryEffect"),
+        opaqueItems ? translate("contextCompactionOpaqueContent") : "",
+        estimatedTokens != null ? translate("contextCompactionEstimateEvidence") : "",
+        translate("contextCompactionNotHttpEvidence"),
+      ].filter(Boolean).join(" ")
+    : translate(opaqueItems ? "contextCompactionOpaqueEvidence" : "contextCompactionEvidence");
   return {
     type: event.type,
     headline: translate("contextCompactionWindow", {
       sequence: windowNumber,
       items: replacementItems,
     }),
-    facts: translate("contextCompactionComposition", {
-      messages: retainedMessages,
-      opaque: opaqueItems,
-    }),
-    note: translate(opaqueItems ? "contextCompactionOpaqueEvidence" : "contextCompactionEvidence"),
+    facts: facts.join(" · "),
+    note,
   };
 }
 
@@ -418,6 +440,16 @@ function defaultCharCount(value) {
 function nonNegativeInteger(value) {
   const number = Number(value);
   return Number.isSafeInteger(number) && number >= 0 ? number : 0;
+}
+
+function nonNegativeFiniteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function formatCoarseEstimate(value, formatCompactNumber) {
+  if (value >= 1000 && value < 10000) return `${(value / 1000).toFixed(1)}k`;
+  return formatCompactNumber(value);
 }
 
 function stableSerialize(value) {

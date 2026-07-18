@@ -77,7 +77,9 @@ evidence
 data
 ```
 
-当前 Codex `context_compacted` 映射为 `context_lifecycle`：时间线使用共享 semantic-event View DTO 显示进入的窗口编号、replacement history 条目数、保留消息数和不透明 compaction 数量，并在默认卡片上直接说明该事件不是模型 HTTP 请求。它不是一次模型请求，因此：
+当前 Codex `context_compacted` 映射为 `context_lifecycle`：时间线使用共享 semantic-event View DTO 显示进入的窗口编号、replacement history 条目数、保留消息角色与数量、不透明 compaction 数量，以及紧随 `compacted` 记录出现的本地 post-compaction token 估算。Codex 将这份 replacement history 安装为新的 live history，后续 prompt 从这里继续；该结论来自 Codex 的 rollout reconstruction 与 history replacement 实现，而不是根据 UI 文案猜测。
+
+token_count 中 `last_token_usage.total_tokens` 是压缩完成后由 Codex 本地重算的粗略估算，不是 tokenizer 精确值，也不等于下一次模型 HTTP 请求的 `input_tokens`。默认卡片必须同时呈现这一限制。该事件本身也不是一次模型请求，因此：
 
 - method 为 `EVENT`，path 为 `/codex/rollout/context_compacted`；
 - 不生成伪 System、Tools、Messages 或 Response；

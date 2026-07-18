@@ -31,7 +31,12 @@ export function captureSemanticEntry(event) {
         window_number: finiteNumber(data.window_number),
         replacement_item_count: nonNegativeInteger(data.replacement_item_count),
         retained_message_count: nonNegativeInteger(data.retained_message_count),
+        retained_message_roles: normalizeCountMap(data.retained_message_roles),
         opaque_compaction_count: nonNegativeInteger(data.opaque_compaction_count),
+        history_effect: data.history_effect ? String(data.history_effect) : null,
+        post_compaction_estimated_context_tokens: finiteNumber(data.post_compaction_estimated_context_tokens),
+        token_estimate_kind: data.token_estimate_kind ? String(data.token_estimate_kind) : null,
+        model_context_window: finiteNumber(data.model_context_window),
       },
     };
   }
@@ -75,6 +80,7 @@ function requiredEnum(value, allowed, name) {
 }
 
 function finiteNumber(value) {
+  if (value == null || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -82,4 +88,13 @@ function finiteNumber(value) {
 function nonNegativeInteger(value) {
   const number = Number(value);
   return Number.isSafeInteger(number) && number >= 0 ? number : 0;
+}
+
+function normalizeCountMap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, count]) => [String(key), nonNegativeInteger(count)])
+      .filter(([, count]) => count > 0),
+  );
 }

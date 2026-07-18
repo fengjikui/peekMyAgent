@@ -128,6 +128,14 @@ try {
             { type: "compaction", encrypted_content: "opaque-history" },
           ],
         }),
+        rolloutRecord("event_msg", {
+          type: "token_count",
+          info: {
+            total_token_usage: { total_tokens: 60000 },
+            last_token_usage: { total_tokens: 6222 },
+            model_context_window: 258400,
+          },
+        }),
         rolloutRecord("event_msg", { type: "context_compacted" }),
         rolloutRecord("event_msg", { type: "task_complete", turn_id: "turn-compact" }),
       ],
@@ -147,8 +155,13 @@ try {
     window_number: 2,
     replacement_item_count: 2,
     retained_message_count: 1,
+    retained_message_roles: { user: 1 },
     opaque_compaction_count: 1,
     replacement_item_types: { "message:user": 1, compaction: 1 },
+    history_effect: "replace_live_history",
+    post_compaction_estimated_context_tokens: 6222,
+    token_estimate_kind: "local_coarse_estimate",
+    model_context_window: 258400,
     notification_present: true,
     message: null,
   });

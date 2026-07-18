@@ -1331,6 +1331,7 @@ function renderUpstreamEntry(request, evidenceView = buildRequestEvidenceView(re
     cleanText: cleanDisplayText,
     preview: shortPreview,
     serialize: stableJson,
+    formatCompactNumber,
   });
   return renderTimelineUpstreamEntryView({
     entry: {

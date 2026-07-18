@@ -81,8 +81,8 @@ const semanticEvent = renderTimelineUpstreamEntry({
     semanticEvent: {
       type: "context_compacted",
       headline: "Entered Window 1 <exact>",
-      facts: "11 retained messages · 1 opaque item",
-      note: "Not a model HTTP request.",
+      facts: "11 user messages · local estimate 6.2k tokens",
+      note: "Replacement history becomes live history. Not a model HTTP request.",
     },
     actionsHtml: eventActions,
   },
@@ -90,7 +90,9 @@ const semanticEvent = renderTimelineUpstreamEntry({
 });
 assert.match(semanticEvent, /data-semantic-event="context_compacted"/);
 assert.match(semanticEvent, /Entered Window 1 &lt;exact&gt;/);
-assert.match(semanticEvent, /11 retained messages/);
+assert.match(semanticEvent, /11 user messages/);
+assert.match(semanticEvent, /local estimate 6.2k tokens/);
+assert.match(semanticEvent, /Replacement history becomes live history/);
 assert.match(semanticEvent, /Not a model HTTP request/);
 assert.doesNotMatch(semanticEvent, /Entered Window 1 <exact>/);
 

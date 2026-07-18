@@ -16,7 +16,8 @@ export function normalizeCodexRolloutTurn({ source = {}, sessionMeta = {}, turn 
   const roundIndex = positiveRoundIndex(exchange?.roundIndex);
   const exchangeId = `${turnId}-exchange-${roundIndex}`;
   const entries = exchange?.entries || turn.entries || [];
-  const semanticEvent = codexSemanticEvent(entries);
+  const tokenInfo = exchange?.tokenInfo || latestTokenInfo(entries);
+  const semanticEvent = codexSemanticEvent(entries, { tokenInfo });
   const responseItems = entries.filter((entry) => entry?.type === "response_item").map((entry) => entry.payload).filter(Boolean);
   const requestInput = (exchange?.requestItems || responseItems.filter(isUpstreamResponseItem)).map(cloneWithoutOpaqueReasoning);
   const responseOutput = exchange?.responseItems
@@ -24,7 +25,6 @@ export function normalizeCodexRolloutTurn({ source = {}, sessionMeta = {}, turn 
     : downstreamItemsFromEntries(entries);
   const system = semanticEvent ? [] : normalizeBaseInstructions(sessionMeta.base_instructions);
   const tools = semanticEvent ? [] : normalizeDynamicTools(sessionMeta.dynamic_tools);
-  const tokenInfo = exchange?.tokenInfo || latestTokenInfo(entries);
   const status = exchangeStatus(turn, exchange);
   const finishReason = exchangeFinishReason({ turn, exchange, responseOutput });
   const body = {
@@ -346,7 +346,7 @@ function normalizeReasoningConfig(context) {
   return effort ? { effort } : null;
 }
 
-function codexSemanticEvent(entries) {
+function codexSemanticEvent(entries, { tokenInfo = latestTokenInfo(entries) } = {}) {
   const compacted = (entries || []).find((entry) => entry?.type === "compacted");
   const notified = (entries || []).some(
     (entry) => entry?.type === "event_msg" && entry.payload?.type === "context_compacted",
@@ -354,13 +354,20 @@ function codexSemanticEvent(entries) {
   if (!compacted && !notified) return null;
   const payload = compacted?.payload || {};
   const replacementHistory = Array.isArray(payload.replacement_history) ? payload.replacement_history : [];
+  const estimatedContextTokens = tokenInfo?.last_token_usage?.total_tokens;
+  const modelContextWindow = tokenInfo?.model_context_window;
   const itemTypes = {};
+  const retainedMessageRoles = {};
   let retainedMessageCount = 0;
   let opaqueCompactionCount = 0;
   for (const item of replacementHistory) {
     const key = [item?.type || "unknown", item?.role].filter(Boolean).join(":");
     itemTypes[key] = (itemTypes[key] || 0) + 1;
-    if (item?.type === "message") retainedMessageCount += 1;
+    if (item?.type === "message") {
+      retainedMessageCount += 1;
+      const role = String(item?.role || "unknown");
+      retainedMessageRoles[role] = (retainedMessageRoles[role] || 0) + 1;
+    }
     if (item?.type === "compaction" || item?.encrypted_content) opaqueCompactionCount += 1;
   }
   return createCaptureSemanticEvent({
@@ -376,8 +383,14 @@ function codexSemanticEvent(entries) {
       window_number: finiteNumber(payload.window_number),
       replacement_item_count: replacementHistory.length,
       retained_message_count: retainedMessageCount,
+      retained_message_roles: retainedMessageRoles,
       opaque_compaction_count: opaqueCompactionCount,
       replacement_item_types: itemTypes,
+      history_effect: compacted ? "replace_live_history" : null,
+      post_compaction_estimated_context_tokens:
+        estimatedContextTokens == null ? null : finiteNumber(estimatedContextTokens),
+      token_estimate_kind: estimatedContextTokens == null ? null : "local_coarse_estimate",
+      model_context_window: modelContextWindow == null ? null : finiteNumber(modelContextWindow),
       notification_present: notified,
       message: typeof payload.message === "string" ? payload.message : null,
     },

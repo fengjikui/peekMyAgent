@@ -6,7 +6,7 @@
 
 - main/subagent/metadata/parent spawn 和 slash command 的标题、摘要与可见性；
 - 用户输入、Harness 注入、`tool_use`、`tool_result` 和子 Agent 回流的样式类别、标签与预览；
-- Harness 生命周期 semantic event 的紧凑机制摘要和证据限制；
+- Harness 生命周期 semantic event 的紧凑机制摘要和证据限制；上下文压缩卡区分 replacement history 结构、本地粗略 token 估算与下一次真实 API input；
 - 上行快捷 section 列表；
 - 当前 `tool_use` / `tool_result` 按 id 配对及孤立事件状态；
 - Assistant response 的 usage、finish reason、Thinking 摘要、长文本折叠和工具调用 DTO。
