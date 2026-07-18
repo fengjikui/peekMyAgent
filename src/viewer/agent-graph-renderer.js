@@ -2,6 +2,7 @@ export function renderAgentGraph(view, { translate, escapeHtml, shortId, shortPr
   if (!view) return "";
   const typeNames = [...new Set(view.typeEntries.map((entry) => agentBranchName(entry, translate)))];
   const summaryStatus = agentSummaryStatus(view.statusCounts, translate);
+  const dependencies = { translate, escapeHtml, shortId, shortPreview, showBranchType: typeNames.length > 1 };
   return `
     <details class="agent-branch-map" aria-label="${escapeHtml(translate("multiAgentAria"))}" data-agent-dashboard="${escapeHtml(view.turnId)}" ${view.dashboardOpen ? "open" : ""}>
       <summary class="agent-branch-summary" data-agent-dashboard-toggle="${escapeHtml(view.turnId)}">
@@ -11,7 +12,7 @@ export function renderAgentGraph(view, { translate, escapeHtml, shortId, shortPr
         <span class="agent-branch-summary-types">${escapeHtml(typeNames.join(" / "))}</span>
         <span class="agent-branch-summary-status">${escapeHtml(summaryStatus)}</span>
       </summary>
-      ${view.dashboardOpen ? renderAgentDashboard(view, { translate, escapeHtml, shortId, shortPreview }) : ""}
+      ${view.dashboardOpen ? renderAgentDashboard(view, dependencies) : ""}
     </details>
   `;
 }
@@ -60,7 +61,7 @@ function renderAgentFilterButton(turnId, filter, label, activeFilter, escapeHtml
 
 function renderAgentBranch(entry, dependencies) {
   const { branch, index, color, expanded, detailSteps, returnEdge } = entry;
-  const { translate, escapeHtml, shortPreview } = dependencies;
+  const { translate, escapeHtml, shortPreview, showBranchType } = dependencies;
   const title = branch.label || branch.agent_type || translate("subagentFallback", { index: index + 1 });
   const summary = agentBranchCompactSummary(branch, translate);
   const name = agentBranchName(entry, translate);
@@ -69,7 +70,7 @@ function renderAgentBranch(entry, dependencies) {
       <button class="agent-branch-toggle" type="button" data-agent-branch-toggle="${escapeHtml(branch.id)}" aria-expanded="${escapeHtml(String(expanded))}">
         <span class="agent-branch-index">${escapeHtml(expanded ? "▾" : "▸")}</span>
         <div>
-          <strong><span class="agent-type-chip">${escapeHtml(name)}</span> ${escapeHtml(translate("childSeq", { index: index + 1 }))} · ${escapeHtml(title)}</strong>
+          <strong>${showBranchType ? `<span class="agent-type-chip">${escapeHtml(name)}</span> ` : ""}${escapeHtml(translate("childSeq", { index: index + 1 }))} · ${escapeHtml(title)}</strong>
           <p class="agent-branch-compact">${escapeHtml(summary)}</p>
         </div>
         <span class="agent-branch-status ${escapeHtml(branch.status || "unknown")}">${escapeHtml(branchStatusLabel(branch.status, translate))}</span>
@@ -191,7 +192,7 @@ function agentBranchCompactSummary(branch, translate) {
   ].filter(Boolean).join(" · ");
   return [
     agentContextLabel(branch.spawn?.context_mode, translate),
-    translate("turnRequests", { count: requestCount }),
+    translate("agentObservedEvents", { count: requestCount }),
     toolUse || toolResult ? translate("turnTools", { calls: toolUse, results: toolResult }) : "",
     edges,
   ].filter(Boolean).join(" · ");

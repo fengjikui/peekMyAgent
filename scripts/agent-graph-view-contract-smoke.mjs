@@ -183,6 +183,7 @@ assert.match(html, /data-agent-dashboard="turn-7" open/);
 assert.match(html, /multiAgentSummary:count=2/);
 assert.match(html, /agentFilterRunning:count=1 · agentFilterReturned:count=1/);
 assert.match(html, /general-purpose \/ Explore/);
+assert.equal((html.match(/class="agent-type-chip"/g) || []).length, 2, "mixed agent types remain visible per branch");
 assert.doesNotMatch(html, /data-agent-status-filter=/, "small boards should not spend space on status filters");
 assert.match(html, /data-agent-branch-toggle="branch-a" aria-expanded="true"/);
 assert.match(html, /data-agent-branch-toggle="branch-b" aria-expanded="false"/);
@@ -211,7 +212,8 @@ assert.doesNotMatch(
 );
 assert.match(codexReturnHtml, /subagentResultReturn/);
 assert.doesNotMatch(codexReturnHtml, /resultReturn/);
-assert.match(codexReturnHtml, /turnRequests:count=1/);
+assert.match(codexReturnHtml, /agentObservedEvents:count=1/);
+assert.doesNotMatch(codexReturnHtml, /class="agent-type-chip"/, "one shared agent type is shown once in the dashboard summary");
 assert.doesNotMatch(codexReturnHtml, /\/root\/p/);
 assert.doesNotMatch(codexReturnHtml, /Probe context linkage/);
 
