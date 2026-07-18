@@ -93,6 +93,8 @@ data
 5. Raw 标题由证据画像决定使用“完整”还是“重建”，所有派生展示都可回到原始证据。
 6. 若已捕获工具参数明确包含 `tools.<name>(...)` 或 `skills/<name>/SKILL.md`，Trace Domain 可附加“嵌套工具派发”或“Skill 指令读取”高置信标注；Timeline 同时保留外层工具名和原始参数，不把该标注表述为未观测的远端调用。
 
+证据边界不能只藏在 Raw 中。`src/viewer/evidence-view-model.js` 根据 Source provenance 和 `summary.evidence` 生成共享展示 DTO：Codex rollout 在左侧会话项直接附加“语义重建”，请求卡使用“展开/折叠重建上行”和“重建上行详情”；Capture Proxy 等 exact 来源继续使用普通“上行”。该模型只读取证据字段，不读取 Agent 名称，因此未来 Harness 只需正确输出 provenance 即可复用同一信息架构。
+
 ### 子 Agent
 
 默认看板按 Agent 实例组织，事件条按时间顺序保留交错关系：
@@ -123,6 +125,7 @@ Codex `spawn_agent` 是启动信号；紧随其后的 `function_call_output` 若
 
 - rollout request/response 重建与 limitations；
 - exact Proxy 与 rollout 在 Raw 中的不同标签；
+- exact Proxy 与 rollout 在左侧 Source 和请求卡中的不同默认文案；
 - semantic event 不出现请求/回复标签；
 - 同名嵌套 Harness 标签不会截断；
 - response tool call 不进入上行 current tool calls；

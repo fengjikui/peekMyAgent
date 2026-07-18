@@ -88,6 +88,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/viewer/pane-layout-model.js` | 三栏宽度上下限、可用空间和内容占比的纯几何模型 |
 | `src/viewer/pane-layout-controller.js` | 三栏折叠、宽度偏好、键盘/指针拖动和窗口变化的长期 DOM Controller |
 | `src/viewer/ui-i18n.js` | Viewer 中英文 UI 资源、默认语言、fallback 与占位符插值纯函数 |
+| `src/viewer/evidence-view-model.js` | Source/request/response 证据完整度到侧栏、时间线与 Raw 文案的共享纯 View Model |
 | `src/viewer/trace-timeline-model.js` | Trace 查询分类、命中 Turn、结果上限、latest-only 与中栏窗口的纯 View Model |
 | `src/viewer/trace-timeline-renderer.js` | Trace 查询栏、空状态、窗口边界和 Turn 容器编排的依赖注入 HTML renderer |
 | `src/viewer/trace-timeline-controller.js` | Timeline 查询输入法生命周期、单次事件委派、活动态同步与应用动作端口 |
@@ -191,7 +192,7 @@ OpenAI Responses 的 `instructions`、`tools`/`additional_tools` 和 `input` 已
 
 Codex 会把部分 Harness 信息包在 XML-like 标签中，但原始 role 仍可能是普通 message。共享消息语义层只识别经过验证的白名单标签：运行环境与界面状态、Skills/Apps/Plugins 能力注入、协作/权限策略、内部目标、Turn 生命周期和子 Agent 通知。提取器使用白名单平衡标签扫描，而不是非贪婪正则；因此正文中用于解释机制的同名标签示例不会截断外层注入块。整理视图按 `runtime`、`capability`、`policy`、`internal`、`lifecycle`、`subagent` 分类并接入现有分块翻译缓存；Raw 始终保留原 role、标签、顺序和来源。未知标签不做泛化 XML 猜测，避免把真实用户文本误判为 Harness 注入。
 
-rollout 观察与网络代理并不提供同一种证据。`captureEvidenceProfile()` 将 request artifact、response artifact、关联方式和限制条件投影成共享 `summary.evidence`；Viewer 由该证据决定显示“完整请求 / Response”还是“重建上行 / 重建下行”，不能仅根据持久化层是否重建 JSON 作判断。`context_compacted` 等没有模型 HTTP 交换的记录使用版本化 semantic event，时间线展示 Harness 生命周期，Raw 只提供“事件原文 / 事件 Metadata”，不会附带 System、Tools 或 Response 标签。当前完整边界、Codex 字段映射和未来 Harness adapter 约束见 [Codex rollout 证据与 Viewer 契约](codex-rollout-evidence-and-viewer-contract.md)。
+rollout 观察与网络代理并不提供同一种证据。`captureEvidenceProfile()` 将 request artifact、response artifact、关联方式和限制条件投影成共享 `summary.evidence`；`evidence-view-model.js` 再把该领域证据投影为 Source 侧栏和请求卡文案。语义来源在侧栏直接标记“语义重建”，请求卡显示“展开/折叠重建上行”和“重建上行详情”；exact 来源继续显示普通“上行”。Raw 同样由该证据决定显示“完整请求 / Response”还是“重建上行 / 重建下行”，不能仅根据持久化层是否重建 JSON 作判断。`context_compacted` 等没有模型 HTTP 交换的记录使用版本化 semantic event，时间线展示 Harness 生命周期，Raw 只提供“事件原文 / 事件 Metadata”，不会附带 System、Tools 或 Response 标签。当前完整边界、Codex 字段映射和未来 Harness adapter 约束见 [Codex rollout 证据与 Viewer 契约](codex-rollout-evidence-and-viewer-contract.md)。
 
 ## 页面独立发送
 

@@ -32,6 +32,19 @@ assert.match(actions, /data-upstream-toggle="request-&lt;1&gt;" aria-expanded="t
 assert.match(actions, /data-raw-section="tool_results"/);
 assert.match(actions, /collapseUpstream/);
 
+const reconstructedActions = renderTimelineUpstreamQuickActions({
+  requestId: "request-reconstructed",
+  expanded: false,
+  sections: [],
+  expandLabel: "Expand reconstructed upstream",
+  collapseLabel: "Collapse reconstructed upstream",
+  rawTitle: "Semantic reconstruction, not wire exact",
+  translate,
+  escapeHtml,
+});
+assert.match(reconstructedActions, />Expand reconstructed upstream</);
+assert.match(reconstructedActions, /title="Semantic reconstruction, not wire exact"/);
+
 const eventActions = renderTimelineUpstreamQuickActions({
   requestId: "request-event",
   expandable: false,
@@ -198,6 +211,15 @@ assert.match(card, /data-upstream-panel="request-&lt;7&gt;" open/);
 assert.match(card, /upstreamDetails:index=7/);
 assert.match(card, /data-body="trusted"/);
 assert.match(card, /assistant-response-block/);
+
+const reconstructedCard = renderTimelineRequestCard({
+  requestId: "request-reconstructed",
+  requestIndex: 8,
+  upstreamDetailsLabel: "Reconstructed upstream details #8",
+  translate,
+  escapeHtml,
+});
+assert.match(reconstructedCard, /Reconstructed upstream details #8/);
 
 const eventCard = renderTimelineRequestCard({
   requestId: "request-event",

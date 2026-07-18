@@ -1,3 +1,5 @@
+import { buildSourceEvidenceView } from "./evidence-view-model.js";
+
 export function buildSessionNavigatorView({
   sources = [],
   activeSourceId = null,
@@ -128,6 +130,12 @@ function buildSessionItemView(
 ) {
   const codexPending = source.kind === "codex_rollout_pending";
   const label = codexPending ? translate("codexPendingTitle") : displaySourceLabel(source.label);
+  const evidence = buildSourceEvidenceView(source, { translate });
+  const requestLabel = codexPending
+    ? translate("codexPendingRequestLabel")
+    : Number.isFinite(source.request_count)
+      ? translate("requestUnit", { count: source.request_count })
+      : translate("liveTrace");
   return {
     id: source.id || "",
     active: source.id === activeSourceId,
@@ -138,11 +146,8 @@ function buildSessionItemView(
     canDelete: source.deletable !== false,
     label,
     subtitle: source.conversation_id ? shortId(source.conversation_id) : source.agent || "",
-    requestLabel: codexPending
-      ? translate("codexPendingRequestLabel")
-      : Number.isFinite(source.request_count)
-      ? translate("requestUnit", { count: source.request_count })
-      : translate("liveTrace"),
+    evidenceMode: evidence.mode,
+    requestLabel: [requestLabel, evidence.navigatorSuffix].filter(Boolean).join(" · "),
     pinLabel: source.pinned ? translate("unpin") : translate("pin"),
   };
 }

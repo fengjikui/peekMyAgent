@@ -43,7 +43,7 @@ pma CLI / adapter
 | 外层工具中的嵌套工具派发、Skill 指令读取等可验证语义 | `src/trace/tool-call-semantics.mjs`、`scripts/tool-call-semantics-contract-smoke.mjs` | Renderer 解析脚本文本、隐藏原始调用，或根据工具名猜测未被 Trace 观测的服务器端行为 |
 | 真实用户输入、slash command、Harness/Codex 标签注入、任务通知 | `src/trace/message-semantics.mjs`、`src/translation/request-materials.mjs`、对应 contract smoke | 在 Server/Turn/标题/UI 各写一套 marker 正则，或用泛化 XML 规则改写 Raw 证据 |
 | 请求协议/provider、main/subagent/metadata 来源画像 | `src/trace/request-profile.mjs`、对应 contract smoke | 在 Server/Viewer/adapter 中散落 model、path 或 header 判断 |
-| exact/partial/semantic request-response 证据与 Harness 生命周期事件 | `src/trace/evidence-profile.mjs`、`capture-semantic-event.mjs`、adapter provenance、[证据与 Viewer 契约](codex-rollout-evidence-and-viewer-contract.md) | 用 `body_source` 推断网络完整度、把本地生命周期事件伪装成模型请求，或在 Viewer 按 Agent 名称重猜证据等级 |
+| exact/partial/semantic request-response 证据、Viewer 证据文案与 Harness 生命周期事件 | `src/trace/evidence-profile.mjs`、`capture-semantic-event.mjs`、adapter provenance、`src/viewer/evidence-view-model.js`、[证据与 Viewer 契约](codex-rollout-evidence-and-viewer-contract.md) | 用 `body_source` 推断网络完整度、把本地生命周期事件伪装成模型请求，或在 Viewer/renderer 按 Agent 名称重猜证据等级 |
 | 请求 System/Tools/消息/工具交互字符构成 | `src/trace/request-composition.mjs`、对应 contract smoke | 在 Viewer Server 或 Renderer 中重新统计 payload |
 | 模型下行 JSON/SSE、usage、stop reason | `src/trace/model-response-normalizer.mjs`、对应 contract smoke | 在 Viewer Server/renderer 按 provider 重写解析 |
 | Turn、context delta、子 Agent 血缘 | `src/trace/` 和对应 contract smoke | Viewer 中重新猜测关系 |

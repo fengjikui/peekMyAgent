@@ -7,6 +7,7 @@ export function renderTimelineRequestCard({
   toolExchangeHtml = "",
   assistantResponseHtml = "",
   showUpstreamDetails = true,
+  upstreamDetailsLabel = "",
   translate,
   escapeHtml,
 }) {
@@ -16,7 +17,7 @@ export function renderTimelineRequestCard({
       ${
         showUpstreamDetails
           ? `<details class="request-upstream-details request-upstream-panel" data-upstream-panel="${escapeHtml(requestId)}" ${upstreamOpen ? "open" : ""}>
-              <summary class="upstream-panel-summary">${escapeHtml(translate("upstreamDetails", { index: requestIndex }))}</summary>
+              <summary class="upstream-panel-summary">${escapeHtml(upstreamDetailsLabel || translate("upstreamDetails", { index: requestIndex }))}</summary>
               ${upstreamBodyHtml}
             </details>`
           : ""
@@ -61,6 +62,9 @@ export function renderTimelineUpstreamQuickActions({
   expanded = false,
   expandable = true,
   sections = [],
+  expandLabel = "",
+  collapseLabel = "",
+  rawTitle = "",
   translate,
   escapeHtml,
 }) {
@@ -68,7 +72,7 @@ export function renderTimelineUpstreamQuickActions({
     ${
       expandable
         ? `<button class="inspect-button upstream-toggle-button" type="button" data-upstream-toggle="${escapeHtml(requestId)}" aria-expanded="${expanded ? "true" : "false"}">
-             <span class="toggle-label">${escapeHtml(expanded ? translate("collapseUpstream") : translate("expandUpstream"))}</span>
+             <span class="toggle-label">${escapeHtml(expanded ? collapseLabel || translate("collapseUpstream") : expandLabel || translate("expandUpstream"))}</span>
            </button>`
         : ""
     }
@@ -79,7 +83,7 @@ export function renderTimelineUpstreamQuickActions({
         `,
       )
       .join("")}
-    <button class="raw-button compact" type="button" data-raw="${escapeHtml(requestId)}" title="${escapeHtml(translate("fullCaptureTitle"))}">Raw</button>
+    <button class="raw-button compact" type="button" data-raw="${escapeHtml(requestId)}" title="${escapeHtml(rawTitle || translate("fullCaptureTitle"))}">Raw</button>
   `;
 }
 

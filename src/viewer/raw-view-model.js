@@ -1,4 +1,15 @@
 import { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
+import {
+  requestHasSemanticEvent,
+  requestUsesReconstructedUpstream,
+  responseUsesReconstructedDownstream,
+} from "./evidence-view-model.js";
+
+export {
+  requestHasSemanticEvent,
+  requestUsesReconstructedUpstream,
+  responseUsesReconstructedDownstream,
+} from "./evidence-view-model.js";
 
 export function rawSectionData(request, section, { translate = (key) => key, harnessMaterials = [] } = {}) {
   if (requestHasSemanticEvent(request)) {
@@ -65,30 +76,6 @@ export function rawSectionData(request, section, { translate = (key) => key, har
     title: translate(requestUsesReconstructedUpstream(request) ? "rawReconstructedRequest" : "rawFullCapture"),
     value: rawUpstreamRequestValue(request),
   };
-}
-
-export function requestHasSemanticEvent(request) {
-  return Boolean(
-    request?.summary?.evidence?.kind === "semantic_event" ||
-      request?.raw?.semantic_event ||
-      request?.raw?.body?.semantic_event ||
-      request?.raw?.body?.codex?.semantic_event,
-  );
-}
-
-export function requestUsesReconstructedUpstream(request) {
-  if (requestHasSemanticEvent(request)) return false;
-  const requestEvidence = request?.summary?.evidence?.request;
-  if (requestEvidence?.available) return requestEvidence.exact === false;
-  if (request?.raw?.body_source === "reconstructed") return true;
-  return request?.raw?.body?.codex?.exact_wire_request === false;
-}
-
-export function responseUsesReconstructedDownstream(request) {
-  if (requestHasSemanticEvent(request)) return false;
-  const responseEvidence = request?.summary?.evidence?.response;
-  if (responseEvidence?.available) return responseEvidence.exact === false;
-  return request?.raw?.body?.codex?.fidelity === "semantic_reconstruction";
 }
 
 export function rawSemanticEventMetadata(request) {

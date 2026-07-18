@@ -12,6 +12,7 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/api-client.js", javascriptAsset("api-client.js")],
   ["/client-store.js", javascriptAsset("client-store.js")],
   ["/client.js", javascriptAsset("client.js")],
+  ["/evidence-view-model.js", javascriptAsset("evidence-view-model.js")],
   [
     "/contracts/viewer-api.mjs",
     { base: "project", file: path.join("src", "contracts", "viewer-api.mjs"), contentType: "text/javascript; charset=utf-8" },

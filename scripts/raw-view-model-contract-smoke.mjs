@@ -2,6 +2,11 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  buildRequestEvidenceView,
+  buildSourceEvidenceView,
+  sourceEvidenceMode,
+} from "../src/viewer/evidence-view-model.js";
+import {
   requestHasSemanticEvent,
   requestUsesReconstructedUpstream,
   rawResponseSectionValue,
@@ -153,6 +158,24 @@ const reconstructedRequest = {
 };
 assert.equal(requestUsesReconstructedUpstream(reconstructedRequest), true);
 assert.equal(rawSectionData(reconstructedRequest, "full", { translate: (key) => key }).title, "rawReconstructedRequest");
+const reconstructedEvidenceView = buildRequestEvidenceView(
+  { ...reconstructedRequest, request_index: 3 },
+  {
+    translate: (key, values = {}) => `${key}${values.index == null ? "" : `:${values.index}`}`,
+  },
+);
+assert.equal(reconstructedEvidenceView.upstream.mode, "reconstructed");
+assert.equal(reconstructedEvidenceView.upstream.expandLabel, "expandReconstructedUpstream");
+assert.equal(reconstructedEvidenceView.upstream.detailsLabel, "reconstructedUpstreamDetails:3");
+
+const semanticSource = { kind: "codex_rollout_local", confidence: "semantic" };
+assert.equal(sourceEvidenceMode(semanticSource), "reconstructed");
+assert.equal(
+  buildSourceEvidenceView(semanticSource, { translate: (key) => (key === "semanticReconstruction" ? "Semantic reconstruction" : key) })
+    .navigatorSuffix,
+  "Semantic reconstruction",
+);
+assert.equal(sourceEvidenceMode({ kind: "proxy_capture", confidence: "exact" }), "exact");
 
 const exactProxyRequestReconstructedFromBlocks = {
   ...request,

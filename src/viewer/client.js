@@ -1,5 +1,6 @@
 import { renderMarkdownPreview, renderSafeMarkdown } from "./markdown.js";
 import { AgentComposerController } from "./agent-composer-controller.js";
+import { buildRequestEvidenceView } from "./evidence-view-model.js";
 import {
   renderMessagesControls as renderMessagesControlsView,
   renderMessagesSection as renderMessagesSectionView,
@@ -1306,7 +1307,7 @@ function renderRequestAgentBranchStat(request) {
   return `<span class="stat-chip subagent" title="${title}">${text}</span>`;
 }
 
-function renderUpstreamEntry(request) {
+function renderUpstreamEntry(request, evidenceView = buildRequestEvidenceView(request, { translate: t })) {
   const expanded = !isTimelineSemanticEvent(request) && state.upstreamExpanded.has(request.id);
   const meta = renderProviderUsageStats(request);
   const view = buildTimelineUpstreamView(request, {
@@ -1320,18 +1321,21 @@ function renderUpstreamEntry(request) {
       ...view,
       ownerAria: t("ownerAria"),
       metaHtml: meta,
-      actionsHtml: renderUpstreamQuickActions(request, expanded),
+      actionsHtml: renderUpstreamQuickActions(request, expanded, evidenceView),
     },
     escapeHtml,
   });
 }
 
-function renderUpstreamQuickActions(request, expanded) {
+function renderUpstreamQuickActions(request, expanded, evidenceView = buildRequestEvidenceView(request, { translate: t })) {
   return renderTimelineUpstreamQuickActionsView({
     requestId: request.id,
     expanded,
     expandable: !isTimelineSemanticEvent(request),
     sections: timelineUpstreamQuickSections(request),
+    expandLabel: evidenceView.upstream.expandLabel,
+    collapseLabel: evidenceView.upstream.collapseLabel,
+    rawTitle: evidenceView.upstream.rawTitle,
     translate: t,
     escapeHtml,
   });
@@ -1347,6 +1351,7 @@ function renderTurnRequest(request, turnInput = null) {
 
 function renderRequestCard(request, options = {}) {
   const semanticEvent = isTimelineSemanticEvent(request);
+  const evidenceView = buildRequestEvidenceView(request, { translate: t });
   const showInlineContent = shouldShowTimelineRequestContent(request);
   const assistantResponse = shouldShowTimelineAssistantResponse(request) ? renderAssistantResponse(request) : "";
   const toolExchange = showInlineContent ? renderToolExchange(request) : "";
@@ -1355,11 +1360,14 @@ function renderRequestCard(request, options = {}) {
     requestId: request.id,
     requestIndex: request.request_index,
     upstreamOpen,
-    upstreamEntryHtml: options.turnInput ? renderTurnInputEntry(request, options.turnInput) : renderUpstreamEntry(request),
+    upstreamEntryHtml: options.turnInput
+      ? renderTurnInputEntry(request, options.turnInput, evidenceView)
+      : renderUpstreamEntry(request, evidenceView),
     upstreamBodyHtml: upstreamOpen ? renderUpstreamDetailsBody(request) : renderCollapsedUpstreamPlaceholder(request),
     toolExchangeHtml: toolExchange,
     assistantResponseHtml: assistantResponse,
     showUpstreamDetails: !semanticEvent,
+    upstreamDetailsLabel: evidenceView.upstream.detailsLabel,
     translate: t,
     escapeHtml,
   });
@@ -1398,7 +1406,7 @@ function renderCollapsedUpstreamPlaceholder(request) {
   `;
 }
 
-function renderTurnInputEntry(request, turn) {
+function renderTurnInputEntry(request, turn, evidenceView = buildRequestEvidenceView(request, { translate: t })) {
   const expanded = state.upstreamExpanded.has(request.id);
   const meta = renderProviderUsageStats(request);
   const view = buildTimelineTurnInputView(request, turn, {
@@ -1411,7 +1419,7 @@ function renderTurnInputEntry(request, turn) {
       ...view,
       ownerAria: t("ownerAria"),
       metaHtml: meta,
-      actionsHtml: renderUpstreamQuickActions(request, expanded),
+      actionsHtml: renderUpstreamQuickActions(request, expanded, evidenceView),
     },
     escapeHtml,
   });
@@ -1630,11 +1638,13 @@ function syncUpstreamDetailsState(panel) {
 }
 
 function updateUpstreamToggleButtons(requestId, open) {
+  const request = state.data?.requests?.find((item) => item.id === requestId);
+  const evidenceView = buildRequestEvidenceView(request || {}, { translate: t });
   document.querySelectorAll(`[data-upstream-toggle="${cssEscape(requestId)}"]`).forEach((button) => {
     button.setAttribute("aria-expanded", open ? "true" : "false");
     button.closest(".upstream-entry")?.classList.toggle("active", open);
     const label = button.querySelector(".toggle-label");
-    if (label) label.textContent = open ? t("collapseUpstream") : t("expandUpstream");
+    if (label) label.textContent = open ? evidenceView.upstream.collapseLabel : evidenceView.upstream.expandLabel;
   });
 }
 

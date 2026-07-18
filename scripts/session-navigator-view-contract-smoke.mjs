@@ -18,6 +18,7 @@ const translations = {
   exportTrace: "Export Trace",
   importedTraces: "Imported traces",
   liveTrace: "Live trace",
+  semanticReconstruction: "Semantic reconstruction",
   codexPendingRequestLabel: "Waiting for first message",
   codexPendingTitle: "Waiting for a new Codex Desktop session",
   moreActions: "More actions",
@@ -72,6 +73,8 @@ const sources = [
   {
     id: "source-4",
     agent: "Codex",
+    kind: "codex_rollout_local",
+    confidence: "semantic",
     workspace: "/tmp/codex-project",
     label: "Read-only Codex trace",
     conversation_id: "codex-thread",
@@ -130,11 +133,12 @@ const codexView = buildSessionNavigatorView({
   translate,
 });
 const codexSourceView = codexView.agentGroups[0].projects[0].sourceViews[0];
-assert.equal(codexSourceView.requestLabel, "Live trace");
+assert.equal(codexSourceView.requestLabel, "Live trace · Semantic reconstruction");
+assert.equal(codexSourceView.evidenceMode, "reconstructed");
 assert.equal(codexSourceView.canDelete, false);
 assert.equal(codexView.agentGroups[0].projects[0].canDelete, false);
 const codexHtml = renderSessionNavigator(codexView, { escapeHtml, translate });
-assert.match(codexHtml, /Live trace/);
+assert.match(codexHtml, /Live trace · Semantic reconstruction/);
 assert.match(codexHtml, /data-source-action="archive"/);
 assert.doesNotMatch(codexHtml, /data-source-action="delete"/);
 assert.doesNotMatch(codexHtml, /data-project-action="delete"/);
@@ -145,8 +149,15 @@ const pendingCodexView = buildSessionNavigatorView({
 });
 const pendingCodexSource = pendingCodexView.agentGroups[0].projects[0].sourceViews[0];
 assert.equal(pendingCodexSource.label, "Waiting for a new Codex Desktop session");
-assert.equal(pendingCodexSource.requestLabel, "Waiting for first message");
+assert.equal(pendingCodexSource.requestLabel, "Waiting for first message · Semantic reconstruction");
 assert.equal(pendingCodexSource.status, "waiting");
+
+const exactSourceView = buildSessionNavigatorView({
+  sources: [{ ...sources[0], id: "exact", kind: "proxy_capture", confidence: "exact", request_count: null }],
+  translate,
+}).agentGroups[0].projects[0].sourceViews[0];
+assert.equal(exactSourceView.requestLabel, "Live trace", "exact wire sources keep the compact default label");
+assert.equal(exactSourceView.evidenceMode, "exact");
 
 const collapsedView = buildSessionNavigatorView({
   sources,
