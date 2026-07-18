@@ -10,6 +10,7 @@ import {
   commandMessagePreview,
   formatTimelineResponseUsageMeta,
   isPrimaryTimelineRequest,
+  isTimelineSemanticEvent,
   isTimelineResponseRequest,
   pairTimelineToolEvents,
   shouldShowTimelineAssistantResponse,
@@ -36,6 +37,8 @@ const labels = {
   agentInternal: "Agent internal",
   agentContextInherited: "Inherited parent context",
   agentContextIsolated: "Isolated context",
+  skillLoadObserved: ({ skill }) => `Load Skill ${skill}`,
+  skillInstructionReadObserved: ({ skill }) => `Read Skill instructions ${skill}`,
   resultReturnPreview: ({ count }) => `${count} tool results`,
   truncated: "truncated",
 };
@@ -141,6 +144,25 @@ assert.equal(semanticSpawnCalls[0].suppressArguments, true);
 assert.deepEqual(semanticSpawnCalls[0].displayLines, ["Inherited parent context", "agentTaskEncrypted"]);
 assert.equal(JSON.stringify(semanticSpawnCalls).includes("gAAAA-secret-ciphertext"), true, "raw arguments remain available to Raw consumers");
 
+const observedSkillRead = buildTimelineResponseToolCalls(
+  {},
+  [
+    {
+      id: "call-skill",
+      name: "exec",
+      arguments: "tools.exec_command({cmd:'cat /tmp/skills/review/SKILL.md'})",
+      semantic: {
+        kind: "skill_instruction_read",
+        skill_name: "review",
+        nested_tool_names: ["exec_command"],
+      },
+    },
+  ],
+  translate,
+);
+assert.equal(observedSkillRead[0].displayName, "exec → exec_command · Read Skill instructions review");
+assert.equal(observedSkillRead[0].arguments.includes("SKILL.md"), true, "observed annotations never replace original arguments");
+
 const commandRequest = {
   id: "request-command",
   source_hint: { type: "main" },
@@ -173,6 +195,9 @@ const semanticLifecycleRequest = {
   },
 };
 assert.equal(isPrimaryTimelineRequest(semanticLifecycleRequest, { cleanText }), true);
+assert.equal(isTimelineSemanticEvent(semanticLifecycleRequest), true);
+assert.equal(buildTimelineUpstreamView(semanticLifecycleRequest, commonOptions).kindClass, "semantic-event");
+assert.deepEqual(timelineUpstreamQuickSections(semanticLifecycleRequest), []);
 
 const parentSpawnRequest = {
   id: "request-parent-spawn",

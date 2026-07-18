@@ -78,6 +78,7 @@
     "smoke:harness-translation": "node scripts/harness-translation-smoke.mjs",
     "smoke:subagent-otel": "node scripts/subagent-otel-smoke.mjs",
     "smoke:content-parts-contract": "node scripts/content-parts-contract-smoke.mjs",
+    "smoke:tool-call-semantics-contract": "node scripts/tool-call-semantics-contract-smoke.mjs",
     "smoke:message-semantics-contract": "node scripts/message-semantics-contract-smoke.mjs",
     "smoke:request-profile-contract": "node scripts/request-profile-contract-smoke.mjs",
     "smoke:request-composition-contract": "node scripts/request-composition-contract-smoke.mjs",

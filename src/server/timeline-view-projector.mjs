@@ -1,3 +1,5 @@
+import { analyzeToolCallSemantics } from "../trace/tool-call-semantics.mjs";
+
 export const TIMELINE_VIEW_LIMITS = Object.freeze({
   responseTextChars: 700,
   responseThinkingChars: 360,
@@ -135,8 +137,10 @@ function projectResponseSummary(response) {
 
 function projectToolCall(call) {
   if (!call || typeof call !== "object") return call;
+  const semantic = call.semantic || analyzeToolCallSemantics(call);
   return {
     ...call,
+    ...(semantic ? { semantic } : {}),
     arguments: compactPreviewValue(call.arguments),
   };
 }

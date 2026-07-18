@@ -128,7 +128,7 @@ export function buildTimelineResponseToolCalls(request = {}, toolCalls = [], tra
   const spawnEvents = Array.isArray(request.trace?.agent_spawn_events) ? request.trace.agent_spawn_events : [];
   return (Array.isArray(toolCalls) ? toolCalls : []).map((call) => {
     const spawn = spawnEvents.find((item) => item?.spawn_id && item.spawn_id === call?.id);
-    if (!spawn) return call;
+    if (!spawn) return describeObservedToolSemantics(call, translate);
     const label = spawn.label || spawn.description || spawn.subagent_type || call.name || "Agent";
     const displayLines = [];
     if (spawn.context_mode === "all") displayLines.push(translate("agentContextInherited"));
@@ -147,6 +147,20 @@ export function buildTimelineResponseToolCalls(request = {}, toolCalls = [], tra
       suppressArguments: true,
     };
   });
+}
+
+function describeObservedToolSemantics(call = {}, translate = identityTranslate) {
+  const semantic = call.semantic;
+  if (!semantic || typeof semantic !== "object") return call;
+  const nested = Array.isArray(semantic.nested_tool_names) ? semantic.nested_tool_names.filter(Boolean) : [];
+  const nameParts = [call.name || "unknown"];
+  if (nested.length) nameParts.push(`→ ${nested.join(", ")}`);
+  if (semantic.kind === "skill_load") {
+    nameParts.push(`· ${translate("skillLoadObserved", { skill: semantic.skill_name || "unknown" })}`);
+  } else if (semantic.kind === "skill_instruction_read") {
+    nameParts.push(`· ${translate("skillInstructionReadObserved", { skill: semantic.skill_name || "unknown" })}`);
+  }
+  return { ...call, displayName: nameParts.join(" ") };
 }
 
 export function shouldShowTimelineRequestContent(request = {}, { cleanText = defaultCleanText } = {}) {
@@ -186,6 +200,7 @@ export function isTimelineUserTurnEntry(request = {}) {
 }
 
 export function timelineUpstreamKindClass(request = {}) {
+  if (isTimelineSemanticEvent(request)) return "semantic-event";
   if (request.source_hint?.type === "metadata") return "metadata";
   if (request.summary?.command_message) return "command-message";
   if (request.summary?.entry?.kind === "subagent_result") return "subagent-result";
@@ -195,6 +210,7 @@ export function timelineUpstreamKindClass(request = {}) {
 }
 
 export function timelineUpstreamQuickSections(request = {}) {
+  if (isTimelineSemanticEvent(request)) return [];
   const sections = [
     { section: "system", label: "System" },
     { section: "tools", label: "Tools" },
@@ -202,6 +218,16 @@ export function timelineUpstreamQuickSections(request = {}) {
   if ((request.summary?.current_tool_calls || []).length) sections.push({ section: "upstream_tool_calls", label: "tool_use" });
   if ((request.summary?.current_tool_results || []).length) sections.push({ section: "tool_results", label: "tool_result" });
   return sections;
+}
+
+export function isTimelineSemanticEvent(request = {}) {
+  return Boolean(
+    request.summary?.evidence?.kind === "semantic_event" ||
+      request.summary?.entry?.semantic_event ||
+      request.raw?.semantic_event ||
+      request.raw?.body?.semantic_event ||
+      request.raw?.body?.codex?.semantic_event,
+  );
 }
 
 export function timelineUpstreamEntryLabel(

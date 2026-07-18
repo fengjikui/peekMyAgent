@@ -1,6 +1,6 @@
 # Coding Agent 代码库地图
 
-更新时间：2026-07-18
+更新时间：2026-07-19
 
 本文帮助 Codex、Claude Code 和其他 Coding Agent 在几分钟内找到正确改动边界。它不是第二份架构事实源：运行行为以[当前架构](architecture.md)为准，未来设计以[重构路线图](refactoring-roadmap.md)为准，协作和验证规则以仓库根目录的 `AGENTS.md` 为准。
 
@@ -40,6 +40,7 @@ pma CLI / adapter
 | SQLite 连接/写入/维护与 schema migration | `src/core/persistence-store.mjs`、`src/persistence/migrations/`、[Response 写入事务契约](capture-response-transaction-contract.md) | 绕过 migration 直接改 schema、拆散 response 原子写入，或让 read repository 拥有连接生命周期/写事务 |
 | persisted Capture 分页、窗口、body 重建与 response 水合 | `src/persistence/repositories/sqlite-capture-read-repository.mjs`、[读取仓库契约](sqlite-capture-read-repository-contract.md) | 在 Source reader、HTTP route 或 Viewer projector 重写 SQLite 查询和 blob 水合 |
 | content、thinking、tool use、tool result 基础解析 | `src/trace/content-parts.mjs`、对应 contract smoke | 在上行/下行各维护一份 block 解析 |
+| 外层工具中的嵌套工具派发、Skill 指令读取等可验证语义 | `src/trace/tool-call-semantics.mjs`、`scripts/tool-call-semantics-contract-smoke.mjs` | Renderer 解析脚本文本、隐藏原始调用，或根据工具名猜测未被 Trace 观测的服务器端行为 |
 | 真实用户输入、slash command、Harness/Codex 标签注入、任务通知 | `src/trace/message-semantics.mjs`、`src/translation/request-materials.mjs`、对应 contract smoke | 在 Server/Turn/标题/UI 各写一套 marker 正则，或用泛化 XML 规则改写 Raw 证据 |
 | 请求协议/provider、main/subagent/metadata 来源画像 | `src/trace/request-profile.mjs`、对应 contract smoke | 在 Server/Viewer/adapter 中散落 model、path 或 header 判断 |
 | exact/partial/semantic request-response 证据与 Harness 生命周期事件 | `src/trace/evidence-profile.mjs`、`capture-semantic-event.mjs`、adapter provenance、[证据与 Viewer 契约](codex-rollout-evidence-and-viewer-contract.md) | 用 `body_source` 推断网络完整度、把本地生命周期事件伪装成模型请求，或在 Viewer 按 Agent 名称重猜证据等级 |

@@ -116,6 +116,7 @@ for (const required of [
   "src/trace/capture-semantic-event.mjs",
   "src/trace/context-delta.mjs",
   "src/trace/content-parts.mjs",
+  "src/trace/tool-call-semantics.mjs",
   "src/trace/evidence-profile.mjs",
   "src/trace/message-semantics.mjs",
   "src/trace/request-profile.mjs",

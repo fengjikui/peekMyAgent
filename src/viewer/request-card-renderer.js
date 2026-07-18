@@ -6,16 +6,21 @@ export function renderTimelineRequestCard({
   upstreamBodyHtml = "",
   toolExchangeHtml = "",
   assistantResponseHtml = "",
+  showUpstreamDetails = true,
   translate,
   escapeHtml,
 }) {
   return `
     <article class="request-card" id="${escapeHtml(requestId)}" data-card="${escapeHtml(requestId)}">
       ${upstreamEntryHtml}
-      <details class="request-upstream-details request-upstream-panel" data-upstream-panel="${escapeHtml(requestId)}" ${upstreamOpen ? "open" : ""}>
-        <summary class="upstream-panel-summary">${escapeHtml(translate("upstreamDetails", { index: requestIndex }))}</summary>
-        ${upstreamBodyHtml}
-      </details>
+      ${
+        showUpstreamDetails
+          ? `<details class="request-upstream-details request-upstream-panel" data-upstream-panel="${escapeHtml(requestId)}" ${upstreamOpen ? "open" : ""}>
+              <summary class="upstream-panel-summary">${escapeHtml(translate("upstreamDetails", { index: requestIndex }))}</summary>
+              ${upstreamBodyHtml}
+            </details>`
+          : ""
+      }
       ${toolExchangeHtml}
       ${assistantResponseHtml}
     </article>
@@ -51,11 +56,22 @@ export function renderTimelineUpstreamEntry({ entry, escapeHtml }) {
   `;
 }
 
-export function renderTimelineUpstreamQuickActions({ requestId, expanded = false, sections = [], translate, escapeHtml }) {
+export function renderTimelineUpstreamQuickActions({
+  requestId,
+  expanded = false,
+  expandable = true,
+  sections = [],
+  translate,
+  escapeHtml,
+}) {
   return `
-    <button class="inspect-button upstream-toggle-button" type="button" data-upstream-toggle="${escapeHtml(requestId)}" aria-expanded="${expanded ? "true" : "false"}">
-      <span class="toggle-label">${escapeHtml(expanded ? translate("collapseUpstream") : translate("expandUpstream"))}</span>
-    </button>
+    ${
+      expandable
+        ? `<button class="inspect-button upstream-toggle-button" type="button" data-upstream-toggle="${escapeHtml(requestId)}" aria-expanded="${expanded ? "true" : "false"}">
+             <span class="toggle-label">${escapeHtml(expanded ? translate("collapseUpstream") : translate("expandUpstream"))}</span>
+           </button>`
+        : ""
+    }
     ${sections
       .map(
         ({ section, label }) => `

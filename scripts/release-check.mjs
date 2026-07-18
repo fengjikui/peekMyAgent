@@ -37,6 +37,7 @@ const coreCommands = [
   ["npm", "run", "smoke:message-equivalence-contract"],
   ["npm", "run", "smoke:context-delta-contract"],
   ["npm", "run", "smoke:content-parts-contract"],
+  ["npm", "run", "smoke:tool-call-semantics-contract"],
   ["npm", "run", "smoke:message-semantics-contract"],
   ["npm", "run", "smoke:request-profile-contract"],
   ["npm", "run", "smoke:request-composition-contract"],

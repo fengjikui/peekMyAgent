@@ -32,6 +32,16 @@ assert.match(actions, /data-upstream-toggle="request-&lt;1&gt;" aria-expanded="t
 assert.match(actions, /data-raw-section="tool_results"/);
 assert.match(actions, /collapseUpstream/);
 
+const eventActions = renderTimelineUpstreamQuickActions({
+  requestId: "request-event",
+  expandable: false,
+  sections: [],
+  translate,
+  escapeHtml,
+});
+assert.doesNotMatch(eventActions, /data-upstream-toggle/);
+assert.match(eventActions, /data-raw="request-event"/);
+
 const upstream = renderTimelineUpstreamEntry({
   entry: {
     requestIndex: 7,
@@ -188,5 +198,17 @@ assert.match(card, /data-upstream-panel="request-&lt;7&gt;" open/);
 assert.match(card, /upstreamDetails:index=7/);
 assert.match(card, /data-body="trusted"/);
 assert.match(card, /assistant-response-block/);
+
+const eventCard = renderTimelineRequestCard({
+  requestId: "request-event",
+  requestIndex: 21,
+  upstreamEntryHtml: '<section class="semantic-event"></section>',
+  upstreamBodyHtml: '<div data-body="must-not-render"></div>',
+  showUpstreamDetails: false,
+  translate,
+  escapeHtml,
+});
+assert.doesNotMatch(eventCard, /request-upstream-details/);
+assert.doesNotMatch(eventCard, /must-not-render/);
 
 console.log("request card renderer contract smoke passed");

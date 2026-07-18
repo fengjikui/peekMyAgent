@@ -1,6 +1,6 @@
 # Codex rollout 证据与 Viewer 契约
 
-更新时间：2026-07-18
+更新时间：2026-07-19
 
 本文记录 Codex Desktop 本地 rollout 在 peekMyAgent 中如何成为可解释 Trace，以及共享 Viewer 如何诚实区分网络原文、语义重建和 Harness 生命周期事件。产品启动与会话选择见 [Codex 捕获产品决策](codex-capture-product-decisions.md)，底层实验见 [Codex Desktop 捕获研究](codex-desktop-capture-research.md)。
 
@@ -91,6 +91,7 @@ data
 3. Response 详情包含本次重建/原始下行、tool call、usage 与 stop reason。
 4. Response 中的 Tools schema 放在“上行参考”，明确它由 Harness 在请求前注入，不是模型返回内容。
 5. Raw 标题由证据画像决定使用“完整”还是“重建”，所有派生展示都可回到原始证据。
+6. 若已捕获工具参数明确包含 `tools.<name>(...)` 或 `skills/<name>/SKILL.md`，Trace Domain 可附加“嵌套工具派发”或“Skill 指令读取”高置信标注；Timeline 同时保留外层工具名和原始参数，不把该标注表述为未观测的远端调用。
 
 ### 子 Agent
 

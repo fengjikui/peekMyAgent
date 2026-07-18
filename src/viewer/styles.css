@@ -2029,6 +2029,12 @@ select {
   background: #f7fffc;
 }
 
+.upstream-entry.semantic-event {
+  border-color: #d8dce6;
+  border-style: dashed;
+  background: #fbfbfc;
+}
+
 /* A real user input / slash command — the start of a new turn. Just a faint
    tint so it's lightly perceptible as a turn boundary, nothing heavy. */
 .upstream-entry.user-turn {

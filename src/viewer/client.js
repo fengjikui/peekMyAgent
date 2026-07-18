@@ -33,6 +33,7 @@ import {
   commandMessageLabel as timelineCommandMessageLabel,
   commandMessagePreview as timelineCommandMessagePreview,
   isPrimaryTimelineRequest,
+  isTimelineSemanticEvent,
   isTimelineResponseRequest,
   shouldShowTimelineAssistantResponse,
   shouldShowTimelineRequestContent as requestShowsTimelineContent,
@@ -1306,7 +1307,7 @@ function renderRequestAgentBranchStat(request) {
 }
 
 function renderUpstreamEntry(request) {
-  const expanded = state.upstreamExpanded.has(request.id);
+  const expanded = !isTimelineSemanticEvent(request) && state.upstreamExpanded.has(request.id);
   const meta = renderProviderUsageStats(request);
   const view = buildTimelineUpstreamView(request, {
     translate: t,
@@ -1329,6 +1330,7 @@ function renderUpstreamQuickActions(request, expanded) {
   return renderTimelineUpstreamQuickActionsView({
     requestId: request.id,
     expanded,
+    expandable: !isTimelineSemanticEvent(request),
     sections: timelineUpstreamQuickSections(request),
     translate: t,
     escapeHtml,
@@ -1344,10 +1346,11 @@ function renderTurnRequest(request, turnInput = null) {
 }
 
 function renderRequestCard(request, options = {}) {
+  const semanticEvent = isTimelineSemanticEvent(request);
   const showInlineContent = shouldShowTimelineRequestContent(request);
   const assistantResponse = shouldShowTimelineAssistantResponse(request) ? renderAssistantResponse(request) : "";
   const toolExchange = showInlineContent ? renderToolExchange(request) : "";
-  const upstreamOpen = state.upstreamExpanded.has(request.id);
+  const upstreamOpen = !semanticEvent && state.upstreamExpanded.has(request.id);
   return renderTimelineRequestCardView({
     requestId: request.id,
     requestIndex: request.request_index,
@@ -1356,6 +1359,7 @@ function renderRequestCard(request, options = {}) {
     upstreamBodyHtml: upstreamOpen ? renderUpstreamDetailsBody(request) : renderCollapsedUpstreamPlaceholder(request),
     toolExchangeHtml: toolExchange,
     assistantResponseHtml: assistantResponse,
+    showUpstreamDetails: !semanticEvent,
     translate: t,
     escapeHtml,
   });

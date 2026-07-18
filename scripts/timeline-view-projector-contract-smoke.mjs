@@ -57,7 +57,14 @@ const request = {
       thinking_preview: longText,
       preview: longText,
       complete_response: { content: [{ type: "text", text: longText }] },
-      tool_calls: [{ name: "ResponseTool", arguments: { content: longText } }],
+      tool_calls: [
+        {
+          name: "exec",
+          arguments:
+            'const result = await tools.web__run({weather:[{location:"Jiaxing"}]}); text(result);',
+        },
+        { name: "ResponseTool", arguments: { content: longText } },
+      ],
     },
   },
   raw: {
@@ -107,8 +114,16 @@ assert.equal(projected.summary.composition.internal_diagnostic, undefined);
 assert.equal(projected.summary.response.complete_response, undefined);
 assert.equal(projected.summary.response.preview, undefined);
 assert.equal(projected.summary.response.complete_response_omitted, true);
-assert.equal(projected.summary.response.tool_calls[0].arguments.omitted.reason, "compact_view");
-assert.match(projected.summary.response.tool_calls[0].arguments.preview, /^\{"content":/);
+assert.deepEqual(projected.summary.response.tool_calls[0].semantic, {
+  schema_version: 1,
+  kind: "nested_tool_dispatch",
+  skill_name: null,
+  nested_tool_names: ["web__run"],
+  evidence: { source: "tool_arguments", confidence: "high" },
+});
+assert.equal(projected.summary.response.tool_calls[1].semantic, undefined);
+assert.equal(projected.summary.response.tool_calls[1].arguments.omitted.reason, "compact_view");
+assert.match(projected.summary.response.tool_calls[1].arguments.preview, /^\{"content":/);
 assert.equal(projected.summary.current_tool_results[0].content.length, TIMELINE_VIEW_LIMITS.toolArgumentChars + 3);
 assert.equal(projected.raw.headers, undefined);
 assert.deepEqual(projected.raw.body, { model: "test-model", stream: true, max_tokens: 1024 });

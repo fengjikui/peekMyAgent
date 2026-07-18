@@ -1,6 +1,6 @@
 # peekMyAgent 当前架构
 
-更新时间：2026-07-18
+更新时间：2026-07-19
 
 本文描述当前代码真实运行方式。它是维护者和贡献者理解仓库的事实源，不是未来架构愿景；需要快速定位改动位置的 Coding Agent 先读[代码库地图](codebase-map.md)，演进计划见[重构路线图](refactoring-roadmap.md)。
 
@@ -66,6 +66,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/server/timeline-page-assembler.mjs` | 跨页 Context/Agent 状态、compact request、Turn patch 和 Agent entity delta 组装 |
 | `src/server/viewer-trace-projector.mjs` | Capture 到 Viewer request/Turn/Agent/stats/workbench DTO 的无 I/O 单一投影边界 |
 | `src/trace/content-parts.mjs` | 上行/下行共用的 content、thinking、tool use 与 tool result 最小协议原语 |
+| `src/trace/tool-call-semantics.mjs` | 从已捕获工具名和参数中提取高置信嵌套工具派发与 Skill 指令读取证据；不改写原始调用 |
 | `src/trace/evidence-profile.mjs` | request/response/semantic event 的来源、完整度、关联方式和限制条件统一证据画像 |
 | `src/trace/capture-semantic-event.mjs` | 上下文、Agent 与 Harness 生命周期事件的版本化领域契约；事件不伪装成 HTTP 请求 |
 | `src/trace/message-semantics.mjs` | 真实用户输入、命令、Harness 注入、工具结果与任务/子 Agent 回流语义 |
@@ -185,6 +186,8 @@ Desktop 默认 `--capture auto` 会明确回退到 rollout 语义观察，因为
 `pma codex capture -- ...` 创建独立 `codex_proxy_exact` watch，并只为随后启动的 Codex 子进程注入一次性 HTTP-only Responses provider。适配器只允许经过真实转发实验验证的 first-party Codex 路由，将原始 zstd 请求字节不变地转发到 `chatgpt.com`，同时对有界解压副本做 Capture；认证、账号以及 session/thread/turn/window 关联 header 只在内存中转发，持久化前保留字段名并统一替换为脱敏占位符。模型目录请求不进入 Trace，未知路由和不支持的编码直接拒绝。子进程退出后 watch 停止但保留 Trace，用户配置文件不被修改。
 
 OpenAI Responses 的 `instructions`、`tools`/`additional_tools` 和 `input` 已映射到共享请求语义；Responses JSON/SSE 的 reasoning、message、function/custom tool call、usage、status 和终止响应由共享下行 normalizer 解析。存储层将 instructions、单工具 schema、单条 input/message 和工具结果分别写入内容寻址 blob，同一会话后续请求复用相同 hash。
+
+部分 Harness 会通过一个外层工具执行内部工具路由，例如 Codex rollout 中的 `exec` 参数包含 `tools.web__run(...)` 或 `tools.exec_command(...)`，Skill 加载也可能表现为读取 `skills/<name>/SKILL.md`。`tool-call-semantics.mjs` 只依据捕获到的工具名与参数添加 `semantic` 观察证据，Timeline 可显示 `exec -> web__run` 或“读取 Skill 指令”，同时完整保留原始工具名和参数。该标注不证明未出现在 Trace 中的服务器端调用，也不能替代 Raw 证据。
 
 Codex 会把部分 Harness 信息包在 XML-like 标签中，但原始 role 仍可能是普通 message。共享消息语义层只识别经过验证的白名单标签：运行环境与界面状态、Skills/Apps/Plugins 能力注入、协作/权限策略、内部目标、Turn 生命周期和子 Agent 通知。提取器使用白名单平衡标签扫描，而不是非贪婪正则；因此正文中用于解释机制的同名标签示例不会截断外层注入块。整理视图按 `runtime`、`capability`、`policy`、`internal`、`lifecycle`、`subagent` 分类并接入现有分块翻译缓存；Raw 始终保留原 role、标签、顺序和来源。未知标签不做泛化 XML 猜测，避免把真实用户文本误判为 Harness 注入。
 
