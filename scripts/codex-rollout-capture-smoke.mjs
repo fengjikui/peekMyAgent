@@ -72,6 +72,12 @@ try {
   assert.equal(toolRequest.body.codex.turn_id, "turn-1");
   assert.equal(toolRequest.body.codex.exchange_index, 1);
   assert.equal(toolRequest.body.codex.input_scope, "observed_upstream_delta");
+  const toolEvidence = captureEvidenceProfile(toolRequest);
+  assert.equal(toolEvidence.sections.messages.scope, "observed_upstream_delta");
+  assert.equal(toolEvidence.sections.messages.history_complete, false);
+  assert.equal(toolEvidence.sections.tools.source, "session_metadata");
+  assert.equal(toolEvidence.sections.tools.scope, "dynamic_tools_only");
+  assert.equal(toolEvidence.sections.harness.derived, true);
   assert.equal(toolRequest.body.codex.full_request_history_available, false);
   assert.equal(toolRequest.body.system[0].text, "You are Codex. Work carefully.");
   assert.equal(toolRequest.body.tools[0].name, "fixture_app__inspect");

@@ -39,11 +39,58 @@ export function captureEvidenceProfile(capture = {}) {
     transport: provenance.transport || capture.body_source || "unknown",
     request,
     response,
+    sections: sectionEvidenceProfiles(request, codex),
     association: {
       method: provenance.association?.method || "none",
       confidence: provenance.association?.confidence || "none",
     },
     limitations: [...new Set(limitations)],
+  };
+}
+
+function sectionEvidenceProfiles(request, codex) {
+  const requestScope = request.exact ? "complete_request" : "partial_request";
+  const inputScope = codex.input_scope || requestScope;
+  const toolScope = codex.tool_schema_scope || requestScope;
+  const observedInput = inputScope === "observed_upstream_delta";
+  const toolUnavailable = toolScope === "not_present_in_rollout";
+
+  return {
+    system: {
+      source: "request",
+      origin: request.origin,
+      fidelity: request.fidelity,
+      scope: observedInput ? "observed_upstream_delta" : requestScope,
+      available: request.available,
+    },
+    tools: {
+      source: toolScope === "dynamic_tools_only" ? "session_metadata" : "request",
+      origin: request.origin,
+      fidelity: toolUnavailable ? "missing" : request.fidelity,
+      scope: toolScope,
+      available: request.available && !toolUnavailable,
+    },
+    messages: {
+      source: "request",
+      origin: request.origin,
+      fidelity: request.fidelity,
+      scope: inputScope,
+      available: request.available,
+      history_complete:
+        typeof codex.full_request_history_available === "boolean"
+          ? codex.full_request_history_available
+          : request.exact
+            ? true
+            : null,
+    },
+    harness: {
+      source: "pma_semantic_projection",
+      origin: request.origin,
+      fidelity: request.fidelity,
+      scope: observedInput ? "observed_upstream_delta" : requestScope,
+      available: request.available,
+      derived: true,
+    },
   };
 }
 

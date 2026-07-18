@@ -48,6 +48,81 @@ export function buildRequestEvidenceView(request = {}, { translate = identityTra
   };
 }
 
+export function buildRawSectionEvidenceView(
+  request = {},
+  section,
+  { mode = "request", translate = identityTranslate } = {},
+) {
+  if (requestHasSemanticEvent(request)) return null;
+  const profile = request?.summary?.evidence?.sections?.[section] || null;
+
+  if (mode === "response" && section === "tools") {
+    if (profile?.scope === "dynamic_tools_only") {
+      return sectionEvidence(
+        "reference",
+        translate("rawSectionEvidenceUpstreamReferenceBadge"),
+        translate("rawSectionEvidenceDynamicToolsReference"),
+      );
+    }
+    if (profile?.scope === "not_present_in_rollout") {
+      return sectionEvidence(
+        "partial",
+        translate("rawSectionEvidenceRolloutBadge"),
+        translate("rawSectionEvidenceToolsUnavailable"),
+      );
+    }
+    return sectionEvidence(
+      "reference",
+      translate("rawSectionEvidenceUpstreamReferenceBadge"),
+      translate("responseOnlyToolsNotice"),
+    );
+  }
+
+  if (section === "harness") {
+    const exactSource = profile?.scope === "complete_request" || (!profile && !requestUsesReconstructedUpstream(request));
+    return sectionEvidence(
+      "derived",
+      translate("rawSectionEvidenceDerivedBadge"),
+      translate(
+        exactSource
+          ? "rawSectionEvidenceHarnessExact"
+          : "rawSectionEvidenceHarnessObserved",
+      ),
+    );
+  }
+
+  if (profile?.scope === "dynamic_tools_only") {
+    return sectionEvidence(
+      "partial",
+      translate("rawSectionEvidenceRolloutBadge"),
+      translate("rawSectionEvidenceDynamicTools"),
+    );
+  }
+  if (profile?.scope === "not_present_in_rollout") {
+    return sectionEvidence(
+      "partial",
+      translate("rawSectionEvidenceRolloutBadge"),
+      translate("rawSectionEvidenceToolsUnavailable"),
+    );
+  }
+  if (profile?.scope === "observed_upstream_delta") {
+    const messageKey = section === "messages" ? "rawSectionEvidenceMessagesObserved" : "rawSectionEvidenceSystemObserved";
+    return sectionEvidence(
+      "partial",
+      translate("rawSectionEvidenceRolloutBadge"),
+      translate(messageKey),
+    );
+  }
+  if (profile?.scope === "partial_request" || requestUsesReconstructedUpstream(request)) {
+    return sectionEvidence(
+      "partial",
+      translate("rawSectionEvidencePartialBadge"),
+      translate("rawSectionEvidencePartial"),
+    );
+  }
+  return null;
+}
+
 export function sourceEvidenceMode(source = {}) {
   const kind = String(source?.capture_kind || source?.kind || "").toLowerCase();
   const confidence = String(source?.confidence || "").toLowerCase();
@@ -105,6 +180,10 @@ function artifactEvidenceMode(artifact, { reconstructed = false } = {}) {
   if (artifact?.available === false || artifact?.fidelity === "missing") return EVIDENCE_MODES.MISSING;
   if (artifact?.available || artifact?.fidelity === "partial") return EVIDENCE_MODES.PARTIAL;
   return EVIDENCE_MODES.UNKNOWN;
+}
+
+function sectionEvidence(tone, badge, text) {
+  return { tone, badge, text };
 }
 
 function identityTranslate(key, values = {}) {

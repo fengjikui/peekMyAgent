@@ -1,6 +1,6 @@
 import { renderMarkdownPreview, renderSafeMarkdown } from "./markdown.js";
 import { AgentComposerController } from "./agent-composer-controller.js";
-import { buildRequestEvidenceView } from "./evidence-view-model.js";
+import { buildRawSectionEvidenceView, buildRequestEvidenceView } from "./evidence-view-model.js";
 import {
   renderMessagesControls as renderMessagesControlsView,
   renderMessagesSection as renderMessagesSectionView,
@@ -64,6 +64,7 @@ import {
   renderRawDetail as renderRawDetailView,
   renderRawSearchControls as renderRawSearchControlsView,
   renderRawSearchResults as renderRawSearchResultsView,
+  renderRawSectionEvidence as renderRawSectionEvidenceView,
   renderRawSourceNotice,
   renderRawStickyControls as renderRawStickyControlsView,
   renderRequestDetailError as renderRequestDetailErrorView,
@@ -1735,6 +1736,7 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
   if (activeSection !== "full") {
     return `
       ${renderRawStickyControls(request, activeSection, mode)}
+      ${renderRawSectionEvidence(request, activeSection, mode)}
       ${renderMessagesControls(activeSection)}
       ${renderRawSectionContent(request, activeSection, sectionData)}
     `;
@@ -1786,9 +1788,16 @@ function renderRawStickyControls(request, section, mode = "request") {
 function renderResponseOnlyToolsSchemaSection(request) {
   const sectionData = rawSectionData(request, "tools");
   return `
-    ${renderRawSourceNotice({ title: t("responseOnlyToolsNoticeTitle"), text: t("responseOnlyToolsNotice"), escapeHtml })}
+    ${renderRawSectionEvidence(request, "tools", "response")}
     ${renderRawSectionContent(request, "tools", sectionData)}
   `;
+}
+
+function renderRawSectionEvidence(request, section, mode = "request") {
+  return renderRawSectionEvidenceView({
+    evidence: buildRawSectionEvidenceView(request, section, { mode, translate: t }),
+    escapeHtml,
+  });
 }
 
 function renderRawSearchControls(request, section, mode = "request") {

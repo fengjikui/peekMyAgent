@@ -134,6 +134,16 @@ export function renderRawSourceNotice({ title, text, escapeHtml }) {
   `;
 }
 
+export function renderRawSectionEvidence({ evidence, escapeHtml }) {
+  if (!evidence?.text) return "";
+  return `
+    <aside class="raw-section-evidence ${escapeHtml(evidence.tone || "partial")}">
+      <strong>${escapeHtml(evidence.badge || "")}</strong>
+      <span>${escapeHtml(evidence.text)}</span>
+    </aside>
+  `;
+}
+
 function renderSectionGroup(label, sections, requestId, activeSection, escapeHtml, mode) {
   if (!sections.length) return "";
   return `

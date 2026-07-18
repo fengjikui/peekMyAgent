@@ -4679,6 +4679,46 @@ details .details-body {
   line-height: 1.4;
 }
 
+.raw-section-evidence {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 0 2px 9px;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.raw-section-evidence strong {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.raw-section-evidence.partial strong {
+  border-color: #f0d7a0;
+  background: #fff9ec;
+  color: #8b5b08;
+}
+
+.raw-section-evidence.derived strong {
+  border-color: #cddbf8;
+  background: #f4f7ff;
+  color: #315ca8;
+}
+
+.raw-section-evidence.reference strong {
+  border-color: #cde6d7;
+  background: #f2fbf5;
+  color: #167143;
+}
+
 .system-diff {
   display: grid;
   gap: 12px;

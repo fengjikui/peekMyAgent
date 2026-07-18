@@ -55,6 +55,26 @@ try {
     transport: "capture_proxy",
     request: { origin: "network_proxy", fidelity: "exact", artifact: "http_request", exact: true, available: true },
     response: { origin: "network_proxy", fidelity: "exact", artifact: "http_response", exact: true, available: true },
+    sections: {
+      system: { source: "request", origin: "network_proxy", fidelity: "exact", scope: "complete_request", available: true },
+      tools: { source: "request", origin: "network_proxy", fidelity: "exact", scope: "complete_request", available: true },
+      messages: {
+        source: "request",
+        origin: "network_proxy",
+        fidelity: "exact",
+        scope: "complete_request",
+        available: true,
+        history_complete: true,
+      },
+      harness: {
+        source: "pma_semantic_projection",
+        origin: "network_proxy",
+        fidelity: "exact",
+        scope: "complete_request",
+        available: true,
+        derived: true,
+      },
+    },
     association: { method: "capture_lifecycle", confidence: "exact" },
     limitations: [],
   });

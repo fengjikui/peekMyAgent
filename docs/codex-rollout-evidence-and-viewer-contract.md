@@ -112,7 +112,7 @@ data
 5. Raw 标题由证据画像决定使用“完整”还是“重建”，所有派生展示都可回到原始证据。
 6. 若已捕获工具参数明确包含 `tools.<name>(...)` 或 `skills/<name>/SKILL.md`，Trace Domain 可附加“嵌套工具派发”或“Skill 指令读取”高置信标注；Timeline 同时保留外层工具名和原始参数，不把该标注表述为未观测的远端调用。
 
-证据边界不能只藏在 Raw 中。`src/viewer/evidence-view-model.js` 根据 Source provenance 和 `summary.evidence` 生成共享展示 DTO：Codex rollout 在左侧会话项直接附加“语义重建”，请求卡使用“展开/折叠重建上行”和“重建上行详情”；Capture Proxy 等 exact 来源继续使用普通“上行”。该模型只读取证据字段，不读取 Agent 名称，因此未来 Harness 只需正确输出 provenance 即可复用同一信息架构。
+证据边界不能只藏在 Raw 中。`src/viewer/evidence-view-model.js` 根据 Source provenance 和 `summary.evidence` 生成共享展示 DTO：Codex rollout 在左侧会话项直接附加“语义重建”，请求卡使用“展开/折叠重建上行”和“重建上行详情”；Capture Proxy 等 exact 来源继续使用普通“上行”。`summary.evidence.sections` 进一步记录 System、Tools、Messages、Harness 的 `source`、`scope`、`fidelity` 与派生属性。右侧整理视图据此用一条紧凑来源说明区分“当前 Turn 已观测上行增量”“rollout 会话动态工具清单”“PMA 整理分类”和“完整 request”；Response 旁保留的 Tools schema 始终标为上行参考。该模型只读取证据字段，不读取 Agent 名称，因此未来 Harness 只需正确输出 provenance 和区块范围即可复用同一信息架构。
 
 ### 子 Agent
 
@@ -134,7 +134,8 @@ Codex `spawn_agent` 是启动信号；紧随其后的 `function_call_output` 若
 4. 将非模型生命周期映射为 semantic event。
 5. provider 独有标签只在 Trace Domain 建立白名单语义；Raw 不改写。
 6. 子 Agent adapter 提供可验证的 spawn、child identity、return 关联证据；缺失时诚实标记低置信度。
-7. Viewer 通过 evidence profile、协议画像和共享领域 DTO 展示；不得在 renderer 散落 provider 分支。
+7. adapter 或 Trace Domain 应把整理区块的来源和范围归一化到共享 section evidence；Viewer 不得根据 Agent 名称反推完整度。
+8. Viewer 通过 evidence profile、协议画像和共享领域 DTO 展示；不得在 renderer 散落 provider 分支。
 
 只有协议确实独有的信息才增加可选领域字段。字段命名可以保留 provider 原词，但默认解释文案必须说明它对应上行、下行还是 Harness 本地事件。
 

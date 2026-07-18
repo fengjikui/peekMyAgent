@@ -4,6 +4,7 @@ import {
   renderRawDetail,
   renderRawSearchControls,
   renderRawSearchResults,
+  renderRawSectionEvidence,
   renderRawSourceNotice,
   renderRequestDetailError,
   renderRequestDetailLoading,
@@ -92,5 +93,13 @@ assert.match(renderRequestDetailLoading({ translate, escapeHtml }), /requestDeta
 assert.match(renderRequestDetailError({ error: new Error("bad <detail>"), translate, escapeHtml }), /requestDetailLoadFailed/);
 assert.doesNotMatch(renderRequestDetailError({ error: new Error("bad <detail>"), translate, escapeHtml }), /<detail>/);
 assert.match(renderRawSourceNotice({ title: "Reference", text: "Not response", escapeHtml }), /raw-source-notice/);
+const sectionEvidence = renderRawSectionEvidence({
+  evidence: { tone: 'derived"><script>', badge: "PMA <view>", text: "Derived <not raw>" },
+  escapeHtml,
+});
+assert.match(sectionEvidence, /raw-section-evidence/);
+assert.match(sectionEvidence, /PMA &lt;view>/);
+assert.doesNotMatch(sectionEvidence, /<script>/);
+assert.equal(renderRawSectionEvidence({ evidence: null, escapeHtml }), "");
 
 console.log("raw inspector renderer contract smoke passed");

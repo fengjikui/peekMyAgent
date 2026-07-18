@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  buildRawSectionEvidenceView,
   buildRequestEvidenceView,
   buildSourceEvidenceView,
   sourceEvidenceMode,
@@ -176,6 +177,59 @@ assert.equal(
   "Semantic reconstruction",
 );
 assert.equal(sourceEvidenceMode({ kind: "proxy_capture", confidence: "exact" }), "exact");
+
+const sectionTranslate = (key) => key;
+assert.equal(
+  buildRawSectionEvidenceView(request, "system", { translate: sectionTranslate }),
+  null,
+  "exact request sections do not need a redundant evidence strip",
+);
+assert.deepEqual(buildRawSectionEvidenceView(request, "harness", { translate: sectionTranslate }), {
+  tone: "derived",
+  badge: "rawSectionEvidenceDerivedBadge",
+  text: "rawSectionEvidenceHarnessExact",
+});
+
+const rolloutSectionRequest = {
+  ...reconstructedRequest,
+  summary: {
+    ...reconstructedRequest.summary,
+    evidence: {
+      ...reconstructedRequest.summary.evidence,
+      sections: {
+        system: { source: "request", scope: "observed_upstream_delta" },
+        tools: { source: "session_metadata", scope: "dynamic_tools_only" },
+        messages: { source: "request", scope: "observed_upstream_delta", history_complete: false },
+        harness: { source: "pma_semantic_projection", scope: "observed_upstream_delta", derived: true },
+      },
+    },
+  },
+};
+assert.deepEqual(buildRawSectionEvidenceView(rolloutSectionRequest, "system", { translate: sectionTranslate }), {
+  tone: "partial",
+  badge: "rawSectionEvidenceRolloutBadge",
+  text: "rawSectionEvidenceSystemObserved",
+});
+assert.deepEqual(buildRawSectionEvidenceView(rolloutSectionRequest, "messages", { translate: sectionTranslate }), {
+  tone: "partial",
+  badge: "rawSectionEvidenceRolloutBadge",
+  text: "rawSectionEvidenceMessagesObserved",
+});
+assert.deepEqual(buildRawSectionEvidenceView(rolloutSectionRequest, "tools", { translate: sectionTranslate }), {
+  tone: "partial",
+  badge: "rawSectionEvidenceRolloutBadge",
+  text: "rawSectionEvidenceDynamicTools",
+});
+assert.deepEqual(buildRawSectionEvidenceView(rolloutSectionRequest, "harness", { translate: sectionTranslate }), {
+  tone: "derived",
+  badge: "rawSectionEvidenceDerivedBadge",
+  text: "rawSectionEvidenceHarnessObserved",
+});
+assert.deepEqual(buildRawSectionEvidenceView(rolloutSectionRequest, "tools", { mode: "response", translate: sectionTranslate }), {
+  tone: "reference",
+  badge: "rawSectionEvidenceUpstreamReferenceBadge",
+  text: "rawSectionEvidenceDynamicToolsReference",
+});
 
 const exactProxyRequestReconstructedFromBlocks = {
   ...request,
