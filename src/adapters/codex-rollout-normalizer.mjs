@@ -22,7 +22,6 @@ export function normalizeCodexRolloutTurn({ source = {}, sessionMeta = {}, turn 
   const responseOutput = exchange?.responseItems
     ? downstreamItemsFromEntries(entries, exchange.responseItems)
     : downstreamItemsFromEntries(entries);
-  const messages = requestInput.map(responseItemToMessage).filter(Boolean);
   const system = semanticEvent ? [] : normalizeBaseInstructions(sessionMeta.base_instructions);
   const tools = semanticEvent ? [] : normalizeDynamicTools(sessionMeta.dynamic_tools);
   const tokenInfo = exchange?.tokenInfo || latestTokenInfo(entries);
@@ -37,7 +36,6 @@ export function normalizeCodexRolloutTurn({ source = {}, sessionMeta = {}, turn 
           input: requestInput,
           system,
           tools,
-          messages,
           reasoning: normalizeReasoningConfig(turn.turnContext),
         }),
     codex: {
@@ -258,36 +256,6 @@ export function normalizeDynamicTools(dynamicTools) {
   return output;
 }
 
-export function responseItemToMessage(item) {
-  if (!item || typeof item !== "object") return null;
-  if (item.type === "agent_message") {
-    return {
-      role: "user",
-      content: normalizeMessageContent(item.content),
-      codex_item_type: "agent_message",
-      author: item.author || null,
-      recipient: item.recipient || null,
-    };
-  }
-  if (item.type === "message" && ["developer", "system", "user"].includes(item.role)) {
-    return {
-      role: item.role,
-      content: normalizeMessageContent(item.content),
-      ...(item.id ? { id: item.id } : {}),
-    };
-  }
-  if (item.type === "function_call_output" || item.type === "custom_tool_call_output") {
-    return {
-      role: "tool",
-      tool_call_id: item.call_id || null,
-      name: item.name || null,
-      content: normalizeToolOutput(item.output),
-      codex_item_type: item.type,
-    };
-  }
-  return null;
-}
-
 export function isUpstreamResponseItem(item) {
   if (!item || typeof item !== "object") return false;
   if (item.type === "message") return ["developer", "system", "user"].includes(item.role);
@@ -371,16 +339,6 @@ function normalizeMessageContent(content) {
     if (part.type === "input_text" || part.type === "output_text") return { ...part, type: "text" };
     return part;
   });
-}
-
-function normalizeToolOutput(output) {
-  if (typeof output === "string") return output;
-  if (output == null) return "";
-  try {
-    return JSON.stringify(output);
-  } catch {
-    return String(output);
-  }
 }
 
 function normalizeReasoningConfig(context) {

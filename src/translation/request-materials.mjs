@@ -10,6 +10,7 @@ import {
 import { extractContentText } from "../trace/content-parts.mjs";
 import { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
 import {
+  classifyCodexDeveloperInstruction,
   compactInjectionText,
   extractCodexHarnessBlocks,
   isSuggestionModeMessage,
@@ -132,7 +133,17 @@ export function extractHarnessTranslationParts(
     const codexBlocks = extractCodexHarnessBlocks(fullText);
     if (message.role === "developer") {
       const developerRemainder = stripCodexHarnessBlocks(fullText);
-      if (developerRemainder) output.push(harnessPart("harness_developer", developerRemainder, messageIndex, label));
+      const classifiedDeveloper = classifyCodexDeveloperInstruction(developerRemainder);
+      if (classifiedDeveloper) {
+        output.push(harnessPart(classifiedDeveloper.kind, classifiedDeveloper.text, messageIndex, label, {
+          tag: classifiedDeveloper.tag,
+          category: classifiedDeveloper.category,
+          labelKey: classifiedDeveloper.labelKey,
+          defaultLabel: classifiedDeveloper.defaultLabel,
+        }));
+      } else if (developerRemainder) {
+        output.push(harnessPart("harness_developer", developerRemainder, messageIndex, label));
+      }
     }
     for (const [contextIndex, block] of codexBlocks.entries()) {
       output.push(harnessPart(block.kind, block.text, messageIndex, label, {

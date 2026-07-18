@@ -104,6 +104,7 @@ try {
   assert.equal(detail.request.raw.body.codex.input_scope, "observed_upstream_delta");
   assert.equal(detail.request.raw.body.codex.full_request_history_available, false);
   assert.equal(detail.request.raw.body.tools[0].name, "fixture_app__inspect");
+  assert.equal("messages" in detail.request.raw.body, false, "Codex reconstructed body does not duplicate Responses input as messages");
 
   const cursorPage = await getJson(
     `${viewer.url}/api/view?source=${encodeURIComponent(source.id)}&compact=1&initial=1&limit=1`,

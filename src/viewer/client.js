@@ -101,6 +101,7 @@ import {
   sanitizeTranslationOutput,
   translationLookupKey,
 } from "./translation-blocks.js";
+import { extractRequestMessages } from "../shared/request-payload.mjs";
 import {
   extractContentText,
   extractHarnessTranslationParts,
@@ -1742,10 +1743,6 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
     ${renderRawStickyControls(request, activeSection, mode)}
     ${normalizedRawSearchQuery() ? renderRawSearchResults(request, activeSection, mode) : `
     ${renderRawDetail(sectionData.title, sectionData.value)}
-    ${renderRawDetail("system", body.system ?? null)}
-    ${renderRawDetail("tools", body.tools ?? null)}
-    ${renderRawDetail("messages / history", body.messages ?? null)}
-    ${renderRawDetail(t("rawRequestMetadata"), rawSectionData(request, "metadata").value)}
     `}
   `;
 }
@@ -1984,6 +1981,9 @@ function translationKindLabel(kind) {
     harness_codex_plugins: "harnessCodexPlugins",
     harness_codex_recommended_plugins: "harnessCodexRecommendedPlugins",
     harness_codex_collaboration: "harnessCodexCollaboration",
+    harness_codex_multi_agent_policy: "harnessCodexMultiAgentPolicy",
+    harness_codex_multi_agent_orchestration: "harnessCodexMultiAgentOrchestration",
+    harness_codex_memory: "harnessCodexMemory",
     harness_codex_permissions: "harnessCodexPermissions",
     harness_codex_internal: "harnessCodexInternal",
     harness_codex_lifecycle: "harnessCodexLifecycle",
@@ -2051,11 +2051,15 @@ function previousRequest(request) {
 
 function systemTextFromRequest(request) {
   const body = request.raw?.body || {};
-  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const messages = extractRequestMessages(body);
   const parts = [];
   if (typeof body.system === "string") parts.push(body.system);
   if (Array.isArray(body.system)) {
     for (const part of body.system) parts.push(extractContentText(part));
+  }
+  if (typeof body.instructions === "string") parts.push(body.instructions);
+  if (Array.isArray(body.instructions)) {
+    for (const part of body.instructions) parts.push(extractContentText(part));
   }
   for (const message of messages) {
     if (message.role === "system") parts.push(extractContentText(message.content));

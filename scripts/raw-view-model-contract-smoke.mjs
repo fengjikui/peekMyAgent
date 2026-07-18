@@ -210,5 +210,10 @@ assert.doesNotMatch(
   /collectHarnessTranslationMaterials/,
   "the Harness tab must not call a removed translation helper",
 );
+assert.doesNotMatch(
+  clientSource,
+  /renderRawDetail\("system"|renderRawDetail\("tools"|renderRawDetail\("messages \/ history"/,
+  "the full request tab must not append duplicate System, Tools, or Messages trees after the complete request",
+);
 
 console.log("raw view model contract smoke passed");

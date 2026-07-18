@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  classifyCodexDeveloperInstruction,
   classifyMessageKind,
   classifyCurrentEntry,
   cleanTitleText,
@@ -138,6 +139,25 @@ const nestedCodexHarnessBlocks = extractCodexHarnessBlocks(nestedCodexHarnessExa
 assert.equal(nestedCodexHarnessBlocks.length, 1, "a same-name tag example remains inside its outer harness block");
 assert.match(nestedCodexHarnessBlocks[0].text, /Continue in the selected mode\./);
 assert.equal(stripCodexHarnessBlocks(nestedCodexHarnessExample), "Developer remainder.");
+
+const multiAgentPolicy = extractCodexHarnessBlocks(
+  "<multi_agent_mode>Do not spawn sub-agents unless explicitly requested.</multi_agent_mode>",
+);
+assert.deepEqual(multiAgentPolicy.map((block) => block.kind), ["harness_codex_multi_agent_policy"]);
+assert.deepEqual(multiAgentPolicy.map((block) => block.category), ["policy"]);
+
+const memoryInstruction = classifyCodexDeveloperInstruction(
+  "## Memory\nUse the memory folder when relevant.\nMEMORY_SUMMARY BEGINS\nPrior context.\nMEMORY_SUMMARY ENDS",
+);
+assert.equal(memoryInstruction?.kind, "harness_codex_memory");
+assert.equal(memoryInstruction?.category, "memory");
+
+const orchestrationInstruction = classifyCodexDeveloperInstruction(
+  "You are `/root`, the primary agent in a team of agents collaborating to fulfill the user's goals.",
+);
+assert.equal(orchestrationInstruction?.kind, "harness_codex_multi_agent_orchestration");
+assert.equal(orchestrationInstruction?.category, "orchestration");
+assert.equal(classifyCodexDeveloperInstruction("Generic provider instruction."), null);
 
 const source = fs.readFileSync(new URL("../src/trace/message-semantics.mjs", import.meta.url), "utf8");
 assert.doesNotMatch(source, /viewer\/|server\/|node:(fs|http|child_process)|process\.env|fetch\s*\(/);

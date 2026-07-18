@@ -188,11 +188,11 @@ Desktop 默认 `--capture auto` 会明确回退到 rollout 语义观察，因为
 
 `pma codex capture -- ...` 创建独立 `codex_proxy_exact` watch，并只为随后启动的 Codex 子进程注入一次性 HTTP-only Responses provider。适配器只允许经过真实转发实验验证的 first-party Codex 路由，将原始 zstd 请求字节不变地转发到 `chatgpt.com`，同时对有界解压副本做 Capture；认证、账号以及 session/thread/turn/window 关联 header 只在内存中转发，持久化前保留字段名并统一替换为脱敏占位符。模型目录请求不进入 Trace，未知路由和不支持的编码直接拒绝。子进程退出后 watch 停止但保留 Trace，用户配置文件不被修改。
 
-OpenAI Responses 的 `instructions`、`tools`/`additional_tools` 和 `input` 已映射到共享请求语义；Responses JSON/SSE 的 reasoning、message、function/custom tool call、usage、status 和终止响应由共享下行 normalizer 解析。存储层将 instructions、单工具 schema、单条 input/message 和工具结果分别写入内容寻址 blob，同一会话后续请求复用相同 hash。
+OpenAI Responses 的 `instructions`、`tools`/`additional_tools` 和 `input` 已映射到共享请求语义；Responses JSON/SSE 的 reasoning、message、function/custom tool call、usage、status 和终止响应由共享下行 normalizer 解析。Codex rollout 的语义重建同样只保留规范 `input`，需要 role 语义的共享模块再统一投影 message，不在 Raw body 中复制第二份 `messages`。存储层将 instructions、单工具 schema、单条 input/message 和工具结果分别写入内容寻址 blob，同一会话后续请求复用相同 hash。
 
 部分 Harness 会通过一个外层工具执行内部工具路由，例如 Codex rollout 中的 `exec` 参数包含 `tools.web__run(...)` 或 `tools.exec_command(...)`，Skill 加载也可能表现为读取 `skills/<name>/SKILL.md`。`tool-call-semantics.mjs` 只依据捕获到的工具名与参数添加 `semantic` 观察证据，Timeline 可显示 `exec -> web__run` 或“读取 Skill 指令”，同时完整保留原始工具名和参数。该标注不证明未出现在 Trace 中的服务器端调用，也不能替代 Raw 证据。
 
-Codex 会把部分 Harness 信息包在 XML-like 标签中，但原始 role 仍可能是普通 message。共享消息语义层只识别经过验证的白名单标签：运行环境与界面状态、Skills/Apps/Plugins 能力注入、协作/权限策略、内部目标、Turn 生命周期和子 Agent 通知。提取器使用白名单平衡标签扫描，而不是非贪婪正则；因此正文中用于解释机制的同名标签示例不会截断外层注入块。整理视图按 `runtime`、`capability`、`policy`、`internal`、`lifecycle`、`subagent` 分类并接入现有分块翻译缓存；Raw 始终保留原 role、标签、顺序和来源。未知标签不做泛化 XML 猜测，避免把真实用户文本误判为 Harness 注入。
+Codex 会把部分 Harness 信息包在 XML-like 标签中，但原始 role 仍可能是普通 message。共享消息语义层只识别经过验证的白名单标签：运行环境与界面状态、Skills/Apps/Plugins 能力注入、协作/权限与多 Agent 启动策略、内部目标、Turn 生命周期和子 Agent 通知。提取器使用白名单平衡标签扫描，而不是非贪婪正则；因此正文中用于解释机制的同名标签示例不会截断外层注入块。无标签 developer 正文只在命中真实 rollout 验证过的强指纹时识别为 Memory 注入或多 Agent 编排，否则保留通用类型。整理视图按 `runtime`、`capability`、`policy`、`memory`、`orchestration`、`internal`、`lifecycle`、`subagent` 分类并接入现有分块翻译缓存；Raw 始终保留原 role、标签、顺序和来源。未知标签不做泛化 XML 猜测，避免把真实用户文本误判为 Harness 注入。
 
 rollout 观察与网络代理并不提供同一种证据。`captureEvidenceProfile()` 将 request artifact、response artifact、关联方式和限制条件投影成共享 `summary.evidence`；`evidence-view-model.js` 再把该领域证据投影为 Source 侧栏和请求卡文案。语义来源在侧栏直接标记“语义重建”，请求卡显示“展开/折叠重建上行”和“重建上行详情”；exact 来源继续显示普通“上行”。Raw 同样由该证据决定显示“完整请求 / Response”还是“重建上行 / 重建下行”，不能仅根据持久化层是否重建 JSON 作判断。`context_compacted` 等没有模型 HTTP 交换的记录使用版本化 semantic event，时间线展示 Harness 生命周期，Raw 只提供“事件原文 / 事件 Metadata”，不会附带 System、Tools 或 Response 标签。当前完整边界、Codex 字段映射和未来 Harness adapter 约束见 [Codex rollout 证据与 Viewer 契约](codex-rollout-evidence-and-viewer-contract.md)。
 

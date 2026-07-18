@@ -177,7 +177,11 @@ function projectRawCapture(raw) {
       raw.body_omitted ||
       (body
         ? {
-            messages: Array.isArray(body.messages) ? body.messages.length : 0,
+            messages: Array.isArray(body.messages)
+              ? body.messages.length
+              : Array.isArray(body.input)
+                ? body.input.length
+                : 0,
             tools: Array.isArray(body.tools) ? body.tools.length : 0,
             system: Array.isArray(body.system) ? body.system.length : body.system ? 1 : 0,
             raw_body_length: raw.raw_body_length || jsonByteLength(body),

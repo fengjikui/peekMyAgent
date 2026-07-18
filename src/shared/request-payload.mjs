@@ -20,8 +20,17 @@ export function extractRequestTools(body = {}) {
   });
 }
 
-function responseInputItemToMessage(item) {
+export function responseInputItemToMessage(item) {
   if (!item || typeof item !== "object") return null;
+  if (item.type === "agent_message") {
+    return {
+      role: "user",
+      content: item.content ?? item.text ?? "",
+      codex_item_type: "agent_message",
+      author: item.author || null,
+      recipient: item.recipient || null,
+    };
+  }
   if (item.role || item.type === "message") {
     return {
       ...item,
@@ -45,7 +54,9 @@ function responseInputItemToMessage(item) {
     return {
       role: "tool",
       source_type: item.type,
+      codex_item_type: item.type,
       tool_call_id: item.call_id || item.id || null,
+      name: item.name || null,
       content: item.output ?? item.content ?? "",
     };
   }

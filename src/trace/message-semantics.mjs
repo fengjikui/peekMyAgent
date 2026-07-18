@@ -9,6 +9,7 @@ const CODEX_HARNESS_TAGS = Object.freeze({
   plugins_instructions: codexHarnessTag("harness_codex_plugins", "capability", "harnessCodexPlugins", "Codex Plugins 注入"),
   recommended_plugins: codexHarnessTag("harness_codex_recommended_plugins", "capability", "harnessCodexRecommendedPlugins", "Codex 推荐 Plugins"),
   collaboration_mode: codexHarnessTag("harness_codex_collaboration", "policy", "harnessCodexCollaboration", "Codex 协作模式"),
+  multi_agent_mode: codexHarnessTag("harness_codex_multi_agent_policy", "policy", "harnessCodexMultiAgentPolicy", "Codex 多 Agent 启动策略"),
   "permissions instructions": codexHarnessTag("harness_codex_permissions", "policy", "harnessCodexPermissions", "Codex 权限策略"),
   codex_internal_context: codexHarnessTag("harness_codex_internal", "internal", "harnessCodexInternal", "Codex 内部目标"),
   turn_aborted: codexHarnessTag("harness_codex_lifecycle", "lifecycle", "harnessCodexLifecycle", "Codex Turn 生命周期"),
@@ -246,6 +247,31 @@ export function codexHarnessTagDefinition(tag) {
   return CODEX_HARNESS_TAGS[String(tag || "").toLowerCase()] || null;
 }
 
+export function classifyCodexDeveloperInstruction(text) {
+  const value = String(text || "").trim();
+  if (!value) return null;
+  if (/^## Memory\b/i.test(value) && /\bMEMORY_SUMMARY\b/.test(value)) {
+    return codexDeveloperBlock(
+      "developer-memory",
+      value,
+      codexHarnessTag("harness_codex_memory", "memory", "harnessCodexMemory", "Codex Memory 注入"),
+    );
+  }
+  if (/^You are\s+`?\/root`?,\s+the primary agent in a team of agents\b/i.test(value)) {
+    return codexDeveloperBlock(
+      "developer-multi-agent-orchestration",
+      value,
+      codexHarnessTag(
+        "harness_codex_multi_agent_orchestration",
+        "orchestration",
+        "harnessCodexMultiAgentOrchestration",
+        "Codex 多 Agent 编排",
+      ),
+    );
+  }
+  return null;
+}
+
 export function parseCommandMessage(messageOrText) {
   const text =
     typeof messageOrText === "string"
@@ -423,7 +449,7 @@ function codexHarnessSpans(text) {
 }
 
 function codexHarnessTokenRegex() {
-  return /<(\/?)\s*(environment_context|in-app-browser-context|app-context|skills_instructions|apps_instructions|plugins_instructions|recommended_plugins|collaboration_mode|codex_internal_context|turn_aborted|subagent_notification|permissions instructions)\b[^>]*>/gi;
+  return /<(\/?)\s*(environment_context|in-app-browser-context|app-context|skills_instructions|apps_instructions|plugins_instructions|recommended_plugins|collaboration_mode|multi_agent_mode|codex_internal_context|turn_aborted|subagent_notification|permissions instructions)\b[^>]*>/gi;
 }
 
 function pureCodexHarnessBlocks(message) {
@@ -441,6 +467,10 @@ function codexHarnessBlock(tag, text) {
   const normalizedTag = String(tag || "codex-context").toLowerCase();
   const definition = codexHarnessTagDefinition(normalizedTag) || codexHarnessTag("harness_codex_context", "context", "harnessCodexContext", "Codex 上下文注入");
   return { tag: normalizedTag, text, ...definition };
+}
+
+function codexDeveloperBlock(tag, text, definition) {
+  return { tag, text, ...definition };
 }
 
 function userTextAfterLocalCommandBlocks(text) {

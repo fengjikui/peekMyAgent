@@ -8,8 +8,8 @@ import { fileURLToPath } from "node:url";
 import { CodexDesktopDiscovery } from "../src/adapters/codex-desktop-discovery.mjs";
 import {
   normalizeCodexRolloutTask,
-  responseItemToMessage,
 } from "../src/adapters/codex-rollout-normalizer.mjs";
+import { extractRequestMessages } from "../src/shared/request-payload.mjs";
 import { CodexRolloutCaptureReader } from "../src/server/codex-rollout-capture-reader.mjs";
 import { SourceCaptureReader } from "../src/server/source-capture-reader.mjs";
 import { captureEvidenceProfile } from "../src/trace/evidence-profile.mjs";
@@ -84,15 +84,18 @@ try {
   assert.equal(JSON.stringify(toolRequest).includes("opaque-fixture-reasoning"), false, "opaque reasoning is never copied into the capture");
   assert.match(JSON.stringify(toolRequest), /opaque_encrypted_reasoning/);
 
-  const visibleUsers = toolRequest.body.messages.filter((message) => message.role === "user").map(realUserVisibleText).filter(Boolean);
+  assert.equal("messages" in toolRequest.body, false, "Responses reconstruction keeps canonical input without a duplicate messages projection");
+  const toolRequestMessages = extractRequestMessages(toolRequest.body);
+  const visibleUsers = toolRequestMessages.filter((message) => message.role === "user").map(realUserVisibleText).filter(Boolean);
   assert.deepEqual(visibleUsers, ["请检查 fixture 文件并告诉我结果。"]);
-  const harness = extractHarnessTranslationParts(toolRequest.body.messages);
+  const harness = extractHarnessTranslationParts(toolRequestMessages);
   assert.deepEqual(harness.map((part) => part.kind), ["harness_codex_app", "harness_codex_environment"]);
   assert.deepEqual(harness.map((part) => part.tag), ["app-context", "environment_context"]);
 
   assert.equal(toolResultRequest.body.codex.exchange_index, 2);
-  assert.deepEqual(toolResultRequest.body.messages.map((message) => message.role), ["tool"]);
-  assert.equal(toolResultRequest.body.messages[0].tool_call_id, "call-fixture-1");
+  const toolResultMessages = extractRequestMessages(toolResultRequest.body);
+  assert.deepEqual(toolResultMessages.map((message) => message.role), ["tool"]);
+  assert.equal(toolResultMessages[0].tool_call_id, "call-fixture-1");
   assert.equal(toolResultRequest.response.body_json.finish_reason, "end_turn");
   assert.equal(summarizeModelResponse(toolResultRequest.response).text, "检查完成：fixture-ok。");
 
@@ -149,16 +152,18 @@ try {
   assert.equal(compactionEvidence.response.available, false);
   assert.deepEqual(compactionEvidence.limitations, ["exact_wire_unavailable"]);
 
-  const agentMessage = responseItemToMessage({
-    type: "agent_message",
-    author: "/root/context_probe",
-    recipient: "/root",
-    content: [
-      {
-        type: "input_text",
-        text: "Message Type: FINAL_ANSWER\nSender: /root/context_probe\nPayload:\nContext inherited.",
-      },
-    ],
+  const [agentMessage] = extractRequestMessages({
+    input: [{
+      type: "agent_message",
+      author: "/root/context_probe",
+      recipient: "/root",
+      content: [
+        {
+          type: "input_text",
+          text: "Message Type: FINAL_ANSWER\nSender: /root/context_probe\nPayload:\nContext inherited.",
+        },
+      ],
+    }],
   });
   assert.equal(isCodexAgentMessage(agentMessage), true);
   assert.equal(codexAgentMessageSummary(agentMessage).status, "completed");

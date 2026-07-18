@@ -81,6 +81,30 @@ const nestedCodexHarnessParts = extractHarnessTranslationParts([
 assert.deepEqual(nestedCodexHarnessParts.map((item) => item.kind), ["harness_codex_collaboration"]);
 assert.match(nestedCodexHarnessParts[0].text, /Keep working\./);
 
+const codexDeveloperParts = extractHarnessTranslationParts([
+  {
+    role: "developer",
+    content: "## Memory\nUse saved context when relevant.\nMEMORY_SUMMARY BEGINS\nPrior context.\nMEMORY_SUMMARY ENDS",
+  },
+  {
+    role: "developer",
+    content: "You are `/root`, the primary agent in a team of agents collaborating to fulfill the user's goals.",
+  },
+  {
+    role: "developer",
+    content: "<multi_agent_mode>Delegate only when explicitly requested.</multi_agent_mode>",
+  },
+]);
+assert.deepEqual(
+  codexDeveloperParts.map((item) => item.kind),
+  ["harness_codex_memory", "harness_codex_multi_agent_orchestration", "harness_codex_multi_agent_policy"],
+);
+assert.deepEqual(codexDeveloperParts.map((item) => item.category), ["memory", "orchestration", "policy"]);
+assert.deepEqual(
+  codexDeveloperParts.map((item) => item.label),
+  ["Codex Memory 注入", "Codex 多 Agent 编排", "Codex 多 Agent 启动策略"],
+);
+
 const codexProjected = translationMaterialsForRequest({
   raw: { body: { messages: [
     { role: "developer", content: "<skills_instructions>Use verified local skills.</skills_instructions>" },
