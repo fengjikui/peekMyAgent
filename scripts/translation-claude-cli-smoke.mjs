@@ -6,9 +6,8 @@ import { spawn } from "node:child_process";
 import { childProcessSpawnConfig } from "../src/core/platform.mjs";
 import { writeFakeNodeCommand } from "./lib/fake-node-command.mjs";
 
-// Smoke for the subscription translation path: with NO standalone provider
-// credentials, createTranslationClient must auto-fall-back to the local `claude`
-// CLI and translate successfully. Uses a fake `claude` that emits marker blocks.
+// A Claude Code capture must use Claude's own subscription CLI even when
+// unrelated provider credentials exist in the parent environment.
 
 const cwd = process.cwd();
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "translate-claudecli-"));
@@ -19,13 +18,15 @@ const H1 = "a1".repeat(32);
 const H2 = "b2".repeat(32);
 const H3 = "c3".repeat(32);
 
-writeFakeNodeCommand(
+const invocationPath = path.join(tmp, "claude-invocation.json");
+const fakeClaude = writeFakeNodeCommand(
   binDir,
   "claude",
   `
 import fs from 'node:fs';
-const i = process.argv.indexOf('-p');
-const prompt = i !== -1 ? process.argv[i + 1] : '';
+let prompt = '';
+for await (const chunk of process.stdin) prompt += chunk;
+fs.writeFileSync(process.env.PEEK_FAKE_CLAUDE_INVOCATION, JSON.stringify({ args: process.argv.slice(2), prompt }));
 const hashes = [...prompt.matchAll(/@@PEEK_SOURCE ([a-f0-9]{64})/g)].map((m) => m[1]);
 const blocks = hashes.map((h) => '@@PEEK_TRANSLATION ' + h + '\\n译文-' + h.slice(0, 6) + '\\n@@PEEK_END_TRANSLATION').join('\\n\\n');
 process.stdout.write(blocks + '\\n');
@@ -37,8 +38,6 @@ const cachePath = path.join(tmp, "zh-CN.json");
 const mk = (hash, text) => ({ hash, id: hash, kind: "system_block", source_language: "en", source_text: text, metadata: {} });
 fs.writeFileSync(materialsPath, `${[mk(H1, "Block one."), mk(H2, "Block two."), mk(H3, "Block three.")].map((m) => JSON.stringify(m)).join("\n")}\n`);
 
-// Simulate subscription mode: strip every standalone provider credential so the
-// client must auto-detect claude-cli. Do NOT set PEEKMYAGENT_TRANSLATION_PROTOCOL.
 const env = { ...process.env, APPDATA: fakeAppData, USERPROFILE: path.join(tmp, "home") };
 if (process.platform === "win32") {
   env.Path = path.dirname(process.execPath);
@@ -57,9 +56,13 @@ for (const key of [
 ]) {
   delete env[key];
 }
+env.PEEKMYAGENT_TRANSLATION_CLAUDE_BIN = fakeClaude.command_path;
+env.PEEK_FAKE_CLAUDE_INVOCATION = invocationPath;
+env.OPENAI_API_KEY = "ambient-openai-key-must-not-win";
+env.DEEPSEEK_API_KEY = "ambient-deepseek-key-must-not-win";
 
 const result = await new Promise((resolve, reject) => {
-  const spawnConfig = childProcessSpawnConfig(process.execPath, ["scripts/translate-materials-zh.mjs", "--materials", materialsPath, "--cache", cachePath, "--agent", "Mock"], { env });
+  const spawnConfig = childProcessSpawnConfig(process.execPath, ["scripts/translate-materials-zh.mjs", "--materials", materialsPath, "--cache", cachePath, "--agent", "Claude Code"], { env });
   const child = spawn(spawnConfig.command, spawnConfig.args, { cwd, env, ...spawnConfig.options });
   let stdout = "";
   let stderr = "";
@@ -82,9 +85,18 @@ try {
   assert.equal(out.translated, 3, "all blocks translated via claude CLI");
   const cache = JSON.parse(fs.readFileSync(cachePath, "utf8"));
   assert.equal(cache.provider?.type, "claude-cli", "auto-detected the claude-cli provider");
+  assert.equal(cache.provider?.reasoning_effort, "low", "Claude translation uses low effort by default");
   assert.ok(cache.entries[H1] && cache.entries[H2] && cache.entries[H3], "all blocks cached");
   assert.match(cache.entries[H1].translated_text, /译文-/, "translated text came from the claude CLI");
-  console.log("translation-claude-cli smoke: OK (subscription auto-detects claude-cli, translates via local claude)");
+  const invocation = JSON.parse(fs.readFileSync(invocationPath, "utf8"));
+  assert.ok(invocation.args.includes("--no-session-persistence"), "Claude translation does not persist a session");
+  assert.ok(invocation.args.includes("--tools"), "Claude translation explicitly configures tools");
+  assert.equal(invocation.args[invocation.args.indexOf("--tools") + 1], "", "Claude translation disables all tools");
+  assert.ok(invocation.args.includes("--effort"), "Claude translation sets effort explicitly");
+  assert.equal(invocation.args[invocation.args.indexOf("--effort") + 1], "low", "Claude translation uses low effort");
+  assert.ok(!invocation.args.some((value) => value.includes("@@PEEK_SOURCE")), "translation material is not exposed in process arguments");
+  assert.match(invocation.prompt, /@@PEEK_SOURCE/, "translation material is delivered over stdin");
+  console.log("translation-claude-cli smoke: OK (Claude capture stays on Claude, ephemeral low-effort translation)");
 } catch (error) {
   failed = true;
   console.error("translation-claude-cli smoke FAILED:", error.message);

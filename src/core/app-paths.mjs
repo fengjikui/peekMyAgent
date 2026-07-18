@@ -48,6 +48,24 @@ export function codexStateDbPath(options = {}) {
   return env.PEEKMYAGENT_CODEX_STATE_DB || joinPlatformPath(platform, codexHomeDir(options), "state_5.sqlite");
 }
 
+export function codexModelsCachePath(options = {}) {
+  const env = options.env || process.env;
+  const platform = options.platform || process.platform;
+  return env.PEEKMYAGENT_CODEX_MODELS_CACHE || joinPlatformPath(platform, codexHomeDir(options), "models_cache.json");
+}
+
+export function codexCliCandidates({ env = process.env, platform = process.platform } = {}) {
+  if (env.PEEKMYAGENT_TRANSLATION_CODEX_BIN) return [env.PEEKMYAGENT_TRANSLATION_CODEX_BIN];
+  const candidates = [];
+  if (platform === "darwin") {
+    candidates.push("/Applications/ChatGPT.app/Contents/Resources/codex");
+    const home = userHome({ env, platform });
+    if (home) candidates.push(joinPlatformPath(platform, home, "Applications", "ChatGPT.app", "Contents", "Resources", "codex"));
+  }
+  candidates.push("codex");
+  return [...new Set(candidates)];
+}
+
 export function codexObservationSelectionPath(options = {}) {
   const env = options.env || process.env;
   const platform = options.platform || process.platform;

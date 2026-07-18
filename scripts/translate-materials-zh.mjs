@@ -1,7 +1,12 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { translationsDir } from "../src/core/app-paths.mjs";
+import {
+  codexCliCandidates,
+  codexModelsCachePath,
+  translationsDir,
+} from "../src/core/app-paths.mjs";
 import { childProcessSpawnConfig } from "../src/core/platform.mjs";
 import {
   formatTranslationSourceBlock,
@@ -9,6 +14,10 @@ import {
   translationResponseFormatInstruction,
 } from "../src/translation/blocks.mjs";
 import { sha256Text } from "../src/translation/hash.mjs";
+import {
+  resolveTranslationProtocol,
+  selectCodexTranslationModel,
+} from "../src/translation/provider-policy.mjs";
 
 const args = process.argv.slice(2);
 const MAX_TRANSLATION_CONCURRENCY = 100;
@@ -26,7 +35,7 @@ const chunkChars = positiveNumber(optionValue("--chunk-chars"), 6000);
 const splitChars = positiveNumber(optionValue("--split-chars"), 12000);
 const maxTokens = positiveNumber(optionValue("--max-tokens"), 8192);
 const requestTimeoutMs = positiveNumber(optionValue("--request-timeout-ms"), 300000);
-const concurrency = boundedPositiveInteger(optionValue("--concurrency"), 8, MAX_TRANSLATION_CONCURRENCY);
+const requestedConcurrency = boundedPositiveInteger(optionValue("--concurrency"), 8, MAX_TRANSLATION_CONCURRENCY);
 const retries = nonNegativeNumber(optionValue("--retries"), 2);
 const dryRun = hasFlag("--dry-run");
 const noSplit = hasFlag("--no-split");
@@ -61,7 +70,7 @@ if (dryRun) {
         jobs: jobs.length,
         split_jobs: jobs.filter((job) => job.type === "split").length,
         force_hashes: forceHashes.size,
-        concurrency,
+        concurrency: requestedConcurrency,
         split_chars: noSplit ? null : splitChars,
         chunk_chars: noSplit ? null : chunkChars,
       },
@@ -73,16 +82,13 @@ if (dryRun) {
 }
 
 if (!pending.length) {
-  console.log(JSON.stringify({ materials_path: materialsPath, cache_path: cachePath, translated: 0, pending: 0, concurrency }, null, 2));
+  console.log(JSON.stringify({ materials_path: materialsPath, cache_path: cachePath, translated: 0, pending: 0, concurrency: requestedConcurrency }, null, 2));
   process.exit(0);
 }
 
 const client = createTranslationClient();
-cache.provider = {
-  type: client.protocol,
-  base_url: client.baseUrl,
-  model: client.model,
-};
+const concurrency = Math.min(requestedConcurrency, client.maxConcurrency || requestedConcurrency);
+cache.provider = translationProviderMetadata(client);
 
 let translated = 0;
 let completedJobs = 0;
@@ -94,6 +100,7 @@ await runPool(jobs, concurrency, async (job) => {
     translated += 1;
   }
   completedJobs += 1;
+  cache.provider = translationProviderMetadata(client);
   writeCache(cachePath, cache);
   console.error(`[translations] ${completedJobs}/${jobs.length} jobs complete, ${translated} material(s) cached`);
 }, failures);
@@ -107,6 +114,7 @@ const output = {
   remaining,
   failed_jobs: failures.length,
   concurrency,
+  requested_concurrency: requestedConcurrency,
 };
 console.log(JSON.stringify(output, null, 2));
 if (failures.length) {
@@ -169,6 +177,8 @@ Requirements:
 - Translate explanatory prose naturally for a technical reader of ${targetLanguageName}.
 - Do not summarize or omit constraints.
 - If the material is a chunk, translate only that chunk and do not add continuity notes.
+- The \`kind:\` and \`metadata:\` lines inside each @@PEEK_SOURCE block are routing context only. Do not translate, copy, or mention them.
+- Each translated block body must contain only the translation of that source block's \`source_text\`; never prefix it with \`kind:\`, \`metadata:\`, the hash, or commentary.
 - Return one translated block for each input item, using exactly this format:
 ${translationResponseFormatInstruction()}
 - Do not include markdown fences, comments, JSON, or extra prose outside those blocks.
@@ -331,68 +341,211 @@ function cacheEntryForMaterial(original, translatedText, extra = {}) {
 }
 
 function createTranslationClient() {
-  const explicit = (process.env.PEEKMYAGENT_TRANSLATION_PROTOCOL || "").toLowerCase();
-  if (explicit === "openai") return createOpenAiCompatibleClient();
-  if (explicit === "anthropic") return createAnthropicCompatibleClient();
-  if (explicit === "claude-cli" || explicit === "claude") return createClaudeCliClient();
-  if (explicit) throw new Error(`Unsupported PEEKMYAGENT_TRANSLATION_PROTOCOL: ${explicit}`);
-
-  // Auto-detect when no protocol is set. Prefer an explicitly configured
-  // standalone provider (API key + URL); otherwise fall back to the local
-  // subscription `claude` CLI so OAuth users translate with zero extra config.
-  const anthropicToken =
-    process.env.PEEKMYAGENT_TRANSLATION_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY;
-  const openaiToken = process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY;
-  if (anthropicToken) return createAnthropicCompatibleClient();
-  if (openaiToken) return createOpenAiCompatibleClient();
-  return createClaudeCliClient();
+  const protocol = resolveTranslationProtocol({ agent, env: process.env });
+  if (protocol === "openai") return createOpenAiCompatibleClient();
+  if (protocol === "anthropic") return createAnthropicCompatibleClient();
+  if (protocol === "claude-cli") return createClaudeCliClient();
+  if (protocol === "codex-cli") return createCodexCliClient();
+  throw new Error(`Unsupported translation protocol: ${protocol}`);
 }
 
-// Subscription/OAuth path: translate by shelling out to the local `claude` CLI,
-// which connects directly to the official endpoint (no proxy, no 403) and uses
-// the user's keychain credentials. Zero extra config for subscription users.
 function createClaudeCliClient() {
   const command = process.env.PEEKMYAGENT_TRANSLATION_CLAUDE_BIN || "claude";
-  const model = process.env.PEEKMYAGENT_TRANSLATION_MODEL || null;
+  const model = process.env.PEEKMYAGENT_TRANSLATION_CLAUDE_MODEL || process.env.PEEKMYAGENT_TRANSLATION_MODEL || null;
+  const reasoningEffort = process.env.PEEKMYAGENT_TRANSLATION_CLAUDE_EFFORT || "low";
   return {
     protocol: "claude-cli",
     baseUrl: `local:${command}`,
-    model: model || "subscription-default",
+    model: model || "subscription-default-low",
+    modelSource: model ? "explicit" : "claude-default",
+    reasoningEffort,
+    maxConcurrency: 2,
     async request({ prompt }) {
-      const args = ["-p", prompt, "--output-format", "text"];
-      if (model) args.push("--model", model);
-      const stdout = await runClaudeCli(command, args);
-      return { content: stdout };
+      return withTemporaryDirectory("peek-translation-claude-", async (workingDirectory) => {
+        const args = [
+          "-p",
+          "--output-format",
+          "text",
+          "--no-session-persistence",
+          "--tools",
+          "",
+          "--permission-mode",
+          "dontAsk",
+          "--effort",
+          reasoningEffort,
+          "--disable-slash-commands",
+          "--no-chrome",
+        ];
+        if (model) args.push("--model", model);
+        const result = await runCliCommand(command, args, {
+          input: prompt,
+          cwd: workingDirectory,
+          label: "claude CLI",
+        });
+        return { content: result.stdout };
+      });
     },
   };
 }
 
-function runClaudeCli(command, args) {
+function createCodexCliClient() {
+  const command = resolveCodexCommand();
+  const modelCatalog = readJsonSafely(codexModelsCachePath());
+  const modelChoice = selectCodexTranslationModel({ modelCatalog, env: process.env });
+  const reasoningEffort = normalizeCodexReasoningEffort(process.env.PEEKMYAGENT_TRANSLATION_CODEX_REASONING_EFFORT);
+  let selectedModel = modelChoice.model;
+  const client = {
+    protocol: "codex-cli",
+    baseUrl: `local:${command}`,
+    model: selectedModel,
+    modelSource: modelChoice.source,
+    reasoningEffort,
+    maxConcurrency: 2,
+    async request({ prompt }) {
+      const attemptedModel = selectedModel;
+      try {
+        const content = await runCodexCli(command, prompt, {
+          model: attemptedModel,
+          reasoningEffort,
+        });
+        return { content };
+      } catch (error) {
+        if (!attemptedModel || !modelChoice.allowDefaultFallback || !isCodexModelSelectionError(error)) throw error;
+        console.error(`[translations] Codex fast model ${attemptedModel} is unavailable; retrying with the Codex built-in default at ${reasoningEffort} effort.`);
+        selectedModel = null;
+        client.model = "codex-default-low";
+        client.modelSource = "codex-default-fallback";
+        const content = await runCodexCli(command, prompt, {
+          model: null,
+          reasoningEffort,
+        });
+        return { content };
+      }
+    },
+  };
+  return client;
+}
+
+async function runCodexCli(command, prompt, { model, reasoningEffort }) {
+  return withTemporaryDirectory("peek-translation-codex-", async (workingDirectory) => {
+    const outputPath = path.join(workingDirectory, "last-message.txt");
+    const args = [
+      "exec",
+      "--ephemeral",
+      "--ignore-user-config",
+      "--ignore-rules",
+      "--skip-git-repo-check",
+      "--sandbox",
+      "read-only",
+      "--color",
+      "never",
+      "-C",
+      workingDirectory,
+      "-c",
+      `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`,
+      "--output-last-message",
+      outputPath,
+    ];
+    if (model) args.push("--model", model);
+    args.push("-");
+    await runCliCommand(command, args, {
+      input: prompt,
+      cwd: workingDirectory,
+      label: "codex CLI",
+    });
+    const output = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, "utf8").trim() : "";
+    if (!output) throw new Error("codex CLI translation completed without a final response.");
+    return output;
+  });
+}
+
+function runCliCommand(command, args, { input = "", cwd, label }) {
   return new Promise((resolve, reject) => {
     const spawnConfig = childProcessSpawnConfig(command, args, { env: process.env });
     const child = spawn(spawnConfig.command, spawnConfig.args, {
-      stdio: ["ignore", "pipe", "pipe"],
+      cwd,
+      stdio: ["pipe", "pipe", "pipe"],
       env: process.env,
       ...spawnConfig.options,
     });
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    };
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
-      reject(new Error(`claude CLI translation timed out after ${requestTimeoutMs}ms`));
+      fail(new Error(`${label} translation timed out after ${requestTimeoutMs}ms`));
     }, requestTimeoutMs);
     child.stdout.on("data", (chunk) => (stdout += chunk));
     child.stderr.on("data", (chunk) => (stderr += chunk));
     child.on("error", (error) => {
-      clearTimeout(timer);
-      reject(new Error(`claude CLI failed to start (${command}): ${error.message}`));
+      fail(new Error(`${label} failed to start (${command}): ${error.message}`));
     });
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      if (code === 0) return resolve(stdout);
-      reject(new Error(`claude CLI translation exited ${code}: ${stderr.slice(0, 300)}`));
+      if (code === 0) return resolve({ stdout, stderr });
+      reject(new Error(`${label} translation exited ${code}: ${stderr.slice(0, 1000)}`));
     });
+    child.stdin.on("error", (error) => {
+      if (error.code !== "EPIPE") fail(new Error(`${label} input failed: ${error.message}`));
+    });
+    child.stdin.end(input);
   });
+}
+
+function resolveCodexCommand() {
+  const candidates = codexCliCandidates({ env: process.env, platform: process.platform });
+  for (const candidate of candidates) {
+    if (!isPathLike(candidate) || fs.existsSync(candidate)) return candidate;
+  }
+  return candidates[0] || "codex";
+}
+
+function isPathLike(value) {
+  return path.isAbsolute(value) || /[\\/]/.test(value);
+}
+
+function normalizeCodexReasoningEffort(value) {
+  const normalized = String(value || "low").trim().toLowerCase();
+  return ["low", "medium", "high", "xhigh", "max", "ultra"].includes(normalized) ? normalized : "low";
+}
+
+function isCodexModelSelectionError(error) {
+  return /model[\s\S]{0,160}(?:not exist|not available|not found|no access|have access|requires a newer|unsupported|unknown|invalid)/i.test(String(error?.message || error));
+}
+
+async function withTemporaryDirectory(prefix, operation) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  try {
+    return await operation(directory);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+function translationProviderMetadata(client) {
+  return Object.fromEntries(Object.entries({
+    type: client.protocol,
+    base_url: client.baseUrl,
+    model: client.model,
+    model_source: client.modelSource,
+    reasoning_effort: client.reasoningEffort,
+  }).filter(([, value]) => value !== null && value !== undefined && value !== ""));
+}
+
+function readJsonSafely(filePath) {
+  try {
+    return readJson(filePath);
+  } catch {
+    return null;
+  }
 }
 
 function createAnthropicCompatibleClient() {
