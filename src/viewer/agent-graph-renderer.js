@@ -59,8 +59,8 @@ function renderAgentFilterButton(turnId, filter, label, activeFilter, escapeHtml
 }
 
 function renderAgentBranch(entry, dependencies) {
-  const { branch, index, color, expanded, firstRequestTitle } = entry;
-  const { translate, escapeHtml, shortId, shortPreview } = dependencies;
+  const { branch, index, color, expanded, detailSteps, returnEdge } = entry;
+  const { translate, escapeHtml, shortPreview } = dependencies;
   const title = branch.label || branch.agent_type || translate("subagentFallback", { index: index + 1 });
   const summary = agentBranchCompactSummary(branch, translate);
   const name = agentBranchName(entry, translate);
@@ -70,7 +70,6 @@ function renderAgentBranch(entry, dependencies) {
         <span class="agent-branch-index">${escapeHtml(expanded ? "▾" : "▸")}</span>
         <div>
           <strong><span class="agent-type-chip">${escapeHtml(name)}</span> ${escapeHtml(translate("childSeq", { index: index + 1 }))} · ${escapeHtml(title)}</strong>
-          <p>${escapeHtml(shortId(branch.agent_id))} · ${escapeHtml(firstRequestTitle)}</p>
           <p class="agent-branch-compact">${escapeHtml(summary)}</p>
         </div>
         <span class="agent-branch-status ${escapeHtml(branch.status || "unknown")}">${escapeHtml(branchStatusLabel(branch.status, translate))}</span>
@@ -81,10 +80,9 @@ function renderAgentBranch(entry, dependencies) {
               ${branch.spawn ? renderBranchEdge(translate("parentCall"), branch.spawn.parent_request_id, `#${branch.spawn.parent_request_index} · ${branch.spawn.label || branch.spawn.id}`, dependencies) : ""}
               ${branch.launch ? renderBranchEdge(translate("launchAcknowledgement"), branch.launch.parent_request_id, `#${branch.launch.parent_request_index} · ${shortPreview(branch.launch.result_preview, 90)}`, dependencies) : ""}
               <div class="agent-branch-steps">
-                ${(branch.steps || []).map((step) => renderAgentBranchStep(step, dependencies)).join("")}
+                ${(detailSteps || []).map((detailStep) => renderAgentBranchStep(detailStep, dependencies)).join("")}
               </div>
-              ${branch.return ? renderBranchEdge(translate("resultReturn"), branch.return.parent_request_id, `#${branch.return.parent_request_index} · ${shortPreview(branch.return.result_preview, 90)}`, dependencies) : ""}
-              <p class="agent-branch-note">${escapeHtml(branch.linkage_note || "")}</p>
+              ${returnEdge ? renderBranchEdge(translate("resultReturn"), returnEdge.parent_request_id, `#${returnEdge.parent_request_index} · ${shortPreview(returnEdge.result_preview, 90)}`, dependencies) : ""}
             </div>`
           : ""
       }
@@ -150,11 +148,14 @@ function renderBranchEdge(label, requestId, text, { translate, escapeHtml }) {
   `;
 }
 
-function renderAgentBranchStep(step, { translate, escapeHtml, shortId, shortPreview }) {
+function renderAgentBranchStep(detailStep, { translate, escapeHtml, shortId, shortPreview }) {
+  const { step, representsReturn, displayPreview } = detailStep;
   const responseCalls = step.response_tool_calls || [];
   const requestResults = step.request_tool_results || [];
   const title =
-    step.event_type === "agent_message"
+    representsReturn
+      ? translate("subagentResultReturn")
+      : step.event_type === "agent_message"
       ? translate("subagentReply")
       : responseCalls.length
         ? translate("requestTools", { tools: responseCalls.map((call) => call.name).join(", ") })
@@ -169,7 +170,7 @@ function renderAgentBranchStep(step, { translate, escapeHtml, shortId, shortPrev
         <em>${escapeHtml([step.response_id ? `response ${shortId(step.response_id)}` : "", step.finish_reason ? `finish ${step.finish_reason}` : ""].filter(Boolean).join(" · "))}</em>
         ${responseCalls.length ? `<small>tool_use ${escapeHtml(responseCalls.map((call) => `${call.name}${call.id ? `:${shortId(call.id)}` : ""}`).join(", "))}</small>` : ""}
         ${requestResults.length ? `<small>tool_result ${escapeHtml(requestResults.map((result) => shortId(result.id)).join(", "))}</small>` : ""}
-        ${step.response_preview ? `<small>${escapeHtml(shortPreview(step.response_preview, 110))}</small>` : ""}
+        ${displayPreview ? `<small>${escapeHtml(shortPreview(displayPreview, 110))}</small>` : ""}
       </span>
     </button>
   `;

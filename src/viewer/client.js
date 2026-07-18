@@ -1203,7 +1203,7 @@ function renderTurnGroup(turn, requestMap) {
           </div>
         </header>
         ${turn.trace_filter === "subagents" ? renderTurnStoryForTurn(turn, requestMap) : ""}
-        ${turn.trace_filter === "subagents" ? renderAgentBranchesForTurn(turn, requestMap) : ""}
+        ${turn.trace_filter === "subagents" ? renderAgentBranchesForTurn(turn) : ""}
         <div class="turn-request-list trace-match-requests">${requests.map(renderTurnRequest).join("")}</div>
       </section>
     `;
@@ -1230,7 +1230,7 @@ function renderTurnGroup(turn, requestMap) {
           ? `<div class="turn-request-list primary-requests">${primaryRequests.map((request) => renderTurnRequest(request, request.id === lead?.id ? turn : null)).join("")}</div>`
           : ""
       }
-      ${renderAgentBranchesForTurn(turn, requestMap)}
+      ${renderAgentBranchesForTurn(turn)}
       ${responseRequests.length ? `<div class="turn-request-list response-requests">${responseRequests.map(renderTurnRequest).join("")}</div>` : ""}
       ${renderSupportingRequests(supportingRequests, turn.id)}
     </section>
@@ -1273,17 +1273,15 @@ function renderSupportingRequests(requests, turnId) {
   `;
 }
 
-function renderAgentBranchesForTurn(turn, requestMap) {
+function renderAgentBranchesForTurn(turn) {
   const trace = state.data?.agent_trace;
   const view = buildAgentGraphView({
     turn,
     trace,
-    requestMap,
     dashboardOpen: state.openAgentDashboards.has(turn.id),
     activeFilter: state.agentBranchFilters.get(turn.id) || "all",
     branchLimit: state.agentBranchLimits.get(turn.id) || AGENT_BRANCH_PAGE_SIZE,
     expandedBranchIds: state.expandedAgentBranches,
-    requestTitle: requestDisplayTitle,
   });
   return renderAgentGraphView(view, {
     translate: t,

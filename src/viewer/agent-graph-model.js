@@ -9,12 +9,10 @@ const AGENT_STATUS_FILTERS = new Set(["all", "running", "completed", "returned"]
 export function buildAgentGraphView({
   turn,
   trace,
-  requestMap = new Map(),
   dashboardOpen = false,
   activeFilter = "all",
   branchLimit = AGENT_BRANCH_PAGE_SIZE,
   expandedBranchIds = new Set(),
-  requestTitle = defaultRequestTitle,
 } = {}) {
   const turnId = String(turn?.id || "");
   const branchIds = new Set(Array.isArray(turn?.agent_branches) ? turn.agent_branches : []);
@@ -24,13 +22,23 @@ export function buildAgentGraphView({
   if (!branches.length) return null;
 
   const normalizedFilter = AGENT_STATUS_FILTERS.has(activeFilter) ? activeFilter : "all";
-  const branchEntries = branches.map((branch, index) => ({
-    branch,
-    index,
-    color: agentBranchColor(index),
-    expanded: expandedBranchIds.has(branch.id),
-    firstRequestTitle: requestTitle(requestMap.get(branch.request_ids?.[0]) || {}),
-  }));
+  const branchEntries = branches.map((branch, index) => {
+    const returnStepIndex = (branch.steps || []).findIndex((step) => stepRepresentsReturn(step, branch.return));
+    return {
+      branch,
+      index,
+      color: agentBranchColor(index),
+      expanded: expandedBranchIds.has(branch.id),
+      detailSteps: (branch.steps || []).map((step, stepIndex) => ({
+        step,
+        representsReturn: stepIndex === returnStepIndex,
+        displayPreview:
+          stepIndex === returnStepIndex ? branch.return?.result_preview || step.response_preview : step.response_preview,
+      })),
+      returnEdge: returnStepIndex >= 0 ? null : branch.return,
+      returnRepresentedByStep: returnStepIndex >= 0,
+    };
+  });
   const filteredEntries = normalizedFilter === "all" ? branchEntries : branchEntries.filter(({ branch }) => branch.status === normalizedFilter);
   const normalizedLimit = Math.max(AGENT_BRANCH_PAGE_SIZE, Math.floor(Number(branchLimit) || AGENT_BRANCH_PAGE_SIZE));
   const visibleBranches = filteredEntries.slice(0, normalizedLimit);
@@ -88,17 +96,21 @@ export function agentFlowEvents(branchEntries = []) {
     for (const step of branch.steps || []) {
       events.push(agentEvent(branchIndex, agentStepEventType(step), step.request_id, step.request_index, events.length));
     }
-    const returnAlreadyRepresented = (branch.steps || []).some(
-      (step) =>
-        step.event_type === "agent_message" &&
-        step.request_id === branch.return?.parent_request_id &&
-        Number(step.request_index || 0) === Number(branch.return?.parent_request_index || 0),
-    );
+    const returnAlreadyRepresented = (branch.steps || []).some((step) => stepRepresentsReturn(step, branch.return));
     if (branch.return?.parent_request_index && !returnAlreadyRepresented) {
       events.push(agentEvent(branchIndex, "return", branch.return.parent_request_id, branch.return.parent_request_index, events.length));
     }
   }
   return events.sort((left, right) => Number(left.requestIndex || 0) - Number(right.requestIndex || 0) || left.order - right.order);
+}
+
+function stepRepresentsReturn(step, returned) {
+  if (step?.event_type !== "agent_message" || !returned) return false;
+  return (
+    Boolean(step.request_id && returned.parent_request_id) &&
+    step.request_id === returned.parent_request_id &&
+    Number(step.request_index || 0) === Number(returned.parent_request_index || 0)
+  );
 }
 
 export function agentStepEventType(step = {}) {
@@ -119,8 +131,4 @@ function uniqueIndexes(branches, pick) {
 
 function agentEvent(branchIndex, type, requestId, requestIndex, order) {
   return { branchIndex, type, requestId, requestIndex, order };
-}
-
-function defaultRequestTitle(request) {
-  return request?.summary?.entry?.text || request?.summary?.current_user || "";
 }

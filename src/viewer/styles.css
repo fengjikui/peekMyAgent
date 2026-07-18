@@ -678,8 +678,7 @@ select {
   min-width: 0;
 }
 
-.agent-branch-toggle p,
-.agent-branch-note {
+.agent-branch-toggle p {
   margin: 2px 0 0;
   color: var(--muted);
   font-size: 11px;
@@ -687,7 +686,7 @@ select {
 }
 
 .agent-branch-compact {
-  display: none;
+  display: block;
 }
 
 .agent-branch-card.collapsed {
@@ -696,10 +695,6 @@ select {
 
 .agent-branch-card.collapsed .agent-branch-body {
   display: none;
-}
-
-.agent-branch-card.collapsed .agent-branch-compact {
-  display: block;
 }
 
 .agent-branch-card.collapsed .agent-branch-toggle p:not(.agent-branch-compact) {

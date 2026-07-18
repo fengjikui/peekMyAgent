@@ -53,20 +53,14 @@ const branches = [
 ];
 
 const trace = { confidence: "high", signals: { child_instance: "x-claude-code-agent-id" }, branches };
-const requestMap = new Map([
-  ["request-8", { title: "First A" }],
-  ["request-14", { title: "First B" }],
-]);
 const turn = { id: "turn-7", agent_branches: ["branch-a", "branch-b"] };
 const view = buildAgentGraphView({
   turn,
   trace,
-  requestMap,
   dashboardOpen: true,
   activeFilter: "all",
   branchLimit: 24,
   expandedBranchIds: new Set(["branch-a"]),
-  requestTitle: (request) => request.title || "missing",
 });
 
 assert.equal(view.branchCount, 2);
@@ -107,6 +101,8 @@ assert.equal(buildAgentGraphView({ turn: { id: "empty", agent_branches: [] }, tr
 
 const codexReturnView = buildAgentGraphView({
   turn: { id: "turn-codex", agent_branches: ["branch-codex"] },
+  dashboardOpen: true,
+  expandedBranchIds: new Set(["branch-codex"]),
   trace: {
     branches: [
       {
@@ -135,6 +131,9 @@ assert.deepEqual(
   "the agent_message step represents the return once instead of duplicating the return edge",
 );
 assert.deepEqual(codexReturnView.launchIndexes, [31]);
+assert.equal(codexReturnView.visibleBranches[0].returnRepresentedByStep, true);
+assert.equal(codexReturnView.visibleBranches[0].returnEdge, null);
+assert.equal(codexReturnView.visibleBranches[0].detailSteps[0].representsReturn, true);
 
 const manyBranches = Array.from({ length: 26 }, (_, index) =>
   branch({
@@ -197,6 +196,24 @@ assert.match(html, /agentPathSpawn:index=6/);
 assert.match(html, /agentPathReturn:index=16/);
 assert.match(html, /Inspect &lt;disk&gt;/);
 assert.doesNotMatch(html, /<unsafe>/);
+
+const codexReturnHtml = renderAgentGraph(codexReturnView, {
+  translate,
+  escapeHtml,
+  shortId: (value) => String(value || "").slice(0, 7),
+  shortPreview: (value, limit) => String(value || "").slice(0, limit),
+});
+assert.match(codexReturnHtml, /class="agent-branch-step"[^>]*data-request-jump="request-33"/);
+assert.doesNotMatch(
+  codexReturnHtml,
+  /class="branch-edge"[^>]*data-request-jump="request-33"/,
+  "one agent_message request must not be rendered again as a separate return edge",
+);
+assert.match(codexReturnHtml, /subagentResultReturn/);
+assert.doesNotMatch(codexReturnHtml, /resultReturn/);
+assert.match(codexReturnHtml, /turnRequests:count=1/);
+assert.doesNotMatch(codexReturnHtml, /\/root\/p/);
+assert.doesNotMatch(codexReturnHtml, /Probe context linkage/);
 
 const pagedHtml = renderAgentGraph(pagedView, {
   translate,
