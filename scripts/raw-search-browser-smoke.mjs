@@ -150,7 +150,6 @@ try {
     marks: 13,
     activeIndex: 0,
     activeTargets: 1,
-    focused: true,
   });
 
   await clickSearchNavigation(browser, "next", "2/13", 1);
@@ -221,7 +220,6 @@ function searchState(browserPage) {
       marks: marks.length,
       activeIndex: marks.findIndex((mark) => mark.classList.contains('raw-search-highlight-active')),
       activeTargets: document.querySelectorAll('.raw-search-target-active').length,
-      focused: document.activeElement === input,
     };
   })()`);
 }
