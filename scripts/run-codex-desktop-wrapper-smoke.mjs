@@ -141,7 +141,11 @@ try {
     PEEKMYAGENT_CODEX_DESKTOP_BUNDLE: path.join(tmpDir, "missing-desktop.app"),
   });
   assert.equal(proxy.code, 1);
-  assert.match(proxy.stderr, /installation is incomplete or unreadable/);
+  if (process.platform === "darwin") {
+    assert.match(proxy.stderr, /installation is incomplete or unreadable/);
+  } else {
+    assert.match(proxy.stderr, /Managed Codex Desktop exact capture is currently implemented for macOS only/);
+  }
   const autoFallback = await runCli(["codex", "desktop", "--viewer-url", viewer.url, "--no-open"], {
     ...baseEnv,
     PEEK_FAKE_CODEX_CREATE_THREAD: "0",
