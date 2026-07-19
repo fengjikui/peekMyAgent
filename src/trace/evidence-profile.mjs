@@ -54,6 +54,7 @@ function sectionEvidenceProfiles(request, codex) {
   const toolScope = codex.tool_schema_scope || requestScope;
   const observedInput = inputScope === "observed_upstream_delta";
   const toolUnavailable = toolScope === "not_present_in_rollout";
+  const toolCount = optionalNonNegativeInteger(codex.tool_schema_count);
 
   return {
     system: {
@@ -69,7 +70,7 @@ function sectionEvidenceProfiles(request, codex) {
       fidelity: toolUnavailable ? "missing" : request.fidelity,
       scope: toolScope,
       available: request.available && !toolUnavailable,
-      count: optionalNonNegativeInteger(codex.tool_schema_count),
+      ...(toolCount == null ? {} : { count: toolCount }),
     },
     messages: {
       source: "request",
