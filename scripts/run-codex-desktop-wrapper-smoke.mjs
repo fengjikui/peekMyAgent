@@ -19,6 +19,7 @@ const cliPath = path.join(root, "bin", "peekmyagent.mjs");
 const fixturePath = path.join(root, "fixtures", "codex-rollout-sanitized.jsonl");
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-codex-desktop-"));
 const workspace = path.join(tmpDir, "workspace");
+const emptyWorkspace = path.join(tmpDir, "empty-workspace");
 const binDir = path.join(tmpDir, "bin");
 const stateDir = path.join(tmpDir, "pma-state");
 const codexHome = path.join(tmpDir, "codex-home");
@@ -28,6 +29,7 @@ const storePath = path.join(stateDir, "captures.sqlite");
 const launchLogPath = path.join(tmpDir, "desktop-launches.json");
 const baselineRolloutPath = path.join(codexHome, "baseline-rollout.jsonl");
 fs.mkdirSync(workspace, { recursive: true });
+fs.mkdirSync(emptyWorkspace, { recursive: true });
 fs.mkdirSync(binDir, { recursive: true });
 fs.mkdirSync(codexHome, { recursive: true });
 fs.copyFileSync(fixturePath, baselineRolloutPath);
@@ -78,19 +80,19 @@ const baseEnv = {
 };
 
 try {
-  const waiting = await runCli(["codex", "desktop", "--viewer-url", viewer.url, "--no-open"], {
+  const waiting = await runCli(["codex", "desktop", "--capture", "rollout", "--viewer-url", viewer.url, "--no-open"], {
     ...baseEnv,
     PEEK_FAKE_CODEX_CREATE_THREAD: "0",
   });
   assert.equal(waiting.code, 0, waiting.stderr);
   assert.match(waiting.stdout, /waiting: create a new chat/);
-  assert.match(waiting.stdout, /semantic rollout fallback/);
+  assert.match(waiting.stdout, /semantic rollout observation/);
   const pendingSourceId = sourceIdFromOutput(waiting.stdout);
   const pendingView = await getJson(`${viewer.url}/api/view?source=${encodeURIComponent(pendingSourceId)}&compact=1`);
   assert.equal(pendingView.source.kind, "codex_rollout_pending");
   assert.equal(pendingView.requests.length, 0);
 
-  const started = await runCli(["codex", "desktop", "--viewer-url", viewer.url, "--no-open"], {
+  const started = await runCli(["codex", "desktop", "--capture", "rollout", "--viewer-url", viewer.url, "--no-open"], {
     ...baseEnv,
     PEEK_FAKE_CODEX_CREATE_THREAD: "1",
   });
@@ -118,6 +120,15 @@ try {
   assert.match(continued.stdout, /observing: Desktop fixture 2/);
   assert.equal(JSON.parse(fs.readFileSync(selectionPath, "utf8")).active_observation.thread_id, "thread-desktop-2");
 
+  const projectScopedSelect = await runCli(
+    ["codex", "desktop", "--select", "--viewer-url", viewer.url, "--no-open"],
+    baseEnv,
+    { cwd: emptyWorkspace },
+  );
+  assert.equal(projectScopedSelect.code, 1);
+  assert.match(projectScopedSelect.stderr, /No readable Codex Desktop sessions were found in the current project/);
+  assert.doesNotMatch(projectScopedSelect.stderr, /Interactive selection requires a terminal/);
+
   const resumed = await runCli(["codex", "desktop", "--resume", "thread-existing", "--viewer-url", viewer.url, "--no-open"], {
     ...baseEnv,
     PEEK_FAKE_CODEX_CREATE_THREAD: "0",
@@ -125,9 +136,20 @@ try {
   assert.equal(resumed.code, 0, resumed.stderr);
   assert.equal(JSON.parse(fs.readFileSync(selectionPath, "utf8")).active_observation.thread_id, "thread-existing");
 
-  const proxy = await runCli(["codex", "desktop", "--capture", "proxy", "--no-open"], baseEnv);
+  const proxy = await runCli(["codex", "desktop", "--capture", "proxy", "--no-open"], {
+    ...baseEnv,
+    PEEKMYAGENT_CODEX_DESKTOP_BUNDLE: path.join(tmpDir, "missing-desktop.app"),
+  });
   assert.equal(proxy.code, 1);
-  assert.match(proxy.stderr, /does not expose a safe process-scoped provider override/);
+  assert.match(proxy.stderr, /installation is incomplete or unreadable/);
+  const autoFallback = await runCli(["codex", "desktop", "--viewer-url", viewer.url, "--no-open"], {
+    ...baseEnv,
+    PEEK_FAKE_CODEX_CREATE_THREAD: "0",
+    PEEKMYAGENT_CODEX_DESKTOP_BUNDLE: path.join(tmpDir, "missing-desktop.app"),
+  });
+  assert.equal(autoFallback.code, 0, autoFallback.stderr);
+  assert.match(autoFallback.stderr, /exact capture unavailable/);
+  assert.match(autoFallback.stdout, /semantic rollout fallback/);
   const removedNewFlag = await runCli(["codex", "desktop", "--new", "--no-open"], baseEnv);
   assert.equal(removedNewFlag.code, 1);
   assert.match(removedNewFlag.stderr, /Unknown pma codex desktop option: --new/);
@@ -145,9 +167,9 @@ try {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 
-function runCli(args, env) {
+function runCli(args, env, { cwd = workspace } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [cliPath, ...args], { cwd: workspace, env });
+    const child = spawn(process.execPath, [cliPath, ...args], { cwd, env });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => {

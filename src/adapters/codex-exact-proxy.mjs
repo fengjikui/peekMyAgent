@@ -63,22 +63,38 @@ export function codexOpenAiBaseUrl(watchBaseUrl) {
 }
 
 export function codexHttpProviderOverrides(watchBaseUrl) {
-  const baseUrl = codexOpenAiBaseUrl(watchBaseUrl);
-  const provider = `model_providers.${CODEX_CAPTURE_PROVIDER_ID}`;
   return [
     "-c",
     `model_provider=${JSON.stringify(CODEX_CAPTURE_PROVIDER_ID)}`,
-    "-c",
-    `${provider}.name=${JSON.stringify("peekMyAgent HTTP capture")}`,
-    "-c",
-    `${provider}.base_url=${JSON.stringify(baseUrl)}`,
-    "-c",
-    `${provider}.wire_api=${JSON.stringify("responses")}`,
-    "-c",
-    `${provider}.requires_openai_auth=true`,
-    "-c",
-    `${provider}.supports_websockets=false`,
+    ...codexHttpProviderDefinitionOverrides(watchBaseUrl),
   ];
+}
+
+export function codexHttpProviderDefinitionOverrides(watchBaseUrl) {
+  const definition = codexHttpProviderDefinition(watchBaseUrl);
+  const provider = `model_providers.${CODEX_CAPTURE_PROVIDER_ID}`;
+  return [
+    "-c",
+    `${provider}.name=${JSON.stringify(definition.name)}`,
+    "-c",
+    `${provider}.base_url=${JSON.stringify(definition.base_url)}`,
+    "-c",
+    `${provider}.wire_api=${JSON.stringify(definition.wire_api)}`,
+    "-c",
+    `${provider}.requires_openai_auth=${definition.requires_openai_auth}`,
+    "-c",
+    `${provider}.supports_websockets=${definition.supports_websockets}`,
+  ];
+}
+
+export function codexHttpProviderDefinition(watchBaseUrl) {
+  return {
+    name: "peekMyAgent HTTP capture",
+    base_url: codexOpenAiBaseUrl(watchBaseUrl),
+    wire_api: "responses",
+    requires_openai_auth: true,
+    supports_websockets: false,
+  };
 }
 
 function normalizedContentEncoding(value) {

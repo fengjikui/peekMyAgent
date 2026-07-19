@@ -3,9 +3,12 @@ export function buildTimelineRequestIdentity(
   { translate = identityTranslate, cleanText = defaultCleanText, preview = defaultPreview } = {},
 ) {
   const commandMessage = request.summary?.command_message;
+  const metadataLabel = request.source_hint?.label_key
+    ? translate(request.source_hint.label_key)
+    : request.source_hint?.label;
   const title =
     request.source_hint?.type === "metadata"
-      ? request.source_hint.label || translate("metadataRequest")
+      ? metadataLabel || translate("metadataRequest")
       : commandMessage
         ? commandMessageLabel(commandMessage)
         : request.is_subagent

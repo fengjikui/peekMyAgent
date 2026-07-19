@@ -144,8 +144,15 @@ const codexCommands = [
   ["npm", "run", "smoke:codex-viewer-integration"],
   ["npm", "run", "smoke:codex-exact-proxy"],
   ["npm", "run", "smoke:codex-exact-viewer-integration"],
+  ["npm", "run", "smoke:codex-app-server-relay"],
+  ["npm", "run", "smoke:codex-app-server-thread-routing"],
+  ["npm", "run", "smoke:codex-desktop-installation"],
   ["npm", "run", "smoke:run-codex-capture"],
   ["npm", "run", "smoke:run-codex-desktop"],
+];
+const macosManagedCodexCommands = [
+  ["npm", "run", "smoke:codex-desktop-managed-session"],
+  ["npm", "run", "smoke:run-codex-desktop-exact"],
 ];
 const persistenceCommands = [
   ["npm", "run", "smoke:persistence-migrations"],
@@ -166,7 +173,15 @@ const otelCommands = [
 const profiles = {
   current: {
     description: "Core cross-platform release gate for the current host.",
-    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
+    commands: [
+      ...coreCommands,
+      ...protocolCommands,
+      ...codexCommands,
+      ...(process.platform === "darwin" ? macosManagedCodexCommands : []),
+      ...viewerCommands,
+      ...persistenceCommands,
+      ...otelCommands,
+    ],
   },
   linux: {
     description: "Linux host release gate. Run this on a real Linux machine or Linux CI runner.",
@@ -176,7 +191,7 @@ const profiles = {
   macos: {
     description: "macOS host release gate. Run this on a real macOS machine or macOS CI runner.",
     requirePlatform: "darwin",
-    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
+    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...macosManagedCodexCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
   },
   windows: {
     description: "Windows host gate. Run this on a real Windows machine.",

@@ -2,7 +2,7 @@
 
 更新时间：2026-07-19
 
-状态：本地 rollout 观察与 CLI 精确捕获已实现；受管 Desktop App Server Bridge 已完成隔离可行性实验，尚未产品化。
+状态：本地 rollout 观察、CLI 精确捕获和 macOS 受管 Desktop 精确捕获均已实现；Windows/Linux 的受管 Desktop 启动仍待真实平台研究。
 
 本文回答一个产品问题：用户通常通过桌面图标启动 Codex，而不是通过 `pma` wrapper 启动 CLI。peekMyAgent 是否仍能捕获 Codex 的会话、工具、子 Agent、系统提示词和上下文压缩过程？
 
@@ -19,14 +19,14 @@ Codex Desktop 会启动内嵌的 `codex app-server`，并持续维护 `$CODEX_HO
 
 但本地 rollout 观察不等于“网络层完整请求捕获”。如果用户需要逐字查看真正发给模型的完整请求、内置工具 schema 和 wire response，则需要显式启用更高权限的深度代理模式。
 
-因此推荐四层产品结构：
+因此当前形成四层产品结构：
 
-1. **本地观察模式**：默认。只读数据库与 rollout，桌面图标启动也能自动发现。
+1. **本地观察模式**：明确的无重启/历史入口。只读数据库与 rollout，桌面图标启动也能发现。
 2. **OTel 增强模式**：可选。补充请求时延、WebSocket/SSE、工具决策和工具结果遥测。
 3. **深度捕获模式**：显式 opt-in。通过 `openai_base_url` 接管模型链路，获得完整 wire request。
-4. **受管 Desktop Bridge**：未来入口。由 peekMyAgent 启动版本匹配的 App Server 与透明 JSON-RPC relay，再让原生 Desktop UI 连接该 relay；它需要受管启动或重启，不能原地改写已经运行的 Desktop 连接。
+4. **受管 Desktop Bridge**：macOS 默认精确入口。由 peekMyAgent 启动版本匹配的 App Server 与透明 JSON-RPC relay，再让原生 Desktop UI 连接；它需要受管启动或重启，不能原地改写已经运行的 Desktop 连接。
 
-2026-07-19 的隔离实验已经证明当前 Desktop 能通过启动时 WebSocket override 连接 PMA 管理的 App Server，且透明 relay 能完整观察双向 JSON-RPC。完整证据、边界和推荐架构见 [Codex Desktop App Server Bridge 实验](experiments/codex-desktop-app-server-bridge-2026-07-19.md)。
+2026-07-19 的隔离实验已经证明当前 Desktop 能通过启动时 WebSocket override 连接 PMA 管理的 App Server，且透明 relay 能完整观察双向 JSON-RPC。该路径随后已与 HTTP-only Capture Proxy 组合并产品化；当前安全边界见[托管 Codex Desktop 精确捕获](codex-desktop-managed-exact-capture.md)，实验原始证据见 [Codex Desktop App Server Bridge 实验](experiments/codex-desktop-app-server-bridge-2026-07-19.md)。
 
 ## 实验环境
 
@@ -435,7 +435,7 @@ HTTP request body 使用 zstd 压缩。解压后的请求包含：
 | 压缩窗口与替代历史 | 是 | 否 | 只有事件 | 可结合本地状态 | 有通知 |
 | developer/system-like 输入 | 部分 | 是 | 否 | 是 | 取决于协议事件 |
 | 完整内置工具 schema | 否 | 否 | 否 | 是 | 取决于协议和动态工具 |
-| 精确 wire request/response | 否 | 否 | 否 | 是 | 否 |
+| 精确 wire request/response | 否 | 否 | 否 | 是 | 是，与深度代理组合 |
 | API/WebSocket/timing | 粗粒度 | 否 | 是 | 是 | 有生命周期事件 |
 | 默认隐私风险 | 低到中 | 中 | 中 | 高 | 中 |
 
@@ -500,7 +500,7 @@ src/server/codex-rollout-watch-service.mjs
 - body 落盘继续复用 peekMyAgent 的内容寻址、大小限制、脱敏和导出风险预览。
 - provenance 明确标记为 `proxy_exact`，并分别记录正文 fidelity 与 response association confidence。
 
-### Phase 4：托管 App Server
+### Phase 4：托管 App Server（macOS 首版已实现）
 
 由 `pma` 启动与 Desktop 版本匹配的 app-server，并成为它的正式 client。该模式适合：
 
@@ -511,7 +511,48 @@ src/server/codex-rollout-watch-service.mjs
 
 2026-07-19 的补充实验进一步证明：当前 Desktop 包含启动时 App Server WebSocket override，原生 Desktop UI 可以连接到 PMA 管理的 App Server；在二者之间加入透明 relay 后，可以完整观察经过该连接的 JSON-RPC 请求、回复和通知。该路径仍不能原地切换已经运行的 Desktop stdio 连接，因此产品文案必须说明它是“受管 Desktop 精确捕获”，需要由 PMA 启动或重启 Desktop，而不是附着任意现有进程。
 
-App Server relay 与模型 Capture Proxy 应作为两个证据面组合：前者观察 Harness lifecycle，后者观察真正的模型 wire request/response。详细实验见 [Codex Desktop App Server Bridge 实验](experiments/codex-desktop-app-server-bridge-2026-07-19.md)。
+App Server relay 与模型 Capture Proxy 已作为两个边界组合：前者使用双 capability，并只在内存中对允许的 thread 生命周期方法做有界选择性路由；后者观察真正的模型 wire request/response。当前实现不持久化 relay JSON-RPC 正文；若未来展示 Harness lifecycle，必须另行定义大小、隐私、provenance 和存储策略。详细实验见 [Codex Desktop App Server Bridge 实验](experiments/codex-desktop-app-server-bridge-2026-07-19.md)。
+
+## 实验九：thread 级配置的生效边界
+
+### 问题
+
+验证能否不重启 Desktop、只修改一个既有会话的配置，把该 thread 的 Responses API 路由切到 Capture Proxy。
+
+### 协议与源码证据
+
+当前 Desktop 内嵌 Codex `0.144.2` 生成的 App Server schema 表明：
+
+- `thread/start`、`thread/resume` 和 `thread/fork` 包含 `modelProvider` 与任意 thread `config`。
+- `turn/start` 与 `thread/settings/update` 支持 model、reasoning effort、cwd、approval、sandbox/permissions、personality、service tier 等字段，但不包含 `modelProvider`。
+- `config/batchWrite` 的 `reloadUserConfig` 明确作用于所有已加载 thread，不提供 thread id。
+
+官方实现进一步说明了生命周期。创建或冷恢复 thread 时，App Server 根据 `modelProvider` 和 `config` 构造新的 Session；恢复一个已经加载的 thread 时，如果它仍有订阅者或仍在运行，provider/config mismatch 会被忽略。`refresh_runtime_config` 只替换 user config layer，并保留 thread-local layer 与 Session 已构造的 provider。对应实现见 [thread processor](https://github.com/openai/codex/blob/0fb559f0f6e231a88ac02ea002d3ecd248e2b515/codex-rs/app-server/src/request_processors/thread_processor.rs)、[config processor](https://github.com/openai/codex/blob/0fb559f0f6e231a88ac02ea002d3ecd248e2b515/codex-rs/app-server/src/request_processors/config_processor.rs) 和 [Session runtime refresh](https://github.com/openai/codex/blob/0fb559f0f6e231a88ac02ea002d3ecd248e2b515/codex-rs/core/src/session/mod.rs)。
+
+### 隔离实测
+
+实验使用临时 `CODEX_HOME`、临时工作目录和 Desktop 内嵌 App Server，不读取真实会话，不调用模型服务器。测试 provider 的 base URL 指向不可用的 `127.0.0.1:9`，仅用于生成最小本地 rollout：
+
+1. 以 `pma_probe_one` 执行 `thread/start`，响应返回 `modelProvider: pma_probe_one`。
+2. 生成一条最小 turn 后，对同一已加载 thread 执行 `thread/resume`，请求 `pma_probe_two` 并附带第二套 provider config。
+3. resume 响应仍返回 `modelProvider: pma_probe_one`。
+4. App Server 日志明确记录 `model_provider requested=pma_probe_two active=pma_probe_one` 与 `config overrides were provided and ignored while running`。
+5. 向 `thread/settings/update` 额外传入 `modelProvider` 不报协议错误，但该未知字段被忽略，provider 不发生变化。
+
+### 持久化字段不是热配置
+
+`$CODEX_HOME/state_5.sqlite` 的 `threads` 表确实保存 `model_provider`、model、reasoning effort、cwd、sandbox policy 和 approval mode；rollout `session_meta` 也保存 provider。它们用于目录索引、取证与冷恢复。直接改写这些私有持久化记录不会更新 Thread Manager 中已经存在的 Session，而且可能制造数据库、rollout 与 UI 状态不一致，因此不作为产品方案。
+
+### 产品结论
+
+这个发现不能消除“首次把 Desktop 接到 PMA relay”所需的一次重启，因为既有 Desktop 与 App Server 的 stdio 连接仍由启动时固定。但它可以显著缩小后续代理范围：
+
+1. 首次经用户同意，把 Desktop 启动到版本匹配的受管 App Server 与 PMA relay 后。
+2. 默认 provider 保持用户原配置，不让所有 Desktop thread 都经过 Capture Proxy。
+3. 只在用户选中的新建、冷恢复或 fork thread 请求上注入临时捕获 provider。
+4. 对已经加载且被 Desktop 订阅的 thread，先明确提示“下一次冷恢复后生效”，不伪装成热切换成功。
+
+该方案随后已实现，而且进一步收窄为完全 thread-local：App Server 进程不注册捕获 provider；relay 用受限 JSON-RPC middleware 只在 `thread/start`、`thread/resume` 与 `thread/fork` 上注入 `modelProvider` 和 `config.model_providers` 定义，并以请求 id 关联响应中的真实 thread id。实现具有 64 MiB 消息上限、方法白名单、压缩帧拒绝、mask/UTF-8 校验、协议与真实内嵌 App Server 探针。仍待真实账号验收和长期 reconnect/上游协议漂移验证；它仍不能把一个已经加载的 thread 原地热切换。
 
 ## 后续实验清单
 

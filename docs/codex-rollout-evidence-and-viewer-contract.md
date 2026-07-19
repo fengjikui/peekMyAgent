@@ -84,6 +84,8 @@ data
 
 当前 Codex `context_compacted` 映射为 `context_lifecycle`：时间线使用共享 semantic-event View DTO 显示进入的窗口编号、replacement history 条目数、保留消息角色与数量、不透明 compaction 数量，以及紧随 `compacted` 记录出现的本地 post-compaction token 估算。Codex 将这份 replacement history 安装为新的 live history，后续 prompt 从这里继续；该结论来自 Codex 的 rollout reconstruction 与 history replacement 实现，而不是根据 UI 文案猜测。
 
+精确代理中的 `POST /v1/responses/compact` 是另一种证据：它证明 Codex 向 first-party compaction endpoint 发送了什么以及端点逐字返回了什么，但单凭该交换不能恢复 rollout 随后安装 replacement history 的本地生命周期细节。Viewer 因此把它标记为 Harness 上下文压缩请求，保留完整 Raw request/response，同时不把它显示成新的用户 Turn。`POST /v1/alpha/search` 同样作为 Codex 内置搜索服务交换处理。两类 path 语义都来自实际传输路径，不从正文关键词猜测。
+
 token_count 中 `last_token_usage.total_tokens` 是压缩完成后由 Codex 本地重算的粗略估算，不是 tokenizer 精确值，也不等于下一次模型 HTTP 请求的 `input_tokens`。默认卡片必须同时呈现这一限制。该事件本身也不是一次模型请求，因此：
 
 - method 为 `EVENT`，path 为 `/codex/rollout/context_compacted`；

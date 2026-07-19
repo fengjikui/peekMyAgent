@@ -32,7 +32,7 @@ peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 
 
 - 打开本地 dashboard：`http://127.0.0.1:43110`。
 - 通过 `pma claude ...` 启动 Claude Code 并捕获模型请求。
-- 从当前项目打开 Codex Desktop，自动绑定下一条新会话进行零复制 rollout 观察，或显式启动 Codex CLI 进程进行 Responses 精确捕获。
+- 在受支持的 macOS 版本上继续使用 Codex Desktop 原生界面并进行 Responses 精确捕获，也可显式退回零复制 rollout 观察，或通过精确代理启动 Codex CLI。
 - 通过 `pma openclaw ...` 启动 OpenClaw 并捕获模型请求。
 - 在左侧切换当前观察的 Agent，让 Codex、Claude Code、OpenClaw 和导入 Trace 分开显示。
 - 在时间线中查看用户输入、System 摘要、Tools、Tool calls、Tool results、Response、token 统计和 Raw JSON。
@@ -156,14 +156,35 @@ pma codex --dangerously-bypass-approvals-and-sandbox
 
 最后一个命令会绕过审批和沙箱，只应在受信任的隔离环境中使用。`-c` 是 Codex 的配置覆盖参数，不表示 continue。
 
-如果更希望继续使用 Codex Desktop 原生界面，可以显式选择 rollout 语义观察：
+如果希望继续使用 Codex Desktop 原生界面，同时查看真实的完整上行与下行，请在**独立的系统终端**中执行：
 
 ```bash
 cd <your-project>
 pma codex desktop
 ```
 
-在 Desktop 中新建对话，等待 Source 会绑定该工作区的下一条 thread。`desktop -c`、`--resume`、`--select` 和 `--list` 用于历史观察。这是 rollout 语义证据，不是完整网络捕获；正文不会复制进 PMA SQLite。`pma codex capture -- ...` 暂作兼容别名。
+在受支持的 macOS Codex Desktop 版本上，PMA 默认使用托管精确捕获。如果 Desktop 已经运行，PMA 会先说明正在运行的任务会被停止，并在获得同意后才做一次优雅重启。随后它启动 Desktop 内嵌、版本完全一致的 Codex App Server，并只在当前工作区随后新建的第一条 thread 的启动请求中注入临时捕获 provider 定义；App Server 的全局配置和其他 Desktop 会话保持原样。PMA 复用现有 Codex/ChatGPT 登录态，不改写 `~/.codex/config.toml`、不安装系统证书，也不会持久化认证值。
+
+不要从当前 Codex Desktop 任务内嵌的终端启动这次重启；PMA 会检测并拒绝这种可能杀死自身控制器的操作。脚本中已经明确同意重启时，可使用 `pma codex desktop --capture exact --restart`。
+
+不希望重启或当前平台暂不支持托管精确捕获时，使用只读 rollout 语义观察：
+
+```bash
+pma codex desktop --capture rollout
+pma codex desktop -c
+pma codex desktop --select
+```
+
+`desktop -c` 观察当前目录最近的会话，`--select` 只列出当前目录下可选择的会话；`--resume` 和 `--list` 用于高级历史观察。rollout 模式不是完整网络请求，正文也不会复制进 PMA SQLite。`pma codex capture -- ...` 暂作 Codex CLI 精确捕获的兼容别名。
+
+如果要精确捕获一个已有 Desktop 会话，可以显式选择它；受管重启后再在 Desktop 中打开该会话，让 Codex 通过捕获 provider 冷恢复：
+
+```bash
+pma codex desktop --resume <thread-id> --capture exact
+pma codex desktop --select --capture exact
+```
+
+已经加载的 thread 无法原地热切换 provider。PMA 会报告目标 thread 是否真的发生冷恢复和路由，不会把未改写的会话标成精确捕获。
 
 ## 快速开始：OpenClaw
 

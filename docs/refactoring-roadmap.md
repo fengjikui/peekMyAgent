@@ -278,12 +278,12 @@ src/
 
 Codex Desktop 已完成第一轮真实环境研究，结论见 [Codex Desktop 捕获研究与实施路线](codex-desktop-capture-research.md)：
 
-- 默认 `pma codex` 已切换为受管 CLI 精确代理；`pma codex desktop` 仍可从当前目录打开 Desktop、以稳定 Source ID 等待并自动绑定下一条新 thread，只读 `$CODEX_HOME` 的 thread catalog、spawn edges 和 rollout JSONL，形成不修改配置的本地语义 Trace。
+- 默认 `pma codex` 已切换为受管 CLI 精确代理；受支持的 macOS build 上，`pma codex desktop` 也已通过版本匹配的内嵌 app-server、双 capability relay 和 thread 选择性 provider 注入实现原生 Desktop UI 精确捕获。默认只捕获当前工作区第一条新 thread，显式 `--capture exact` 可选择冷恢复的既有 thread；其他 Desktop thread 保持原 provider。`--capture rollout` 仍提供不修改配置的本地语义 Trace。
 - OTel 可选增强时序、API/WebSocket 和工具决策，但不能替代完整请求捕获。
 - 显式 `openai_base_url` 深度代理可观察 zstd request、模型可见输入和 `additional_tools` schema，但会经过认证与完整上下文，必须作为高风险 opt-in。
-- 自建 app-server 适合未来托管模式，不能透明附着到用户已经打开的 Desktop app-server。
+- 受管 app-server 已在 macOS 产品化，但仍不能原地附着用户已经打开的 Desktop；已有进程需要用户同意后优雅重启，Windows/Linux 仍待对应平台真实研究。
 
-Codex Desktop 本地观察 Phase 1 与 CLI 精确代理均已落地；精确捕获成为默认 `pma codex` 路径，Desktop rollout 通过显式 `pma codex desktop` 保留，旧的 `capture --` 形式只作兼容。下一步优先研究 exact wire 与本地 rollout 生命周期证据的同 thread 合并；OpenCode、Hermes 等继续等待适配器契约稳定。
+Codex Desktop 本地观察、CLI 精确代理、macOS 受管 Desktop 精确捕获和 thread 选择性路由均已落地；旧的 `capture --` 形式只作兼容。下一步优先完成真实账号验收、重连/取消与协议漂移回归、Windows/Linux 平台能力调查，以及 exact wire 与本地 rollout 生命周期证据的同 thread 合并；OpenCode、Hermes 等继续等待适配器契约稳定。
 
 ## 阶段 6：公开发布成熟度
 

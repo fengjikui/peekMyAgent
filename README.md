@@ -36,7 +36,7 @@ See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated
 
 - Open a local dashboard at `http://127.0.0.1:43110`.
 - Start Claude Code through `pma claude ...` and capture its model requests.
-- Open Codex Desktop from the current project, automatically bind the next new chat for zero-copy rollout observation, or explicitly start a Codex CLI process with exact Responses capture.
+- Use the native Codex Desktop UI with managed exact Responses capture on supported macOS builds, fall back explicitly to zero-copy rollout observation, or start Codex CLI behind the exact proxy.
 - Start OpenClaw through `pma openclaw ...` and capture its model requests.
 - Switch the sidebar's observed Agent so Codex, Claude Code, OpenClaw, and imported traces stay separate.
 - Inspect requests as a timeline with user input, system summaries, tools, tool calls, tool results, responses, token usage, and raw JSON.
@@ -187,14 +187,35 @@ pma codex --dangerously-bypass-approvals-and-sandbox
 
 The last command bypasses approvals and sandboxing; use it only in a trusted isolated environment. In Codex CLI, `-c` means config override, not continue.
 
-To keep the native Codex Desktop interaction surface, explicitly choose semantic rollout observation:
+To keep the native Codex Desktop interaction surface and inspect the exact wire request on a supported macOS build, run this command from an **external Terminal**:
 
 ```bash
 cd <your-project>
 pma codex desktop
 ```
 
-Create a Desktop chat; the waiting Source binds the next thread in that workspace. `desktop -c`, `--resume`, `--select`, and `--list` provide history inspection. This is semantic rollout evidence, not complete wire capture, and PMA does not copy rollout text into SQLite. `pma codex capture -- ...` remains a compatibility alias.
+If Codex Desktop is already running, PMA explains that active tasks will stop and asks before one graceful restart. It then starts the embedded, version-matched Codex App Server and injects a temporary capture-provider definition only into the first new thread created in the current workspace. The App Server's global configuration and every other Desktop thread remain untouched. PMA reuses the existing Codex/ChatGPT login in memory and does not rewrite `~/.codex/config.toml`, install a certificate, or persist authentication values.
+
+Do not start the restart flow from a Terminal embedded in the Codex Desktop task being captured. PMA detects that self-interruption case and refuses it. To pre-approve the restart in a script, use `pma codex desktop --capture exact --restart`.
+
+Use semantic rollout observation when you do not want to restart or when managed exact capture is unavailable on the host:
+
+```bash
+pma codex desktop --capture rollout
+pma codex desktop -c
+pma codex desktop --select
+```
+
+`desktop -c` observes the current directory's latest session, while `--select` lists selectable sessions from that directory; `--resume` and `--list` remain advanced history tools. Rollout mode is read-only semantic evidence, not a complete wire request, and PMA does not copy rollout text into SQLite. `pma codex capture -- ...` remains a compatibility alias for exact Codex CLI capture.
+
+To capture an existing Desktop session exactly, select it explicitly and open that conversation after the managed restart so Codex cold-resumes it through the capture provider:
+
+```bash
+pma codex desktop --resume <thread-id> --capture exact
+pma codex desktop --select --capture exact
+```
+
+An already loaded thread cannot switch provider in place. PMA reports whether the selected thread was actually cold-resumed and routed; it never labels an untouched thread as exact capture.
 
 ## Resume A Claude Code Session
 

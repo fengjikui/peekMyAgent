@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  classifyTransportOperation,
   extractSystemParts,
   extractRequestMessages,
   extractRequestTools,
@@ -8,6 +9,9 @@ import {
   inferProtocolProfile,
   inferProvider,
   inferRequestSource,
+  isCodexContextCompactionRequest,
+  isCodexSearchServiceRequest,
+  isCodexSubagentRequest,
   isContextTokenCountingRequest,
   isTitleGenerationRequest,
   isWebSearchInternalRequest,
@@ -53,6 +57,31 @@ assert.deepEqual(extractSystemParts(responsesBody), [{ source: "body.instruction
 assert.equal(isContextTokenCountingRequest({ path: "/v1/messages/count_tokens?beta=1" }), true);
 assert.equal(isContextTokenCountingRequest({ original_url: "https://api.example/v1/messages/count_tokens" }), true);
 assert.equal(isContextTokenCountingRequest({ path: "/v1/messages" }), false);
+
+assert.equal(isCodexContextCompactionRequest({ path: "/v1/responses/compact" }), true);
+assert.equal(isCodexContextCompactionRequest({ upstream_path: "/backend-api/codex/responses/compact?stream=1" }), true);
+assert.equal(isCodexContextCompactionRequest({ path: "/v1/responses" }), false);
+assert.equal(isCodexSearchServiceRequest({ path: "/v1/alpha/search" }), true);
+assert.equal(isCodexSearchServiceRequest({ upstream_path: "/backend-api/codex/alpha/search?q=trace" }), true);
+assert.equal(isCodexSearchServiceRequest({ path: "/v1/responses" }), false);
+assert.deepEqual(classifyTransportOperation({ path: "/v1/responses/compact" }), {
+  operation: "context_compaction",
+  kind: "compact",
+  label: "Harness 上下文压缩请求",
+  label_key: "contextCompactionRequest",
+});
+assert.equal(isCodexSubagentRequest({ headers: { "x-openai-subagent": "true" } }), true);
+assert.equal(isCodexSubagentRequest({ headers: { "x-openai-subagent": "false" } }), false);
+assert.equal(
+  isCodexSubagentRequest({ header_redactions: [{ field_path: "headers.x-codex-parent-thread-id" }] }),
+  true,
+  "redaction evidence retains safe parent-thread presence without persisting the private identifier",
+);
+assert.equal(
+  isCodexSubagentRequest({ header_redactions: [{ field_path: "headers.x-openai-subagent" }] }),
+  true,
+  "a redacted subagent marker still identifies the actor class",
+);
 
 assert.equal(isTitleGenerationRequest({ system: "Generate a concise, sentence-case title for this chat." }), true);
 assert.equal(
@@ -119,6 +148,18 @@ const infer = (overrides = {}) => inferRequestSource({
 });
 
 assert.deepEqual(
+  infer({ capture: { path: "/v1/responses/compact", headers: { "x-openai-subagent": "true" } } }),
+  {
+    type: "metadata",
+    label: "Harness 上下文压缩请求",
+    label_key: "contextCompactionRequest",
+    operation: "context_compaction",
+    confidence: "high",
+  },
+  "transport operation wins over subagent evidence so compaction is not presented as a model turn",
+);
+
+assert.deepEqual(
   infer({ capture: { path: "/v1/messages/count_tokens", headers: { "x-claude-code-agent-id": "child" } } }),
   { type: "metadata", label: "上下文统计 (/context)", confidence: "high" },
   "metadata classification wins over child-agent evidence",
@@ -130,6 +171,10 @@ assert.equal(infer({ body: { tool_choice: { name: "web_search" }, messages: [] }
 assert.deepEqual(
   infer({ capture: { headers: { "X-Claude-Code-Agent-Id": "agent-1" } }, debugSource: { source: "agent:Explore" } }),
   { type: "subagent", label: "agent:Explore", confidence: "high" },
+);
+assert.deepEqual(
+  infer({ capture: { headers: { "X-OpenAI-Subagent": "reviewer" } } }),
+  { type: "subagent", label: "Codex 子 Agent", confidence: "high" },
 );
 assert.equal(infer({ debugSource: { source: "agent:Plan" } }).type, "subagent");
 assert.equal(infer({ debugSource: { source: "generate_session_title" } }).type, "metadata");

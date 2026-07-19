@@ -132,6 +132,64 @@ assert.equal(data.requests[1].raw.response.body_text, undefined, "SSE text is su
 assert.equal(data.requests[1].raw.response.body_text_omitted.reason, "stream");
 assert.equal(data.requests[1].trace.claude_session_id_prefix, "session-1234");
 
+const codexSpecialOperations = projector.buildData({
+  source: {
+    ...source,
+    id: "codex-exact-operations",
+    agent: "Codex",
+    kind: "codex_proxy_exact",
+    request_count: 3,
+    response_count: 3,
+  },
+  captures: [
+    {
+      capture_id: "codex-main",
+      request_index: 1,
+      method: "POST",
+      path: "/v1/responses",
+      capture_adapter: "codex_responses_v1",
+      headers: {},
+      body: { input: [{ role: "user", content: [{ type: "input_text", text: "Inspect the project." }] }] },
+    },
+    {
+      capture_id: "codex-child",
+      request_index: 2,
+      method: "POST",
+      path: "/v1/responses",
+      capture_adapter: "codex_responses_v1",
+      headers: { "x-openai-subagent": "[REDACTED:header]" },
+      header_redactions: [{ field_path: "headers.x-openai-subagent", reason: "sensitive_header" }],
+      body: { input: [{ role: "user", content: [{ type: "input_text", text: "Inspect package.json." }] }] },
+    },
+    {
+      capture_id: "codex-compact",
+      request_index: 3,
+      method: "POST",
+      path: "/v1/responses/compact",
+      upstream_path: "/backend-api/codex/responses/compact",
+      capture_adapter: "codex_responses_v1",
+      headers: { "x-openai-subagent": "true" },
+      body: { input: [{ role: "user", content: [{ type: "input_text", text: "Prior live context" }] }] },
+      response: {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body_json: { output: [{ type: "compaction", encrypted_content: "opaque" }] },
+      },
+    },
+  ],
+});
+assert.equal(codexSpecialOperations.requests[1].is_subagent, true, "exact Codex child request uses the observed subagent header");
+assert.equal(codexSpecialOperations.requests[1].source_hint.label, "Codex 子 Agent");
+assert.deepEqual(codexSpecialOperations.requests[2].summary.entry, {
+  operation: "context_compaction",
+  kind: "compact",
+  label: "Harness 上下文压缩请求",
+  label_key: "contextCompactionRequest",
+});
+assert.equal(codexSpecialOperations.requests[2].source_hint.type, "metadata");
+assert.equal(codexSpecialOperations.requests[2].source_hint.operation, "context_compaction");
+assert.equal(codexSpecialOperations.turns.length, 1, "exact compaction stays inside the active Turn rather than becoming a user Turn");
+
 const detail = projector.projectRequestDetailWindow(captures, source, "capture-2", { startIndex: 0 });
 assert.equal(detail.id, "capture-2");
 assert.equal(detail.detail_scope, "request_window");

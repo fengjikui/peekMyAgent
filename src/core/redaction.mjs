@@ -11,6 +11,7 @@ const SENSITIVE_IDENTITY_HEADERS = new Set([
   "x-codex-turn-metadata",
   "x-codex-turn-state",
   "x-codex-window-id",
+  "x-openai-subagent",
 ]);
 const SECRET_TEXT =
   /(sk-[A-Za-z0-9_-]{12,}|sk-ant-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9_]{12,}|Bearer\s+[A-Za-z0-9._-]{12,})/g;

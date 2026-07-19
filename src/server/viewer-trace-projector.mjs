@@ -23,6 +23,7 @@ import {
 import { summarizeModelResponse } from "../trace/model-response-normalizer.mjs";
 import { analyzeRequestComposition } from "../trace/request-composition.mjs";
 import {
+  classifyTransportOperation,
   extractSystemParts,
   extractRequestMessages,
   extractRequestTools,
@@ -107,8 +108,10 @@ export function createViewerTraceProjector({
     const currentUser = lastRealUserMessage(messages);
     const currentUserRealText = realUserVisibleText(currentUser);
     const commandMessage = currentUserRealText ? null : parseCommandMessage(currentUser);
+    const transportOperation = classifyTransportOperation(capture);
     const entry =
       captureSemanticEntry(capture.semantic_event) ||
+      transportOperation ||
       (isContextTokenCountingRequest(capture)
         ? {
             kind: "context_count",

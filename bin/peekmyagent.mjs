@@ -15,6 +15,15 @@ import {
   launchCodexDesktopWorkspace,
   resolveCodexDesktopCaptureMode,
 } from "../src/adapters/codex-desktop-session.mjs";
+import {
+  codexDesktopRunningProcesses,
+  inspectCodexDesktopInstallation,
+  managedCodexDesktopLaunchSpec,
+  normalCodexDesktopLaunchSpec,
+  requestCodexDesktopQuit,
+  waitForCodexDesktopExit,
+} from "../src/adapters/codex-desktop-installation.mjs";
+import { startManagedCodexDesktopInfrastructure } from "../src/adapters/codex-desktop-managed-session.mjs";
 import { CODEX_CHATGPT_ORIGIN, codexHttpProviderOverrides } from "../src/adapters/codex-exact-proxy.mjs";
 import { disableTraeCn, enableTraeCn, inspectTraeCn, syncTraeCn } from "../src/adapters/trae-cn-integration.mjs";
 import { claudeCodeProjectDir, claudeCodeProxySettingsArgs, claudeCodeUserDir, inspectClaudeCodeSettings, mergeClaudeCodeProcessEnv, resolveClaudeCodeTargetBaseUrl } from "../src/core/claude-code-settings.mjs";
@@ -22,7 +31,7 @@ import { defaultStateDir, defaultStorePath, ideRegistryPath as defaultIdeRegistr
 import { openPersistenceStore } from "../src/core/persistence-store.mjs";
 import { otelTelemetryEnv } from "../src/core/otel-capture.mjs";
 import { backgroundProcessSpawnOptions, childProcessSpawnConfig, launchBrowserUrl, safeProcessCwd, shellInlineEnv, shellQuote, userHome, workspaceFromEnv } from "../src/core/platform.mjs";
-import { canConnect, listeningPidsForUrl, terminatePids } from "../src/core/process-tools.mjs";
+import { canConnect, listeningPidsForUrl, processHasAncestor, terminatePids } from "../src/core/process-tools.mjs";
 import { clearViewerRegistry, readViewerRegistry, viewerRegistryPath } from "../src/core/viewer-registry.mjs";
 import { startViewerServer } from "../src/viewer/server.mjs";
 
@@ -49,7 +58,8 @@ Usage:
   pma daemon [--host <host>] [--api-port <port>] [--capture-port <port>] [--open]
   pma open [--source <id>] [--print] [--no-open]
   pma codex [peekMyAgent options] [codex args...]
-  pma codex desktop [-c|--continue] [--resume <thread-id>] [--capture auto|rollout] [--print] [--no-open]
+  pma codex desktop [--capture auto|exact|rollout] [--restart] [--print] [--no-open]
+  pma codex desktop [-c|--continue] [--resume <thread-id>] [--capture exact|rollout] [--print] [--no-open]
   pma codex desktop [--select|--thread <id>|--list]
   pma codex capture [--viewer-url <url>] [--no-open] -- [codex args...]  # compatibility alias
   pma doctor [--json]
@@ -72,7 +82,7 @@ Usage:
 Notes:
   - The shortest daily path is to prefix the original Agent command: "pma claude -c" or "pma openclaw chat".
   - Claude Code capture defaults to auto: proxy capture when a configurable upstream base URL exists, otherwise OTel raw-body capture for subscription/OAuth sessions. Use --capture proxy|otel, --proxy, or --otel to force a mode.
-  - Codex capture defaults to an exact one-process proxy: "pma codex" or "pma codex resume --last". Use "pma codex desktop" only when the native Desktop UI and semantic rollout evidence are preferred.
+  - Codex capture defaults to exact selected-thread routing. "pma codex desktop" keeps the native Desktop UI, routes only the first new thread in the current workspace through Capture Proxy, and asks before a graceful restart when Desktop is already running. Use --capture rollout for no-restart semantic observation.
   - openclaw-capture expects one proxy capture record with method/path/headers/body.
   - claude-otel expects one Claude Code OTel .request.json file.
   - output is normalized JSON and does not print raw secrets beyond adapter redaction.
@@ -103,9 +113,13 @@ Common:
   pma codex resume --last          Resume the latest Codex CLI session with exact capture.
   pma codex exec "Inspect this repository"
                                    Run one Codex task with exact capture.
-  pma codex desktop                Open Codex Desktop and observe its next new session semantically.
+  pma codex desktop                Open Codex Desktop with managed exact capture (restart confirmation when needed).
+  pma codex desktop --capture rollout
+                                   Observe the next Desktop session semantically without restarting.
   pma codex desktop -c             Observe this folder's latest Desktop session.
   pma codex desktop --select       Choose a Desktop session for read-only observation.
+  pma codex desktop --select --capture exact
+                                   Restart once and exactly capture the selected thread on cold resume.
   pma claude -c                    Start Claude Code and capture this session.
   pma claude -c --dangerously-skip-permissions
                                    Start Claude Code without permission prompts in a trusted repo.
@@ -1507,11 +1521,69 @@ async function openCodexDesktopDashboard() {
     return;
   }
 
+  const historyObservation = codexDesktopHistoryObservationRequested();
+  const requestedCapture = optionValue("--capture") || "auto";
+  const exactHistoryRequested = historyObservation && ["exact", "proxy"].includes(String(requestedCapture).toLowerCase());
+  const capture = historyObservation && !exactHistoryRequested
+    ? { mode: "rollout", confidence: "semantic", fallbackReason: null, requested: "rollout" }
+    : resolveCodexDesktopCaptureMode(requestedCapture);
+  if (capture.mode === "exact") {
+    const target = exactHistoryRequested ? await resolveManagedCodexDesktopTarget(discovery) : null;
+    const exact = await openManagedCodexDesktopExact({ requestedCapture, target });
+    if (exact.handled) return;
+    console.error(`peekMyAgent Codex Desktop exact capture unavailable: ${exact.fallbackReason}`);
+    console.error("falling back to read-only semantic rollout observation; use `--capture exact` to fail instead");
+    await openCodexDesktopRolloutDashboard({
+      discovery,
+      capture: {
+        mode: "rollout",
+        confidence: "semantic",
+        fallbackReason: exact.fallbackReason,
+        requested: "rollout",
+      },
+    });
+    return;
+  }
+  await openCodexDesktopRolloutDashboard({ discovery, capture });
+}
+
+async function resolveManagedCodexDesktopTarget(discovery) {
   const workspace = safeProcessCwd();
   const explicitThreadId = optionValue("--resume") || optionValue("-r") || optionValue("--thread");
   const continueMode = hasFlag("-c") || hasFlag("--continue");
   if (explicitThreadId && continueMode) throw new Error("Use either --continue or --resume <thread-id>, not both.");
-  const capture = resolveCodexDesktopCaptureMode(optionValue("--capture") || "auto");
+
+  let target;
+  if (hasFlag("--select")) {
+    const candidates = discovery.listCandidates({ workspace, includeArchived: false, limit: 40 });
+    if (!candidates.length) throw new Error(`No readable Codex Desktop sessions were found in the current project: ${workspace}`);
+    if (!process.stdin.isTTY || !process.stderr.isTTY) {
+      throw new Error("Interactive selection requires a terminal. Run `pma codex desktop --list`, then `pma codex desktop --resume <thread-id> --capture exact`.");
+    }
+    const threadId = await promptForCodexThread(candidates, { workspace, action: "capture exactly" });
+    target = discovery.findCandidate(threadId);
+  } else if (explicitThreadId) {
+    target = discovery.findCandidate(explicitThreadId);
+  } else if (continueMode) {
+    target = discovery.listCandidates({ workspace, includeArchived: false, limit: 20 })
+      .find((source) => source.available);
+  }
+  if (!target) throw new Error(`No matching Codex Desktop session was found for exact capture in ${workspace}.`);
+  if (!target.available) throw new Error(`Codex session rollout is no longer readable: ${target.conversation_id}`);
+  return {
+    thread_id: target.conversation_id,
+    workspace: target.workspace || workspace,
+    title: target.title || target.label || target.conversation_id,
+  };
+}
+
+async function openCodexDesktopRolloutDashboard({ discovery = new CodexDesktopDiscovery(), capture } = {}) {
+  const resolvedCapture = capture || resolveCodexDesktopCaptureMode("rollout");
+
+  const workspace = safeProcessCwd();
+  const explicitThreadId = optionValue("--resume") || optionValue("-r") || optionValue("--thread");
+  const continueMode = hasFlag("-c") || hasFlag("--continue");
+  if (explicitThreadId && continueMode) throw new Error("Use either --continue or --resume <thread-id>, not both.");
   const explicitUrl = optionValue("--viewer-url") || process.env.PEEKMYAGENT_DASHBOARD_URL || null;
   const dashboard = await ensureDashboard({ explicitUrl });
   const previousSelection = discovery.readSelection();
@@ -1521,12 +1593,14 @@ async function openCodexDesktopDashboard() {
   let launchDesktop = true;
   let waitingForNewSession = false;
   if (hasFlag("--select")) {
-    const candidates = discovery.listCandidates();
-    if (!candidates.length) throw new Error("No readable Codex Desktop sessions were found. Confirm CODEX_HOME, then try again.");
+    const candidates = discovery.listCandidates({ workspace, includeArchived: false, limit: 40 });
+    if (!candidates.length) {
+      throw new Error(`No readable Codex Desktop sessions were found in the current project: ${workspace}`);
+    }
     if (!process.stdin.isTTY || !process.stderr.isTTY) {
       throw new Error("Interactive selection requires a terminal. Run `pma codex desktop --list`, then `pma codex desktop --resume <thread-id>`. ");
     }
-    selectedSource = discovery.selectThread(await promptForCodexThread(candidates));
+    selectedSource = discovery.selectThread(await promptForCodexThread(candidates, { workspace }));
     launchDesktop = false;
   } else if (explicitThreadId) {
     const target = discovery.findCandidate(explicitThreadId);
@@ -1536,7 +1610,7 @@ async function openCodexDesktopDashboard() {
     selectedSource = beginBoundCodexObservation(discovery, target, {
       workspace: launchWorkspace,
       mode: "resume",
-      capture,
+      capture: resolvedCapture,
     });
   } else if (continueMode) {
     const target = discovery.listCandidates({ workspace, includeArchived: false, limit: 20 })
@@ -1545,7 +1619,7 @@ async function openCodexDesktopDashboard() {
     selectedSource = beginBoundCodexObservation(discovery, target, {
       workspace,
       mode: "continue",
-      capture,
+      capture: resolvedCapture,
     });
   } else {
     const baselineThreadIds = discovery.listCandidates({ workspace, includeArchived: false, limit: 100 })
@@ -1555,8 +1629,8 @@ async function openCodexDesktopDashboard() {
       workspace,
       baselineThreadIds,
       mode: "new",
-      captureMode: capture.mode,
-      fallbackReason: capture.fallbackReason,
+      captureMode: resolvedCapture.mode,
+      fallbackReason: resolvedCapture.fallbackReason,
     });
     waitingForNewSession = true;
   }
@@ -1585,9 +1659,255 @@ async function openCodexDesktopDashboard() {
   } else {
     console.log(`observing: ${source.title || source.label || source.conversation_id}`);
   }
-  if (capture.fallbackReason) console.log(`capture: semantic rollout fallback (${capture.fallbackReason})`);
+  if (resolvedCapture.fallbackReason) console.log(`capture: semantic rollout fallback (${resolvedCapture.fallbackReason})`);
   else console.log("capture: semantic rollout observation");
   console.log("storage: the rollout remains in CODEX_HOME and is not copied into peekMyAgent SQLite");
+}
+
+function codexDesktopHistoryObservationRequested() {
+  return Boolean(
+    hasFlag("--select") ||
+    hasFlag("-c") ||
+    hasFlag("--continue") ||
+    optionValue("--resume") ||
+    optionValue("-r") ||
+    optionValue("--thread"),
+  );
+}
+
+async function openManagedCodexDesktopExact({ requestedCapture = "auto", target = null } = {}) {
+  const explicitlyRequired = ["exact", "proxy"].includes(String(requestedCapture || "").toLowerCase());
+  const workspace = target?.workspace || safeProcessCwd();
+  const installation = inspectCodexDesktopInstallation();
+  if (!installation.supported) {
+    if (explicitlyRequired) throw new Error(installation.reason || "Managed Codex Desktop exact capture is unavailable.");
+    return { handled: false, fallbackReason: installation.reason || "managed Desktop exact capture is unavailable" };
+  }
+
+  const running = codexDesktopRunningProcesses(installation);
+  if (!running.supported) {
+    if (explicitlyRequired) throw new Error(`Could not inspect the running Codex Desktop process: ${running.error}`);
+    return { handled: false, fallbackReason: running.error || "Codex Desktop process inspection is unavailable" };
+  }
+  if (running.pids.length && processHasAncestor(process.pid, running.pids)) {
+    throw new Error(
+      "This pma command is running from inside Codex Desktop, so restarting Desktop would terminate its own controller. " +
+      "Run the command from an external Terminal, or use `pma codex desktop --capture rollout` without restarting.",
+    );
+  }
+
+  if (running.pids.length && !hasFlag("--restart")) {
+    if (!isInteractiveStdio()) {
+      if (explicitlyRequired) {
+        throw new Error(
+          "Codex Desktop is already running. Exact capture requires a graceful managed restart. " +
+          "Run interactively to review the warning, pass `--restart` as explicit consent, or use `--capture rollout`.",
+        );
+      }
+      return { handled: false, fallbackReason: "Codex Desktop is already running and restart consent was not available" };
+    }
+    const choice = await askCodexDesktopRestartChoice({ workspace, pids: running.pids });
+    if (choice === "cancel") {
+      console.error("peekMyAgent Codex Desktop capture cancelled; no process or configuration was changed.");
+      return { handled: true };
+    }
+    if (choice === "rollout") {
+      return { handled: false, fallbackReason: "User chose no-restart semantic rollout observation" };
+    }
+  }
+
+  const explicitUrl = optionValue("--viewer-url") || process.env.PEEKMYAGENT_DASHBOARD_URL || null;
+  const dashboard = await ensureDashboard({ explicitUrl });
+  const watch = await postJson(`${trimSlash(dashboard.url)}/api/watch/start`, {
+    agent: "Codex",
+    mode: "single_session",
+    workspace,
+    conversation_id: target?.thread_id || null,
+    started_by: "codex-desktop-managed",
+    reuse: false,
+    target_base_url: CODEX_CHATGPT_ORIGIN,
+    kind: "codex_proxy_exact",
+    confidence: "exact",
+    label: target ? `Codex Desktop · ${target.title}` : "Codex Desktop · selected-thread exact capture",
+    note: target
+      ? `Managed Codex Desktop App Server capture. Only thread ${target.thread_id} is routed through Capture Proxy; other Desktop threads keep their original provider.`
+      : "Managed Codex Desktop App Server capture. Only the first new thread started in the selected workspace is routed through Capture Proxy; other Desktop threads keep their original provider.",
+  }, { headers: { "x-peekmyagent-intent": "watch-start" } });
+
+  let infrastructure = null;
+  let desktopWasStopped = false;
+  let managedDesktopLaunched = false;
+  let operationError = null;
+  try {
+    infrastructure = await startManagedCodexDesktopInfrastructure({
+      installation,
+      watchBaseUrl: watch.base_url,
+      workspace,
+      captureThreadId: target?.thread_id || null,
+      env: process.env,
+    });
+
+    if (running.pids.length) {
+      const quit = requestCodexDesktopQuit({ installation });
+      if (!quit.ok) throw new Error(`Could not ask Codex Desktop to quit cleanly: ${quit.error}`);
+      desktopWasStopped = true;
+      const exited = await waitForCodexDesktopExit(installation);
+      if (!exited.exited) {
+        throw new Error(
+          `Codex Desktop did not exit cleanly; no process was force-killed. Remaining PID(s): ${exited.pids.join(", ") || "unknown"}.`,
+        );
+      }
+    }
+
+    const sourceUrl = buildDashboardUrl(dashboard.url, watch.id);
+    if (!hasFlag("--no-open") || hasFlag("--open")) launchBrowserUrl(sourceUrl);
+    console.error("peekMyAgent Codex Desktop capture: managed exact Responses API");
+    console.error(`peekMyAgent dashboard: ${sourceUrl}`);
+    console.error(`peekMyAgent watch: ${watch.watch_id} (new)`);
+    console.error(`Codex Desktop workspace: ${workspace}`);
+    console.error(`Codex Desktop: ${installation.app_version || "unknown"}; embedded ${installation.codex_version || "Codex version unknown"}`);
+    console.error("config: process-scoped App Server relay with thread-selective provider injection; CODEX_HOME auth is reused in memory; user config files are unchanged");
+    console.error(target
+      ? `capture scope: selected thread ${target.thread_id}; open this conversation in Desktop after restart`
+      : "capture scope: the first new thread started in this workspace; other Desktop threads keep their original provider");
+
+    const launchSpec = managedCodexDesktopLaunchSpec({
+      installation,
+      workspace,
+      appServerWsUrl: infrastructure.relay_url,
+      env: process.env,
+    });
+    managedDesktopLaunched = true;
+    const desktopCompletion = runManagedDesktopChild(launchSpec).then((result) => ({ kind: "desktop", result }));
+    const appServerCompletion = infrastructure.app_server_exit.then((result) => ({ kind: "app_server", result }));
+    const outcome = await Promise.race([desktopCompletion, appServerCompletion]);
+    if (outcome.kind === "app_server") {
+      requestCodexDesktopQuit({ installation });
+      await waitForCodexDesktopExit(installation, { timeoutMs: 8_000 });
+      throw new Error(`Managed Codex App Server stopped while Desktop was running (${managedChildExitLabel(outcome.result)}).`);
+    }
+    if (infrastructure.capture_route?.rewritten_requests > 0 && infrastructure.capture_route?.selected_thread_id) {
+      console.error(`captured Codex thread: ${infrastructure.capture_route.selected_thread_id}`);
+    } else {
+      console.error(target
+        ? "peekMyAgent capture note: the selected thread was not cold-resumed before Codex Desktop exited"
+        : "peekMyAgent capture note: no matching new thread was started before Codex Desktop exited");
+    }
+    process.exitCode = outcome.result.exit_code;
+    return { handled: true };
+  } catch (error) {
+    operationError = error;
+    if (desktopWasStopped || managedDesktopLaunched) {
+      await restoreNormalCodexDesktopAfterFailure({ installation, workspace });
+    }
+    throw error;
+  } finally {
+    let cleanupError = null;
+    try {
+      await infrastructure?.close();
+    } catch (error) {
+      cleanupError = error;
+    }
+    try {
+      await stopRunWatch(dashboard.url, watch, null);
+    } catch (error) {
+      if (!isMissingWatchCleanupError(error) && !cleanupError) cleanupError = error;
+    }
+    if (cleanupError) {
+      if (operationError) console.error(`peekMyAgent managed Desktop cleanup warning: ${cleanupError.message}`);
+      else throw cleanupError;
+    }
+  }
+}
+
+async function askCodexDesktopRestartChoice({ workspace, pids }) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    process.stderr.write("\nCodex Desktop is already running.\n\n");
+    process.stderr.write("Exact capture requires one graceful managed restart so the native Desktop can connect to a PMA-managed App Server.\n");
+    process.stderr.write("Running Codex tasks will stop. Existing projects, conversations, login state, and config files are not deleted or rewritten.\n");
+    process.stderr.write(`Workspace to reopen: ${workspace}\n`);
+    process.stderr.write(`Detected Desktop PID(s): ${pids.join(", ")}\n\n`);
+    process.stderr.write("  1. Restart for complete exact capture (recommended)\n");
+    process.stderr.write("  2. Do not restart; use semantic rollout observation\n");
+    process.stderr.write("  3. Cancel\n\n");
+    const answer = (await rl.question("Choose [1/2/3], default 3: ")).trim();
+    if (answer === "1") return "exact";
+    if (answer === "2") return "rollout";
+    return "cancel";
+  } finally {
+    rl.close();
+  }
+}
+
+function runManagedDesktopChild({ command, args, env, cwd }) {
+  return new Promise((resolve, reject) => {
+    const spawnConfig = childProcessSpawnConfig(command, args, { env });
+    const child = spawn(spawnConfig.command, spawnConfig.args, {
+      cwd,
+      env,
+      stdio: "ignore",
+      ...spawnConfig.options,
+    });
+    const forward = () => {
+      if (!child.killed) child.kill("SIGTERM");
+    };
+    process.once("SIGINT", forward);
+    process.once("SIGTERM", forward);
+    if (process.platform !== "win32") process.once("SIGHUP", forward);
+    const removeSignalHandlers = () => {
+      process.off("SIGINT", forward);
+      process.off("SIGTERM", forward);
+      if (process.platform !== "win32") process.off("SIGHUP", forward);
+    };
+    child.once("error", (error) => {
+      removeSignalHandlers();
+      reject(error);
+    });
+    child.once("close", (code, signal) => {
+      removeSignalHandlers();
+      resolve({ exit_code: code ?? signalExitCode(signal) });
+    });
+  });
+}
+
+async function restoreNormalCodexDesktopAfterFailure({ installation, workspace }) {
+  const running = codexDesktopRunningProcesses(installation);
+  if (running.supported && running.pids.length) {
+    requestCodexDesktopQuit({ installation });
+    const exited = await waitForCodexDesktopExit(installation, { timeoutMs: 8_000 });
+    if (!exited.exited) {
+      console.error(
+        `peekMyAgent recovery warning: Codex Desktop is still running (PID(s): ${exited.pids.join(", ") || "unknown"}); ` +
+        "a second Desktop instance was not opened. Quit and reopen Codex Desktop manually to remove capture overrides.",
+      );
+      return false;
+    }
+  }
+  try {
+    const spec = normalCodexDesktopLaunchSpec({ installation, workspace, env: process.env });
+    const spawnConfig = childProcessSpawnConfig(spec.command, spec.args, { env: spec.env });
+    const child = spawn(spawnConfig.command, spawnConfig.args, {
+      cwd: spec.cwd,
+      env: spec.env,
+      detached: true,
+      stdio: "ignore",
+      ...spawnConfig.options,
+      ...backgroundProcessSpawnOptions(),
+    });
+    child.unref();
+    console.error("peekMyAgent recovery: reopened Codex Desktop normally without capture overrides");
+    return true;
+  } catch (error) {
+    console.error(`peekMyAgent recovery warning: reopen Codex Desktop normally (${error.message})`);
+    return false;
+  }
+}
+
+function managedChildExitLabel(result) {
+  if (result?.error) return result.error.message;
+  if (result?.signal) return `signal ${result.signal}`;
+  return `exit ${result?.code ?? "unknown"}`;
 }
 
 function restoreCodexSelection(discovery, previousSelection, sourceId) {
@@ -1629,7 +1949,7 @@ function assertNoLegacyCodexDesktopSyntax(values) {
 
 function assertCodexDesktopOptions(values) {
   const valueOptions = new Set(["--viewer-url", "--capture", "--resume", "-r", "--thread"]);
-  const flags = new Set(["--clear", "--list", "--select", "-c", "--continue", "--no-open", "--open", "--print", "--json", "--help", "-h"]);
+  const flags = new Set(["--clear", "--list", "--select", "-c", "--continue", "--restart", "--no-open", "--open", "--print", "--json", "--help", "-h"]);
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
     if (flags.has(value)) continue;
@@ -1728,9 +2048,13 @@ function parseCodexCaptureArgs(values, { directArgs = false } = {}) {
   };
 }
 
-async function promptForCodexThread(candidates) {
+async function promptForCodexThread(candidates, { workspace = null, action = "observe" } = {}) {
   const visible = candidates.slice(0, 20);
-  console.error("Choose one Codex session to observe (read-only; no Trace copy is created):");
+  const scope = workspace ? ` in ${workspace}` : "";
+  const detail = action === "observe"
+    ? "read-only; no Trace copy is created"
+    : "Codex Desktop will restart once; only the selected thread will use Capture Proxy";
+  console.error(`Choose one Codex session${scope} to ${action} (${detail}):`);
   visible.forEach((source, index) => {
     const project = source.project ? ` · ${source.project}` : "";
     const updated = source.updated_at ? ` · ${source.updated_at.slice(0, 16).replace("T", " ")}` : "";

@@ -54,6 +54,7 @@ try {
         turn_id: "turn-smoke-private",
       }),
       "x-codex-window-id": "window-smoke-private",
+      "x-openai-subagent": "reviewer-private",
     },
     body: compressed,
   });
@@ -72,6 +73,7 @@ try {
     turn_id: "turn-smoke-private",
   }));
   assert.equal(forwarded[0].headers["x-codex-window-id"], "window-smoke-private");
+  assert.equal(forwarded[0].headers["x-openai-subagent"], "reviewer-private");
   assert.equal(forwarded[0].headers["x-peek-watch-id"], undefined);
   assert.deepEqual(forwarded[0].body, compressed, "the authenticated request is forwarded with byte-identical zstd content");
 
@@ -90,6 +92,7 @@ try {
     "x-client-request-id",
     "x-codex-turn-metadata",
     "x-codex-window-id",
+    "x-openai-subagent",
   ]) {
     assert.equal(captures[0].headers[header], "[REDACTED:header]", `${header} is redacted before persistence`);
     assert.ok(

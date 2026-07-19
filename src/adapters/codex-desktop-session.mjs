@@ -13,20 +13,19 @@ export function createCodexObservationId({ now = Date.now, randomUUID = crypto.r
 export function resolveCodexDesktopCaptureMode(requested = "auto") {
   const value = String(requested || "auto").trim().toLowerCase();
   if (!["auto", "rollout", "proxy", "exact"].includes(value)) {
-    throw new Error(`Unknown Codex Desktop capture mode: ${requested}. Use auto, rollout, or proxy.`);
+    throw new Error(`Unknown Codex Desktop capture mode: ${requested}. Use auto, exact, or rollout.`);
   }
   if (value === "proxy" || value === "exact") {
-    throw new Error(
-      "Codex Desktop does not expose a safe process-scoped provider override. Use plain `pma codex [codex args...]` for exact CLI capture, or `pma codex desktop --capture rollout` for Desktop observation.",
-    );
+    return { mode: "exact", confidence: "exact", fallbackReason: null, requested: value };
   }
   if (value === "rollout") {
-    return { mode: "rollout", confidence: "semantic", fallbackReason: null };
+    return { mode: "rollout", confidence: "semantic", fallbackReason: null, requested: value };
   }
   return {
-    mode: "rollout",
-    confidence: "semantic",
-    fallbackReason: "Codex Desktop has no stable process-scoped exact-proxy injection point",
+    mode: "exact",
+    confidence: "exact",
+    fallbackReason: null,
+    requested: value,
   };
 }
 

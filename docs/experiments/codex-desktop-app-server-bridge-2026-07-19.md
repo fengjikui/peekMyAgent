@@ -2,7 +2,11 @@
 
 日期：2026-07-19
 
-状态：可行性已验证，尚未实现为 peekMyAgent 正式命令。
+状态：原始可行性实验已完成；后续已经实现为 `pma codex desktop` 托管精确捕获原型。真实订阅账号与原生 Desktop 重启仍需人工验收。
+
+## 后续实现状态
+
+本文件保留最初 App Server bridge 实验的证据与推理。后续产品实现已经增加 tokenized loopback relay、选择性 thread 路由、Capture Proxy 串联、失败恢复和确定性回归测试。2026-07-19 的进一步隔离探针还确认：`thread/start`、冷态 `thread/resume` 与 `thread/fork` 的 thread-local `config` 可以直接定义临时 `model_providers`；因此受管 App Server 无需在进程参数或全局配置中注册 PMA provider，其他 thread 不受影响。
 
 ## 实验目标
 
@@ -177,10 +181,10 @@ flowchart LR
 
 ## 建议的用户流程
 
-未来可以提供显式入口，例如：
+当前已经提供入口：
 
 ```bash
-pma codex desktop --exact
+pma codex desktop
 ```
 
 建议生命周期：
@@ -202,11 +206,13 @@ pma codex desktop --exact
 - App Server 必须与 Desktop 内嵌版本匹配，不能静默使用 PATH 中的旧 CLI。
 - 启动失败时保持用户原 Desktop 和配置可用，不能留下全局 provider 或系统代理修改。
 
-## 下一步实现门槛
+## 剩余验收门槛
 
-1. 在隔离 profile 中完成带 fake upstream 的 Desktop turn，验证 thread/turn/item 全事件与 exact model request 的同轮关联。
-2. 设计 relay 的版本化事件 DTO、背压、frame 大小限制、重连和 interrupt 行为。
-   原型在对端无 close status 的退出场景收到 WebSocket 保留码，说明正式实现还必须规范化 `1005`/`1006` 等不可转发 close code，并以正常关闭或内部错误映射结束另一端连接。
-3. 验证真实账号仅复用现有认证而不复制、记录或导出认证值。
-4. 实测 Desktop 已运行、正常退出、崩溃和 PMA 中途退出的恢复路径。
-5. 在 Windows/macOS 上验证受管启动；Linux 以实际可用 Codex 形态单独定义支持边界。
+以下部分已经由 fake Desktop/App Server/upstream 和真实内嵌 App Server 无模型请求探针覆盖：选择性 thread 路由、thread-local provider 注入、frame/UTF-8/mask/压缩校验、背压、正常关闭映射、失败清理以及 exact request/response 同轮关联。
+
+尚待完成：
+
+1. 从外部系统终端使用真实订阅账号执行一次经用户同意的 Desktop 重启，确认只复用现有认证且不会记录或导出认证值。
+2. 实测 Desktop 已运行、正常退出、崩溃和 PMA 中途退出后的原生重开体验。
+3. 验证新 thread、显式选择的既有 thread 冷恢复及无关并行 thread 三种真实 UI 场景。
+4. 在 Windows 上研究和验证受管 Desktop 启动；Linux 以实际可用 Codex 形态单独定义支持边界。

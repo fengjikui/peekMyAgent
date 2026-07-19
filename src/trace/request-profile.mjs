@@ -25,6 +25,16 @@ export function extractSystemParts(body = {}, messages = extractRequestMessages(
 }
 
 export function inferRequestSource({ capture = {}, body = {}, currentUser = null, debugSource = null, lastUser = currentUser } = {}) {
+  const transportOperation = classifyTransportOperation(capture);
+  if (transportOperation) {
+    return {
+      type: "metadata",
+      label: transportOperation.label,
+      label_key: transportOperation.label_key,
+      operation: transportOperation.operation,
+      confidence: "high",
+    };
+  }
   if (isContextTokenCountingRequest(capture)) {
     return { type: "metadata", label: "上下文统计 (/context)", confidence: "high" };
   }
@@ -46,6 +56,9 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
   if (claudeAgentId) {
     return { type: "subagent", label: debugSource?.source || "Claude Code 子 Agent", confidence: "high" };
   }
+  if (isCodexSubagentRequest(capture)) {
+    return { type: "subagent", label: "Codex 子 Agent", confidence: "high" };
+  }
   if (debugSource?.source?.startsWith("agent:")) {
     return { type: "subagent", label: debugSource.source, confidence: "high" };
   }
@@ -64,6 +77,48 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
     return { type: "parent_spawn", label: "启动子代理", confidence: "high" };
   }
   return { type: "main", label: "主代理请求", confidence: "medium" };
+}
+
+export function classifyTransportOperation(capture = {}) {
+  if (isCodexContextCompactionRequest(capture)) {
+    return {
+      operation: "context_compaction",
+      kind: "compact",
+      label: "Harness 上下文压缩请求",
+      label_key: "contextCompactionRequest",
+    };
+  }
+  if (isCodexSearchServiceRequest(capture)) {
+    return {
+      operation: "codex_search",
+      kind: "agent_internal",
+      label: "Codex 内置搜索请求",
+      label_key: "codexSearchServiceRequest",
+    };
+  }
+  return null;
+}
+
+export function isCodexContextCompactionRequest(capture = {}) {
+  return capturePaths(capture).some((value) =>
+    /\/(?:v1\/responses|backend-api\/codex\/responses)\/compact(?:$|[?#/])/.test(value),
+  );
+}
+
+export function isCodexSearchServiceRequest(capture = {}) {
+  return capturePaths(capture).some((value) =>
+    /\/(?:v1|backend-api\/codex)\/alpha\/search(?:$|[?#/])/.test(value),
+  );
+}
+
+export function isCodexSubagentRequest(capture = {}) {
+  const marker = headerValue(capture.headers, "x-openai-subagent").trim().toLowerCase();
+  if (marker && !["0", "false", "no", "off"].includes(marker)) return true;
+  return (capture.header_redactions || []).some(
+    (entry) => ["headers.x-codex-parent-thread-id", "headers.x-openai-subagent"].includes(
+      String(entry?.field_path || "").toLowerCase(),
+    ),
+  );
 }
 
 export function isContextTokenCountingRequest(capture) {
@@ -166,6 +221,12 @@ function hasReasoningContent(value) {
   if (typeof value !== "object") return false;
   if (Object.prototype.hasOwnProperty.call(value, "reasoning_content")) return true;
   return Object.values(value).some(hasReasoningContent);
+}
+
+function capturePaths(capture = {}) {
+  return [capture.path, capture.original_url, capture.upstream_path]
+    .map((value) => String(value || ""))
+    .filter(Boolean);
 }
 
 function headerValue(headers, name) {
