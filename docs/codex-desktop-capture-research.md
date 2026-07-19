@@ -1,8 +1,8 @@
 # Codex Desktop 捕获研究与实施路线
 
-更新时间：2026-07-17
+更新时间：2026-07-19
 
-状态：实验结论，尚未实现为 peekMyAgent 的正式 Codex Desktop adapter。
+状态：本地 rollout 观察与 CLI 精确捕获已实现；受管 Desktop App Server Bridge 已完成隔离可行性实验，尚未产品化。
 
 本文回答一个产品问题：用户通常通过桌面图标启动 Codex，而不是通过 `pma` wrapper 启动 CLI。peekMyAgent 是否仍能捕获 Codex 的会话、工具、子 Agent、系统提示词和上下文压缩过程？
 
@@ -24,7 +24,9 @@ Codex Desktop 会启动内嵌的 `codex app-server`，并持续维护 `$CODEX_HO
 1. **本地观察模式**：默认。只读数据库与 rollout，桌面图标启动也能自动发现。
 2. **OTel 增强模式**：可选。补充请求时延、WebSocket/SSE、工具决策和工具结果遥测。
 3. **深度捕获模式**：显式 opt-in。通过 `openai_base_url` 接管模型链路，获得完整 wire request。
-4. **托管 App Server 模式**：独立入口。由 peekMyAgent 启动并持有一个 Codex app-server，适合未来的控制、发送和 IDE 集成，但不会透明接管用户已经打开的桌面会话。
+4. **受管 Desktop Bridge**：未来入口。由 peekMyAgent 启动版本匹配的 App Server 与透明 JSON-RPC relay，再让原生 Desktop UI 连接该 relay；它需要受管启动或重启，不能原地改写已经运行的 Desktop 连接。
+
+2026-07-19 的隔离实验已经证明当前 Desktop 能通过启动时 WebSocket override 连接 PMA 管理的 App Server，且透明 relay 能完整观察双向 JSON-RPC。完整证据、边界和推荐架构见 [Codex Desktop App Server Bridge 实验](experiments/codex-desktop-app-server-bridge-2026-07-19.md)。
 
 ## 实验环境
 
@@ -507,7 +509,9 @@ src/server/codex-rollout-watch-service.mjs
 - IDE/自动化集成。
 - 精确管理 thread、turn 和 interrupt。
 
-它不是对用户已经打开的 Codex Desktop 会话进行透明接管，产品文案必须说明这是一个由 peekMyAgent 管理的独立运行模式。
+2026-07-19 的补充实验进一步证明：当前 Desktop 包含启动时 App Server WebSocket override，原生 Desktop UI 可以连接到 PMA 管理的 App Server；在二者之间加入透明 relay 后，可以完整观察经过该连接的 JSON-RPC 请求、回复和通知。该路径仍不能原地切换已经运行的 Desktop stdio 连接，因此产品文案必须说明它是“受管 Desktop 精确捕获”，需要由 PMA 启动或重启 Desktop，而不是附着任意现有进程。
+
+App Server relay 与模型 Capture Proxy 应作为两个证据面组合：前者观察 Harness lifecycle，后者观察真正的模型 wire request/response。详细实验见 [Codex Desktop App Server Bridge 实验](experiments/codex-desktop-app-server-bridge-2026-07-19.md)。
 
 ## 后续实验清单
 
