@@ -33,7 +33,7 @@ console.log('fake codex capture ok');
   );
 
   const result = await runCli(
-    ["codex", "capture", "--viewer-url", viewer.url, "--no-open", "--", "exec", "fixture prompt"],
+    ["codex", "--viewer-url", viewer.url, "--no-open", "exec", "fixture prompt"],
     {
       ...process.env,
       PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
@@ -43,7 +43,7 @@ console.log('fake codex capture ok');
     },
   );
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stderr, /Codex capture: exact Responses API/);
+  assert.match(result.stderr, /Codex capture: exact Responses API \(default\)/);
   assert.match(result.stderr, /config: one-process HTTP-only provider override/);
   assert.match(result.stdout, /fake codex capture ok/);
 
@@ -58,6 +58,20 @@ console.log('fake codex capture ok');
   assert.deepEqual(childArgs.slice(12), ["exec", "fixture prompt"]);
   assert.equal(fs.readFileSync(configPath, "utf8"), configSentinel, "capture must not edit Codex config.toml");
 
+  const compatibilityAlias = await runCli(
+    ["codex", "capture", "--viewer-url", viewer.url, "--no-open", "--", "exec", "alias prompt"],
+    {
+      ...process.env,
+      PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+      CODEX_HOME: codexHome,
+      PEEKMYAGENT_STATE_DIR: stateDir,
+      PEEK_FAKE_CODEX_ARGS_PATH: argsPath,
+    },
+  );
+  assert.equal(compatibilityAlias.code, 0, compatibilityAlias.stderr);
+  assert.match(compatibilityAlias.stderr, /Codex capture: exact Responses API \(compatibility alias\)/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(argsPath, "utf8")).slice(12), ["exec", "alias prompt"]);
+
   const sources = await getJson(`${viewer.url}/api/sources`);
   const source = sources.find((item) => item.agent === "Codex" && (item.kind === "codex_proxy_exact" || item.capture_kind === "codex_proxy_exact"));
   assert.ok(source, "the stopped exact-capture watch remains available as a stored Trace");
@@ -70,6 +84,20 @@ console.log('fake codex capture ok');
   );
   assert.equal(invalid.code, 1);
   assert.match(invalid.stderr, /Put Codex arguments after --/);
+
+  const movedDesktopOption = await runCli(
+    ["codex", "--select"],
+    { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+  );
+  assert.equal(movedDesktopOption.code, 1);
+  assert.match(movedDesktopOption.stderr, /moved to `pma codex desktop/);
+
+  const ambiguousContinue = await runCli(
+    ["codex", "-c"],
+    { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+  );
+  assert.equal(ambiguousContinue.code, 1);
+  assert.match(ambiguousContinue.stderr, /pma codex resume --last/);
 
   console.log("run Codex capture wrapper smoke passed");
 } finally {

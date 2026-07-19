@@ -168,27 +168,33 @@ http://127.0.0.1:43110
 
 ## Quick Start With Codex
 
-From the project you want to inspect, open Codex Desktop and a waiting peekMyAgent dashboard:
+From the project you want to inspect, start Codex behind a one-process exact proxy:
 
 ```bash
 cd <your-project>
 pma codex
 ```
 
-Create a new chat in the opened Codex Desktop workspace and send its first message. The waiting Source keeps one stable ID and automatically binds the first new thread created for that workspace. Codex remains the interaction surface; peekMyAgent only reads that thread's rollout incrementally from `CODEX_HOME`, without copying the history into its SQLite database.
+Send messages in the Codex TUI in that terminal. The dashboard shows the verbatim request/response, tool schemas, calls, and results. PMA does not edit `~/.codex/config.toml` or depend on a persisted rollout.
 
-Observe the latest readable thread for the current project with `pma codex -c`, or bind a known thread with `pma codex --resume <thread-id>`. `pma codex --select` and `pma codex --list` remain available as advanced history-inspection commands.
+Pass ordinary Codex arguments directly:
 
-Desktop observation uses semantic rollout evidence. Codex Desktop does not currently expose a safe process-scoped provider override, so `--capture auto` reports that limitation and falls back explicitly instead of pretending to provide exact wire capture. Models, reasoning settings, and permissions remain owned by Codex Desktop.
+```bash
+pma codex resume --last
+pma codex exec "Inspect this repository"
+pma codex --dangerously-bypass-approvals-and-sandbox
+```
 
-For exact model requests and Responses output, explicitly start a new Codex CLI process through the verified first-party route allowlist:
+The last command bypasses approvals and sandboxing; use it only in a trusted isolated environment. In Codex CLI, `-c` means config override, not continue.
+
+To keep the native Codex Desktop interaction surface, explicitly choose semantic rollout observation:
 
 ```bash
 cd <your-project>
-pma codex capture --
+pma codex desktop
 ```
 
-Pass Codex arguments after `--`, for example `pma codex capture -- exec "Inspect this repository"`. This supplies an HTTP-only Responses provider to that child process so the local proxy can observe the exact wire request. It does not edit `~/.codex/config.toml` and does not attach to an already-running Codex Desktop process.
+Create a Desktop chat; the waiting Source binds the next thread in that workspace. `desktop -c`, `--resume`, `--select`, and `--list` provide history inspection. This is semantic rollout evidence, not complete wire capture, and PMA does not copy rollout text into SQLite. `pma codex capture -- ...` remains a compatibility alias.
 
 ## Resume A Claude Code Session
 

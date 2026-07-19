@@ -11,18 +11,14 @@ import {
   commandPreviewText,
   commandUserVisibleText,
   displayMessageText,
-  isCompactInjectionMessage,
   isCodexAgentMessage,
   isFrameworkReminderMessage,
-  isSkillInjectionMessage,
   isSuggestionModeMessage,
-  isTaskNotificationMessage,
   isToolResultMessage,
   lastMessage,
   lastRealUserMessage,
   parseCommandMessage,
   realUserVisibleText,
-  userVisibleText,
 } from "../trace/message-semantics.mjs";
 import { summarizeModelResponse } from "../trace/model-response-normalizer.mjs";
 import { analyzeRequestComposition } from "../trace/request-composition.mjs";
@@ -463,17 +459,8 @@ export function createViewerTraceProjector({
   function inferCaptureTitle(capture) {
     const body = capture?.body || {};
     const messages = extractRequestMessages(body);
-    const user = messages.find(
-      (message) =>
-        message?.role === "user" &&
-        !isToolResultMessage(message) &&
-        !isSuggestionModeMessage(message) &&
-        !isFrameworkReminderMessage(message) &&
-        !isTaskNotificationMessage(message) &&
-        !isCompactInjectionMessage(message) &&
-        !isSkillInjectionMessage(message),
-    );
-    const title = textPreview(cleanTitleText(userVisibleText(user)), 48);
+    const user = lastRealUserMessage(messages);
+    const title = textPreview(cleanTitleText(realUserVisibleText(user)), 48);
     return title || null;
   }
 

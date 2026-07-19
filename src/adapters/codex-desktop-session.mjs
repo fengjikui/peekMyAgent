@@ -17,7 +17,7 @@ export function resolveCodexDesktopCaptureMode(requested = "auto") {
   }
   if (value === "proxy" || value === "exact") {
     throw new Error(
-      "Codex Desktop does not expose a safe process-scoped provider override. Use `pma codex capture -- [codex args...]` for explicit CLI exact capture, or use `pma codex --capture rollout` for Desktop observation.",
+      "Codex Desktop does not expose a safe process-scoped provider override. Use plain `pma codex [codex args...]` for exact CLI capture, or `pma codex desktop --capture rollout` for Desktop observation.",
     );
   }
   if (value === "rollout") {
@@ -58,7 +58,7 @@ export function launchCodexDesktopWorkspace(
     attempts.push(launchFailure(candidate.label, result));
   }
   const installHint = platform === "darwin"
-    ? "Install or update Codex Desktop, then run `pma codex` again. To invoke the official installer explicitly, run `codex app`."
+    ? "Install or update Codex Desktop, then run `pma codex desktop` again. To invoke the official installer explicitly, run `codex app`."
     : "Install Codex Desktop or set PEEKMYAGENT_CODEX_DESKTOP_CLI to its launcher command.";
   throw new Error(`Could not open Codex Desktop for ${normalizedWorkspace}. ${attempts.join("; ")} ${installHint}`);
 }

@@ -148,6 +148,24 @@ const inferredTitle = projector.inferCaptureTitle({
 });
 assert.equal(inferredTitle, "A real user title");
 
+const codexExactTitle = projector.inferCaptureTitle({
+  body: {
+    input: [
+      {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "# AGENTS.md instructions for /tmp/project\n\n<INSTRUCTIONS>Injected repository policy</INSTRUCTIONS>" }],
+      },
+      {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "Reply with exactly PMA_EXACT_PROXY_OK." }],
+      },
+    ],
+  },
+});
+assert.equal(codexExactTitle, "Reply with exactly PMA_EXACT_PROXY_OK.", "Codex exact titles use the latest real user input, not earlier Harness context");
+
 const assemblerDependencies = projector.timelineAssemblerDependencies();
 for (const name of ["summarizeCapture", "buildTurns", "buildStats", "buildWorkbench"]) {
   assert.equal(typeof assemblerDependencies[name], "function", `${name} is an explicit cursor assembler port`);

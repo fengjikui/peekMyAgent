@@ -78,7 +78,7 @@ const baseEnv = {
 };
 
 try {
-  const waiting = await runCli(["codex", "--viewer-url", viewer.url, "--no-open"], {
+  const waiting = await runCli(["codex", "desktop", "--viewer-url", viewer.url, "--no-open"], {
     ...baseEnv,
     PEEK_FAKE_CODEX_CREATE_THREAD: "0",
   });
@@ -90,7 +90,7 @@ try {
   assert.equal(pendingView.source.kind, "codex_rollout_pending");
   assert.equal(pendingView.requests.length, 0);
 
-  const started = await runCli(["codex", "--viewer-url", viewer.url, "--no-open"], {
+  const started = await runCli(["codex", "desktop", "--viewer-url", viewer.url, "--no-open"], {
     ...baseEnv,
     PEEK_FAKE_CODEX_CREATE_THREAD: "1",
   });
@@ -110,7 +110,7 @@ try {
   assert.equal(selection.active_observation.thread_id, "thread-desktop-2");
   assert.equal(JSON.stringify(selection).includes("Fixture desktop instructions"), false, "selection stores identifiers, never rollout content");
 
-  const continued = await runCli(["codex", "-c", "--viewer-url", viewer.url, "--no-open"], {
+  const continued = await runCli(["codex", "desktop", "-c", "--viewer-url", viewer.url, "--no-open"], {
     ...baseEnv,
     PEEK_FAKE_CODEX_CREATE_THREAD: "0",
   });
@@ -118,19 +118,19 @@ try {
   assert.match(continued.stdout, /observing: Desktop fixture 2/);
   assert.equal(JSON.parse(fs.readFileSync(selectionPath, "utf8")).active_observation.thread_id, "thread-desktop-2");
 
-  const resumed = await runCli(["codex", "--resume", "thread-existing", "--viewer-url", viewer.url, "--no-open"], {
+  const resumed = await runCli(["codex", "desktop", "--resume", "thread-existing", "--viewer-url", viewer.url, "--no-open"], {
     ...baseEnv,
     PEEK_FAKE_CODEX_CREATE_THREAD: "0",
   });
   assert.equal(resumed.code, 0, resumed.stderr);
   assert.equal(JSON.parse(fs.readFileSync(selectionPath, "utf8")).active_observation.thread_id, "thread-existing");
 
-  const proxy = await runCli(["codex", "--capture", "proxy", "--no-open"], baseEnv);
+  const proxy = await runCli(["codex", "desktop", "--capture", "proxy", "--no-open"], baseEnv);
   assert.equal(proxy.code, 1);
   assert.match(proxy.stderr, /does not expose a safe process-scoped provider override/);
-  const removedNewFlag = await runCli(["codex", "--new", "--no-open"], baseEnv);
+  const removedNewFlag = await runCli(["codex", "desktop", "--new", "--no-open"], baseEnv);
   assert.equal(removedNewFlag.code, 1);
-  assert.match(removedNewFlag.stderr, /Unknown pma codex option: --new/);
+  assert.match(removedNewFlag.stderr, /Unknown pma codex desktop option: --new/);
 
   const launches = JSON.parse(fs.readFileSync(launchLogPath, "utf8"));
   assert.ok(launches.length >= 4);

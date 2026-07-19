@@ -48,9 +48,10 @@ Usage:
   pma normalize claude-otel <request.json> [--out <file>] [--delete-raw-after-import]
   pma daemon [--host <host>] [--api-port <port>] [--capture-port <port>] [--open]
   pma open [--source <id>] [--print] [--no-open]
-  pma codex [-c|--continue] [--resume <thread-id>] [--capture auto|rollout] [--print] [--no-open]
-  pma codex [--select|--thread <id>|--list]
-  pma codex capture [--viewer-url <url>] [--no-open] -- [codex args...]
+  pma codex [peekMyAgent options] [codex args...]
+  pma codex desktop [-c|--continue] [--resume <thread-id>] [--capture auto|rollout] [--print] [--no-open]
+  pma codex desktop [--select|--thread <id>|--list]
+  pma codex capture [--viewer-url <url>] [--no-open] -- [codex args...]  # compatibility alias
   pma doctor [--json]
   pma compact [--watch <watch-id>] [--limit <n>] [--no-vacuum] [--json]
   pma clear --all-sessions [--json]
@@ -71,6 +72,7 @@ Usage:
 Notes:
   - The shortest daily path is to prefix the original Agent command: "pma claude -c" or "pma openclaw chat".
   - Claude Code capture defaults to auto: proxy capture when a configurable upstream base URL exists, otherwise OTel raw-body capture for subscription/OAuth sessions. Use --capture proxy|otel, --proxy, or --otel to force a mode.
+  - Codex capture defaults to an exact one-process proxy: "pma codex" or "pma codex resume --last". Use "pma codex desktop" only when the native Desktop UI and semantic rollout evidence are preferred.
   - openclaw-capture expects one proxy capture record with method/path/headers/body.
   - claude-otel expects one Claude Code OTel .request.json file.
   - output is normalized JSON and does not print raw secrets beyond adapter redaction.
@@ -97,11 +99,13 @@ Usage:
 
 Common:
   pma open                         Open the local dashboard.
-  pma codex                        Open Codex Desktop here and observe its next new session.
-  pma codex -c                     Open Codex Desktop and observe this folder's latest session.
-  pma codex --resume <thread-id>   Observe one explicit Codex Desktop session.
-  pma codex --select               Choose an existing session for read-only observation.
-  pma codex capture --             Start Codex with exact capture for this process.
+  pma codex                        Start Codex CLI with exact proxy capture.
+  pma codex resume --last          Resume the latest Codex CLI session with exact capture.
+  pma codex exec "Inspect this repository"
+                                   Run one Codex task with exact capture.
+  pma codex desktop                Open Codex Desktop and observe its next new session semantically.
+  pma codex desktop -c             Observe this folder's latest Desktop session.
+  pma codex desktop --select       Choose a Desktop session for read-only observation.
   pma claude -c                    Start Claude Code and capture this session.
   pma claude -c --dangerously-skip-permissions
                                    Start Claude Code without permission prompts in a trusted repo.
@@ -1471,13 +1475,26 @@ async function openDashboard() {
 }
 
 async function openCodexDashboard() {
-  if (hasFlag("--help") || hasFlag("-h")) usage(0);
+  if (["--help", "-h"].includes(rest[0])) usage(0);
+  if (rest[0] === "desktop") {
+    rest = rest.slice(1);
+    await openCodexDesktopDashboard();
+    return;
+  }
   if (rest[0] === "capture") {
     rest = rest.slice(1);
-    const result = await runCodexCapture();
+    if (["--help", "-h"].includes(rest[0])) usage(0);
+    const result = await runCodexCapture({ directArgs: false, invocationLabel: "compatibility alias" });
     process.exitCode = result.exit_code;
     return;
   }
+  assertNoLegacyCodexDesktopSyntax(rest);
+  const result = await runCodexCapture({ directArgs: true, invocationLabel: "default" });
+  process.exitCode = result.exit_code;
+}
+
+async function openCodexDesktopDashboard() {
+  if (["--help", "-h"].includes(rest[0])) usage(0);
   assertCodexDesktopOptions(rest);
   const discovery = new CodexDesktopDiscovery();
   if (hasFlag("--clear")) {
@@ -1507,7 +1524,7 @@ async function openCodexDashboard() {
     const candidates = discovery.listCandidates();
     if (!candidates.length) throw new Error("No readable Codex Desktop sessions were found. Confirm CODEX_HOME, then try again.");
     if (!process.stdin.isTTY || !process.stderr.isTTY) {
-      throw new Error("Interactive selection requires a terminal. Run `pma codex --list`, then `pma codex --resume <thread-id>`. ");
+      throw new Error("Interactive selection requires a terminal. Run `pma codex desktop --list`, then `pma codex desktop --resume <thread-id>`. ");
     }
     selectedSource = discovery.selectThread(await promptForCodexThread(candidates));
     launchDesktop = false;
@@ -1524,7 +1541,7 @@ async function openCodexDashboard() {
   } else if (continueMode) {
     const target = discovery.listCandidates({ workspace, includeArchived: false, limit: 20 })
       .find((source) => source.available);
-    if (!target) throw new Error(`No resumable Codex Desktop session was found in ${workspace}. Run \`pma codex\` to start observing a new one.`);
+    if (!target) throw new Error(`No resumable Codex Desktop session was found in ${workspace}. Run \`pma codex desktop\` to start observing a new one.`);
     selectedSource = beginBoundCodexObservation(discovery, target, {
       workspace,
       mode: "continue",
@@ -1548,7 +1565,7 @@ async function openCodexDashboard() {
   const source = (Array.isArray(sources) ? sources : []).find((item) => item.id === selectedSource.id && item.available);
   if (!source) {
     restoreCodexSelection(discovery, previousSelection, selectedSource.id);
-    throw new Error("The Codex observation source is not readable. Run `pma codex --list` to inspect available sessions.");
+    throw new Error("The Codex observation source is not readable. Run `pma codex desktop --list` to inspect available sessions.");
   }
   const url = buildDashboardUrl(dashboard.url, source.id);
   const shouldOpen = !hasFlag("--no-open") && !hasFlag("--print");
@@ -1590,6 +1607,26 @@ function beginBoundCodexObservation(discovery, target, { workspace, mode, captur
   return discovery.bindObservation(pending.id, target.conversation_id);
 }
 
+function assertNoLegacyCodexDesktopSyntax(values) {
+  const movedFlags = new Set(["--continue", "--select", "--list", "--clear"]);
+  const movedValueOptions = ["--resume", "--thread", "--capture"];
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
+    if (value === "-c" && (!values[index + 1] || isFlagLike(values[index + 1]))) {
+      throw new Error(
+        "`pma codex -c` now follows the Codex CLI, where -c requires a config value. " +
+        "Use `pma codex resume --last` for an exact captured resume, or `pma codex desktop -c` for Desktop rollout observation.",
+      );
+    }
+    if (movedFlags.has(value) || movedValueOptions.some((name) => value === name || isOptionAssignment(value, name))) {
+      throw new Error(
+        `Desktop rollout option ${value} moved to \`pma codex desktop ...\`. ` +
+        "Plain `pma codex` now starts exact proxy capture and forwards Codex CLI arguments.",
+      );
+    }
+  }
+}
+
 function assertCodexDesktopOptions(values) {
   const valueOptions = new Set(["--viewer-url", "--capture", "--resume", "-r", "--thread"]);
   const flags = new Set(["--clear", "--list", "--select", "-c", "--continue", "--no-open", "--open", "--print", "--json", "--help", "-h"]);
@@ -1604,12 +1641,12 @@ function assertCodexDesktopOptions(values) {
       index += 1;
       continue;
     }
-    throw new Error(`Unknown pma codex option: ${value}. Run \`pma codex --help\` for supported Desktop options.`);
+    throw new Error(`Unknown pma codex desktop option: ${value}. Run \`pma codex --help\` for supported commands.`);
   }
 }
 
-async function runCodexCapture() {
-  const parsed = parseCodexCaptureArgs(rest);
+async function runCodexCapture({ directArgs = false, invocationLabel = "explicit opt-in" } = {}) {
+  const parsed = parseCodexCaptureArgs(rest, { directArgs });
   const explicitUrl = optionValueIn(parsed.wrapperArgs, "--viewer-url") || process.env.PEEKMYAGENT_DASHBOARD_URL || null;
   const dashboard = await ensureDashboard({ explicitUrl });
   const workspace = safeProcessCwd();
@@ -1632,7 +1669,7 @@ async function runCodexCapture() {
     launchBrowserUrl(sourceUrl);
   }
   const childArgs = [...codexHttpProviderOverrides(watch.base_url), ...parsed.childArgs];
-  console.error("peekMyAgent Codex capture: exact Responses API (explicit opt-in)");
+  console.error(`peekMyAgent Codex capture: exact Responses API (${invocationLabel})`);
   printRunStarted({ viewerUrl: dashboard.url, watch, command: "codex", args: parsed.childArgs });
   console.error("config: one-process HTTP-only provider override; ~/.codex/config.toml is unchanged");
   return runChildWithWatchCleanup({
@@ -1645,8 +1682,32 @@ async function runCodexCapture() {
   });
 }
 
-function parseCodexCaptureArgs(values) {
+function parseCodexCaptureArgs(values, { directArgs = false } = {}) {
   const separatorIndex = values.indexOf("--");
+  if (directArgs && separatorIndex === -1) {
+    const wrapperArgs = [];
+    const childArgs = [];
+    for (let index = 0; index < values.length; index += 1) {
+      const value = values[index];
+      if (["--no-open", "--open"].includes(value)) {
+        wrapperArgs.push(value);
+        continue;
+      }
+      if (value === "--viewer-url") {
+        const next = values[index + 1];
+        if (!next || isFlagLike(next)) throw new Error("--viewer-url requires a value.");
+        wrapperArgs.push(value, next);
+        index += 1;
+        continue;
+      }
+      if (isOptionAssignment(value, "--viewer-url")) {
+        wrapperArgs.push("--viewer-url", optionValueIn([value], "--viewer-url"));
+        continue;
+      }
+      childArgs.push(value);
+    }
+    return { wrapperArgs, childArgs };
+  }
   const wrapperArgs = separatorIndex === -1 ? values : values.slice(0, separatorIndex);
   const allowedFlags = new Set(["--no-open", "--open"]);
   for (let index = 0; index < wrapperArgs.length; index += 1) {

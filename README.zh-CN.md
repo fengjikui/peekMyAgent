@@ -137,27 +137,33 @@ pma claude -c --dangerously-skip-permissions
 
 ## 快速开始：Codex
 
-在希望观察的项目目录中，同时打开 Codex Desktop 和等待中的 peekMyAgent 看板：
+在希望观察的项目目录中，让 Codex 通过当前进程专属的精确代理启动：
 
 ```bash
 cd <your-project>
 pma codex
 ```
 
-在刚打开的 Codex Desktop 工作区中新建对话并发送第一条消息。等待中的 Source 会保持同一个稳定 ID，并自动绑定该工作区随后创建的第一条新 thread。用户仍在 Codex Desktop 原生界面交互；peekMyAgent 只从 `CODEX_HOME` 增量读取这一条 rollout，不会把历史正文复制进 SQLite。
+直接在该终端的 Codex TUI 中对话。看板会展示逐字请求/回复、工具 schema、调用和结果；PMA 不修改 `~/.codex/config.toml`，也不依赖本地 rollout 是否完整保存。
 
-执行 `pma codex -c` 可观察当前项目最近一条可读 thread；执行 `pma codex --resume <thread-id>` 可绑定指定 thread。`pma codex --select` 和 `pma codex --list` 继续作为高级历史观察入口保留。
+Codex 原生参数可以直接跟在后面：
 
-Desktop 观察提供的是 rollout 语义证据。Codex Desktop 目前没有安全的进程级 provider 覆盖入口，因此 `--capture auto` 会明确说明限制并回退，而不会伪装成精确线上捕获；模型、推理等级和权限设置仍由 Codex Desktop 自己管理。
+```bash
+pma codex resume --last
+pma codex exec "检查这个仓库"
+pma codex --dangerously-bypass-approvals-and-sandbox
+```
 
-如果需要查看完整模型上行和 Responses 下行，显式启动一个新的受管 Codex CLI 进程：
+最后一个命令会绕过审批和沙箱，只应在受信任的隔离环境中使用。`-c` 是 Codex 的配置覆盖参数，不表示 continue。
+
+如果更希望继续使用 Codex Desktop 原生界面，可以显式选择 rollout 语义观察：
 
 ```bash
 cd <your-project>
-pma codex capture --
+pma codex desktop
 ```
 
-Codex 参数放在 `--` 后，例如 `pma codex capture -- exec "检查这个仓库"`。该命令只为这个子进程注入一个 HTTP-only Responses provider，让本地代理能够观察精确的线上请求；它不会修改 `~/.codex/config.toml`，也不会接管已经运行的 Codex Desktop 进程。
+在 Desktop 中新建对话，等待 Source 会绑定该工作区的下一条 thread。`desktop -c`、`--resume`、`--select` 和 `--list` 用于历史观察。这是 rollout 语义证据，不是完整网络捕获；正文不会复制进 PMA SQLite。`pma codex capture -- ...` 暂作兼容别名。
 
 ## 快速开始：OpenClaw
 
