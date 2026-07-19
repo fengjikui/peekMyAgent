@@ -87,6 +87,7 @@ import {
   buildTraceTimelineView,
   findTurnLeadRequest,
   TRACE_RESULT_PAGE_SIZE,
+  traceFilterShowsMechanismStory,
 } from "./trace-timeline-model.js";
 import { TraceTimelineController } from "./trace-timeline-controller.js";
 import {
@@ -1204,7 +1205,7 @@ function renderTurnGroup(turn, requestMap) {
             <span class="trace-match-turn-title">${escapeHtml(turnTitleText(turn))}</span>
           </div>
         </header>
-        ${turn.trace_filter === "subagents" ? renderTurnStoryForTurn(turn, requestMap) : ""}
+        ${traceFilterShowsMechanismStory(turn.trace_filter) ? renderTurnStoryForTurn(turn, requestMap) : ""}
         ${turn.trace_filter === "subagents" ? renderAgentBranchesForTurn(turn) : ""}
         <div class="turn-request-list trace-match-requests">${requests.map(renderTurnRequest).join("")}</div>
       </section>

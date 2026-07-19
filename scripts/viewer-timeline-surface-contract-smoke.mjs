@@ -110,7 +110,7 @@ assert.doesNotMatch(turnStoryModelSource, /\bdocument\b|\bwindow\b|\bfetch\s*\(|
 assert.doesNotMatch(turnStoryRendererSource, /\bdocument\b|\bwindow\b|\bfetch\s*\(|\bstate\./);
 assert.match(source, /const view = buildTurnStoryView\(/);
 assert.match(source, /return renderTurnStoryView\(view,/);
-assert.match(source, /turn\.trace_filter === "subagents" \? renderTurnStoryForTurn\(turn, requestMap\)/);
+assert.match(source, /traceFilterShowsMechanismStory\(turn\.trace_filter\) \? renderTurnStoryForTurn\(turn, requestMap\)/);
 assert.match(source, /renderUpstreamDetailView\(buildUpstreamDetailView\(request,/);
 assert.doesNotMatch(source, /function renderHistoryStack\(/);
 assert.doesNotMatch(source, /function renderCurrentMessageDelta\(/);

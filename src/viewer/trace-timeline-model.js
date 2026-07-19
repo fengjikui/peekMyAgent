@@ -135,6 +135,10 @@ export function traceFilterCounts(requests) {
   };
 }
 
+export function traceFilterShowsMechanismStory(filter) {
+  return filter === "tools" || filter === "subagents";
+}
+
 export function traceRequestHasSubagentActivity(request) {
   return Boolean(
     request?.is_subagent ||
