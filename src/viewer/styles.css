@@ -3399,6 +3399,13 @@ button.turn-story-step:focus-visible {
   margin-bottom: 8px;
 }
 
+.upstream-evidence-note {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .history-stack-meta span {
   display: inline-flex;
   min-height: 22px;

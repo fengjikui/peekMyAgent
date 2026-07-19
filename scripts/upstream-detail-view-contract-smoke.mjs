@@ -110,6 +110,26 @@ assert.deepEqual(subagentView.currentMessage, {
   markdownText: "**Result** <unsafe>",
 });
 
+const observedDeltaView = buildUpstreamDetailView({
+  context_delta: {
+    new_messages: 2,
+    previews: [
+      { kind: "developer", role: "developer", text: "Harness input" },
+      { kind: "user", role: "user", text: "Current question" },
+    ],
+  },
+  summary: {
+    evidence: { sections: { messages: { scope: "observed_upstream_delta" } } },
+    roles: ["developer", "user"],
+    history_stack: [
+      { index: 1, kind: "developer", role: "developer", text: "Harness input" },
+      { index: 2, kind: "user", role: "user", text: "Current question" },
+    ],
+  },
+});
+assert.equal(observedDeltaView.history.mode, "observed_delta");
+assert.equal(observedDeltaView.currentMessage, null);
+
 const escapeHtml = (value) =>
   String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -154,6 +174,11 @@ const subagentHtml = renderUpstreamDetail(subagentView, dependencies);
 assert.match(subagentHtml, /subagent-result-event/);
 assert.match(subagentHtml, /Explore · completed/);
 assert.match(subagentHtml, /\*\*Result\*\* &lt;unsafe&gt;/);
+
+const observedDeltaHtml = renderUpstreamDetail(observedDeltaView, dependencies);
+assert.match(observedDeltaHtml, /observedInputDelta:count=2/);
+assert.match(observedDeltaHtml, /observedInputDeltaEvidence/);
+assert.doesNotMatch(observedDeltaHtml, /currentRoundMessages/);
 
 const modelSource = fs.readFileSync(new URL("../src/viewer/upstream-detail-model.js", import.meta.url), "utf8");
 const rendererSource = fs.readFileSync(new URL("../src/viewer/upstream-detail-renderer.js", import.meta.url), "utf8");

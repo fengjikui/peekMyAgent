@@ -32,13 +32,15 @@ export function renderUpstreamDetail(view, dependencies) {
 
 function renderHistoryStack(history, dependencies) {
   const { translate, escapeHtml, formatBytes } = dependencies;
+  const observedDelta = history.mode === "observed_delta";
   return `
     <details>
       <summary class="metric-summary">
-        <span>${escapeHtml(translate("historyStack", { count: history.count }))}</span>
+        <span>${escapeHtml(translate(observedDelta ? "observedInputDelta" : "historyStack", { count: history.count }))}</span>
         ${renderCompositionSectionStat(history.composition, dependencies)}
       </summary>
       <div class="details-body">
+        ${observedDelta ? `<p class="upstream-evidence-note">${escapeHtml(translate("observedInputDeltaEvidence"))}</p>` : ""}
         <div class="history-stack-meta">
           <span>roles: ${escapeHtml(history.roles.join(" -> ") || "empty")}</span>
           <span>history=${escapeHtml(String(history.historyCount))}</span>

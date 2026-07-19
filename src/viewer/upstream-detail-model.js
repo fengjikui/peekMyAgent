@@ -5,6 +5,8 @@ export function buildUpstreamDetailView(request = {}, { cleanText = defaultClean
   const counts = request.counts || {};
   const toolNames = Array.isArray(summary.tool_names) ? summary.tool_names : [];
   const historyItems = Array.isArray(summary.history_stack) ? summary.history_stack : [];
+  const messageEvidence = summary.evidence?.sections?.messages || {};
+  const historyMode = messageEvidence.scope === "observed_upstream_delta" ? "observed_delta" : "history";
 
   return {
     requestId: request.id || "",
@@ -21,6 +23,7 @@ export function buildUpstreamDetailView(request = {}, { cleanText = defaultClean
       composition: compositionSection(summary, "tools"),
     },
     history: {
+      mode: historyMode,
       count: historyItems.length || counts.messages || 0,
       roles: Array.isArray(summary.roles) ? summary.roles : [],
       historyCount: counts.history || 0,
@@ -32,7 +35,10 @@ export function buildUpstreamDetailView(request = {}, { cleanText = defaultClean
       request.source_hint?.type === "metadata" && summary.internal_request_preview
         ? summary.internal_request_preview
         : "",
-    currentMessage: buildCurrentMessage(request, summary, cleanText),
+    currentMessage:
+      historyMode === "observed_delta" && historyItems.length
+        ? null
+        : buildCurrentMessage(request, summary, cleanText),
     providerStats: buildProviderStats(summary),
   };
 }
