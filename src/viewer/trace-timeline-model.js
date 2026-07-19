@@ -214,14 +214,32 @@ export function findTurnLeadRequest(requests, turn) {
 }
 
 function traceMatchingRequestIdsForTurn(turn, turnRequests, filter, query) {
+  const requestNumber = parseTraceRequestNumberQuery(query);
   const directMatches = turnRequests.filter(
-    (request) => traceRequestMatchesFilter(request, filter) && (!query || traceSearchTextForRequest(request).includes(query)),
+    (request) =>
+      traceRequestMatchesFilter(request, filter) &&
+      (requestNumber != null
+        ? Number(request?.request_index) === requestNumber
+        : !query || traceSearchTextForRequest(request).includes(query)),
   );
-  if (directMatches.length || !query || filter !== "all" || !traceSearchTextForTurn(turn).includes(query)) {
+  if (
+    directMatches.length ||
+    requestNumber != null ||
+    !query ||
+    filter !== "all" ||
+    !traceSearchTextForTurn(turn).includes(query)
+  ) {
     return directMatches.map((request) => request.id);
   }
   const lead = findTurnLeadRequest(turnRequests, turn) || turnRequests[0];
   return lead ? [lead.id] : [];
+}
+
+function parseTraceRequestNumberQuery(query) {
+  const match = String(query || "").trim().match(/^#?(\d+)$/);
+  if (!match) return null;
+  const requestNumber = Number(match[1]);
+  return Number.isSafeInteger(requestNumber) && requestNumber > 0 ? requestNumber : null;
 }
 
 function traceRequestMatchesFilter(request, filter) {

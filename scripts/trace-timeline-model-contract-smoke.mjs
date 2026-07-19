@@ -17,7 +17,7 @@ import {
 const requests = [
   request("r1", 1, { user: "hello", response: "welcome" }),
   request("r2", 2, { user: "inspect disk", tools: [{ name: "Bash", arguments: { command: "df -h" } }], latency: 6100 }),
-  request("r3", 3, { user: "tool result", toolResults: [{ content: "permission denied" }] }),
+  request("r3", 3, { user: "tool result", toolResults: [{ content: "permission denied on a 21 GiB volume" }] }),
   request("r4", 4, { user: "child task", subagent: true, response: "child complete" }),
 ];
 const turns = [
@@ -69,6 +69,18 @@ assert.deepEqual(latestView.turnWindow.turns.map((item) => item.id), ["t3"]);
 
 const queryOverridesLatest = buildTraceTimelineView({ turns, requests, latestOnly: true, query: "hello" });
 assert.deepEqual(queryOverridesLatest.railTurns.map((item) => item.id), ["t1"]);
+
+const numericRequestQuery = buildTraceTimelineView({ turns, requests, query: "2" });
+assert.equal(numericRequestQuery.matchCount, 1, "a numeric query should address one exact request index");
+assert.deepEqual(numericRequestQuery.filteredTurns[0].request_ids, ["r2"]);
+const hashRequestQuery = buildTraceTimelineView({ turns, requests, query: "#2" });
+assert.equal(hashRequestQuery.matchCount, 1, "a hash-prefixed request query should address the same request index");
+assert.deepEqual(hashRequestQuery.filteredTurns[0].request_ids, ["r2"]);
+assert.equal(
+  buildTraceTimelineView({ turns, requests, query: "21" }).matchCount,
+  0,
+  "an exact request-number query must not match an unrelated number inside tool output",
+);
 
 const manyTurns = Array.from({ length: 10 }, (_, index) => ({ id: `t${index + 1}` }));
 const centered = timelineWindow({ turns: manyTurns, activeId: "t7", threshold: 4, size: 4 });
