@@ -7,6 +7,7 @@ import {
   createSubagentLineageState,
 } from "../src/trace/subagent-graph.mjs";
 import { codexAgentMessageSummary, isCodexAgentMessage } from "../src/trace/message-semantics.mjs";
+import { projectTimelineRequest } from "../src/server/timeline-view-projector.mjs";
 
 const prompts = {
   header: "Inspect the request timeline and report the important invariant.",
@@ -70,6 +71,9 @@ const semantics = {
     return output;
   },
   extractAgentMessages(item) {
+    if (item.summary?.entry?.kind === "subagent_result" && item.summary.entry.subagent) {
+      return [{ message: null, summary: item.summary.entry.subagent }];
+    }
     return (item.raw?.body?.messages || [])
       .filter(isCodexAgentMessage)
       .map((message) => ({ message, summary: codexAgentMessageSummary(message) }));
@@ -164,6 +168,10 @@ const codexRequests = [
   }),
   request(13, {
     messages: [codexAgentMessage({ author: "/root/context_probe", result: "The child inherited the selected turns." })],
+    entry: {
+      kind: "subagent_result",
+      subagent: codexAgentMessageSummary(codexAgentMessage({ author: "/root/context_probe", result: "The child inherited the selected turns." })),
+    },
     response: response("codex-parent-final", "end_turn", { text: "The child result arrived." }),
   }),
 ];
@@ -190,6 +198,14 @@ assert.equal("raw_arguments" in codexRequests[0].trace.agent_spawn_events[0], fa
 assert.equal(codexRequests[1].trace.agent_launch_events[0].agent_id, "/root/context_probe");
 assert.equal(codexRequests[2].trace.agent_return_events[0].result_preview, "The child inherited the selected turns.");
 
+const compactCodexGraph = buildSubagentGraph(codexRequests.map(projectTimelineRequest), semantics);
+assert.equal(compactCodexGraph.branch_count, 1);
+assert.equal(compactCodexGraph.return_count, 1, "compact timeline data retains Codex subagent completion semantics");
+assert.equal(compactCodexGraph.branches[0].label, "/root/context_probe");
+assert.equal(compactCodexGraph.branches[0].spawn.context_mode, "all");
+assert.equal(compactCodexGraph.branches[0].spawn.task_message_visibility, "visible");
+assert.equal(compactCodexGraph.branches[0].status, "returned");
+
 console.log("subagent graph contract smoke passed");
 
 function request(index, options = {}) {
@@ -206,6 +222,7 @@ function request(index, options = {}) {
       ...(options.debugSource ? { debug_source: options.debugSource } : {}),
     },
     summary: {
+      entry: options.entry || null,
       current_tool_results: options.currentToolResults || [],
       response: options.response || response(`response-${index}`, "end_turn", { text: "done" }),
     },

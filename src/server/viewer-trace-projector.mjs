@@ -295,6 +295,10 @@ export function createViewerTraceProjector({
         return extractToolCalls(extractRequestMessages(request.raw?.body || {}));
       },
       extractAgentMessages(request) {
+        const entry = request.summary?.entry;
+        if (entry?.kind === "subagent_result" && entry.subagent) {
+          return [{ message: null, summary: entry.subagent }];
+        }
         return extractRequestMessages(request.raw?.body || {})
           .filter(isCodexAgentMessage)
           .map((message) => ({ message, summary: codexAgentMessageSummary(message) }));

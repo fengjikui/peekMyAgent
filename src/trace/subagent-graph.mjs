@@ -227,6 +227,7 @@ function collectParentReturnEvidence(requests, spawnCalls, semantics) {
 
 function spawnRecord(call, request, order, semantics) {
   const traceSpawn = call.trace?.agent_spawn || null;
+  const semanticSpawn = call.semantic?.kind === "subagent_spawn" ? call.semantic : null;
   const argumentsValue = call.arguments || {};
   return {
     id: call.id || `spawn-${request.request_index}-${order + 1}`,
@@ -237,6 +238,7 @@ function spawnRecord(call, request, order, semantics) {
     label: spawnLabel(call),
     description: semantics.previewText(
       traceSpawn?.description ||
+        semanticSpawn?.agent_label ||
         call.arguments?.description ||
         call.arguments?.taskName ||
         call.arguments?.task_name ||
@@ -244,10 +246,14 @@ function spawnRecord(call, request, order, semantics) {
         "",
       120,
     ),
-    prompt_preview: traceSpawn?.prompt_preview || semantics.previewText(spawnPrompt(call), 220),
+    prompt_preview:
+      traceSpawn?.prompt_preview ||
+      semanticSpawn?.prompt_preview ||
+      semantics.previewText(spawnPrompt(call), 220),
     subagent_type: spawnType(call),
-    context_mode: argumentsValue.fork_turns || null,
-    task_message_visibility: taskMessageVisibility(argumentsValue.message),
+    context_mode: argumentsValue.fork_turns || semanticSpawn?.context_mode || null,
+    task_message_visibility:
+      semanticSpawn?.task_message_visibility || taskMessageVisibility(argumentsValue.message),
     raw_arguments: call.arguments ?? null,
   };
 }
@@ -429,11 +435,18 @@ function responseToolCalls(request) {
 }
 
 function spawnPrompt(call) {
-  return call.arguments?.prompt || call.arguments?.task || "";
+  return call.arguments?.prompt || call.arguments?.task || call.semantic?.prompt_preview || "";
 }
 
 function spawnType(call) {
-  return call.trace?.agent_spawn?.subagent_type || call.arguments?.subagent_type || call.arguments?.agentType || call.arguments?.type || null;
+  return (
+    call.trace?.agent_spawn?.subagent_type ||
+    call.semantic?.subagent_type ||
+    call.arguments?.subagent_type ||
+    call.arguments?.agentType ||
+    call.arguments?.type ||
+    null
+  );
 }
 
 function spawnLabel(call) {
@@ -441,6 +454,7 @@ function spawnLabel(call) {
   const args = call.arguments || {};
   return (
     traceSpawn?.description ||
+    call.semantic?.agent_label ||
     args.description ||
     args.taskName ||
     args.task_name ||
@@ -484,7 +498,7 @@ function messageMatchesSpawn(item, spawn, launch) {
 }
 
 function codexAgentIdFromSpawn(spawn) {
-  const taskName = String(spawn?.raw_arguments?.task_name || spawn?.description || "").trim();
+  const taskName = String(spawn?.raw_arguments?.task_name || spawn?.description || spawn?.label || "").trim();
   return taskName || `spawn:${spawn?.id || "unknown"}`;
 }
 

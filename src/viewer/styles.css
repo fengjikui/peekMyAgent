@@ -768,6 +768,14 @@ select {
   white-space: nowrap;
 }
 
+.agent-task-evidence {
+  margin: 0;
+  padding: 1px 8px 2px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
 .agent-branch-steps {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

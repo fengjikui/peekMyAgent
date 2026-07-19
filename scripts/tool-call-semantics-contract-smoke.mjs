@@ -32,6 +32,45 @@ assert.deepEqual(
   },
 );
 
+const encryptedSpawn = analyzeToolCallSemantics({
+  name: "spawn_agent",
+  arguments: {
+    task_name: "/root/context_probe",
+    fork_turns: "all",
+    message: "gAAAAAB-encrypted-rollout-task",
+  },
+});
+assert.deepEqual(encryptedSpawn, {
+  schema_version: 1,
+  kind: "subagent_spawn",
+  agent_label: "/root/context_probe",
+  subagent_type: null,
+  context_mode: "all",
+  task_message_visibility: "encrypted_in_rollout",
+  prompt_preview: "",
+  nested_tool_names: [],
+  evidence: { source: "tool_arguments", confidence: "high" },
+});
+assert.equal(JSON.stringify(encryptedSpawn).includes("encrypted-rollout-task"), false);
+
+assert.deepEqual(
+  analyzeToolCallSemantics({
+    name: "Agent",
+    arguments: { description: "Review storage", prompt: "Inspect the storage boundary.", subagent_type: "Explore" },
+  }),
+  {
+    schema_version: 1,
+    kind: "subagent_spawn",
+    agent_label: "Review storage",
+    subagent_type: "Explore",
+    context_mode: null,
+    task_message_visibility: "visible",
+    prompt_preview: "Inspect the storage boundary.",
+    nested_tool_names: [],
+    evidence: { source: "tool_arguments", confidence: "high" },
+  },
+);
+
 assert.deepEqual(
   analyzeToolCallSemantics({
     name: "exec",

@@ -79,6 +79,7 @@ function renderAgentBranch(entry, dependencies) {
         expanded
           ? `<div class="agent-branch-body">
               ${branch.spawn ? renderBranchEdge(translate("parentCall"), branch.spawn.parent_request_id, `#${branch.spawn.parent_request_index} · ${branch.spawn.label || branch.spawn.id}`, dependencies) : ""}
+              ${branch.spawn ? renderAgentTaskEvidence(branch.spawn, dependencies) : ""}
               ${branch.launch ? renderBranchEdge(translate("launchAcknowledgement"), branch.launch.parent_request_id, `#${branch.launch.parent_request_index} · ${shortPreview(branch.launch.result_preview, 90)}`, dependencies) : ""}
               <div class="agent-branch-steps">
                 ${(detailSteps || []).map((detailStep) => renderAgentBranchStep(detailStep, dependencies)).join("")}
@@ -89,6 +90,18 @@ function renderAgentBranch(entry, dependencies) {
       }
     </article>
   `;
+}
+
+function renderAgentTaskEvidence(spawn, { translate, escapeHtml, shortPreview }) {
+  const text =
+    spawn.task_message_visibility === "encrypted_in_rollout"
+      ? translate("agentTaskEncrypted")
+      : spawn.prompt_preview
+        ? translate("agentTaskPreview", { text: shortPreview(spawn.prompt_preview, 180) })
+        : spawn.task_message_visibility === "missing"
+          ? translate("agentTaskUnavailable")
+          : "";
+  return text ? `<p class="agent-task-evidence">${escapeHtml(text)}</p>` : "";
 }
 
 function renderAgentEventStrip(view, { translate, escapeHtml }) {

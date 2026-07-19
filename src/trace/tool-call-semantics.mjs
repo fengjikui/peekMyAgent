@@ -7,6 +7,16 @@ export function analyzeToolCallSemantics(call = {}) {
   const nestedToolNames = extractNestedToolNames(argumentText).filter(
     (name) => name.toLowerCase() !== toolName.toLowerCase(),
   );
+  const subagentSpawn = subagentSpawnInvocation(toolName, call?.arguments);
+  if (subagentSpawn) {
+    return {
+      schema_version: 1,
+      kind: "subagent_spawn",
+      ...subagentSpawn,
+      nested_tool_names: nestedToolNames,
+      evidence: { source: "tool_arguments", confidence: "high" },
+    };
+  }
   const explicitSkill = explicitSkillInvocation(toolName, call?.arguments);
   const observedSkill = explicitSkill || extractSkillInstructionRead(argumentText);
 
@@ -66,6 +76,32 @@ function explicitSkillInvocation(toolName, argumentsValue) {
   };
 }
 
+function subagentSpawnInvocation(toolName, argumentsValue) {
+  if (!/^(?:Agent|Task|sessions_spawn|subagents|spawn_agent)$/i.test(toolName)) return null;
+  const args = argumentsValue && typeof argumentsValue === "object" ? argumentsValue : {};
+  const taskMessage = args.message ?? args.prompt ?? args.task ?? "";
+  const taskMessageVisibility = classifyTaskMessageVisibility(taskMessage);
+  const agentLabel =
+    cleanName(args.task_name) ||
+    cleanName(args.taskName) ||
+    cleanName(args.description) ||
+    cleanName(args.subagent_type) ||
+    cleanName(args.agentType) ||
+    null;
+  return {
+    agent_label: agentLabel,
+    subagent_type: cleanName(args.subagent_type) || cleanName(args.agentType) || cleanName(args.type) || null,
+    context_mode: cleanName(args.fork_turns) || null,
+    task_message_visibility: taskMessageVisibility,
+    prompt_preview: taskMessageVisibility === "visible" ? textPreview(taskMessage, 260) : "",
+  };
+}
+
+function classifyTaskMessageVisibility(value) {
+  if (typeof value !== "string" || !value.trim()) return "missing";
+  return /^gAAAA[A-Za-z0-9_=-]+$/.test(value.trim()) ? "encrypted_in_rollout" : "visible";
+}
+
 function collectArgumentText(value) {
   const output = [];
   const seen = new Set();
@@ -94,6 +130,11 @@ function collectArgumentText(value) {
 
 function cleanName(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function textPreview(value, limit) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length <= limit ? text : `${text.slice(0, limit - 3)}...`;
 }
 
 function decodeDisplayText(value) {

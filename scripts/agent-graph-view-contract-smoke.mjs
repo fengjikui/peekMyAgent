@@ -120,6 +120,15 @@ const codexReturnView = buildAgentGraphView({
           returnIndex: 33,
           steps: [{ request_id: "request-33", request_index: 33, event_type: "agent_message", finish_reason: "FINAL_ANSWER" }],
         }),
+        spawn: {
+          parent_request_id: "request-30",
+          parent_request_index: 30,
+          label: "Probe context",
+          subagent_type: "Codex Agent",
+          context_mode: "all",
+          task_message_visibility: "encrypted_in_rollout",
+          prompt_preview: "",
+        },
         launch: { parent_request_id: "request-31", parent_request_index: 31, result_preview: "task accepted" },
       },
     ],
@@ -211,6 +220,8 @@ assert.doesNotMatch(
   "one agent_message request must not be rendered again as a separate return edge",
 );
 assert.match(codexReturnHtml, /subagentResultReturn/);
+assert.match(codexReturnHtml, /agentTaskEncrypted/);
+assert.doesNotMatch(codexReturnHtml, /gAAAA/);
 assert.doesNotMatch(codexReturnHtml, /resultReturn/);
 assert.match(codexReturnHtml, /agentObservedEvents:count=1/);
 assert.doesNotMatch(codexReturnHtml, /class="agent-type-chip"/, "one shared agent type is shown once in the dashboard summary");
