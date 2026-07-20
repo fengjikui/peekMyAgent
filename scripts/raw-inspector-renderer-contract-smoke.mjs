@@ -6,6 +6,7 @@ import {
   renderRawSearchResults,
   renderRawSectionEvidence,
   renderRawSourceNotice,
+  renderRawStickyControls,
   renderRequestDetailError,
   renderRequestDetailLoading,
   renderRequestRawNavigation,
@@ -79,6 +80,14 @@ const controls = renderRawSearchControls({ query: 'Claude"', scope: "System", ma
 assert.match(controls, /2\/3/);
 assert.match(controls, /data-raw-search-nav="previous"/);
 assert.match(controls, /value="Claude&quot;"/);
+
+const stickyControls = renderRawStickyControls({
+  navigation: "<nav>sections</nav>",
+  searchControls: "<search>query</search>",
+  viewControls: '<div data-messages-mode="source">source</div>',
+});
+assert.match(stickyControls, /raw-sticky-controls/);
+assert.match(stickyControls, /data-messages-mode="source"/);
 
 const longSearchValue = `${"x".repeat(520)} Claude tail match`;
 const highlightedValues = [];

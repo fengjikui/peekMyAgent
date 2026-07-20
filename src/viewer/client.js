@@ -1744,7 +1744,6 @@ function renderRawSections(request, activeSection = "full", mode = "request") {
     return `
       ${renderRawStickyControls(request, activeSection, mode)}
       ${renderRawSectionEvidence(request, activeSection, mode)}
-      ${renderMessagesControls(activeSection)}
       ${renderRawSectionContent(request, activeSection, sectionData)}
     `;
   }
@@ -1778,7 +1777,6 @@ function renderResponseOnlyRawSection(request, activeSection) {
           : renderRawDetail(responseRawSectionLabel("response", request), rawResponseSectionValue(request));
   return `
     ${renderRawStickyControls(request, section, "response")}
-    ${renderMessagesControls(section)}
     ${detail}
   `;
 }
@@ -1791,7 +1789,7 @@ function renderRawStickyControls(request, section, mode = "request") {
   return renderRawStickyControlsView({
     navigation,
     searchControls: renderRawSearchControls(request, section, mode),
-    translationControls: renderTranslationControls(request, section),
+    viewControls: renderTranslationControls(request, section) || renderMessagesControls(section),
   });
 }
 

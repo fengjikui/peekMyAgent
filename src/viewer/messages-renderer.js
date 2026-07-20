@@ -5,8 +5,8 @@ export function renderMessagesControls({ section, mode, translate, escapeHtml })
   return `
     <div class="translation-toolbar compact">
       <div class="translation-segmented" role="group" aria-label="${escapeHtml(translate("messagesViewAria"))}">
-        <button type="button" class="${mode === "organized" ? "active" : ""}" data-messages-mode="organized">${escapeHtml(translate("messagesOrganized"))}</button>
         <button type="button" class="${mode === "source" ? "active" : ""}" data-messages-mode="source">${escapeHtml(translate("messagesOriginal"))}</button>
+        <button type="button" class="${mode === "organized" ? "active" : ""}" data-messages-mode="organized">${escapeHtml(translate("messagesOrganized"))}</button>
       </div>
     </div>
   `;

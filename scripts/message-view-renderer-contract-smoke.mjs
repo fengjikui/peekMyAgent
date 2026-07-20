@@ -35,6 +35,10 @@ const dependencies = {
 const controls = renderMessagesControls({ section: "history", mode: "organized", translate, escapeHtml });
 assert.match(controls, /data-messages-mode="organized"/);
 assert.match(controls, /class="active" data-messages-mode="organized"/);
+assert.ok(
+  controls.indexOf('data-messages-mode="source"') < controls.indexOf('data-messages-mode="organized"'),
+  "The source view must remain the left-most message view option",
+);
 assert.match(renderMessagesControls({ section: "message", mode: "source", translate, escapeHtml }), /data-messages-mode="source"/);
 assert.match(renderMessagesControls({ section: "response", mode: "organized", translate, escapeHtml }), /data-messages-mode="organized"/);
 assert.equal(renderMessagesControls({ section: "system", mode: "organized", translate, escapeHtml }), "");

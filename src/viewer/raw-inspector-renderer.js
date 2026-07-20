@@ -58,12 +58,12 @@ export function renderRawDetail({ title, value, escapeHtml, renderJson }) {
   `;
 }
 
-export function renderRawStickyControls({ navigation, searchControls, translationControls }) {
+export function renderRawStickyControls({ navigation, searchControls, viewControls = "" }) {
   return `
     <div class="raw-sticky-controls">
       ${navigation}
       ${searchControls}
-      ${translationControls}
+      ${viewControls}
     </div>
   `;
 }
