@@ -188,11 +188,11 @@ const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pat
 assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);
 
 const MAX_PACKAGE_ENTRIES = 142;
-// The managed Codex Desktop runtime adds the protocol, relay, installation,
-// managed-session, and process-lifecycle modules. Keep a narrow post-feature
-// budget while the path allowlist continues to prevent fixtures, design docs,
-// captures, and other release-unsafe files from leaking into the package.
-const MAX_PACKED_BYTES = 325_000;
+// The managed Codex Desktop runtime and the semantic History/Message/Response
+// views are shipped product code. Keep a narrow post-feature budget while the
+// path allowlist prevents fixtures, design docs, captures, and other
+// release-unsafe files from leaking into the package.
+const MAX_PACKED_BYTES = 329_000;
 // Windows npm pack reports the CRLF checkout representation, so this limit
 // includes the observed cross-platform line-ending delta plus a small margin.
 const MAX_UNPACKED_BYTES = 1_450_000;

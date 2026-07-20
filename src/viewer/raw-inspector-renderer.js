@@ -16,17 +16,21 @@ export function renderRequestRawNavigation({ request, activeSection, hasPrevious
       escapeHtml,
     )}</div>`;
   }
-  const hasToolUse = (request.summary?.current_tool_calls || []).length > 0;
-  const hasToolResult = (request.summary?.current_tool_results || []).length > 0;
+  const focusedToolSection =
+    activeSection === "upstream_tool_calls"
+      ? [["upstream_tool_calls", "tool_use"]]
+      : activeSection === "tool_results"
+        ? [["tool_results", "tool_result"]]
+        : [];
   const sections = [
     ["full", translate(requestUsesReconstructedUpstream(request) ? "rawReconstructedRequest" : "rawFull")],
     ["system", "System"],
     ...(hasPrevious ? [["system_diff", "System diff"]] : []),
     ["tools", "Tools"],
     ["harness", "Harness"],
-    ["messages", "Messages"],
-    ...(hasToolUse ? [["upstream_tool_calls", "tool_use"]] : []),
-    ...(hasToolResult ? [["tool_results", "tool_result"]] : []),
+    ["history", translate("rawHistory")],
+    ["message", translate("rawMessage")],
+    ...focusedToolSection,
     ["metadata", "Metadata"],
   ];
   return `<div class="raw-section-nav request-sections">${renderSectionButtons(sections, request.id, activeSection, escapeHtml)}</div>`;

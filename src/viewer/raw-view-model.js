@@ -4,6 +4,7 @@ import {
   requestUsesReconstructedUpstream,
   responseUsesReconstructedDownstream,
 } from "./evidence-view-model.js";
+import { upstreamConversationMessageSections } from "./message-view-model.js";
 
 export {
   requestHasSemanticEvent,
@@ -44,10 +45,12 @@ export function rawSectionData(request, section, { translate = (key) => key, har
       })),
     };
   }
-  if (section === "messages") {
+  if (["history", "message", "messages"].includes(section)) {
+    const conversation = upstreamConversationMessageSections(request);
+    const historySection = section === "history" || section === "messages";
     return {
-      title: Array.isArray(body.input) ? "input / history" : "messages / history",
-      value: Array.isArray(body.input) ? body.input : messages,
+      title: historySection ? "history" : "message",
+      value: historySection ? conversation.history : conversation.current,
     };
   }
   if (section === "upstream_tool_calls") {

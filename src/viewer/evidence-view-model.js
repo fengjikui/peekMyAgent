@@ -54,7 +54,8 @@ export function buildRawSectionEvidenceView(
   { mode = "request", translate = identityTranslate } = {},
 ) {
   if (requestHasSemanticEvent(request)) return null;
-  const profile = request?.summary?.evidence?.sections?.[section] || null;
+  const evidenceSection = ["history", "message"].includes(section) ? "messages" : section;
+  const profile = request?.summary?.evidence?.sections?.[evidenceSection] || null;
 
   if (mode === "response" && section === "tools") {
     if (profile?.scope === "dynamic_tools_only") {
@@ -106,7 +107,9 @@ export function buildRawSectionEvidenceView(
     );
   }
   if (profile?.scope === "observed_upstream_delta") {
-    const messageKey = section === "messages" ? "rawSectionEvidenceMessagesObserved" : "rawSectionEvidenceSystemObserved";
+    const messageKey = ["history", "message", "messages"].includes(section)
+      ? "rawSectionEvidenceMessagesObserved"
+      : "rawSectionEvidenceSystemObserved";
     return sectionEvidence(
       "partial",
       translate("rawSectionEvidenceRolloutBadge"),

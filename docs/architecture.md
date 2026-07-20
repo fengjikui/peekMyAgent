@@ -118,8 +118,8 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/viewer/raw-inspector-renderer.js` | Raw 请求/响应导航、搜索控件与结果、详情状态和来源提示的纯 HTML renderer |
 | `src/viewer/system-diff-model.js` | System 文本的精确行级 diff 门限、块级退化策略与有界 View DTO |
 | `src/viewer/system-diff-renderer.js` | System diff 行/块摘要的双语、安全 HTML renderer |
-| `src/viewer/message-view-model.js` | Messages role/content/block 的规范化、结构化判定和长文本截断 DTO |
-| `src/viewer/messages-renderer.js` | Messages 原文/整理切换、安全 Markdown、类型标记和结构化 Raw renderer |
+| `src/viewer/message-view-model.js` | History、Message、Response 三类会话信息的切分，role/type 协议推断、同次模型回复分组、请求链编号映射、工具调用/结果投影和长文本截断 DTO |
+| `src/viewer/messages-renderer.js` | History、Message、Response 共用的原文/整理切换、时间线编号、安全 Markdown、推理与工具交换语义化 renderer |
 | `src/viewer/active-source-controller.js` | Source 清单、首屏/后台分页、live polling、翻译等待和迟到 UI 提交拒绝的应用编排 |
 | `src/viewer/translation-language-catalog.js` | UI/翻译目标语言目录、alias 解析、系统语言推荐与无效值回退纯契约 |
 | `src/viewer/language-preferences-controller.js` | 语言偏好水合/持久化、选择器绑定、静态 i18n 与目标语言切换副作用编排 |
@@ -207,7 +207,9 @@ OpenAI Responses 的 `instructions`、`tools`/`additional_tools` 和 `input` 已
 
 部分 Harness 会通过一个外层工具执行内部工具路由，例如 Codex rollout 中的 `exec` 参数包含 `tools.web__run(...)` 或 `tools.exec_command(...)`，Skill 加载也可能表现为读取 `skills/<name>/SKILL.md`。`tool-call-semantics.mjs` 只依据捕获到的工具名与参数添加 `semantic` 观察证据，同时完整保留原始工具名和参数。默认 Timeline 必须区分“模型选择的外层工具”和“参数中观测到的内部派发”，例如显示“模型调用 `exec`（内部派发 `web__run`）”，不能把两者压成一个未经解释的工具名；该标注不证明未出现在 Trace 中的服务器端调用，也不能替代 Raw 证据。
 
-Codex 会把部分 Harness 信息包在 XML-like 标签中，但原始 role 仍可能是普通 message。共享消息语义层只识别经过验证的白名单标签：运行环境与界面状态、Skills/Apps/Plugins 能力注入、协作/权限与多 Agent 启动策略、内部目标、Turn 生命周期和子 Agent 通知。提取器使用白名单平衡标签扫描，而不是非贪婪正则；因此正文中用于解释机制的同名标签示例不会截断外层注入块。无标签 developer 正文只在命中真实 rollout 验证过的强指纹时识别为 Memory 注入或多 Agent 编排，否则保留通用类型。Harness 整理视图按 `runtime`、`capability`、`policy`、`memory`、`orchestration`、`internal`、`lifecycle`、`subagent` 分类并接入现有分块翻译缓存；Messages 的整理视图按 role/type 逐条渲染 Markdown，并去除已归档到 Harness 的 developer 与白名单注入块，原文视图仍保留完整 role、content、标签、顺序和来源。未知标签不做泛化 XML 猜测，避免把真实用户文本误判为 Harness 注入。
+Codex 会把部分 Harness 信息包在 XML-like 标签中，但原始 role 仍可能是普通 message。共享消息语义层只识别经过验证的白名单标签：运行环境与界面状态、Skills/Apps/Plugins 能力注入、协作/权限与多 Agent 启动策略、内部目标、Turn 生命周期和子 Agent 通知。提取器使用白名单平衡标签扫描，而不是非贪婪正则；因此正文中用于解释机制的同名标签示例不会截断外层注入块。无标签 developer 正文只在命中真实 rollout 验证过的强指纹时识别为 Memory 注入或多 Agent 编排，否则保留通用类型。Harness 整理视图按 `runtime`、`capability`、`policy`、`memory`、`orchestration`、`internal`、`lifecycle`、`subagent` 分类并接入现有分块翻译缓存。
+
+右侧会话信息明确拆成三个范围：`History` 是当前上行请求携带的历史对话，只保留真实对话、模型回复、推理、工具调用和工具结果，不重复 System、Harness 注入与 Tools schema；`Message` 是相对上一条上下文请求新增的上行 message；`Response` 是当前请求对应的真实下行回复。三者共用同一语义 renderer，并各自支持“整理 / 原文”切换。整理层按 Responses API 条目类型补全缺失 role：`reasoning`、`function_call` 归为 assistant，`function_call_output` 归为 tool；沿同一上下文的 `previous_request_index` 链对齐主时间线编号，把一次模型回复中的 reasoning、Markdown 文本和多个调用合并显示，并把对应工具结果映射到下一次上行请求。Response 优先使用持久化的完整归一化响应内容，以保留文本与工具调用顺序；摘要字段只作为旧数据兜底。完整请求标签仍是逐字上行证据的最终入口，三个范围的“原文”只表示该范围内未经 Markdown 重排的源条目。未知标签不做泛化 XML 猜测，避免把真实用户文本误判为 Harness 注入。
 
 rollout 观察与网络代理并不提供同一种证据。`captureEvidenceProfile()` 将 request artifact、response artifact、关联方式、限制条件以及 System、Tools、Messages、Harness 四类整理区块的来源和范围投影成共享 `summary.evidence`；`evidence-view-model.js` 再把该领域证据投影为 Source 侧栏、请求卡和 Raw 整理视图文案。语义来源在侧栏直接标记“语义重建”，请求卡显示“展开/折叠重建上行”和“重建上行详情”；exact 来源继续显示普通“上行”。对于 rollout，整理视图会分别说明当前 Turn 已观测输入增量、会话动态工具清单和 PMA 派生分类，避免把它们误认成逐字的线上完整请求；共享上行详情也按 Messages scope 区分完整 History 与当前 Turn 观测输入增量，后者不会再重复渲染为“本轮新增消息”。exact 请求的普通区块不重复增加提示，只有 Harness 派生分类和 Response 旁的上行 Tools 参考会标明来源。Raw 同样由该证据决定显示“完整请求 / Response”还是“重建上行 / 重建下行”，不能仅根据持久化层是否重建 JSON 作判断。`context_compacted` 等没有模型 HTTP 交换的记录使用版本化 semantic event，时间线展示 Harness 生命周期，Raw 只提供“事件原文 / 事件 Metadata”，不会附带 System、Tools 或 Response 标签。当前完整边界、Codex 字段映射和未来 Harness adapter 约束见 [Codex rollout 证据与 Viewer 契约](codex-rollout-evidence-and-viewer-contract.md)。
 

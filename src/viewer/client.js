@@ -5,6 +5,7 @@ import {
   renderMessagesControls as renderMessagesControlsView,
   renderMessagesSection as renderMessagesSectionView,
 } from "./messages-renderer.js";
+import { messageTimelineRequestIndexes, responseConversationMessages } from "./message-view-model.js";
 import { ViewerApiClient } from "./api-client.js";
 import { ViewerClientStore } from "./client-store.js";
 import { AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView } from "./agent-graph-model.js";
@@ -713,7 +714,11 @@ function setTranslationMode(mode, section) {
 function setMessagesMode(mode) {
   clientStore.setRawView({ rawMessagesMode: normalizeMessagesMode(mode) }, { reason: "set-messages-mode" });
   localStorage.setItem(RAW_MESSAGES_MODE_KEY, state.rawMessagesMode);
-  if (state.activeRequestId) rawInspectorController.show(state.activeRequestId, "messages", { mode: state.activeRawMode || "request" });
+  if (state.activeRequestId) {
+    rawInspectorController.show(state.activeRequestId, state.activeRawSection || "history", {
+      mode: state.activeRawMode || "request",
+    });
+  }
 }
 
 function renderSessionNav() {
@@ -1768,9 +1773,12 @@ function renderResponseOnlyRawSection(request, activeSection) {
         ? renderRawSearchResults(request, section, "response")
         : section === "tool_calls"
         ? renderRawDetail("response tool_use", { [t("currentResponseToolUse")]: request.summary?.response?.tool_calls || [] })
-        : renderRawDetail(responseRawSectionLabel("response", request), rawResponseSectionValue(request));
+        : normalizeMessagesMode(state.rawMessagesMode) === "organized"
+          ? renderMessagesSection(request, "response", responseConversationMessages(request))
+          : renderRawDetail(responseRawSectionLabel("response", request), rawResponseSectionValue(request));
   return `
     ${renderRawStickyControls(request, section, "response")}
+    ${renderMessagesControls(section)}
     ${detail}
   `;
 }
@@ -1880,7 +1888,7 @@ function highlightSearchSnippet(text, query) {
 }
 
 function renderRawSectionContent(request, section, sectionData) {
-  if (section === "messages") return renderMessagesSection(sectionData.value);
+  if (["history", "message", "messages"].includes(section)) return renderMessagesSection(request, section, sectionData.value);
   if (state.translationMode === currentTargetLanguage() && translationCacheController.available) {
     if (["system", "tools", "harness"].includes(section)) return renderTranslatedSection(request, section);
   }
@@ -1901,9 +1909,18 @@ function renderMessagesControls(section) {
   return renderMessagesControlsView({ section, mode: normalizeMessagesMode(state.rawMessagesMode), translate: t, escapeHtml });
 }
 
-function renderMessagesSection(messagesValue) {
+function renderMessagesSection(request, section, messagesValue) {
+  const requestIndexes = messageTimelineRequestIndexes(request, state.data?.requests || []);
+  const timelineRequestIndexes =
+    section === "history"
+      ? requestIndexes.slice(0, -1)
+      : section === "response"
+        ? [request.request_index]
+        : requestIndexes;
   return renderMessagesSectionView({
     messagesValue,
+    timelineRequestIndexes,
+    sourceTitle: rawSectionLabel(section, request),
     mode: normalizeMessagesMode(state.rawMessagesMode),
     translate: t,
     escapeHtml,
@@ -2022,7 +2039,9 @@ function rawSectionLabel(section, request = null) {
     system_diff: "System diff",
     tools: "Tools",
     harness: t("rawHarness"),
-    messages: "Messages",
+    history: t("rawHistory"),
+    message: t("rawMessage"),
+    messages: t("rawHistory"),
     upstream_tool_calls: "Upstream tool_use",
     tool_calls: "Tool use",
     tool_results: "Tool result",

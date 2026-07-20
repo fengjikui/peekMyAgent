@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import {
-  messageViewModel,
+  inferMessageRole,
+  messageTimelineRequestIndexes,
   normalizeMessageBlocks,
-  organizedMessageViewModel,
+  organizedMessagesViewModel,
+  responseConversationMessages,
   safeMessageClassName,
   truncateMessageText,
+  upstreamConversationMessageSections,
 } from "../src/viewer/message-view-model.js";
 import { renderMessagesControls, renderMessagesSection } from "../src/viewer/messages-renderer.js";
 
@@ -14,43 +17,9 @@ assert.equal(normalizeMessageBlocks({ content: [] })[0].type, "empty");
 assert.equal(safeMessageClassName("Tool Result / User"), "tool-result-user");
 assert.equal(truncateMessageText("abcdef", 4).text, "abcd\n\n...");
 
-const view = messageViewModel(
-  {
-    role: "assistant",
-    content: [
-      { type: "text", text: "**hello**" },
-      { type: "tool_use", name: "Bash", id: "call-1", input: { command: "pwd" } },
-      { type: "tool_result", content: "done", tool_use_id: "call-1" },
-    ],
-  },
-  3,
-);
-assert.equal(view.role, "assistant");
-assert.equal(view.blocks[0].isText, true);
-assert.equal(view.blocks[1].text, "Bash (call-1)");
-assert.equal(view.blocks[1].isText, false);
-assert.equal(view.blocks[2].text, "done");
-assert.equal(view.blocks[2].isText, false);
-
-assert.equal(
-  organizedMessageViewModel(
-    { role: "developer", content: [{ type: "input_text", text: "<permissions instructions>Full access.</permissions instructions>" }] },
-    0,
-  ),
-  null,
-);
-const organizedUser = organizedMessageViewModel(
-  {
-    role: "user",
-    content: [
-      { type: "input_text", text: "<environment_context><cwd>/tmp/project</cwd></environment_context>" },
-      { type: "input_text", text: "**真实用户消息**" },
-    ],
-  },
-  2,
-);
-assert.equal(organizedUser.blocks.length, 1);
-assert.equal(organizedUser.blocks[0].text, "**真实用户消息**");
+assert.equal(inferMessageRole({ type: "reasoning", summary: [] }), "assistant");
+assert.equal(inferMessageRole({ type: "function_call", name: "exec_command" }), "assistant");
+assert.equal(inferMessageRole({ type: "function_call_output", output: "done" }), "tool");
 
 const translate = (key, values = {}) => `${key}${values.total ? `:${values.shown}/${values.total}` : ""}`;
 const escapeHtml = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
@@ -63,9 +32,11 @@ const dependencies = {
   formatNumber: String,
 };
 
-const controls = renderMessagesControls({ section: "messages", mode: "organized", translate, escapeHtml });
+const controls = renderMessagesControls({ section: "history", mode: "organized", translate, escapeHtml });
 assert.match(controls, /data-messages-mode="organized"/);
 assert.match(controls, /class="active" data-messages-mode="organized"/);
+assert.match(renderMessagesControls({ section: "message", mode: "source", translate, escapeHtml }), /data-messages-mode="source"/);
+assert.match(renderMessagesControls({ section: "response", mode: "organized", translate, escapeHtml }), /data-messages-mode="organized"/);
 assert.equal(renderMessagesControls({ section: "system", mode: "organized", translate, escapeHtml }), "");
 
 const organized = renderMessagesSection({ messagesValue: [{ role: "user", content: [{ type: "text", text: "<script>" }] }], mode: "organized", ...dependencies });
@@ -85,12 +56,143 @@ const dedupedHarness = renderMessagesSection({
 assert.doesNotMatch(dedupedHarness, /permissions instructions|environment_context|role-developer/);
 assert.match(dedupedHarness, /<md>\*\*真实用户消息\*\*<\/md>/);
 
-const structured = renderMessagesSection({ messagesValue: [{ role: "assistant", content: [{ type: "tool_use", name: "Bash", input: { command: "pwd" } }] }], mode: "organized", ...dependencies });
-assert.match(structured, /raw-message-raw/);
+const structured = renderMessagesSection({ messagesValue: [{ role: "assistant", content: [{ type: "tool_use", id: "call-1", name: "Bash", input: { command: "pwd" } }] }], mode: "organized", ...dependencies });
+assert.match(structured, /raw-message-tool-heading/);
+assert.match(structured, /Bash/);
+assert.match(structured, /call-1/);
+assert.match(structured, /messageParameters/);
 assert.match(structured, /<json>/);
 
-const source = renderMessagesSection({ messagesValue: [{ role: "user", content: "hello" }], mode: "source", ...dependencies });
-assert.match(source, /<raw title="messages \/ history">/);
+const responsesMessages = [
+  { type: "message", role: "user", content: [{ type: "input_text", text: "question one" }] },
+  { type: "reasoning", summary: [{ type: "summary_text", text: "reason one" }] },
+  { type: "message", role: "assistant", content: [{ type: "output_text", text: "answer one" }] },
+  { type: "message", role: "user", content: [{ type: "input_text", text: "question two" }] },
+  { type: "message", role: "assistant", content: [{ type: "output_text", text: "I will inspect the workspace." }] },
+  { type: "function_call", name: "exec_command", arguments: '{"cmd":"pwd"}', call_id: "call-1" },
+  { type: "function_call", name: "exec_command", arguments: '{"cmd":"ls"}', call_id: "call-2" },
+  { type: "function_call_output", call_id: "call-1", output: "/tmp" },
+  { type: "function_call_output", call_id: "call-2", output: "README.md" },
+];
+const responseGroups = organizedMessagesViewModel(responsesMessages, { timelineRequestIndexes: [1, 2, 3] });
+assert.deepEqual(
+  responseGroups.map(({ timelineRequestIndex, kind, role, blockCount }) => ({ timelineRequestIndex, kind, role, blockCount })),
+  [
+    { timelineRequestIndex: 1, kind: "user_input", role: "user", blockCount: 1 },
+    { timelineRequestIndex: 1, kind: "model_response", role: "assistant", blockCount: 2 },
+    { timelineRequestIndex: 2, kind: "user_input", role: "user", blockCount: 1 },
+    { timelineRequestIndex: 2, kind: "model_response", role: "assistant", blockCount: 3 },
+    { timelineRequestIndex: 3, kind: "tool_results", role: "tool", blockCount: 2 },
+  ],
+);
+assert.equal(responseGroups[3].blocks[1].toolCall.name, "exec_command");
+assert.equal(responseGroups[3].blocks[1].toolCall.callId, "call-1");
+assert.deepEqual(responseGroups[3].blocks[1].toolCall.parameters, { cmd: "pwd" });
+assert.equal(responseGroups[4].blocks[0].toolResult.output, "/tmp");
+
+const exactRequest = {
+  request_index: 4,
+  context_delta: { previous_messages: 8, new_messages: 5 },
+  raw: {
+    body: {
+      input: [
+        {
+          type: "message",
+          role: "developer",
+          content: [{ type: "input_text", text: "<permissions instructions>Full access.</permissions instructions>" }],
+        },
+        {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "<environment_context><cwd>/tmp/project</cwd></environment_context>" }],
+        },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "question one" }] },
+        { type: "reasoning", summary: [{ type: "summary_text", text: "reason one" }] },
+        { type: "message", role: "assistant", content: [{ type: "output_text", text: "answer one" }] },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "question two" }] },
+        { type: "message", role: "assistant", content: [{ type: "output_text", text: "answer two" }] },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "run pwd and ls" }] },
+        { type: "message", role: "assistant", content: [{ type: "output_text", text: "I will inspect the workspace." }] },
+        { type: "function_call", name: "exec_command", arguments: '{"cmd":"pwd"}', call_id: "call-1" },
+        { type: "function_call", name: "exec_command", arguments: '{"cmd":"ls"}', call_id: "call-2" },
+        { type: "function_call_output", call_id: "call-1", output: "/tmp" },
+        { type: "function_call_output", call_id: "call-2", output: "README.md" },
+      ],
+    },
+  },
+  summary: {
+    response: {
+      captured: true,
+      complete_response: {
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "summarize the outputs" },
+          { type: "text", text: "**Done.**" },
+        ],
+      },
+    },
+  },
+};
+const exactSections = upstreamConversationMessageSections(exactRequest);
+assert.equal(exactSections.history.length, 6, "History excludes System/Harness material but keeps prior user and assistant items");
+assert.equal(exactSections.current.length, 5, "Message contains only the current upstream delta");
+assert.doesNotMatch(JSON.stringify(exactSections.history), /permissions instructions|environment_context/);
+const historyGroups = organizedMessagesViewModel(exactSections.history, { timelineRequestIndexes: [1, 2, 3] });
+assert.deepEqual(
+  historyGroups.map(({ timelineRequestIndex, kind }) => ({ timelineRequestIndex, kind })),
+  [
+    { timelineRequestIndex: 1, kind: "user_input" },
+    { timelineRequestIndex: 1, kind: "model_response" },
+    { timelineRequestIndex: 2, kind: "user_input" },
+    { timelineRequestIndex: 2, kind: "model_response" },
+    { timelineRequestIndex: 3, kind: "user_input" },
+  ],
+);
+const currentGroups = organizedMessagesViewModel(exactSections.current, { timelineRequestIndexes: [1, 2, 3, 4] });
+assert.deepEqual(
+  currentGroups.map(({ timelineRequestIndex, kind, blockCount }) => ({ timelineRequestIndex, kind, blockCount })),
+  [
+    { timelineRequestIndex: 3, kind: "model_response", blockCount: 3 },
+    { timelineRequestIndex: 4, kind: "tool_results", blockCount: 2 },
+  ],
+);
+const responseMessages = responseConversationMessages(exactRequest);
+assert.deepEqual(responseMessages[0].content.map((block) => block.type), ["thinking", "text"]);
+assert.equal(responseMessages[0].content[1].text, "**Done.**");
+
+const groupedResponses = renderMessagesSection({
+  messagesValue: responsesMessages,
+  timelineRequestIndexes: [1, 2, 3],
+  mode: "organized",
+  ...dependencies,
+});
+assert.match(groupedResponses, /#2/);
+assert.match(groupedResponses, /messageModelResponse/);
+assert.match(groupedResponses, /messageToolResults/);
+assert.match(groupedResponses, /exec_command/);
+assert.match(groupedResponses, /call-1/);
+assert.match(groupedResponses, /messageRole: <strong>assistant<\/strong>/);
+assert.doesNotMatch(groupedResponses, /messageRole: <strong>unknown<\/strong>|#\d+ unknown/);
+
+assert.deepEqual(
+  messageTimelineRequestIndexes(
+    { request_index: 4, context_delta: { previous_request_index: 2 } },
+    [
+      { request_index: 1 },
+      { request_index: 2, context_delta: { previous_request_index: 1 } },
+      { request_index: 3, context_delta: { previous_request_index: 2 } },
+    ],
+  ),
+  [1, 2, 4],
+);
+
+const source = renderMessagesSection({
+  messagesValue: [{ role: "user", content: "hello" }],
+  sourceTitle: "History",
+  mode: "source",
+  ...dependencies,
+});
+assert.match(source, /<raw title="History">/);
 
 const sourceWithHarness = renderMessagesSection({
   messagesValue: [{ role: "developer", content: "<permissions instructions>Full access.</permissions instructions>" }],

@@ -98,7 +98,8 @@ assert.deepEqual(rawSectionData(request, "system").value, {
   message_system: [{ role: "system", content: "message system" }],
 });
 assert.deepEqual(rawSectionData(request, "tools").value, [{ name: "Bash" }]);
-assert.equal(rawSectionData(request, "messages").value.length, 2);
+assert.equal(rawSectionData(request, "history").value.length, 1);
+assert.equal(rawSectionData(request, "message").value.length, 0);
 assert.deepEqual(rawSectionData(request, "upstream_tool_calls", { translate: () => "current" }).value.current, [{ name: "Read" }]);
 assert.deepEqual(rawSectionData(request, "tool_results", { translate: () => "results" }).value.results, [{ tool_use_id: "call-1" }]);
 assert.deepEqual(
@@ -118,6 +119,29 @@ assert.equal(downstream.response_capture.status, 200);
 assert.equal(downstream.response_capture.content_type, "text/event-stream");
 assert.equal(downstream.response_capture.body_json_available, true);
 assert.equal(rawSectionData(request, "response").value.complete_response.text, "done");
+
+const responsesRequest = {
+  request_index: 4,
+  context_delta: { previous_messages: 3, new_messages: 3 },
+  raw: {
+    body: {
+      input: [
+        { type: "message", role: "developer", content: [{ type: "input_text", text: "<permissions instructions>Full access.</permissions instructions>" }] },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "question" }] },
+        { type: "message", role: "assistant", content: [{ type: "output_text", text: "I will inspect." }] },
+        { type: "function_call", name: "exec_command", arguments: '{"cmd":"pwd"}', call_id: "call-1" },
+        { type: "function_call_output", call_id: "call-1", output: "/tmp" },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "continue" }] },
+      ],
+    },
+  },
+};
+assert.deepEqual(rawSectionData(responsesRequest, "history").value.map((item) => item.type), ["message", "message"]);
+assert.deepEqual(rawSectionData(responsesRequest, "message").value.map((item) => item.type), [
+  "function_call",
+  "function_call_output",
+  "message",
+]);
 
 const semanticEventRequest = {
   id: "event-1",
@@ -217,6 +241,16 @@ assert.deepEqual(buildRawSectionEvidenceView(rolloutSectionRequest, "system", { 
   text: "rawSectionEvidenceSystemObserved",
 });
 assert.deepEqual(buildRawSectionEvidenceView(rolloutSectionRequest, "messages", { translate: sectionTranslate }), {
+  tone: "partial",
+  badge: "rawSectionEvidenceRolloutBadge",
+  text: "rawSectionEvidenceMessagesObserved",
+});
+assert.deepEqual(buildRawSectionEvidenceView(rolloutSectionRequest, "history", { translate: sectionTranslate }), {
+  tone: "partial",
+  badge: "rawSectionEvidenceRolloutBadge",
+  text: "rawSectionEvidenceMessagesObserved",
+});
+assert.deepEqual(buildRawSectionEvidenceView(rolloutSectionRequest, "message", { translate: sectionTranslate }), {
   tone: "partial",
   badge: "rawSectionEvidenceRolloutBadge",
   text: "rawSectionEvidenceMessagesObserved",

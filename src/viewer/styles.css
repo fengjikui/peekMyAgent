@@ -3946,77 +3946,107 @@ details .details-body {
 
 .raw-message-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
-.raw-message-card {
-  display: grid;
-  gap: 8px;
-  padding: 10px;
+.raw-message-group {
+  overflow: hidden;
   border: 1px solid var(--line-soft);
-  border-left: 3px solid #cbdcff;
   border-radius: 8px;
   background: #fff;
 }
 
-.raw-message-card.role-system {
-  border-left-color: #c6a7ff;
+.raw-message-group.role-system,
+.raw-message-group.role-developer {
+  border-color: #dccdf7;
   background: #fcfaff;
 }
 
-.raw-message-card.role-user {
-  border-left-color: #9fc0ff;
+.raw-message-group.role-user {
+  border-color: #cadbfa;
   background: #fbfdff;
 }
 
-.raw-message-card.role-assistant {
-  border-left-color: #bfe6cf;
+.raw-message-group.role-assistant {
+  border-color: #c7e4d2;
   background: #fbfffd;
 }
 
-.raw-message-card-header {
+.raw-message-group.role-tool {
+  border-color: #ecd7ae;
+  background: #fffdf8;
+}
+
+.raw-message-group-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-height: 38px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line-soft);
   color: var(--muted);
   font-family: var(--sans);
 }
 
-.raw-message-card-header strong {
+.raw-message-group-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.raw-message-group-title strong {
   min-width: 0;
   overflow: hidden;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 12.5px;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.raw-message-card-header span {
+.raw-message-timeline-index {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.raw-message-group-count {
   flex: 0 0 auto;
   font-size: 11px;
 }
 
 .raw-message-blocks {
-  display: grid;
-  gap: 7px;
+  display: block;
 }
 
 .raw-message-block {
   display: grid;
-  gap: 6px;
-  padding: 8px;
-  border: 1px solid var(--line-soft);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.76);
+  gap: 8px;
+  padding: 10px 12px 11px;
+  border-top: 1px solid var(--line-soft);
 }
 
-.raw-message-block.structured {
-  background: #f8fbff;
+.raw-message-block:first-child {
+  border-top: 0;
 }
 
-.raw-message-block header {
+.raw-message-block.kind-reasoning {
+  background: rgba(247, 243, 255, 0.42);
+}
+
+.raw-message-block.kind-tool_call {
+  background: rgba(239, 250, 244, 0.48);
+}
+
+.raw-message-block.kind-tool_result {
+  background: rgba(255, 249, 235, 0.5);
+}
+
+.raw-message-block-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4027,8 +4057,33 @@ details .details-body {
   line-height: 1.25;
 }
 
-.raw-message-block header em {
+.raw-message-block-header em {
+  flex: 0 0 auto;
   font-style: normal;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.raw-message-block-tags {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 10px;
+}
+
+.raw-message-block-tags strong {
+  color: var(--ink-soft);
+  font-weight: 650;
+}
+
+.raw-message-inferred {
+  padding: 1px 5px;
+  border: 1px solid #d8deea;
+  border-radius: 999px;
+  background: #f7f9fc;
+  color: #667085;
+  font-size: 9.5px;
 }
 
 .raw-message-markdown {
@@ -4087,6 +4142,66 @@ details .details-body {
   cursor: pointer;
   font-family: var(--sans);
   font-size: 11px;
+}
+
+.raw-message-tool-heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--sans);
+}
+
+.raw-message-tool-heading strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.raw-message-tool-heading code {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.raw-message-tool-field {
+  display: grid;
+  gap: 5px;
+}
+
+.raw-message-tool-field > span {
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.raw-message-tool-json {
+  padding: 7px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.raw-message-tool-output {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  padding: 8px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .raw-message-empty {

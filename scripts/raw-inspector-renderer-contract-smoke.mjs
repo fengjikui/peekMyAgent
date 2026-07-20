@@ -22,11 +22,22 @@ const request = {
 const requestNav = renderRequestRawNavigation({ request, activeSection: "tools", hasPrevious: true, translate, escapeHtml });
 assert.match(requestNav, /rawFull/);
 assert.match(requestNav, /System diff/);
-assert.match(requestNav, /tool_use/);
-assert.match(requestNav, /tool_result/);
+assert.match(requestNav, /rawHistory/);
+assert.match(requestNav, /rawMessage/);
+assert.doesNotMatch(requestNav, /data-raw-section="upstream_tool_calls"/);
+assert.doesNotMatch(requestNav, /data-raw-section="tool_results"/);
 assert.ok(requestNav.indexOf("rawFull") < requestNav.indexOf("Metadata"));
 assert.doesNotMatch(requestNav, /<script>/);
 assert.doesNotMatch(requestNav, /data-raw-mode=/);
+
+const focusedToolNav = renderRequestRawNavigation({
+  request,
+  activeSection: "upstream_tool_calls",
+  hasPrevious: true,
+  translate,
+  escapeHtml,
+});
+assert.match(focusedToolNav, />\s*tool_use\s*</);
 
 const responseNav = renderResponseRawNavigation({ request, activeSection: "response", translate, escapeHtml });
 assert.match(responseNav, /rawNavDownstream/);
