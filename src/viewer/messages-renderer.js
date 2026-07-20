@@ -1,4 +1,4 @@
-import { messageViewModel } from "./message-view-model.js";
+import { organizedMessageViewModel } from "./message-view-model.js";
 
 export function renderMessagesControls({ section, mode, translate, escapeHtml }) {
   if (section !== "messages") return "";
@@ -16,8 +16,10 @@ export function renderMessagesSection({ messagesValue, mode, translate, escapeHt
   const messages = Array.isArray(messagesValue) ? messagesValue : [];
   if (mode === "source") return renderRawDetail("messages / history", messages);
   if (!messages.length) return `<div class="empty-box">${escapeHtml(translate("messagesEmpty"))}</div>`;
-  return `<section class="raw-message-list">${messages
-    .map((message, index) => renderMessage(messageViewModel(message, index), { translate, escapeHtml, renderMarkdown, renderJson, formatNumber }))
+  const organizedMessages = messages.map((message, index) => organizedMessageViewModel(message, index)).filter(Boolean);
+  if (!organizedMessages.length) return `<div class="empty-box">${escapeHtml(translate("messagesOrganizedEmpty"))}</div>`;
+  return `<section class="raw-message-list">${organizedMessages
+    .map((message) => renderMessage(message, { translate, escapeHtml, renderMarkdown, renderJson, formatNumber }))
     .join("")}</section>`;
 }
 

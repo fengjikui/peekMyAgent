@@ -12,6 +12,7 @@ import {
   isSuggestionModeMessage,
   isToolResultMessage,
   lastRealUserMessage,
+  messageTextWithoutHarnessInjections,
   parseCommandMessage,
   realUserVisibleText,
   stripCodexHarnessBlocks,
@@ -139,6 +140,24 @@ const nestedCodexHarnessBlocks = extractCodexHarnessBlocks(nestedCodexHarnessExa
 assert.equal(nestedCodexHarnessBlocks.length, 1, "a same-name tag example remains inside its outer harness block");
 assert.match(nestedCodexHarnessBlocks[0].text, /Continue in the selected mode\./);
 assert.equal(stripCodexHarnessBlocks(nestedCodexHarnessExample), "Developer remainder.");
+
+const codexDeveloperHarnessMessage = {
+  role: "developer",
+  content: [
+    { type: "input_text", text: "<permissions instructions>Full access.</permissions instructions>" },
+    { type: "input_text", text: "<collaboration_mode>Default mode.</collaboration_mode>" },
+    { type: "input_text", text: "## Memory\nMEMORY_SUMMARY BEGINS\nPrior context.\nMEMORY_SUMMARY ENDS" },
+  ],
+};
+assert.equal(classifyMessageKind(codexDeveloperHarnessMessage), "harness_injection");
+assert.equal(messageTextWithoutHarnessInjections(codexDeveloperHarnessMessage, codexDeveloperHarnessMessage.content[0].text), "");
+assert.equal(
+  messageTextWithoutHarnessInjections(
+    { role: "user" },
+    "<environment_context><cwd>/tmp/project</cwd></environment_context>\n真实用户消息",
+  ),
+  "真实用户消息",
+);
 
 const multiAgentPolicy = extractCodexHarnessBlocks(
   "<multi_agent_mode>Do not spawn sub-agents unless explicitly requested.</multi_agent_mode>",

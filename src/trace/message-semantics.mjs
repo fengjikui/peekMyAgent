@@ -419,6 +419,18 @@ export function stripCodexHarnessBlocks(text) {
   return output.join("").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+export function messageTextWithoutHarnessInjections(message, text) {
+  const value = String(text || "");
+  if (!message || !["user", "developer"].includes(message.role)) return value;
+  if (message.role === "developer") return "";
+
+  const stripped = stripCodexHarnessBlocks(stripFrameworkReminderBlocks(value));
+  if (!stripped) return "";
+  if (isCompactInjectionText(stripped) || isSkillInjectionText(stripped)) return "";
+  if (isSuggestionModeMessage({ role: message.role, content: stripped })) return "";
+  return stripped;
+}
+
 function codexHarnessSpans(text) {
   const value = String(text || "");
   const tokens = codexHarnessTokenRegex();
@@ -456,7 +468,10 @@ function pureCodexHarnessBlocks(message) {
   if (!message || !["user", "developer"].includes(message.role)) return [];
   const text = extractContentText(message.content);
   const blocks = extractCodexHarnessBlocks(text);
-  return blocks.length && !stripCodexHarnessBlocks(text) ? blocks : [];
+  const remainder = stripCodexHarnessBlocks(text);
+  if (!remainder) return blocks;
+  const developerBlock = message.role === "developer" ? classifyCodexDeveloperInstruction(remainder) : null;
+  return developerBlock ? [...blocks, developerBlock] : [];
 }
 
 function codexHarnessTag(kind, category, labelKey, defaultLabel) {

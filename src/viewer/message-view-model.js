@@ -1,12 +1,28 @@
+import { messageTextWithoutHarnessInjections } from "../trace/message-semantics.mjs";
+
 export const DEFAULT_MESSAGE_TEXT_LIMIT = 5000;
 
 export function messageViewModel(message, index, { textLimit = DEFAULT_MESSAGE_TEXT_LIMIT } = {}) {
   const role = typeof message === "object" && message ? message.role || "unknown" : "unknown";
+  return messageViewModelFromBlocks(role, index, normalizeMessageBlocks(message), textLimit);
+}
+
+export function organizedMessageViewModel(message, index, { textLimit = DEFAULT_MESSAGE_TEXT_LIMIT } = {}) {
+  const role = typeof message === "object" && message ? message.role || "unknown" : "unknown";
+  if (role === "developer") return null;
+  const blocks = normalizeMessageBlocks(message)
+    .map((block) => organizedMessageBlock(message, block))
+    .filter(Boolean);
+  if (!blocks.length) return null;
+  return messageViewModelFromBlocks(role, index, blocks, textLimit);
+}
+
+function messageViewModelFromBlocks(role, index, blocks, textLimit) {
   return {
     index,
     role: String(role),
     roleClass: safeMessageClassName(role),
-    blocks: normalizeMessageBlocks(message).map((block, blockIndex) => blockViewModel(block, blockIndex, textLimit)),
+    blocks: blocks.map((block, blockIndex) => blockViewModel(block, blockIndex, textLimit)),
   };
 }
 
@@ -66,6 +82,12 @@ function blockViewModel(block, index, textLimit) {
     raw: block.raw,
     isText: type === "text" || Boolean(text && !hasStructuredMessagePayload(block.raw)),
   };
+}
+
+function organizedMessageBlock(message, block) {
+  if (!block.text || !["text", "input_text"].includes(block.type)) return block;
+  const text = messageTextWithoutHarnessInjections(message, block.text);
+  return text ? { ...block, text } : null;
 }
 
 function messageBlockText(block) {
