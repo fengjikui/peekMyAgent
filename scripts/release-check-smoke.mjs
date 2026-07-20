@@ -53,6 +53,11 @@ for (const [profile, description] of profiles) {
   assert.match(result.stdout, /npm run smoke:project-source-actions/);
   assert.match(result.stdout, /npm run smoke:request-tree/);
   assert.match(result.stdout, /npm run smoke:shared-proxy-auto-restore/);
+  assert.doesNotMatch(
+    result.stdout,
+    /npm run smoke:run-codex-desktop-exact/,
+    "automated release profiles must not run the Codex Desktop restart lifecycle smoke",
+  );
 }
 
 if (process.platform !== "win32") {

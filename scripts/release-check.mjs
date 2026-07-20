@@ -152,7 +152,6 @@ const codexCommands = [
 ];
 const macosManagedCodexCommands = [
   ["npm", "run", "smoke:codex-desktop-managed-session"],
-  ["npm", "run", "smoke:run-codex-desktop-exact"],
 ];
 const persistenceCommands = [
   ["npm", "run", "smoke:persistence-migrations"],
