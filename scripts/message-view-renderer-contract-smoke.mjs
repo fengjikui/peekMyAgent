@@ -10,6 +10,7 @@ import {
   safeMessageClassName,
   truncateMessageText,
   upstreamConversationMessageSections,
+  upstreamToolResultMessages,
 } from "../src/viewer/message-view-model.js";
 import { renderMessagesControls, renderMessagesSection } from "../src/viewer/messages-renderer.js";
 
@@ -31,6 +32,10 @@ const dependencies = {
   renderMarkdown: (text) => `<md>${escapeHtml(text)}</md>`,
   renderJson: (value) => `<json>${escapeHtml(JSON.stringify(value))}</json>`,
   formatNumber: String,
+  translatedTextFor: () => "",
+  targetLanguageLabel: "中文（简体）",
+  translationLoading: false,
+  registerTranslationAction: ({ kind }) => `translate-${kind}`,
 };
 
 const controls = renderMessagesControls({ section: "history", mode: "organized", translate, escapeHtml });
@@ -42,6 +47,7 @@ assert.ok(
 );
 assert.match(renderMessagesControls({ section: "message", mode: "source", translate, escapeHtml }), /data-messages-mode="source"/);
 assert.match(renderMessagesControls({ section: "response", mode: "organized", translate, escapeHtml }), /data-messages-mode="organized"/);
+assert.match(renderMessagesControls({ section: "tool_results", mode: "organized", translate, escapeHtml }), /data-messages-mode="organized"/);
 assert.equal(renderMessagesControls({ section: "system", mode: "organized", translate, escapeHtml }), "");
 
 const organized = renderMessagesSection({ messagesValue: [{ role: "user", content: [{ type: "text", text: "<script>" }] }], mode: "organized", ...dependencies });
@@ -110,7 +116,21 @@ const toolSearchMessages = [
         name: "multi_agent_v1",
         description: "Tools for spawning and managing sub-agents.",
         tools: [
-          { type: "function", name: "spawn_agent", description: "Spawn an agent" },
+          {
+            type: "function",
+            name: "spawn_agent",
+            description: "Spawn an agent with a bounded task.",
+            strict: false,
+            defer_loading: true,
+            parameters: {
+              type: "object",
+              properties: {
+                message: { type: "string", description: "Initial task for the new agent." },
+              },
+              required: ["message"],
+              additionalProperties: false,
+            },
+          },
           { type: "function", name: "wait_agent", description: "Wait for an agent" },
         ],
       },
@@ -140,6 +160,9 @@ assert.equal(toolSearchGroups[0].blocks[0].toolCall.name, "tool_search");
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.name, "tool_search");
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.namespaceCount, 1);
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.toolCount, 2);
+assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools[0].description, "Spawn an agent with a bounded task.");
+assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools[0].parameters.required[0], "message");
+assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools[0].parameterDescriptions[0].field_name, "message");
 assert.deepEqual(
   toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools.map((tool) => tool.name),
   ["spawn_agent", "wait_agent"],
@@ -155,7 +178,26 @@ assert.match(renderedToolSearch, /multi_agent_v1/);
 assert.match(renderedToolSearch, /spawn_agent/);
 assert.match(renderedToolSearch, /wait_agent/);
 assert.match(renderedToolSearch, /messageToolSearchSummary/);
+assert.match(renderedToolSearch, /Spawn an agent with a bounded task/);
+assert.match(renderedToolSearch, /Initial task for the new agent/);
+assert.match(renderedToolSearch, /messageToolParameterSchema/);
+assert.match(renderedToolSearch, /messageToolDefinitionRaw/);
+assert.match(renderedToolSearch, /data-translation-retranslate="translate-tool_description"/);
+assert.match(renderedToolSearch, /data-translation-retranslate="translate-tool_parameter_description"/);
 assert.doesNotMatch(renderedToolSearch, /unknown|messageTextFallback/);
+
+const toolResultRequest = {
+  context_delta: { previous_messages: 1, new_messages: 1 },
+  raw: {
+    body: {
+      input: [
+        { type: "message", role: "user", content: [{ type: "input_text", text: "Find the agent tools" }] },
+        toolSearchMessages[1],
+      ],
+    },
+  },
+};
+assert.deepEqual(upstreamToolResultMessages(toolResultRequest), [toolSearchMessages[1]]);
 
 const exactRequest = {
   request_index: 4,

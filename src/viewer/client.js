@@ -1886,7 +1886,7 @@ function highlightSearchSnippet(text, query) {
 }
 
 function renderRawSectionContent(request, section, sectionData) {
-  if (["history", "message", "messages"].includes(section)) return renderMessagesSection(request, section, sectionData.value);
+  if (["history", "message", "messages", "tool_results"].includes(section)) return renderMessagesSection(request, section, sectionData.value);
   if (state.translationMode === currentTargetLanguage() && translationCacheController.available) {
     if (["system", "tools", "harness"].includes(section)) return renderTranslatedSection(request, section);
   }
@@ -1912,6 +1912,8 @@ function renderMessagesSection(request, section, messagesValue) {
   const timelineRequestIndexes =
     section === "history"
       ? requestIndexes.slice(0, -1)
+      : section === "tool_results"
+        ? [request.request_index]
       : section === "response"
         ? [request.request_index]
         : requestIndexes;
@@ -1926,6 +1928,16 @@ function renderMessagesSection(request, section, messagesValue) {
     renderMarkdown: renderSafeMarkdown,
     renderJson,
     formatNumber: formatCompactNumber,
+    translatedTextFor,
+    targetLanguageLabel: currentTargetLanguageLabel(),
+    translationLoading: Boolean(state.translationGenerate.loading),
+    registerTranslationAction: (action) =>
+      translationActionController.registerAction({
+        ...action,
+        section,
+        requestId: request.id,
+        surface: "raw",
+      }),
   });
 }
 

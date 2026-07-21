@@ -1,7 +1,7 @@
 import { organizedMessagesViewModel } from "./message-view-model.js";
 
 export function renderMessagesControls({ section, mode, translate, escapeHtml }) {
-  if (!["history", "message", "messages", "response"].includes(section)) return "";
+  if (!["history", "message", "messages", "response", "tool_results"].includes(section)) return "";
   return `
     <div class="translation-toolbar compact">
       <div class="translation-segmented" role="group" aria-label="${escapeHtml(translate("messagesViewAria"))}">
@@ -23,6 +23,10 @@ export function renderMessagesSection({
   renderMarkdown,
   renderJson,
   formatNumber,
+  translatedTextFor,
+  targetLanguageLabel,
+  translationLoading,
+  registerTranslationAction,
 }) {
   const messages = Array.isArray(messagesValue) ? messagesValue : [];
   if (mode === "source") return renderRawDetail(sourceTitle, messages);
@@ -30,7 +34,19 @@ export function renderMessagesSection({
   const groups = organizedMessagesViewModel(messages, { timelineRequestIndexes });
   if (!groups.length) return `<div class="empty-box">${escapeHtml(translate("messagesOrganizedEmpty"))}</div>`;
   return `<section class="raw-message-list">${groups
-    .map((group) => renderMessageGroup(group, { translate, escapeHtml, renderMarkdown, renderJson, formatNumber }))
+    .map((group) =>
+      renderMessageGroup(group, {
+        translate,
+        escapeHtml,
+        renderMarkdown,
+        renderJson,
+        formatNumber,
+        translatedTextFor,
+        targetLanguageLabel,
+        translationLoading,
+        registerTranslationAction,
+      }),
+    )
     .join("")}</section>`;
 }
 
@@ -56,7 +72,8 @@ function renderMessageGroup(group, dependencies) {
   `;
 }
 
-function renderMessageBlock(block, { translate, escapeHtml, renderMarkdown, renderJson, formatNumber }) {
+function renderMessageBlock(block, dependencies) {
+  const { translate, escapeHtml } = dependencies;
   const inferred = block.roleInferred
     ? `<span class="raw-message-inferred" title="${escapeHtml(translate("messageRoleInferredTitle"))}">${escapeHtml(translate("messageRoleInferred"))}</span>`
     : "";
@@ -70,7 +87,7 @@ function renderMessageBlock(block, { translate, escapeHtml, renderMarkdown, rend
         </div>
         <em>${escapeHtml(translate("messageSourceIndex", { index: block.sourceIndex }))}</em>
       </header>
-      ${renderMessageBlockBody(block, { translate, escapeHtml, renderMarkdown, renderJson, formatNumber })}
+      ${renderMessageBlockBody(block, dependencies)}
     </section>
   `;
 }
@@ -121,7 +138,8 @@ function renderToolCall(block, { translate, escapeHtml, renderJson }) {
   `;
 }
 
-function renderToolResult(block, { translate, escapeHtml }) {
+function renderToolResult(block, dependencies) {
+  const { translate, escapeHtml } = dependencies;
   const result = block.toolResult || {};
   return `
     ${
@@ -136,14 +154,15 @@ function renderToolResult(block, { translate, escapeHtml }) {
       <span>${escapeHtml(translate("messageOutput"))}</span>
       ${
         result.toolSearch
-          ? renderToolSearchResult(result.toolSearch, { translate, escapeHtml })
+          ? renderToolSearchResult(result.toolSearch, dependencies)
           : `<pre class="raw-message-tool-output">${escapeHtml(result.output || translate("messageTextFallback"))}</pre>`
       }
     </div>
   `;
 }
 
-function renderToolSearchResult(result, { translate, escapeHtml }) {
+function renderToolSearchResult(result, dependencies) {
+  const { translate, escapeHtml } = dependencies;
   if (!result.groups.length) {
     return `<p class="raw-message-empty">${escapeHtml(translate("messageToolSearchEmpty"))}</p>`;
   }
@@ -163,11 +182,11 @@ function renderToolSearchResult(result, { translate, escapeHtml }) {
                 <code>${escapeHtml(group.name)}</code>
                 <span>${escapeHtml(group.type)}</span>
               </div>
-              ${group.description ? `<p>${escapeHtml(group.description)}</p>` : ""}
+              ${group.description ? renderToolSearchDescription(group.description, group.name, dependencies) : ""}
               ${
                 group.tools.length
                   ? `<div class="raw-message-tool-search-tools">${group.tools
-                      .map((tool) => `<code title="${escapeHtml(tool.type)}">${escapeHtml(tool.name)}</code>`)
+                      .map((tool) => renderDiscoveredTool(tool, dependencies))
                       .join("")}</div>`
                   : ""
               }
@@ -177,6 +196,121 @@ function renderToolSearchResult(result, { translate, escapeHtml }) {
         .join("")}
     </div>
   `;
+}
+
+function renderDiscoveredTool(tool, dependencies) {
+  const { translate, escapeHtml, renderJson } = dependencies;
+  const flags = [
+    tool.strict === null ? "" : `strict: ${String(tool.strict)}`,
+    tool.deferLoading === null ? "" : `defer_loading: ${String(tool.deferLoading)}`,
+  ].filter(Boolean);
+  return `
+    <details class="raw-message-discovered-tool">
+      <summary>
+        <code>${escapeHtml(tool.name)}</code>
+        <span>${escapeHtml(tool.type)}</span>
+        ${flags.length ? `<em>${escapeHtml(flags.join(" · "))}</em>` : ""}
+      </summary>
+      <div class="raw-message-discovered-tool-body">
+        ${tool.description ? renderToolSearchDescription(tool.description, tool.name, dependencies) : ""}
+        ${renderToolParameterDescriptions(tool, dependencies)}
+        ${
+          tool.parameters
+            ? `<details class="raw-message-tool-schema">
+                <summary>${escapeHtml(translate("messageToolParameterSchema"))}</summary>
+                <div class="json-node raw-message-tool-json">${renderJson(tool.parameters)}</div>
+              </details>`
+            : ""
+        }
+        <details class="raw-message-tool-schema">
+          <summary>${escapeHtml(translate("messageToolDefinitionRaw"))}</summary>
+          <div class="json-node raw-message-tool-json">${renderJson(tool.raw)}</div>
+        </details>
+      </div>
+    </details>
+  `;
+}
+
+function renderToolSearchDescription(sourceText, toolName, dependencies) {
+  const { translate, escapeHtml, renderMarkdown, translatedTextFor, targetLanguageLabel, translationLoading } = dependencies;
+  const translatedText = translatedTextFor?.("tool_description", sourceText) || "";
+  const actionId = registerToolTranslationAction(
+    {
+      kind: "tool_description",
+      sourceText,
+      metadata: { tool_name: toolName, label: `${toolName} · description` },
+    },
+    dependencies,
+  );
+  return `
+    <section class="raw-message-tool-description ${translatedText ? "translated" : ""}">
+      <header>
+        <span>${escapeHtml(translate("toolDescription"))}${translatedText && targetLanguageLabel ? ` · ${escapeHtml(targetLanguageLabel)}` : ""}</span>
+        ${
+          actionId
+            ? `<button type="button" class="translation-inline-button" data-translation-retranslate="${escapeHtml(actionId)}" ${translationLoading ? "disabled" : ""}>${escapeHtml(translatedText ? translate("retranslate") : translate("translate"))}</button>`
+            : ""
+        }
+      </header>
+      <div class="raw-message-markdown">${renderMarkdown(translatedText || sourceText)}</div>
+      ${
+        translatedText
+          ? `<details><summary>${escapeHtml(translate("source"))}</summary><div class="raw-message-markdown">${renderMarkdown(sourceText)}</div></details>`
+          : ""
+      }
+    </section>
+  `;
+}
+
+function renderToolParameterDescriptions(tool, dependencies) {
+  const { translate, escapeHtml, renderMarkdown, translatedTextFor, targetLanguageLabel, translationLoading } = dependencies;
+  const descriptions = Array.isArray(tool.parameterDescriptions) ? tool.parameterDescriptions : [];
+  if (!descriptions.length) return "";
+  const materials = descriptions.map((item) => ({
+    kind: "tool_parameter_description",
+    source_text: item.description,
+    metadata: { tool_name: tool.name, path: item.path, field_name: item.field_name },
+  }));
+  const translatedCount = descriptions.filter((item) => translatedTextFor?.("tool_parameter_description", item.description)).length;
+  const actionId = registerToolTranslationAction(
+    {
+      kind: "tool_parameter_description",
+      sourceText: "",
+      materials,
+      metadata: { tool_name: tool.name, label: translate("parameterDescriptions") },
+    },
+    dependencies,
+  );
+  return `
+    <section class="raw-message-tool-parameters">
+      <header>
+        <strong>${escapeHtml(translate("parameterDescriptions"))} · ${escapeHtml(String(descriptions.length))}</strong>
+        <span>
+          ${translatedCount && targetLanguageLabel ? `${escapeHtml(targetLanguageLabel)} ${translatedCount}/${descriptions.length}` : ""}
+          ${
+            actionId
+              ? `<button type="button" class="translation-inline-button" data-translation-retranslate="${escapeHtml(actionId)}" ${translationLoading ? "disabled" : ""}>${escapeHtml(translatedCount ? translate("retranslateParameters") : translate("translateParameters"))}</button>`
+              : ""
+          }
+        </span>
+      </header>
+      <div class="raw-message-tool-parameter-list">
+        ${descriptions
+          .map((item) => {
+            const translated = translatedTextFor?.("tool_parameter_description", item.description) || "";
+            return `<section>
+              <code>${escapeHtml(item.field_name || item.path)}</code>
+              <div class="raw-message-markdown">${renderMarkdown(translated || item.description)}</div>
+            </section>`;
+          })
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function registerToolTranslationAction(action, { registerTranslationAction }) {
+  return typeof registerTranslationAction === "function" ? registerTranslationAction(action) : "";
 }
 
 function messageGroupLabelKey(kind) {

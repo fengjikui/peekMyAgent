@@ -3,6 +3,7 @@ import {
   responseInputItemToMessage,
   responsesToolProtocolName,
 } from "../shared/request-payload.mjs";
+import { extractTranslationSchemaDescriptions } from "../translation/blocks.mjs";
 import { messageTextWithoutHarnessInjections } from "../trace/message-semantics.mjs";
 
 export const DEFAULT_MESSAGE_TEXT_LIMIT = 5000;
@@ -76,6 +77,10 @@ export function upstreamConversationMessageSections(request) {
     history: conversationMessageItems(messages.slice(0, splitIndex)),
     current: conversationMessageItems(messages.slice(splitIndex)),
   };
+}
+
+export function upstreamToolResultMessages(request) {
+  return upstreamConversationMessageSections(request).current.filter(messageContainsToolResult);
 }
 
 export function responseConversationMessages(request) {
@@ -240,11 +245,21 @@ function organizedMessageBlock(message, block, metadata) {
 }
 
 function messageBlockKind(type) {
-  if (type === "tool_result" || type.endsWith("_output")) return "tool_result";
+  if (isToolResultType(type)) return "tool_result";
   if (type === "tool_use" || type.endsWith("_call")) return "tool_call";
   if (type === "reasoning" || type === "thinking") return "reasoning";
   if (["text", "input_text", "output_text", "empty"].includes(type)) return "text";
   return "structured";
+}
+
+function messageContainsToolResult(message) {
+  if (isToolResultType(String(message?.type || "").toLowerCase())) return true;
+  if (String(message?.role || "").toLowerCase() === "tool") return true;
+  return normalizeMessageBlocks(message).some((block) => isToolResultType(String(block?.type || "").toLowerCase()));
+}
+
+function isToolResultType(type) {
+  return type === "tool_result" || type.endsWith("_output");
 }
 
 function messageGroupKind(role) {
@@ -284,18 +299,38 @@ function toolSearchResultView(raw = {}) {
 function toolSearchGroupView(item) {
   if (!item || typeof item !== "object") return null;
   const type = String(item.type || "tool");
-  const nestedTools = (Array.isArray(item.tools) ? item.tools : [])
-    .map((tool) => ({
-      type: String(tool?.type || "tool"),
-      name: String(tool?.name || "").trim(),
-    }))
-    .filter((tool) => tool.name);
+  const nestedSource = Array.isArray(item.tools) ? item.tools : type === "function" ? [item] : [];
+  const nestedTools = nestedSource
+    .map((tool, index) => toolSearchToolView(tool, index))
+    .filter(Boolean);
   return {
     type,
     name: String(item.name || "").trim() || type,
     description: typeof item.description === "string" ? item.description.trim() : "",
     tools: nestedTools,
     toolCount: nestedTools.length || (type === "function" ? 1 : 0),
+    raw: item,
+  };
+}
+
+function toolSearchToolView(tool, index) {
+  if (!tool || typeof tool !== "object") return null;
+  const name = String(tool.name || tool.function?.name || "").trim();
+  if (!name) return null;
+  const parameters = tool.parameters || tool.input_schema || tool.function?.parameters || null;
+  const description = String(tool.description || tool.function?.description || "").trim();
+  return {
+    index,
+    type: String(tool.type || "tool"),
+    name,
+    description,
+    strict: typeof tool.strict === "boolean" ? tool.strict : null,
+    deferLoading: typeof tool.defer_loading === "boolean" ? tool.defer_loading : null,
+    parameters,
+    parameterDescriptions: extractTranslationSchemaDescriptions(parameters, {
+      rootPath: `tools.${name}.parameters`,
+    }),
+    raw: tool,
   };
 }
 

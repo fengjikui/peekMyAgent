@@ -101,7 +101,7 @@ assert.deepEqual(rawSectionData(request, "tools").value, [{ name: "Bash" }]);
 assert.equal(rawSectionData(request, "history").value.length, 1);
 assert.equal(rawSectionData(request, "message").value.length, 0);
 assert.deepEqual(rawSectionData(request, "upstream_tool_calls", { translate: () => "current" }).value.current, [{ name: "Read" }]);
-assert.deepEqual(rawSectionData(request, "tool_results", { translate: () => "results" }).value.results, [{ tool_use_id: "call-1" }]);
+assert.deepEqual(rawSectionData(request, "tool_results", { translate: () => "results" }).value, [{ tool_use_id: "call-1" }]);
 assert.deepEqual(
   rawSectionData(request, "harness", {
     translate: () => "Harness",
@@ -142,6 +142,52 @@ assert.deepEqual(rawSectionData(responsesRequest, "message").value.map((item) =>
   "function_call_output",
   "message",
 ]);
+
+const completeToolSearchDescription = `Complete tool definition: ${"detail ".repeat(180)}`;
+const exactToolResultRequest = {
+  request_index: 11,
+  context_delta: { previous_messages: 1, new_messages: 1 },
+  raw: {
+    body: {
+      input: [
+        { type: "message", role: "user", content: [{ type: "input_text", text: "Find tools" }] },
+        {
+          type: "tool_search_output",
+          call_id: "call-search",
+          tools: [
+            {
+              type: "namespace",
+              name: "multi_agent_v1",
+              description: "Agent tools",
+              tools: [
+                {
+                  type: "function",
+                  name: "spawn_agent",
+                  description: completeToolSearchDescription,
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      message: { type: "string", description: "Initial task" },
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  },
+  summary: {
+    current_tool_results: [{ id: "call-search", content: "clipped" }],
+  },
+};
+const exactToolResults = rawSectionData(exactToolResultRequest, "tool_results").value;
+assert.equal(exactToolResults.length, 1);
+assert.equal(exactToolResults[0].type, "tool_search_output");
+assert.equal(exactToolResults[0].tools[0].tools[0].description, completeToolSearchDescription);
+assert.equal(exactToolResults[0].tools[0].tools[0].parameters.properties.message.description, "Initial task");
+assert.doesNotMatch(JSON.stringify(exactToolResults), /clipped/);
 
 const semanticEventRequest = {
   id: "event-1",

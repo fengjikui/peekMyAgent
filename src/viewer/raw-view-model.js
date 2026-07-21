@@ -4,7 +4,7 @@ import {
   requestUsesReconstructedUpstream,
   responseUsesReconstructedDownstream,
 } from "./evidence-view-model.js";
-import { upstreamConversationMessageSections } from "./message-view-model.js";
+import { upstreamConversationMessageSections, upstreamToolResultMessages } from "./message-view-model.js";
 
 export {
   requestHasSemanticEvent,
@@ -66,9 +66,10 @@ export function rawSectionData(request, section, { translate = (key) => key, har
     };
   }
   if (section === "tool_results") {
+    const fullToolResults = upstreamToolResultMessages(request);
     return {
       title: "tool_result",
-      value: { [translate("currentUpstreamToolResult")]: request?.summary?.current_tool_results || [] },
+      value: fullToolResults.length ? fullToolResults : request?.summary?.current_tool_results || [],
     };
   }
   if (section === "response") return { title: "response", value: rawResponseSectionValue(request) };
