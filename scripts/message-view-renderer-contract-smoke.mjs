@@ -94,6 +94,50 @@ assert.equal(responseGroups[3].blocks[1].toolCall.callId, "call-1");
 assert.deepEqual(responseGroups[3].blocks[1].toolCall.parameters, { cmd: "pwd" });
 assert.equal(responseGroups[4].blocks[0].toolResult.output, "/tmp");
 
+const toolSearchMessages = [
+  {
+    type: "tool_search_call",
+    call_id: "call-search",
+    arguments: { query: "Multi-agent tools", limit: 5 },
+  },
+  {
+    type: "tool_search_output",
+    call_id: "call-search",
+    tools: [
+      {
+        type: "namespace",
+        name: "multi_agent_v1",
+        description: "Tools for spawning and managing sub-agents.",
+        tools: [
+          { type: "function", name: "spawn_agent", description: "Spawn an agent" },
+          { type: "function", name: "wait_agent", description: "Wait for an agent" },
+        ],
+      },
+    ],
+  },
+];
+const toolSearchGroups = organizedMessagesViewModel(toolSearchMessages, { timelineRequestIndexes: [11, 12] });
+assert.equal(toolSearchGroups[0].blocks[0].toolCall.name, "tool_search");
+assert.equal(toolSearchGroups[1].blocks[0].toolResult.name, "tool_search");
+assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.namespaceCount, 1);
+assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.toolCount, 2);
+assert.deepEqual(
+  toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools.map((tool) => tool.name),
+  ["spawn_agent", "wait_agent"],
+);
+const renderedToolSearch = renderMessagesSection({
+  messagesValue: toolSearchMessages,
+  timelineRequestIndexes: [11, 12],
+  mode: "organized",
+  ...dependencies,
+});
+assert.match(renderedToolSearch, /tool_search/);
+assert.match(renderedToolSearch, /multi_agent_v1/);
+assert.match(renderedToolSearch, /spawn_agent/);
+assert.match(renderedToolSearch, /wait_agent/);
+assert.match(renderedToolSearch, /messageToolSearchSummary/);
+assert.doesNotMatch(renderedToolSearch, /unknown|messageTextFallback/);
+
 const exactRequest = {
   request_index: 4,
   context_delta: { previous_messages: 8, new_messages: 5 },

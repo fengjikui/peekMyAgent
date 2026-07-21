@@ -134,7 +134,47 @@ function renderToolResult(block, { translate, escapeHtml }) {
     }
     <div class="raw-message-tool-field">
       <span>${escapeHtml(translate("messageOutput"))}</span>
-      <pre class="raw-message-tool-output">${escapeHtml(result.output || translate("messageTextFallback"))}</pre>
+      ${
+        result.toolSearch
+          ? renderToolSearchResult(result.toolSearch, { translate, escapeHtml })
+          : `<pre class="raw-message-tool-output">${escapeHtml(result.output || translate("messageTextFallback"))}</pre>`
+      }
+    </div>
+  `;
+}
+
+function renderToolSearchResult(result, { translate, escapeHtml }) {
+  if (!result.groups.length) {
+    return `<p class="raw-message-empty">${escapeHtml(translate("messageToolSearchEmpty"))}</p>`;
+  }
+  return `
+    <div class="raw-message-tool-search-result">
+      <div class="raw-message-tool-search-summary">${escapeHtml(
+        translate("messageToolSearchSummary", {
+          namespaces: result.namespaceCount,
+          tools: result.toolCount,
+        }),
+      )}</div>
+      ${result.groups
+        .map(
+          (group) => `
+            <section class="raw-message-tool-search-group">
+              <div class="raw-message-tool-search-heading">
+                <code>${escapeHtml(group.name)}</code>
+                <span>${escapeHtml(group.type)}</span>
+              </div>
+              ${group.description ? `<p>${escapeHtml(group.description)}</p>` : ""}
+              ${
+                group.tools.length
+                  ? `<div class="raw-message-tool-search-tools">${group.tools
+                      .map((tool) => `<code title="${escapeHtml(tool.type)}">${escapeHtml(tool.name)}</code>`)
+                      .join("")}</div>`
+                  : ""
+              }
+            </section>
+          `,
+        )
+        .join("")}
     </div>
   `;
 }
