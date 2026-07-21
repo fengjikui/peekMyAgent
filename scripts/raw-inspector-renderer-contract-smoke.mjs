@@ -17,12 +17,18 @@ const translate = (key, values = {}) => `${key}${values.section ? `:${values.sec
 const escapeHtml = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
 const request = {
   id: 'request"><script>',
+  raw: {
+    body: {
+      input: [{ type: "message", role: "developer", content: [{ type: "input_text", text: "Developer instruction" }] }],
+    },
+  },
   summary: { current_tool_calls: [{ name: "Bash" }], current_tool_results: [{ id: "call-1" }] },
 };
 
 const requestNav = renderRequestRawNavigation({ request, activeSection: "tools", hasPrevious: true, translate, escapeHtml });
 assert.match(requestNav, /rawFull/);
 assert.match(requestNav, /System diff/);
+assert.match(requestNav, /rawDeveloper/);
 assert.match(requestNav, /rawHistory/);
 assert.match(requestNav, /rawMessage/);
 assert.doesNotMatch(requestNav, /data-raw-section="upstream_tool_calls"/);
@@ -30,6 +36,15 @@ assert.doesNotMatch(requestNav, /data-raw-section="tool_results"/);
 assert.ok(requestNav.indexOf("rawFull") < requestNav.indexOf("Metadata"));
 assert.doesNotMatch(requestNav, /<script>/);
 assert.doesNotMatch(requestNav, /data-raw-mode=/);
+
+const requestNavWithoutDeveloper = renderRequestRawNavigation({
+  request: { ...request, raw: { body: { input: [{ type: "message", role: "user", content: "hello" }] } } },
+  activeSection: "full",
+  hasPrevious: false,
+  translate,
+  escapeHtml,
+});
+assert.doesNotMatch(requestNavWithoutDeveloper, /rawDeveloper/);
 
 const focusedToolNav = renderRequestRawNavigation({
   request,

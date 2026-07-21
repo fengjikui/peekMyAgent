@@ -14,12 +14,15 @@ Messages 视图拆成两个浏览器模块：
 - 动态工具搜索同时进入共享 Responses item 语义：模型回复保留 `tool_search_call`，下一次上行把 `tool_search_output` 识别为工具结果；已经在前一模型回复中展示过的调用不会再次冒充本轮新增上行调用。
 - `History` 与 `Message` 的边界优先使用 `context_delta.reused_messages`：它表示当前上行请求中与上一请求完全复用的消息前缀。`previous_messages` 仅表示上一请求的消息总数，不能直接作为当前请求的切分下标。
 - 上下文压缩可能重写全部消息，使 `reused_messages` 为 `0`。此时将最后一条可见用户输入归入 `Message`，此前的压缩摘要和历史对话归入 `History`，避免当前消息被历史吞掉。
+- slash 命令生成的注入 message 仍保留在 `History` 或 `Message`；语义层可以把其中的指令部分额外投影到 Harness，但不能从会话顺序中删除。Codex `/compact` 的 replacement summary 正文只在 History 保留完整副本。
+- `role=developer` 不混入普通 History/Message，而进入独立 Developer 标签。Developer 的整理模式保留完整文本；其中已识别的白名单 Harness 子块允许同时出现在 Harness。
 - 除 `type/text/content` 外仍有字段的 block 视为结构化 payload，整理视图保留可展开 Raw。
 - Markdown 内联文本默认最多 5,000 字符，DTO 同时保留截断状态和原始长度。
 
 ## Renderer
 
 - `source` 模式委托 Raw JSON renderer，不重解释消息。
+- Developer、History、Message、Response 与 tool result 共用原文/整理切换，控件固定在右侧详情顶部。
 - `organized` 模式显式显示 role、block type 和 block index。
 - 文本通过受限 Markdown renderer；动态属性和文案通过 `escapeHtml`。
 - 结构化 block 同时显示可读摘要与可展开 Raw，不丢失工具参数或结果字段。

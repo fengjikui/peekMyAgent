@@ -46,6 +46,7 @@ assert.ok(
   "The source view must remain the left-most message view option",
 );
 assert.match(renderMessagesControls({ section: "message", mode: "source", translate, escapeHtml }), /data-messages-mode="source"/);
+assert.match(renderMessagesControls({ section: "developer", mode: "organized", translate, escapeHtml }), /data-messages-mode="organized"/);
 assert.match(renderMessagesControls({ section: "response", mode: "organized", translate, escapeHtml }), /data-messages-mode="organized"/);
 assert.match(renderMessagesControls({ section: "tool_results", mode: "organized", translate, escapeHtml }), /data-messages-mode="organized"/);
 assert.equal(renderMessagesControls({ section: "system", mode: "organized", translate, escapeHtml }), "");
@@ -66,6 +67,28 @@ const dedupedHarness = renderMessagesSection({
 });
 assert.doesNotMatch(dedupedHarness, /permissions instructions|environment_context|role-developer/);
 assert.match(dedupedHarness, /<md>\*\*真实用户消息\*\*<\/md>/);
+
+const developerView = renderMessagesSection({
+  messagesValue: [
+    { role: "developer", content: [{ type: "input_text", text: "<permissions instructions>Full access.</permissions instructions>" }] },
+  ],
+  mode: "organized",
+  preserveHarnessText: true,
+  ...dependencies,
+});
+assert.match(developerView, /role-developer/);
+assert.match(developerView, /permissions instructions/);
+
+const codexCompactHandoff = `Another language model started to solve this problem and produced a summary of its thinking process. You also have access to the state of the tools that were used by that language model. Use this to build on the work that has already been done and avoid duplicating work. Here is the summary produced by the other language model, use the information in this summary to assist with your own analysis:
+**Handoff Summary**
+- Keep the original payload visible in History.`;
+const compactHistory = renderMessagesSection({
+  messagesValue: [{ role: "user", content: [{ type: "input_text", text: codexCompactHandoff }] }],
+  mode: "organized",
+  ...dependencies,
+});
+assert.match(compactHistory, /Handoff Summary/);
+assert.match(compactHistory, /Keep the original payload visible in History/);
 
 const structured = renderMessagesSection({ messagesValue: [{ role: "assistant", content: [{ type: "tool_use", id: "call-1", name: "Bash", input: { command: "pwd" } }] }], mode: "organized", ...dependencies });
 assert.match(structured, /raw-message-tool-heading/);

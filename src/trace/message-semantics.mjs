@@ -104,6 +104,38 @@ export function isCompactInjectionMessage(message) {
   return Boolean(compactInjectionText(message));
 }
 
+export function codexSlashCommandInjection(messageOrText) {
+  const text =
+    typeof messageOrText === "string"
+      ? messageOrText
+      : messageOrText?.role === "user"
+        ? extractContentText(messageOrText.content)
+        : "";
+  const value = String(text || "").trim();
+  if (!value) return null;
+
+  if (isCodexCompactionCheckpointPrompt(value)) {
+    return {
+      type: "codex_slash_command_injection",
+      command: "/compact",
+      kind: "harness_compact",
+      phase: "summary_request",
+      text: value,
+      sourceText: value,
+    };
+  }
+  const compactPrefix = codexCompactionHandoffPrefix(value);
+  if (!compactPrefix) return null;
+  return {
+    type: "codex_slash_command_injection",
+    command: "/compact",
+    kind: "harness_compact",
+    phase: "replacement_history",
+    text: compactPrefix,
+    sourceText: value,
+  };
+}
+
 export function isSkillInjectionText(text) {
   const value = String(text || "").trim();
   return /^Base directory for this skill:\s*\S+/i.test(value) || /^Skill base directory:\s*\S+/i.test(value);
@@ -126,6 +158,7 @@ export function classifyMessageKind(message) {
   if (isFrameworkReminderMessage(message)) return "framework_reminder";
   if (isSuggestionModeMessage(message)) return "agent_internal";
   if (isCompactInjectionMessage(message)) return "compact";
+  if (codexSlashCommandInjection(message)) return "compact";
   if (isSkillInjectionMessage(message)) return "harness_injection";
   if (pureCodexHarnessBlocks(message).length) return "harness_injection";
   if (message?.role === "user" && realUserVisibleText(message)) return "message";
@@ -168,6 +201,14 @@ export function classifyCurrentEntry(messages) {
     if (isCompactInjectionMessage(message)) {
       return { kind: "compact", label: "上下文压缩 (/compact)", text: "请求模型把前文压缩成 <analysis> + <summary> 结构化总结（注入提示词，非用户真话）" };
     }
+    const codexSlashInjection = codexSlashCommandInjection(message);
+    if (codexSlashInjection) {
+      return {
+        kind: "compact",
+        label: codexSlashInjection.phase === "summary_request" ? "上下文压缩 (/compact)" : "上下文压缩恢复 (/compact)",
+        text: textPreview(codexSlashInjection.text, 1200),
+      };
+    }
     if (isSkillInjectionMessage(message)) {
       return { kind: "harness_injection", label: "Skill / Harness 注入", text: textPreview(skillInjectionText(message), 1200) };
     }
@@ -202,6 +243,8 @@ export function displayMessageText(message) {
     return `子 Agent 结果回流 · ${subagent.name}\n${subagent.result}`;
   }
   if (isCompactInjectionMessage(message)) return "上下文压缩指令：请求模型把前文压缩成 <analysis> + <summary> 总结（harness 注入）";
+  const codexSlashInjection = codexSlashCommandInjection(message);
+  if (codexSlashInjection) return `Codex ${codexSlashInjection.command} 注入\n${codexSlashInjection.sourceText}`;
   if (isSkillInjectionMessage(message)) return `Skill / Harness 注入\n${skillInjectionText(message)}`;
   const codexHarnessBlocks = pureCodexHarnessBlocks(message);
   if (codexHarnessBlocks.length) {
@@ -386,6 +429,7 @@ function cleanRealUserTextPart(text) {
   else value = stripDisplayWrapperTags(value);
   if (!value) return "";
   if (isCompactInjectionText(value)) return "";
+  if (codexSlashCommandInjection(value)) return "";
   if (isSkillInjectionText(value)) return "";
   if (isLocalCommandOnlyText(value)) return "";
   if (/^Tool loaded\.\s*$/i.test(value)) return "";
@@ -566,6 +610,25 @@ function normalizeSlashCommand(value) {
   const first = raw.split(/\s+/)[0].replace(/^\/+/, "");
   if (!first) return "";
   return `/${first}`;
+}
+
+function codexCompactionHandoffPrefix(text) {
+  const value = String(text || "").trim();
+  if (!/^Another language model started to solve this problem and produced a summary of its thinking process\./i.test(value)) {
+    return "";
+  }
+  const marker = "Here is the summary produced by the other language model, use the information in this summary to assist with your own analysis:";
+  const markerIndex = value.toLowerCase().indexOf(marker.toLowerCase());
+  if (markerIndex < 0) return "";
+  return value.slice(0, markerIndex + marker.length).trim();
+}
+
+function isCodexCompactionCheckpointPrompt(text) {
+  const value = String(text || "").trim();
+  return (
+    /^You are performing a CONTEXT CHECKPOINT COMPACTION\./i.test(value) &&
+    /Create a handoff summary for another LLM that will resume the task\./i.test(value)
+  );
 }
 
 function textPreview(text, limit) {

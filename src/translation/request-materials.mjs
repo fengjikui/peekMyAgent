@@ -11,6 +11,7 @@ import { extractContentText } from "../trace/content-parts.mjs";
 import { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
 import {
   classifyCodexDeveloperInstruction,
+  codexSlashCommandInjection,
   compactInjectionText,
   extractCodexHarnessBlocks,
   isSuggestionModeMessage,
@@ -141,8 +142,6 @@ export function extractHarnessTranslationParts(
           labelKey: classifiedDeveloper.labelKey,
           defaultLabel: classifiedDeveloper.defaultLabel,
         }));
-      } else if (developerRemainder) {
-        output.push(harnessPart("harness_developer", developerRemainder, messageIndex, label));
       }
     }
     for (const [contextIndex, block] of codexBlocks.entries()) {
@@ -158,6 +157,13 @@ export function extractHarnessTranslationParts(
     const compact = compactInjectionText(message);
     if (compact) {
       output.push(harnessPart("harness_compact", compact, messageIndex, label));
+    }
+
+    const codexSlashInjection = codexSlashCommandInjection(message);
+    if (codexSlashInjection) {
+      output.push(harnessPart(codexSlashInjection.kind, codexSlashInjection.text, messageIndex, label, {
+        command: codexSlashInjection.command,
+      }));
     }
 
     const commandMessage = parseCommandMessage(message);

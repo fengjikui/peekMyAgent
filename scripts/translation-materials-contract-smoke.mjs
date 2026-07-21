@@ -60,6 +60,26 @@ assert.deepEqual(harnessParts.map((item) => item.kind), ["harness_command", "har
 assert.equal(harnessParts[0].text, "Inspect the project.");
 assert.equal(harnessParts[1].path, "messages[1].system-reminder[0]");
 
+const codexCompactHandoff = `Another language model started to solve this problem and produced a summary of its thinking process. You also have access to the state of the tools that were used by that language model. Use this to build on the work that has already been done and avoid duplicating work. Here is the summary produced by the other language model, use the information in this summary to assist with your own analysis:
+**Handoff Summary**
+- Existing conversation payload.`;
+const codexCompactCheckpoint = `You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume the task.
+Include:
+- Current progress and key decisions made
+- Important context, constraints, or user preferences
+- What remains to be done (clear next steps)
+- Any critical data, examples, or references needed to continue
+Be concise, structured, and focused on helping the next LLM seamlessly continue the work.`;
+const codexSlashParts = extractHarnessTranslationParts([
+  { role: "user", content: [{ type: "input_text", text: codexCompactCheckpoint }] },
+  { role: "user", content: [{ type: "input_text", text: codexCompactHandoff }] },
+]);
+assert.deepEqual(codexSlashParts.map((item) => item.kind), ["harness_compact", "harness_compact"]);
+assert.equal(codexSlashParts[0].command, "/compact");
+assert.equal(codexSlashParts[0].text, codexCompactCheckpoint);
+assert.equal(codexSlashParts[1].command, "/compact");
+assert.doesNotMatch(codexSlashParts[1].text, /Existing conversation payload/);
+
 const codexHarnessParts = extractHarnessTranslationParts([
   { role: "developer", content: "<skills_instructions>Use verified local skills.</skills_instructions>" },
   { role: "user", content: "<codex_internal_context>Objective: inspect the active thread.</codex_internal_context>" },
@@ -94,6 +114,10 @@ const codexDeveloperParts = extractHarnessTranslationParts([
     role: "developer",
     content: "<multi_agent_mode>Delegate only when explicitly requested.</multi_agent_mode>",
   },
+  {
+    role: "developer",
+    content: "Generic provider instruction that belongs in the Developer view.",
+  },
 ]);
 assert.deepEqual(
   codexDeveloperParts.map((item) => item.kind),
@@ -103,6 +127,11 @@ assert.deepEqual(codexDeveloperParts.map((item) => item.category), ["memory", "o
 assert.deepEqual(
   codexDeveloperParts.map((item) => item.label),
   ["Codex Memory 注入", "Codex 多 Agent 编排", "Codex 多 Agent 启动策略"],
+);
+assert.equal(
+  codexDeveloperParts.some((item) => item.kind === "harness_developer"),
+  false,
+  "generic developer messages belong in the dedicated Developer view rather than Harness",
 );
 
 const codexProjected = translationMaterialsForRequest({

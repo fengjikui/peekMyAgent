@@ -1,7 +1,7 @@
 import { organizedMessagesViewModel } from "./message-view-model.js";
 
 export function renderMessagesControls({ section, mode, translate, escapeHtml }) {
-  if (!["history", "message", "messages", "response", "tool_results"].includes(section)) return "";
+  if (!["developer", "history", "message", "messages", "response", "tool_results"].includes(section)) return "";
   return `
     <div class="translation-toolbar compact">
       <div class="translation-segmented" role="group" aria-label="${escapeHtml(translate("messagesViewAria"))}">
@@ -15,6 +15,7 @@ export function renderMessagesControls({ section, mode, translate, escapeHtml })
 export function renderMessagesSection({
   messagesValue,
   mode,
+  preserveHarnessText = false,
   timelineRequestIndexes = [],
   sourceTitle = "messages",
   translate,
@@ -31,7 +32,7 @@ export function renderMessagesSection({
   const messages = Array.isArray(messagesValue) ? messagesValue : [];
   if (mode === "source") return renderRawDetail(sourceTitle, messages);
   if (!messages.length) return `<div class="empty-box">${escapeHtml(translate("messagesEmpty"))}</div>`;
-  const groups = organizedMessagesViewModel(messages, { timelineRequestIndexes });
+  const groups = organizedMessagesViewModel(messages, { timelineRequestIndexes, preserveHarnessText });
   if (!groups.length) return `<div class="empty-box">${escapeHtml(translate("messagesOrganizedEmpty"))}</div>`;
   return `<section class="raw-message-list">${groups
     .map((group) =>

@@ -30,12 +30,13 @@
 首版沿用 peekMyAgent 的三层查看方式：
 
 1. **时间线**：只放用户理解任务过程所需的信息，包括用户输入、Assistant 回复、工具交换、子任务和压缩节点。
-2. **整理视图**：按 Codex Responses 语义组织完整请求、Instructions、Harness 注入、Tools schema、Messages、tool calls/results、Response 和 Metadata。
+2. **整理视图**：按 Codex Responses 语义组织完整请求、System、Developer、Harness 注入、Tools schema、History、Message、tool calls/results、Response 和 Metadata。
 3. **Raw**：保留对应来源的原始事件或重建后的 CaptureRecord，并明确标注 provenance。
 
 Codex Responses 的首版分类规则：
 
-- `input` 中 `role=developer` 的 message 进入 Instructions/Harness 注入；不把所有 developer 文本武断称为 system prompt。
+- `input` 中 `role=developer` 的 message 进入独立 Developer 标签；只有白名单标签或经真实 rollout 验证的强指纹才额外投影到 Harness，不把普通 developer 文本武断称为 system prompt 或 Harness 注入。
+- slash 命令生成的模型提示词按证据明确的命令结构投影到 Harness，便于翻译和检索；其原始 message 仍留在 History/Message，Harness 视图不搬移或改写来源。
 - `additional_tools` 进入 Tools schema，并保留工具名、说明和参数 schema。
 - `message` 按原始 role 和 content type 保持顺序，形成历史消息和当前输入。
 - `custom_tool_call` / `custom_tool_call_output` 通过 `call_id` 关联为工具交换。
@@ -76,7 +77,7 @@ thread 级配置实验限定了最终形态：`modelProvider` 可以在 `thread/
 
 等待对象在选择文件中只保存稳定 Source ID、工作区、启动时 thread 基线、捕获模式和回退原因。Source catalog 发现同工作区第一条基线外可读 thread 后原地绑定；rollout 正文不进入 peekMyAgent SQLite。
 
-Codex 特殊标签已采用白名单分类：运行时、能力、策略、内部目标、生命周期和子 Agent 事件进入 Harness 整理视图，并复用现有 marker/hash 翻译缓存；Raw 仍保留原始 role、标签、顺序和 provenance，未知标签不猜测。
+Codex 特殊标签已采用白名单分类：运行时、能力、策略、内部目标、生命周期和子 Agent 事件进入 Harness 整理视图，并复用现有 marker/hash 翻译缓存；`/compact` 生成的固定接手指令同样进入 Harness，但摘要 payload 只在 History 保留完整原文。Developer 标签始终保留原始 developer message；Raw 继续保留所有 role、标签、顺序和 provenance，未知标签不猜测。
 
 ## 暂不承诺
 

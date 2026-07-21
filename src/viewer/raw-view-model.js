@@ -31,6 +31,12 @@ export function rawSectionData(request, section, { translate = (key) => key, har
       },
     };
   }
+  if (section === "developer") {
+    return {
+      title: translate("rawDeveloper"),
+      value: messages.filter((message) => message.role === "developer"),
+    };
+  }
   if (section === "tools") return { title: "tools", value: extractRequestTools(body) };
   if (section === "harness") {
     return {

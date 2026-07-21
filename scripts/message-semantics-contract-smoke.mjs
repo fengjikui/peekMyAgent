@@ -5,6 +5,7 @@ import {
   classifyMessageKind,
   classifyCurrentEntry,
   cleanTitleText,
+  codexSlashCommandInjection,
   compactInjectionText,
   displayMessageText,
   extractCodexHarnessBlocks,
@@ -21,6 +22,16 @@ import {
 } from "../src/trace/message-semantics.mjs";
 
 const compactPrompt = "Create a detailed summary of the conversation so far. Respond with TEXT ONLY using <analysis> and <summary>.";
+const codexCompactCheckpoint = `You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume the task.
+Include:
+- Current progress and key decisions made
+- Important context, constraints, or user preferences
+- What remains to be done (clear next steps)
+- Any critical data, examples, or references needed to continue
+Be concise, structured, and focused on helping the next LLM seamlessly continue the work.`;
+const codexCompactHandoff = `Another language model started to solve this problem and produced a summary of its thinking process. You also have access to the state of the tools that were used by that language model. Use this to build on the work that has already been done and avoid duplicating work. Here is the summary produced by the other language model, use the information in this summary to assist with your own analysis:
+**Handoff Summary**
+- Preserve this payload in History.`;
 const reminder = "<system-reminder>Injected by the harness.</system-reminder>";
 const taskNotification = `<task-notification>
 <task-id>task-1</task-id>
@@ -59,6 +70,27 @@ assert.equal(classifyCurrentEntry([compactMessage]).kind, "compact");
 assert.equal(classifyMessageKind(compactMessage), "compact");
 assert.equal(compactInjectionText(compactMessage), compactPrompt);
 assert.equal(realUserVisibleText(compactMessage), "");
+
+const codexCheckpointMessage = { role: "user", content: [{ type: "input_text", text: codexCompactCheckpoint }] };
+const codexCheckpointInjection = codexSlashCommandInjection(codexCheckpointMessage);
+assert.equal(codexCheckpointInjection?.command, "/compact");
+assert.equal(codexCheckpointInjection?.kind, "harness_compact");
+assert.equal(codexCheckpointInjection?.phase, "summary_request");
+assert.equal(codexCheckpointInjection?.text, codexCompactCheckpoint);
+assert.equal(classifyMessageKind(codexCheckpointMessage), "compact");
+assert.equal(classifyCurrentEntry([codexCheckpointMessage]).kind, "compact");
+assert.equal(realUserVisibleText(codexCheckpointMessage), "", "Codex compact prompt is not presented as literal user input");
+
+const codexCompactMessage = { role: "user", content: [{ type: "input_text", text: codexCompactHandoff }] };
+const codexCompactInjection = codexSlashCommandInjection(codexCompactMessage);
+assert.equal(codexCompactInjection?.command, "/compact");
+assert.equal(codexCompactInjection?.kind, "harness_compact");
+assert.equal(codexCompactInjection?.phase, "replacement_history");
+assert.doesNotMatch(codexCompactInjection?.text || "", /Handoff Summary/);
+assert.equal(codexCompactInjection?.sourceText, codexCompactHandoff);
+assert.equal(classifyMessageKind(codexCompactMessage), "compact");
+assert.equal(classifyCurrentEntry([codexCompactMessage]).kind, "compact");
+assert.equal(realUserVisibleText(codexCompactMessage), "", "Codex compact handoff is not presented as literal user input");
 
 const skillMessage = { role: "user", content: "Base directory for this skill: /tmp/example\n\n# Example Skill" };
 assert.equal(classifyCurrentEntry([skillMessage]).kind, "harness_injection");

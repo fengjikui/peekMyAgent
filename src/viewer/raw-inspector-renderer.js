@@ -3,6 +3,7 @@ import {
   requestUsesReconstructedUpstream,
   responseUsesReconstructedDownstream,
 } from "./raw-view-model.js";
+import { extractRequestMessages } from "../shared/request-payload.mjs";
 
 export function renderRequestRawNavigation({ request, activeSection, hasPrevious, translate, escapeHtml }) {
   if (requestHasSemanticEvent(request)) {
@@ -22,9 +23,13 @@ export function renderRequestRawNavigation({ request, activeSection, hasPrevious
       : activeSection === "tool_results"
         ? [["tool_results", "tool_result"]]
         : [];
+  const hasDeveloperMessages = extractRequestMessages(request?.raw?.body || {}).some(
+    (message) => message?.role === "developer",
+  );
   const sections = [
     ["full", translate(requestUsesReconstructedUpstream(request) ? "rawReconstructedRequest" : "rawFull")],
     ["system", "System"],
+    ...(hasDeveloperMessages ? [["developer", translate("rawDeveloper")]] : []),
     ...(hasPrevious ? [["system_diff", "System diff"]] : []),
     ["tools", "Tools"],
     ["harness", "Harness"],

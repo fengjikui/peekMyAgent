@@ -10,10 +10,10 @@ export const DEFAULT_MESSAGE_TEXT_LIMIT = 5000;
 
 export function organizedMessagesViewModel(
   messages,
-  { textLimit = DEFAULT_MESSAGE_TEXT_LIMIT, timelineRequestIndexes = [] } = {},
+  { textLimit = DEFAULT_MESSAGE_TEXT_LIMIT, timelineRequestIndexes = [], preserveHarnessText = false } = {},
 ) {
   const records = (Array.isArray(messages) ? messages : [])
-    .map((message, index) => organizedMessageRecord(message, index, textLimit))
+    .map((message, index) => organizedMessageRecord(message, index, textLimit, { preserveHarnessText }))
     .filter(Boolean);
   let segmentIndex = 0;
   let previousDirection = null;
@@ -118,7 +118,7 @@ function conversationMessageItems(messages) {
   });
 }
 
-function organizedMessageRecord(message, index, textLimit) {
+function organizedMessageRecord(message, index, textLimit, { preserveHarnessText = false } = {}) {
   const role = inferMessageRole(message);
   const roleInferred = !hasExplicitMessageRole(message);
   const blocks = normalizeMessageBlocks(message)
@@ -128,6 +128,7 @@ function organizedMessageRecord(message, index, textLimit) {
         roleInferred,
         sourceIndex: index,
         textLimit,
+        preserveHarnessText,
       }),
     )
     .filter(Boolean);
@@ -262,7 +263,7 @@ function blockViewModel(block, { role, roleInferred, sourceIndex, textLimit }) {
 }
 
 function organizedMessageBlock(message, block, metadata) {
-  if (block.text && ["text", "input_text", "output_text"].includes(block.type)) {
+  if (!metadata.preserveHarnessText && block.text && ["text", "input_text", "output_text"].includes(block.type)) {
     const text = messageTextWithoutHarnessInjections(message, block.text);
     if (!text) return null;
     block = { ...block, text };

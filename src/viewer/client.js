@@ -1886,7 +1886,9 @@ function highlightSearchSnippet(text, query) {
 }
 
 function renderRawSectionContent(request, section, sectionData) {
-  if (["history", "message", "messages", "tool_results"].includes(section)) return renderMessagesSection(request, section, sectionData.value);
+  if (["developer", "history", "message", "messages", "tool_results"].includes(section)) {
+    return renderMessagesSection(request, section, sectionData.value);
+  }
   if (state.translationMode === currentTargetLanguage() && translationCacheController.available) {
     if (["system", "tools", "harness"].includes(section)) return renderTranslatedSection(request, section);
   }
@@ -1910,7 +1912,9 @@ function renderMessagesControls(section) {
 function renderMessagesSection(request, section, messagesValue) {
   const requestIndexes = messageTimelineRequestIndexes(request, state.data?.requests || []);
   const timelineRequestIndexes =
-    section === "history"
+    section === "developer"
+      ? [request.request_index]
+      : section === "history"
       ? requestIndexes.slice(0, -1)
       : section === "tool_results"
         ? [request.request_index]
@@ -1920,6 +1924,7 @@ function renderMessagesSection(request, section, messagesValue) {
   return renderMessagesSectionView({
     messagesValue,
     timelineRequestIndexes,
+    preserveHarnessText: section === "developer",
     sourceTitle: rawSectionLabel(section, request),
     mode: normalizeMessagesMode(state.rawMessagesMode),
     translate: t,
@@ -2046,6 +2051,7 @@ function rawSectionLabel(section, request = null) {
   const labels = {
     full: t(requestUsesReconstructedUpstream(request) ? "rawReconstructedRequest" : "rawFull"),
     system: "System",
+    developer: t("rawDeveloper"),
     system_diff: "System diff",
     tools: "Tools",
     harness: t("rawHarness"),

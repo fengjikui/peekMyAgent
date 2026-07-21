@@ -98,6 +98,10 @@ assert.deepEqual(rawSectionData(request, "system").value, {
   message_system: [{ role: "system", content: "message system" }],
 });
 assert.deepEqual(rawSectionData(request, "tools").value, [{ name: "Bash" }]);
+assert.deepEqual(rawSectionData(request, "developer", { translate: () => "Developer" }), {
+  title: "Developer",
+  value: [],
+});
 assert.equal(rawSectionData(request, "history").value.length, 1);
 assert.equal(rawSectionData(request, "message").value.length, 0);
 assert.deepEqual(rawSectionData(request, "upstream_tool_calls", { translate: () => "current" }).value.current, [{ name: "Read" }]);
@@ -136,6 +140,8 @@ const responsesRequest = {
     },
   },
 };
+assert.equal(rawSectionData(responsesRequest, "developer", { translate: () => "Developer" }).value.length, 1);
+assert.match(JSON.stringify(rawSectionData(responsesRequest, "developer").value), /permissions instructions/);
 assert.deepEqual(rawSectionData(responsesRequest, "history").value.map((item) => item.type), ["message", "message"]);
 assert.deepEqual(rawSectionData(responsesRequest, "message").value.map((item) => item.type), [
   "function_call",
