@@ -199,6 +199,40 @@ const toolResultRequest = {
 };
 assert.deepEqual(upstreamToolResultMessages(toolResultRequest), [toolSearchMessages[1]]);
 
+const postCompactionRequest = {
+  request_index: 21,
+  context_delta: {
+    baseline: false,
+    previous_request_index: 20,
+    previous_messages: 52,
+    total_messages: 5,
+    reused_messages: 0,
+    new_messages: 5,
+  },
+  raw: {
+    body: {
+      input: [
+        { type: "message", role: "user", content: [{ type: "input_text", text: "Earlier user request" }] },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "Another language model summarized the earlier conversation." }] },
+        { type: "message", role: "developer", content: [{ type: "input_text", text: "<permissions instructions>Full access.</permissions instructions>" }] },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "<environment_context><cwd>/tmp/project</cwd></environment_context>" }] },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "Current user request after compaction" }] },
+      ],
+    },
+  },
+};
+const postCompactionSections = upstreamConversationMessageSections(postCompactionRequest);
+assert.deepEqual(
+  postCompactionSections.history.map((message) => message.content[0].text),
+  ["Earlier user request", "Another language model summarized the earlier conversation."],
+  "A rewritten compacted context remains History even when no raw prefix is reusable",
+);
+assert.deepEqual(
+  postCompactionSections.current.map((message) => message.content[0].text),
+  ["Current user request after compaction"],
+  "The latest visible user input remains the current Message after compaction",
+);
+
 const exactRequest = {
   request_index: 4,
   context_delta: { previous_messages: 8, new_messages: 5 },

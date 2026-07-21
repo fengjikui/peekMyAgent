@@ -4,7 +4,7 @@ import {
   responsesToolProtocolName,
 } from "../shared/request-payload.mjs";
 import { extractTranslationSchemaDescriptions } from "../translation/blocks.mjs";
-import { messageTextWithoutHarnessInjections } from "../trace/message-semantics.mjs";
+import { messageTextWithoutHarnessInjections, userVisibleText } from "../trace/message-semantics.mjs";
 
 export const DEFAULT_MESSAGE_TEXT_LIMIT = 5000;
 
@@ -72,7 +72,7 @@ export function messageTimelineRequestIndexes(request, requests = []) {
 export function upstreamConversationMessageSections(request) {
   const body = request?.raw?.body || {};
   const messages = Array.isArray(body.input) ? body.input : extractRequestMessages(body);
-  const splitIndex = upstreamMessageSplitIndex(request, messages.length);
+  const splitIndex = upstreamMessageSplitIndex(request, messages);
   return {
     history: conversationMessageItems(messages.slice(0, splitIndex)),
     current: conversationMessageItems(messages.slice(splitIndex)),
@@ -134,13 +134,39 @@ function organizedMessageRecord(message, index, textLimit) {
   return blocks.length ? { role, blocks, segmentIndex: 0 } : null;
 }
 
-function upstreamMessageSplitIndex(request, totalMessages) {
+function upstreamMessageSplitIndex(request, messages) {
+  const totalMessages = messages.length;
   const delta = request?.context_delta || request?.summary?.context_delta || {};
-  const previousMessages = nonNegativeInteger(delta.previous_messages);
-  if (previousMessages != null) return Math.min(previousMessages, totalMessages);
+  const reusedMessages = nonNegativeInteger(delta.reused_messages);
+  if (reusedMessages != null) {
+    if (reusedMessages > 0 || delta.baseline) return Math.min(reusedMessages, totalMessages);
+    return rewrittenContextSplitIndex(delta, messages);
+  }
   const newMessages = nonNegativeInteger(delta.new_messages);
-  if (newMessages != null) return Math.max(0, totalMessages - Math.min(newMessages, totalMessages));
+  if (newMessages != null) {
+    const splitIndex = Math.max(0, totalMessages - Math.min(newMessages, totalMessages));
+    if (splitIndex > 0 || delta.baseline) return splitIndex;
+    return rewrittenContextSplitIndex(delta, messages);
+  }
+  const previousMessages = nonNegativeInteger(delta.previous_messages);
+  if (previousMessages != null && previousMessages <= totalMessages) return previousMessages;
+  if (previousMessages != null) return rewrittenContextSplitIndex(delta, messages);
   return delta.baseline ? 0 : totalMessages;
+}
+
+function rewrittenContextSplitIndex(delta, messages) {
+  const hasPreviousContext = delta.baseline === false || delta.previous_request_index != null || Number(delta.previous_messages) > 0;
+  if (!hasPreviousContext) return 0;
+  const latestUserIndex = latestVisibleUserMessageIndex(messages);
+  return latestUserIndex >= 0 ? latestUserIndex : 0;
+}
+
+function latestVisibleUserMessageIndex(messages) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = responseInputItemToMessage(messages[index]) || messages[index];
+    if (userVisibleText(message)) return index;
+  }
+  return -1;
 }
 
 function nonNegativeInteger(value) {
