@@ -38,26 +38,26 @@ export function responseInputItemToMessage(item) {
       content: item.content ?? item.text ?? "",
     };
   }
-  if (["function_call", "custom_tool_call", "local_shell_call", "computer_call"].includes(item.type)) {
+  if (isResponsesToolCallItem(item)) {
     return {
       role: "assistant",
       source_type: item.type,
       content: [{
         type: "tool_use",
         id: item.call_id || item.id || null,
-        name: item.name || item.function?.name || responsesToolName(item.type),
+        name: item.name || item.function?.name || responsesToolProtocolName(item.type) || "unknown",
         input: parseMaybeJson(item.arguments ?? item.input ?? item.action ?? item.function?.arguments),
       }],
     };
   }
-  if (["function_call_output", "custom_tool_call_output", "local_shell_call_output", "computer_call_output"].includes(item.type)) {
+  if (isResponsesToolOutputItem(item)) {
     return {
       role: "tool",
       source_type: item.type,
       codex_item_type: item.type,
       tool_call_id: item.call_id || item.id || null,
-      name: item.name || null,
-      content: item.output ?? item.content ?? "",
+      name: item.name || responsesToolProtocolName(item.type) || null,
+      content: item.output ?? item.content ?? item.result ?? item.tools ?? "",
     };
   }
   if (item.type === "reasoning") {
@@ -70,10 +70,21 @@ export function responseInputItemToMessage(item) {
   return null;
 }
 
-function responsesToolName(type) {
-  if (type === "local_shell_call") return "local_shell";
-  if (type === "computer_call") return "computer";
-  return "unknown";
+export function isResponsesToolCallItem(item) {
+  const type = String(item?.type || "").toLowerCase();
+  return Boolean(type && type.endsWith("_call") && !type.endsWith("_output"));
+}
+
+export function isResponsesToolOutputItem(item) {
+  const type = String(item?.type || "").toLowerCase();
+  return Boolean(type && (type.endsWith("_call_output") || type === "tool_search_output"));
+}
+
+export function responsesToolProtocolName(value) {
+  const type = String(typeof value === "string" ? value : value?.type || "").toLowerCase();
+  const base = type.replace(/_output$/, "").replace(/_call$/, "");
+  if (!base || ["function", "custom_tool"].includes(base)) return null;
+  return base;
 }
 
 function responsesReasoningText(item) {

@@ -123,6 +123,47 @@ assert.equal(responses.finish_reason, "completed");
 assert.deepEqual(responses.tool_calls, [{ id: "call-codex", name: "exec", arguments: { cmd: "pwd" } }]);
 assert.equal(responses.complete_response.status, "completed");
 
+const toolSearchResponse = summarizeModelResponse({
+  headers: { "content-type": "text/event-stream" },
+  body_text: sse([
+    {
+      type: "response.output_item.done",
+      output_index: 2,
+      item: {
+        type: "tool_search_call",
+        call_id: "call-search",
+        status: "completed",
+        execution: "client",
+        arguments: { query: "multi-agent tools", limit: 5 },
+      },
+    },
+    {
+      type: "response.completed",
+      response: {
+        id: "resp-search",
+        model: "gpt-codex",
+        status: "completed",
+        output: [
+          { type: "message", role: "assistant", content: [{ type: "output_text", text: "Searching tools." }] },
+          {
+            type: "tool_search_call",
+            call_id: "call-search",
+            status: "completed",
+            execution: "client",
+            arguments: { query: "multi-agent tools", limit: 5 },
+          },
+        ],
+      },
+    },
+  ]),
+  status: 200,
+});
+assert.equal(toolSearchResponse.text, "Searching tools.");
+assert.deepEqual(toolSearchResponse.tool_calls, [
+  { id: "call-search", name: "tool_search", arguments: { query: "multi-agent tools", limit: 5 } },
+]);
+assert.deepEqual(toolSearchResponse.complete_response.content.map((part) => part.type), ["text", "tool_use"]);
+
 const anthropicStream = sse([
   { type: "message_start", message: { id: "msg-sse", role: "assistant", model: "claude-stream", content: [] } },
   { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } },

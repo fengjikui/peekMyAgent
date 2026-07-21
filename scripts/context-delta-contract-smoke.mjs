@@ -6,7 +6,7 @@ const user = (text) => ({ role: "user", content: text });
 const toolUse = { role: "assistant", content: [{ type: "tool_use", id: "call-1", name: "Bash", input: { command: "pwd" } }] };
 const toolResult = { role: "user", content: [{ type: "tool_result", tool_use_id: "call-1", content: "/tmp" }] };
 const requests = [
-  request(1, [user("hello")], { responseToolCalls: [{ id: "response-call", name: "Bash" }] }),
+  request(1, [user("hello")], { responseToolCalls: [{ id: "call-1", name: "Bash", arguments: { command: "pwd" } }] }),
   request(2, [user("hello"), toolUse, toolResult]),
   request(3, [user("child task")], { agentId: "agent-a" }),
   request(4, [user("child task"), { role: "assistant", content: "done" }], { agentId: "agent-a" }),
@@ -43,7 +43,7 @@ assert.equal(requests[1].context_delta.reused_messages, 1);
 assert.equal(requests[1].context_delta.new_messages, 2);
 assert.equal(requests[1].context_delta.new_tool_calls, 1);
 assert.equal(requests[1].context_delta.new_tool_results, 1);
-assert.equal(requests[1].summary.current_tool_calls.length, 1);
+assert.equal(requests[1].summary.current_tool_calls.length, 0, "the previous model response call is not repeated as new upstream data");
 assert.equal(requests[1].summary.current_tool_results[0].id, "call-1");
 assert.equal(requests[2].context_delta.baseline, true, "child context starts with its own baseline");
 assert.equal(requests[3].context_delta.previous_request_index, 3);
@@ -53,7 +53,7 @@ assert.equal(requests[1].summary.history_stack[0].context_status, "reused");
 assert.equal(requests[1].summary.history_stack[1].context_status, "new");
 
 const pagedRequests = [
-  request(1, [user("hello")]),
+  request(1, [user("hello")], { responseToolCalls: [{ id: "call-1", name: "Bash", arguments: { command: "pwd" } }] }),
   request(2, [user("hello"), toolUse, toolResult]),
   request(3, [user("child task")], { agentId: "agent-a" }),
   request(4, [user("child task"), { role: "assistant", content: "done" }], { agentId: "agent-a" }),

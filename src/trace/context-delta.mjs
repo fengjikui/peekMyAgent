@@ -13,7 +13,9 @@ export function annotateRequestContextChanges(requests, semantics = {}, { state 
     const previous = previousByContextKey.get(contextKey) || null;
     const currentToolMessages = semantics.isInternalRequest(request) ? [] : currentToolEventMessages(request, previous, semantics);
     const currentToolCalls = currentToolMessages ? semantics.extractToolCalls(currentToolMessages) : request.summary.tool_calls;
-    request.summary.current_tool_calls = currentToolCalls || [];
+    request.summary.current_tool_calls = currentToolMessages
+      ? removePreviouslyObservedResponseCalls(currentToolCalls, previous)
+      : currentToolCalls || [];
     request.summary.current_tool_results = currentToolMessages
       ? semantics.extractToolResults(currentToolMessages).map((result) => ({ ...result, content: semantics.previewText(result.content, 800) }))
       : request.summary.tool_results;
@@ -25,6 +27,28 @@ export function annotateRequestContextChanges(requests, semantics = {}, { state 
     previousByContextKey.set(contextKey, request);
   }
   return requests;
+}
+
+function removePreviouslyObservedResponseCalls(calls, previous) {
+  const observed = new Set((previous?.summary?.response?.tool_calls || []).map(toolEventKey).filter(Boolean));
+  if (!observed.size) return calls || [];
+  return (calls || []).filter((call) => !observed.has(toolEventKey(call)));
+}
+
+function toolEventKey(event) {
+  const id = String(event?.id || event?.tool_call_id || event?.tool_use_id || "").trim();
+  if (id) return `id:${id}`;
+  const name = String(event?.name || "").trim();
+  if (!name) return "";
+  return `shape:${name}:${stableJson(event?.arguments ?? event?.input ?? null)}`;
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 function contextPreviousRequests(state) {

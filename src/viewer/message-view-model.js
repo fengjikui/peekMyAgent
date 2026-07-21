@@ -1,4 +1,8 @@
-import { extractRequestMessages, responseInputItemToMessage } from "../shared/request-payload.mjs";
+import {
+  extractRequestMessages,
+  responseInputItemToMessage,
+  responsesToolProtocolName,
+} from "../shared/request-payload.mjs";
 import { messageTextWithoutHarnessInjections } from "../trace/message-semantics.mjs";
 
 export const DEFAULT_MESSAGE_TEXT_LIMIT = 5000;
@@ -252,7 +256,7 @@ function messageGroupKind(role) {
 
 function toolCallView(raw = {}) {
   return {
-    name: raw.name || raw.function?.name || raw.tool_name || protocolToolName(raw.type) || "unknown",
+    name: raw.name || raw.function?.name || raw.tool_name || responsesToolProtocolName(raw.type) || "unknown",
     callId: raw.call_id || raw.id || raw.tool_use_id || null,
     parameters: parseMaybeJson(raw.arguments ?? raw.input ?? raw.action ?? raw.function?.arguments ?? null),
   };
@@ -261,17 +265,10 @@ function toolCallView(raw = {}) {
 function toolResultView(raw = {}, text = "") {
   return {
     callId: raw.call_id || raw.tool_use_id || raw.id || null,
-    name: raw.name || raw.tool_name || protocolToolName(raw.type) || null,
+    name: raw.name || raw.tool_name || responsesToolProtocolName(raw.type) || null,
     output: text || stringValue(raw.output ?? raw.content ?? raw.result ?? raw.tools ?? ""),
     toolSearch: toolSearchResultView(raw),
   };
-}
-
-function protocolToolName(type) {
-  const value = String(type || "").toLowerCase();
-  const base = value.replace(/_(?:call|output)$/, "");
-  if (!base || base === value || ["function", "custom_tool"].includes(base)) return null;
-  return base;
 }
 
 function toolSearchResultView(raw = {}) {

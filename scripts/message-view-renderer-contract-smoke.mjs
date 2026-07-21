@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { responseInputItemToMessage } from "../src/shared/request-payload.mjs";
 import {
   inferMessageRole,
   messageTimelineRequestIndexes,
@@ -116,6 +117,24 @@ const toolSearchMessages = [
     ],
   },
 ];
+assert.deepEqual(responseInputItemToMessage(toolSearchMessages[0]), {
+  role: "assistant",
+  source_type: "tool_search_call",
+  content: [{
+    type: "tool_use",
+    id: "call-search",
+    name: "tool_search",
+    input: { query: "Multi-agent tools", limit: 5 },
+  }],
+});
+assert.deepEqual(responseInputItemToMessage(toolSearchMessages[1]), {
+  role: "tool",
+  source_type: "tool_search_output",
+  codex_item_type: "tool_search_output",
+  tool_call_id: "call-search",
+  name: "tool_search",
+  content: toolSearchMessages[1].tools,
+});
 const toolSearchGroups = organizedMessagesViewModel(toolSearchMessages, { timelineRequestIndexes: [11, 12] });
 assert.equal(toolSearchGroups[0].blocks[0].toolCall.name, "tool_search");
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.name, "tool_search");

@@ -6,6 +6,10 @@ import {
   parseMaybeJson,
   toolCallFromPart,
 } from "./content-parts.mjs";
+import {
+  isResponsesToolCallItem,
+  responsesToolProtocolName,
+} from "../shared/request-payload.mjs";
 
 const DEFAULT_TEXT_PREVIEW_CHARS = 1200;
 const DEFAULT_TEXT_CHARS = 8000;
@@ -274,9 +278,9 @@ function collectOutputResponse(items, output) {
       if (reasoningText) output.thinkingParts.push(reasoningText);
       continue;
     }
-    if (["function_call", "custom_tool_call"].includes(item.type)) {
+    if (isResponsesToolCallItem(item)) {
       output.toolCalls.push({
-        name: item.name || item.function?.name || "unknown",
+        name: item.name || item.function?.name || responsesToolProtocolName(item.type) || "unknown",
         id: item.call_id || item.id || null,
         arguments: parseMaybeJson(item.arguments ?? item.input ?? item.function?.arguments),
       });
@@ -317,7 +321,7 @@ function collectResponsesToolCallEvent(data, blocks) {
     const key = responsesToolCallKey(data, item, blocks.size);
     const current = blocks.get(key) || { id: null, name: null, argumentsText: "", finalArguments: undefined };
     current.id = item.call_id || item.id || current.id;
-    current.name = item.name || item.function?.name || current.name;
+    current.name = item.name || item.function?.name || responsesToolProtocolName(item.type) || current.name;
     if (type === "response.output_item.done") {
       current.finalArguments = item.arguments ?? item.input ?? item.action ?? item.function?.arguments;
     }
@@ -338,7 +342,7 @@ function responsesToolCallKey(data, item, fallback) {
 }
 
 function isResponsesToolCall(item) {
-  return ["function_call", "custom_tool_call", "local_shell_call", "computer_call"].includes(item?.type);
+  return isResponsesToolCallItem(item);
 }
 
 function finalizeResponsesStreamToolCalls(blocks) {
