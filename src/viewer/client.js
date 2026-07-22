@@ -1312,7 +1312,7 @@ function renderProviderUsageStats(request) {
 
 function renderRequestAgentBranchStat(request) {
   const branch = request.trace?.agent_branch;
-  const agentId = branch?.agent_id || request.trace?.claude_agent_id || null;
+  const agentId = branch?.agent_id || request.trace?.agent_instance_id || request.trace?.claude_agent_id || null;
   if (!agentId && !request.is_subagent) return "";
   const label = branch?.index ? `${t("subagentShort")}${branch.index}` : t("subagentShort");
   const titleParts = [

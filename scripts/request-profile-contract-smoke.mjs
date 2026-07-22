@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
   classifyTransportOperation,
+  codexSubagentIdentity,
   extractSystemParts,
   extractRequestMessages,
   extractRequestTools,
@@ -82,6 +83,20 @@ assert.equal(
   true,
   "a redacted subagent marker still identifies the actor class",
 );
+assert.deepEqual(
+  codexSubagentIdentity(
+    { headers: { "x-openai-subagent": "collab_spawn" } },
+    {
+      client_metadata: {
+        thread_id: "child-thread",
+        "x-codex-parent-thread-id": "parent-thread",
+      },
+    },
+  ),
+  { agent_id: "child-thread", parent_agent_id: "parent-thread", source: "client_metadata" },
+  "Codex exact proxy metadata retains the child identity needed to correlate its independent requests",
+);
+assert.equal(codexSubagentIdentity({ headers: {} }, { client_metadata: { thread_id: "main-thread" } }), null);
 
 assert.equal(isTitleGenerationRequest({ system: "Generate a concise, sentence-case title for this chat." }), true);
 assert.equal(

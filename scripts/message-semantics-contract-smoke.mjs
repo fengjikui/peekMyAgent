@@ -15,6 +15,7 @@ import {
   lastRealUserMessage,
   messageTextWithoutHarnessInjections,
   parseCommandMessage,
+  preferObservedToolResultEntry,
   realUserVisibleText,
   stripCodexHarnessBlocks,
   taskNotificationSummary,
@@ -108,6 +109,16 @@ assert.equal(isToolResultMessage(toolResult), true);
 assert.equal(classifyCurrentEntry([toolResult]).kind, "tool_result");
 assert.equal(classifyMessageKind(toolResult), "tool_result");
 assert.equal(realUserVisibleText(toolResult), "");
+assert.equal(
+  preferObservedToolResultEntry({ kind: "harness_injection", label: "Codex 子 Agent 事件" }, [{ id: "wait-1", content: "done" }]).kind,
+  "tool_result",
+  "an observed function_call_output remains the primary request entry when a Harness notification follows it",
+);
+assert.equal(
+  preferObservedToolResultEntry({ kind: "user_input", label: "User input" }, [{ id: "old-result", content: "history" }]).kind,
+  "user_input",
+  "historical tool results never replace a real current user entry",
+);
 
 const mixedCommand = {
   role: "user",

@@ -60,7 +60,7 @@ function contextPreviousRequests(state) {
 
 export function requestContextChainKey(request) {
   const sessionKey = request.conversation_id || request.watch_id || request.trace?.claude_session_id_prefix || request.agent_profile || "session";
-  const agentId = request.trace?.claude_agent_id || "";
+  const agentId = request.trace?.agent_instance_id || request.trace?.claude_agent_id || "";
   if (agentId) return `agent:${sessionKey}:${agentId}`;
   const actorType = request.trace?.actor_type || request.source_hint?.type || "main";
   if (actorType === "main") return `main:${sessionKey}`;

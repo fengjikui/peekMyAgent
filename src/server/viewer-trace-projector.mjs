@@ -18,12 +18,14 @@ import {
   lastMessage,
   lastRealUserMessage,
   parseCommandMessage,
+  preferObservedToolResultEntry,
   realUserVisibleText,
 } from "../trace/message-semantics.mjs";
 import { summarizeModelResponse } from "../trace/model-response-normalizer.mjs";
 import { analyzeRequestComposition } from "../trace/request-composition.mjs";
 import {
   classifyTransportOperation,
+  codexSubagentIdentity,
   extractSystemParts,
   extractRequestMessages,
   extractRequestTools,
@@ -129,6 +131,7 @@ export function createViewerTraceProjector({
     const toolCalls = extractToolCalls(messages);
     const toolResults = extractToolResults(messages);
     const sourceHint = inferRequestSource({ capture, body, currentUser, debugSource, lastUser });
+    const codexSubagent = codexSubagentIdentity(capture, body);
     const protocolProfile = inferProtocolProfile(capture, body);
     const historyCount = Math.max(0, messages.length - (currentUser ? 1 : 0) - systemParts.length);
     const claudeAgentId = headerValue(capture.headers, "x-claude-code-agent-id");
@@ -154,6 +157,9 @@ export function createViewerTraceProjector({
       is_subagent: sourceHint.type === "subagent",
       trace: {
         actor_type: sourceHint.type === "subagent" ? "child" : sourceHint.type === "metadata" ? "side" : "main",
+        agent_instance_id: sourceHint.type === "subagent" ? codexSubagent?.agent_id || claudeAgentId || null : null,
+        parent_agent_instance_id: sourceHint.type === "subagent" ? codexSubagent?.parent_agent_id || null : null,
+        agent_identity_source: sourceHint.type === "subagent" ? codexSubagent?.source || (claudeAgentId ? "header" : null) : null,
         claude_agent_id: claudeAgentId || null,
         claude_session_id_prefix: claudeSessionId ? claudeSessionId.slice(0, 12) : null,
         debug_source: debugSource?.source || null,
@@ -255,7 +261,11 @@ export function createViewerTraceProjector({
   }
 
   function annotateRequestChanges(requests) {
-    return annotateRequestContextChanges(requests, contextSemantics());
+    annotateRequestContextChanges(requests, contextSemantics());
+    for (const request of requests || []) {
+      request.summary.entry = preferObservedToolResultEntry(request.summary.entry, request.summary.current_tool_results);
+    }
+    return requests;
   }
 
   function contextSemantics() {
@@ -447,7 +457,7 @@ export function createViewerTraceProjector({
       subagent_count: subagentCount,
       subagent_instance_count:
         agentTrace?.branch_count ||
-        new Set(requests.map((request) => request.trace?.claude_agent_id).filter(Boolean)).size ||
+        new Set(requests.map((request) => request.trace?.agent_instance_id || request.trace?.claude_agent_id).filter(Boolean)).size ||
         subagentCount,
       main_count: requests.length - subagentCount,
       tool_call_count: distinctToolEventCount(requests, (request) => [

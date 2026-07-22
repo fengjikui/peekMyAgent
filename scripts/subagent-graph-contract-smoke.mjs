@@ -206,18 +206,109 @@ assert.equal(compactCodexGraph.branches[0].spawn.context_mode, "all");
 assert.equal(compactCodexGraph.branches[0].spawn.task_message_visibility, "visible");
 assert.equal(compactCodexGraph.branches[0].status, "returned");
 
+const failedCurrentSpawn = toolCall("spawn-current-failed", "spawn_agent", {
+  agent_type: "explorer",
+  message: "Inspect without a workspace path.",
+  fork_context: true,
+});
+const currentTask = "Inspect /tmp/current-agent and report the directory contents.";
+const currentSpawn = toolCall("spawn-current", "spawn_agent", {
+  agent_type: "explorer",
+  message: currentTask,
+});
+const currentWait = toolCall("wait-current", "wait_agent", {
+  targets: ["current-agent-id"],
+  timeout_ms: 60_000,
+});
+const currentCodexRequests = [
+  request(21, {
+    response: response("current-failed-spawn", "tool_use", { tool_calls: [failedCurrentSpawn] }),
+  }),
+  request(22, {
+    currentToolResults: [{ id: failedCurrentSpawn.id, content: "Full-history forked agents inherit the parent agent type; omit agent_type." }],
+    response: response("current-spawn", "tool_use", { tool_calls: [currentSpawn] }),
+  }),
+  request(23, {
+    currentToolResults: [{ id: currentSpawn.id, content: JSON.stringify({ agent_id: "current-agent-id", nickname: "Huygens" }) }],
+    response: response("current-wait", "tool_use", { tool_calls: [currentWait] }),
+  }),
+  request(24, {
+    agentInstanceId: "current-agent-id",
+    agentIdentitySource: "client_metadata",
+    messages: [{ role: "user", content: currentTask }],
+    response: response("current-child-tools", "tool_use", {
+      tool_calls: [toolCall("current-exec", "exec_command", { cmd: "pwd", workdir: "/tmp/current-agent" })],
+    }),
+  }),
+  request(25, {
+    agentInstanceId: "current-agent-id",
+    agentIdentitySource: "client_metadata",
+    messages: [{ role: "user", content: currentTask }],
+    currentToolResults: [{ id: "current-exec", content: "/tmp/current-agent" }],
+    response: response("current-child-done", "end_turn", { text: "Directory inspected." }),
+  }),
+  request(26, {
+    entry: {
+      kind: "harness_injection",
+      harness_blocks: [
+        {
+          tag: "subagent_notification",
+          text: JSON.stringify({ agent_path: "current-agent-id", status: { completed: "Directory inspected." } }),
+        },
+      ],
+    },
+    currentToolResults: [
+      {
+        id: currentWait.id,
+        content: JSON.stringify({ status: { "current-agent-id": { completed: "Directory inspected." } }, timed_out: false }),
+      },
+    ],
+    response: response("current-parent-done", "end_turn", { text: "Child result received." }),
+  }),
+];
+const currentCodexGraph = buildSubagentGraph(currentCodexRequests, semantics);
+assert.equal(currentCodexGraph.spawn_count, 2, "all spawn attempts remain visible as evidence");
+assert.equal(currentCodexGraph.failed_spawn_count, 1, "a definitive failed spawn is counted but never presented as a child");
+assert.equal(currentCodexGraph.branch_count, 1, "only the successfully launched Codex child becomes a branch");
+assert.equal(currentCodexGraph.return_count, 1);
+assert.equal(currentCodexGraph.branches[0].agent_id, "current-agent-id");
+assert.equal(currentCodexGraph.branches[0].agent_type, "explorer");
+assert.equal(currentCodexGraph.branches[0].label, "Huygens");
+assert.equal(currentCodexGraph.branches[0].status, "returned");
+assert.equal(currentCodexGraph.branches[0].launch.parent_request_index, 23);
+assert.equal(currentCodexGraph.branches[0].return.parent_request_index, 26);
+assert.equal(currentCodexGraph.branches[0].return.evidence, "wait_agent");
+assert.equal(currentCodexGraph.branches[0].confidence, "high_agent_id");
+assert.match(currentCodexGraph.branches[0].linkage_note, /client_metadata\.thread_id/);
+assert.equal(currentCodexGraph.signals.child_type, "spawn_agent arguments.agent_type");
+assert.equal(currentCodexGraph.signals.parent_spawn, "response spawn_agent function call");
+assert.deepEqual(currentCodexGraph.branches[0].request_indexes, [24, 25], "the exact child Responses requests form its internal event trace");
+assert.equal(currentCodexGraph.branches[0].steps[0].response_tool_calls[0].name, "exec_command");
+assert.equal(currentCodexGraph.branches[0].steps[1].request_tool_results[0].id, "current-exec");
+assert.equal(currentCodexRequests[0].trace?.spawn_branch_ids, undefined, "the failed spawn attempt owns no child branch");
+assert.deepEqual(currentCodexRequests[1].trace.spawn_branch_ids, [currentCodexGraph.branches[0].id]);
+assert.deepEqual(currentCodexRequests[5].trace.returned_branch_ids, [currentCodexGraph.branches[0].id]);
+
+const compactCurrentCodexGraph = buildSubagentGraph(currentCodexRequests.map(projectTimelineRequest), semantics);
+assert.equal(compactCurrentCodexGraph.branch_count, 1);
+assert.equal(compactCurrentCodexGraph.return_count, 1, "truncated wait_agent output retains enough lifecycle evidence");
+assert.deepEqual(compactCurrentCodexGraph.branches[0].request_indexes, [24, 25]);
+
 console.log("subagent graph contract smoke passed");
 
 function request(index, options = {}) {
+  const agentId = options.agentInstanceId || options.agentId || null;
   return {
     id: `request-${index}`,
     request_index: index,
-    is_subagent: Boolean(options.agentId),
-    source_hint: options.sourceHint || (options.agentId ? { type: "subagent", label: "child", confidence: "high" } : { type: "user", label: "user" }),
+    is_subagent: Boolean(agentId),
+    source_hint: options.sourceHint || (agentId ? { type: "subagent", label: "child", confidence: "high" } : { type: "user", label: "user" }),
     debug_source: options.debugSource || "",
     raw: { body: { messages: options.messages || [] } },
     trace: {
-      actor_type: options.agentId ? "child" : "main",
+      actor_type: agentId ? "child" : "main",
+      ...(options.agentInstanceId ? { agent_instance_id: options.agentInstanceId } : {}),
+      ...(options.agentIdentitySource ? { agent_identity_source: options.agentIdentitySource } : {}),
       ...(options.agentId ? { claude_agent_id: options.agentId } : {}),
       ...(options.debugSource ? { debug_source: options.debugSource } : {}),
     },

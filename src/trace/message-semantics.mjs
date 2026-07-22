@@ -236,6 +236,12 @@ export function classifyCurrentEntry(messages) {
   return { kind: "unknown", label: "未识别输入", text: "" };
 }
 
+export function preferObservedToolResultEntry(entry, currentToolResults) {
+  if (!Array.isArray(currentToolResults) || !currentToolResults.length) return entry;
+  if (entry?.kind && !["unknown", "tool_result", "harness_injection"].includes(entry.kind)) return entry;
+  return { kind: "tool_result", label: "Tool result 回传", text: "" };
+}
+
 export function displayMessageText(message) {
   const text = extractContentText(message?.content);
   if (isCodexAgentMessage(message)) {

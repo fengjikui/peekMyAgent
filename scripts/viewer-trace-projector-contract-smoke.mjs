@@ -159,7 +159,13 @@ const codexSpecialOperations = projector.buildData({
       capture_adapter: "codex_responses_v1",
       headers: { "x-openai-subagent": "[REDACTED:header]" },
       header_redactions: [{ field_path: "headers.x-openai-subagent", reason: "sensitive_header" }],
-      body: { input: [{ role: "user", content: [{ type: "input_text", text: "Inspect package.json." }] }] },
+      body: {
+        client_metadata: {
+          thread_id: "codex-child-thread",
+          "x-codex-parent-thread-id": "codex-parent-thread",
+        },
+        input: [{ role: "user", content: [{ type: "input_text", text: "Inspect package.json." }] }],
+      },
     },
     {
       capture_id: "codex-compact",
@@ -180,6 +186,9 @@ const codexSpecialOperations = projector.buildData({
 });
 assert.equal(codexSpecialOperations.requests[1].is_subagent, true, "exact Codex child request uses the observed subagent header");
 assert.equal(codexSpecialOperations.requests[1].source_hint.label, "Codex 子 Agent");
+assert.equal(codexSpecialOperations.requests[1].trace.agent_instance_id, "codex-child-thread");
+assert.equal(codexSpecialOperations.requests[1].trace.parent_agent_instance_id, "codex-parent-thread");
+assert.equal(codexSpecialOperations.requests[1].trace.context_chain_key, "agent:Codex:codex-child-thread");
 assert.deepEqual(codexSpecialOperations.requests[2].summary.entry, {
   operation: "context_compaction",
   kind: "compact",

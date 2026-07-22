@@ -121,6 +121,21 @@ export function isCodexSubagentRequest(capture = {}) {
   );
 }
 
+export function codexSubagentIdentity(capture = {}, body = capture.body || {}) {
+  if (!isCodexSubagentRequest(capture)) return null;
+  const metadata = body?.client_metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const windowId = typeof metadata["x-codex-window-id"] === "string" ? metadata["x-codex-window-id"] : "";
+  const agentId = cleanIdentity(metadata.thread_id || windowId.split(":")[0]);
+  const parentAgentId = cleanIdentity(metadata["x-codex-parent-thread-id"] || metadata.parent_thread_id || metadata.session_id);
+  if (!agentId && !parentAgentId) return null;
+  return {
+    agent_id: agentId,
+    parent_agent_id: parentAgentId,
+    source: "client_metadata",
+  };
+}
+
 export function isContextTokenCountingRequest(capture) {
   const requestPath = String(capture?.path || capture?.original_url || "");
   return /\/v1\/messages\/count_tokens(?:$|[?#/])/.test(requestPath);
@@ -233,4 +248,9 @@ function headerValue(headers, name) {
   const entry = Object.entries(headers || {}).find(([key]) => key.toLowerCase() === name.toLowerCase());
   const value = entry?.[1];
   return Array.isArray(value) ? value.join(", ") : String(value || "");
+}
+
+function cleanIdentity(value) {
+  const text = String(value || "").trim();
+  return text || null;
 }
