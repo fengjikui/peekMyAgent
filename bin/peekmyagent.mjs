@@ -1346,6 +1346,7 @@ async function runOpenCodeAgent(parsed, viewerUrl) {
     env: process.env,
     providerId: configuration.provider_id,
     proxyBaseUrl: watch.base_url,
+    commandName: configuration.command_name,
   });
   console.error("peekMyAgent capture: OpenCode exact proxy (process-local; user config unchanged)");
   printRunStarted({ viewerUrl, watch, command: "opencode", args: parsed.childArgs });

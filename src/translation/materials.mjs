@@ -28,11 +28,17 @@ export class TranslationMaterialCollector {
 
   collectRequest(request, source, { section = "" } = {}) {
     const body = request.raw?.body || {};
-    return this.collectBody(body, requestOccurrence(request, source), { section });
+    return this.collectBody(body, requestOccurrence(request, source), {
+      section,
+      harnessContext: { request },
+    });
   }
 
   collectCapture(capture, source, { section = "" } = {}) {
-    return this.collectBody(capture?.body || {}, captureOccurrence(capture, source), { section });
+    return this.collectBody(capture?.body || {}, captureOccurrence(capture, source), {
+      section,
+      harnessContext: { request: { raw: capture } },
+    });
   }
 
   collectInput(inputMaterials, occurrence = {}) {
@@ -48,10 +54,10 @@ export class TranslationMaterialCollector {
     return this;
   }
 
-  collectBody(body, occurrence, { section = "" } = {}) {
+  collectBody(body, occurrence, { section = "", harnessContext = {} } = {}) {
     const messages = extractRequestMessages(body || {});
     if (!section || section === "system") this.collectSystem(body || {}, messages, occurrence);
-    if (!section || section === "harness") this.collectHarness(messages, occurrence);
+    if (!section || section === "harness") this.collectHarness(messages, occurrence, harnessContext);
     if (!section || section === "tools") this.collectTools(body || {}, occurrence);
     return this;
   }
@@ -63,11 +69,21 @@ export class TranslationMaterialCollector {
     );
   }
 
-  collectHarness(messages, occurrence) {
+  collectHarness(messages, occurrence, harnessContext = {}) {
     this.collectProjected(
       projectTranslationBodyMaterials(
         { messages },
-        { section: "harness", contentText: this.contentText, extractHarnessParts: this.extractHarnessParts },
+        {
+          section: "harness",
+          contentText: this.contentText,
+          extractHarnessParts: this.extractHarnessParts,
+          harnessContext: {
+            ...harnessContext,
+            openCodeCommand:
+              harnessContext.openCodeCommand ||
+              openCodeCommandFromRequest(harnessContext.request),
+          },
+        },
       ),
       occurrence,
     );
@@ -115,6 +131,15 @@ export class TranslationMaterialCollector {
     assertTranslationMaterialsWithinLimits(materials, { limits: this.limits, tooLarge: this.tooLarge });
     return materials;
   }
+}
+
+function openCodeCommandFromRequest(request) {
+  const headers = request?.raw?.headers || request?.headers || {};
+  for (const [key, value] of Object.entries(headers || {})) {
+    if (String(key).toLowerCase() !== "x-peek-opencode-command") continue;
+    return Array.isArray(value) ? value[0] : value;
+  }
+  return null;
 }
 
 export function assertTranslationMaterialsWithinLimits(materials, { limits = TRANSLATION_MATERIAL_LIMITS, tooLarge = (message) => new Error(message) } = {}) {

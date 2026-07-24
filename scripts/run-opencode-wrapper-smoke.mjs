@@ -23,7 +23,7 @@ fs.mkdirSync(binDir, { recursive: true });
 
 const upstream = http.createServer(async (req, res) => {
   const body = JSON.parse((await readBody(req)) || "{}");
-  upstreamRequests.push({ method: req.method, path: req.url, body });
+  upstreamRequests.push({ method: req.method, path: req.url, headers: req.headers, body });
   if (req.method !== "POST" || req.url !== "/v1/chat/completions") {
     res.writeHead(404, { "content-type": "application/json" });
     res.end('{"error":{"message":"unexpected route"}}');
@@ -118,6 +118,7 @@ const post = async (body) => {
   const response = await fetch(baseURL + "/chat/completions", {
     method: "POST",
     headers: {
+      ...(inline.provider?.mimo?.options?.headers || {}),
       "content-type": "application/json",
       authorization: "Bearer wrapper-secret",
       "x-session-id": ${JSON.stringify(learnedSessionId)},
@@ -181,6 +182,8 @@ console.log("fake opencode ok");
       `--viewer-url=${viewer.url}`,
       "opencode",
       "run",
+      "--command",
+      "pma-smoke",
       "--model",
       "mimo/mimo-v2.5-pro",
       "hello",
@@ -195,6 +198,8 @@ console.log("fake opencode ok");
   const childArgs = JSON.parse(fs.readFileSync(argsPath, "utf8"));
   assert.deepEqual(childArgs, [
     "run",
+    "--command",
+    "pma-smoke",
     "--model",
     "mimo/mimo-v2.5-pro",
     "hello",
@@ -202,12 +207,17 @@ console.log("fake opencode ok");
   const childConfig = JSON.parse(fs.readFileSync(envPath, "utf8"));
   assert.deepEqual(childConfig.plugin, ["existing-plugin"]);
   assert.equal(childConfig.provider.mimo.options.apiKey, "process-local-secret");
-  assert.deepEqual(childConfig.provider.mimo.options.headers, { "x-provider-feature": "enabled" });
+  assert.deepEqual(childConfig.provider.mimo.options.headers, {
+    "x-provider-feature": "enabled",
+    "x-peek-opencode-command": "pma-smoke",
+  });
   assert.match(childConfig.provider.mimo.options.baseURL, /^http:\/\/127\.0\.0\.1:\d+\/watch\//);
 
   assert.equal(upstreamRequests.length, 2);
   assert.ok(upstreamRequests.every((request) => request.method === "POST"));
   assert.ok(upstreamRequests.every((request) => request.path === "/v1/chat/completions"));
+  assert.ok(upstreamRequests.every((request) => request.headers["x-provider-feature"] === "enabled"));
+  assert.ok(upstreamRequests.every((request) => request.headers["x-peek-opencode-command"] === undefined));
   assert.deepEqual(
     upstreamRequests.map((request) => request.body.tools.length),
     [0, 1],
@@ -229,6 +239,11 @@ console.log("fake opencode ok");
   assert.equal(data.requests[1].counts.system, 1);
   assert.equal(data.requests[1].counts.tools, 1);
   assert.equal(data.requests[1].summary.current_user, "hello from OpenCode wrapper");
+  assert.equal(data.requests[1].raw.headers["x-peek-opencode-command"], "pma-smoke");
+  assert.deepEqual(
+    data.requests[1].raw.body.messages.map((message) => message.role),
+    ["system", "user"],
+  );
 
   const failure = await runCli(
     [

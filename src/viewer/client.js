@@ -2134,8 +2134,9 @@ function collectResponseTranslationMaterials(request) {
   ];
 }
 
-function extractClientHarnessTranslationParts(messages) {
+function extractClientHarnessTranslationParts(messages, context = {}) {
   return extractHarnessTranslationParts(messages, {
+    ...context,
     labelForPart(kind, { reminderIndex = 0 } = {}) {
       if (kind === "harness_compact") return t("harnessCompact");
       if (kind === "harness_command") return t("harnessCommand");

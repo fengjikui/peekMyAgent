@@ -4,6 +4,7 @@ import { childProcessSpawnConfig, safeProcessCwd } from "../core/platform.mjs";
 
 export const OPENCODE_CONFIG_CONTENT_ENV = "OPENCODE_CONFIG_CONTENT";
 export const OPENCODE_TRANSLATION_AGENT = "peekmyagent-translation";
+export const OPENCODE_COMMAND_EVIDENCE_HEADER = "x-peek-opencode-command";
 
 export function inspectOpenCodeConfiguration({
   args = [],
@@ -47,6 +48,7 @@ export function inspectOpenCodeConfiguration({
     target_base_url: stripTrailingSlash(resolvedTargetBaseUrl),
     provider_npm: stringValue(provider.npm) || null,
     conversation_id: openCodeSessionFromArgs(args),
+    command_name: openCodeCommandFromArgs(args),
     workspace: openCodeWorkingDirectory(args, cwd),
   };
 }
@@ -84,12 +86,20 @@ export function buildOpenCodeProxyEnv({
   env = process.env,
   providerId,
   proxyBaseUrl,
+  commandName = null,
 } = {}) {
   if (!providerId) throw new Error("providerId is required");
   assertHttpUrl(proxyBaseUrl, "peekMyAgent OpenCode proxy base URL");
   const existing = parseInlineConfig(env[OPENCODE_CONFIG_CONTENT_ENV]);
   const provider = objectValue(existing.provider?.[providerId]);
   const options = objectValue(provider.options);
+  const command = normalizeOpenCodeCommandName(commandName);
+  const headers = command
+    ? {
+        ...objectValue(options.headers),
+        [OPENCODE_COMMAND_EVIDENCE_HEADER]: command,
+      }
+    : options.headers;
   const merged = {
     ...existing,
     provider: {
@@ -99,6 +109,7 @@ export function buildOpenCodeProxyEnv({
         options: {
           ...options,
           baseURL: stripTrailingSlash(proxyBaseUrl),
+          ...(headers ? { headers } : {}),
         },
       },
     },
@@ -164,9 +175,20 @@ export function openCodeSessionFromArgs(args = []) {
   return optionValue(args, ["--session", "-s"]);
 }
 
+export function openCodeCommandFromArgs(args = []) {
+  return normalizeOpenCodeCommandName(optionValue(args, ["--command"]));
+}
+
 export function openCodeWorkingDirectory(args = [], cwd = safeProcessCwd()) {
   const directory = optionValue(args, ["--dir"]);
   return directory ? path.resolve(cwd, directory) : path.resolve(cwd);
+}
+
+function normalizeOpenCodeCommandName(value) {
+  const command = String(value || "").trim().replace(/^\/+/, "");
+  if (!command) return null;
+  if (command.length > 128 || !/^[A-Za-z0-9._:/-]+$/.test(command)) return null;
+  return command;
 }
 
 export function providerFromOpenCodeModel(model) {

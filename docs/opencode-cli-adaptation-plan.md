@@ -268,6 +268,8 @@ provider-specific path/header/body 规则只有在真实 fixture 证明共享 Pr
 - slash command/project instruction/plugin 注入如何标为 Harness；
 - 不把用户正文中的同名 XML/Markdown 误判为注入。
 
+当前已为 CLI `--command <name>` 建立强证据链：wrapper 把规范化 command name 放进进程级 provider header，Capture Proxy 本地保存后在上游转发前移除；共享 Harness 投影使用该证据定位 command 展开的 user message，并继续在 History/Message 保留原文。确定性测试同时覆盖真实投影、普通 slash 文本反例和非法 header 值。TUI 内建 slash（例如 `/compact`）没有该 CLI 参数证据，仍需依靠 OpenCode 原生生命周期或经过真实 fixture 验证的精确模板，不能套用这条规则。
+
 OpenCode 首轮实验按[工作手册中的 Harness 注入识别规则](new-harness-adaptation-playbook.md#34-harness-注入的识别规则)记录每个候选块的：
 
 - 原始 role、content index 和 JSON path；
@@ -278,7 +280,7 @@ OpenCode 首轮实验按[工作手册中的 Harness 注入识别规则](new-harn
 
 首版只允许“实验证明的白名单 marker + 明确命令 envelope”。单纯以 `/` 开头、包含 `system`/`skill`/`agent` 关键词、使用 XML/Markdown 或位于 `developer` role，都不足以单独判定 Harness 注入。
 
-E5 只是观测实验，不属于 M1/M2 承诺。若没有稳定 wire/event 证据，首版只显示 Raw/unknown，不增加 Skill 专用 API 或 Viewer 分支。
+E5 中的 CLI 自定义 command 已进入实现；Skill 和 TUI 内建 slash 仍先作为观测实验。若没有稳定 wire/event 证据，首版只显示 Raw/unknown，不增加 Skill 专用 API 或 Viewer 分支。
 
 ### E6：压缩
 
