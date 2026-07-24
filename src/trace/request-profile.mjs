@@ -148,7 +148,23 @@ export function isTitleGenerationRequest(body) {
   const format = body?.output_config?.format;
   return (
     /Generate a concise, sentence-case title/i.test(systemText) ||
+    isOpenCodeTitleGenerationRequest(body, systemText) ||
     (format?.type === "json_schema" && format?.schema?.properties?.title && Array.isArray(body?.tools) && body.tools.length === 0)
+  );
+}
+
+function isOpenCodeTitleGenerationRequest(body, systemText) {
+  const messages = extractRequestMessages(body);
+  const promptText = messages
+    .filter((message) => message?.role === "user")
+    .map((message) => extractContentText(message.content))
+    .join("\n");
+  const tools = Array.isArray(body?.tools) ? body.tools : [];
+  return (
+    /^You are a title generator\. You output ONLY a thread title\. Nothing else\./i.test(systemText.trim()) &&
+    /<task>\s*Generate a brief title that would help the user find this conversation later\./i.test(systemText) &&
+    /Generate a title for this conversation:/i.test(promptText) &&
+    tools.length === 0
   );
 }
 

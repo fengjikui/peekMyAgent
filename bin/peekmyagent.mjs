@@ -8,6 +8,7 @@ import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { normalizeOpenClawProxyCapture } from "../src/adapters/openclaw-proxy.mjs";
 import { DEFAULT_OPENCLAW_PROFILE, patchOpenClawProviderBaseUrl, prepareOpenClawProfilePatch } from "../src/adapters/openclaw-config.mjs";
+import { buildOpenCodeProxyEnv, inspectOpenCodeConfiguration } from "../src/adapters/opencode-config.mjs";
 import { normalizeClaudeOtelRequestFile } from "../src/adapters/claude-otel.mjs";
 import { CodexDesktopDiscovery } from "../src/adapters/codex-desktop-discovery.mjs";
 import {
@@ -52,6 +53,7 @@ function usage(exitCode = 0) {
 
 Usage:
   pma [--reuse|--ask] [--open] claude [claude args...]
+  pma [--reuse] [--open] opencode [opencode args...]
   pma [--reuse] [--open] openclaw [openclaw args...]
   pma normalize openclaw-capture <capture.json> [--out <file>]
   pma normalize claude-otel <request.json> [--out <file>] [--delete-raw-after-import]
@@ -74,13 +76,14 @@ Usage:
   pma status trae-cn [--json]
   pma dev view [--demo openclaw-subagent|openclaw-multiturn|claude-subagent|claude-proxy-resume] [--evidence <dir>] [--port <port>] [--open]
   pma run claude [--watch ask|reuse|new] [peekMyAgent options] -- [claude args...]
+  pma run opencode [--watch reuse|new] [peekMyAgent options] -- [opencode args...]
   pma run openclaw [--watch reuse|new] [peekMyAgent options] -- [openclaw args...]
   pma watch-current [--agent claude-code|openclaw] [--mode next_request|single_session|privacy_guard] [--viewer-url <url>] [--json] [--open] [--pause] [--resume] [--stop] [--clear] [--session-key <key>] [--patch-openclaw] [--openclaw-profile <name>] [--provider <id>] [--model <id>] [--target-base-url <url>] [--refresh-profile]
   pma install-claude-skill [--scope user|project] [--commands] [--dest <claude-dir>] [--json]
   pma install-openclaw-skill [--agent <id>] [--global] [--force] [--json]
 
 Notes:
-  - The shortest daily path is to prefix the original Agent command: "pma claude -c" or "pma openclaw chat".
+  - The shortest daily path is to prefix the original Agent command: "pma claude -c", "pma opencode", or "pma openclaw chat".
   - Claude Code capture defaults to auto: proxy capture when a configurable upstream base URL exists, otherwise OTel raw-body capture for subscription/OAuth sessions. Use --capture proxy|otel, --proxy, or --otel to force a mode.
   - Codex capture defaults to exact selected-thread routing. "pma codex desktop" keeps the native Desktop UI, routes only the first new thread in the current workspace through Capture Proxy, and asks before a graceful restart when Desktop is already running. Use --capture rollout for no-restart semantic observation.
   - openclaw-capture expects one proxy capture record with method/path/headers/body.
@@ -104,6 +107,7 @@ Usage:
   pma claude -c
   pma claude -c --dangerously-skip-permissions
   pma claude -r <session-id>
+  pma opencode
   pma openclaw chat
   pma doctor
 
@@ -123,6 +127,8 @@ Common:
   pma claude -c                    Start Claude Code and capture this session.
   pma claude -c --dangerously-skip-permissions
                                    Start Claude Code without permission prompts in a trusted repo.
+  pma opencode                     Start OpenCode with exact process-local proxy capture.
+  pma opencode --continue          Continue OpenCode while capturing only this process.
   pma openclaw chat                Start OpenClaw and capture this session.
   pma doctor                       Check install, paths, daemon, and integrations.
   pma install-claude-skill --commands
@@ -295,11 +301,13 @@ function parseAgentShortcut(values) {
 }
 
 function isAgentName(value) {
-  return /^(claude|claude-code|openclaw)$/i.test(value || "");
+  return /^(claude|claude-code|opencode|openclaw)$/i.test(value || "");
 }
 
 function normalizeShortcutAgent(value) {
-  return /^claude(?:-code)?$/i.test(value) ? "claude" : "openclaw";
+  if (/^claude(?:-code)?$/i.test(value)) return "claude";
+  if (/^opencode$/i.test(value)) return "opencode";
+  return "openclaw";
 }
 
 function isShortcutWrapperValueOption(value) {
@@ -1134,6 +1142,7 @@ async function runAgent() {
   if (!parsed.agent || ["--help", "-h"].includes(parsed.agent)) {
     console.log(`Usage:
   peekmyagent run claude [--watch ask|reuse|new] [--viewer-url <url>] [--open-viewer] [--mode <mode>] -- [claude args...]
+  peekmyagent run opencode [--watch reuse|new] [--viewer-url <url>] [--open-viewer] [--mode <mode>] [--provider <id>] [--target-base-url <url>] -- [opencode args...]
   peekmyagent run openclaw [--watch reuse|new] [--viewer-url <url>] [--open-viewer] [--mode <mode>] [--session-key <key>] [--openclaw-profile <name>] [--provider <id>] -- [openclaw args...]`);
     return { exit_code: 0 };
   }
@@ -1144,6 +1153,7 @@ async function runAgent() {
   }
 
   if (/^claude(?:-code)?$/i.test(parsed.agent)) return runClaudeAgent(parsed, viewer.url);
+  if (/^opencode$/i.test(parsed.agent)) return runOpenCodeAgent(parsed, viewer.url);
   if (/^openclaw$/i.test(parsed.agent)) return runOpenClawAgent(parsed, viewer.url);
   throw new Error(`Unsupported agent for run: ${parsed.agent}`);
 }
@@ -1303,6 +1313,48 @@ async function runOpenClawAgent(parsed, viewerUrl) {
     viewerUrl,
     watch,
     openclawProfile: openclawPatch.profile,
+  });
+}
+
+async function runOpenCodeAgent(parsed, viewerUrl) {
+  const workspace = safeProcessCwd();
+  const configuration = inspectOpenCodeConfiguration({
+    args: parsed.childArgs,
+    cwd: workspace,
+    env: process.env,
+    targetBaseUrl: optionValueIn(parsed.wrapperArgs, "--target-base-url"),
+    providerId: optionValueIn(parsed.wrapperArgs, "--provider"),
+    model: optionValueIn(parsed.wrapperArgs, "--model"),
+  });
+  const watchPolicy = normalizeWatchPolicy(optionValueIn(parsed.wrapperArgs, "--watch"), { allowAsk: false });
+  const watch = await postJson(`${trimSlash(viewerUrl)}/api/watch/start`, {
+    agent: "OpenCode",
+    mode: optionValueIn(parsed.wrapperArgs, "--mode") || "single_session",
+    workspace,
+    conversation_id: configuration.conversation_id,
+    started_by: "peekmyagent-run",
+    reuse: watchPolicy === "reuse",
+    target_base_url: configuration.target_base_url,
+    provider_id: configuration.provider_id,
+    config_patched: false,
+    kind: "opencode_proxy_exact",
+    confidence: "exact",
+    note: "OpenCode 子进程通过进程级配置覆盖连接本地 Capture Proxy；用户配置文件未修改。",
+  }, { headers: { "x-peekmyagent-intent": "watch-start" } });
+  const env = buildOpenCodeProxyEnv({
+    env: process.env,
+    providerId: configuration.provider_id,
+    proxyBaseUrl: watch.base_url,
+  });
+  console.error("peekMyAgent capture: OpenCode exact proxy (process-local; user config unchanged)");
+  printRunStarted({ viewerUrl, watch, command: "opencode", args: parsed.childArgs });
+  return runChildWithWatchCleanup({
+    command: "opencode",
+    args: parsed.childArgs,
+    env,
+    viewerUrl,
+    watch,
+    openclawProfile: null,
   });
 }
 
