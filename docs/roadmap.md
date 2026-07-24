@@ -45,7 +45,7 @@
 
 - **Setup / Profile UI**：提供可视化界面，让用户按 Agent 启用或关闭捕获，并支持 dry-run、备份、恢复和 drift 检测。
 - **更安全的全局代理模式**：探索一个显式 opt-in 的模式，临时把某个 Agent 的 provider 配置改到 peekMyAgent 代理上，同时提供隐私提示和恢复控制。
-- **更多 Agent 适配器**：在 Claude Code 和 OpenClaw 打磨稳定后，再继续接入 OpenCode、Hermes、Cursor、Gemini CLI、Aider 等 coding agent。
+- **更多 Agent 适配器**：按[新 Harness 适配工作手册](new-harness-adaptation-playbook.md)逐个建立真实协议证据、可逆配置、共享 Trace 语义与回归门禁；OpenCode CLI 是当前首个验证目标，见[专项计划](opencode-cli-adaptation-plan.md)，Hermes、Pi 等在该流程被真实实现验证后继续接入。
 - **Provider 兼容性提示**：区分 model-not-found、thinking/reasoning 参数冲突、upstream auth 失败、本地代理失败等错误类型。
 - **终端代理模式**：调研 `pma claude` 是否应持有 Claude Code 的 PTY，让 dashboard 发送的消息也能出现在原终端中。
 

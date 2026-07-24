@@ -1,6 +1,6 @@
 # Coding Agent 代码库地图
 
-更新时间：2026-07-19
+更新时间：2026-07-24
 
 本文帮助 Codex、Claude Code 和其他 Coding Agent 在几分钟内找到正确改动边界。它不是第二份架构事实源：运行行为以[当前架构](architecture.md)为准，未来设计以[重构路线图](refactoring-roadmap.md)为准，协作和验证规则以仓库根目录的 `AGENTS.md` 为准。
 
@@ -36,7 +36,7 @@ pma CLI / adapter
 | Claude Code OTel 关联与入库 | `src/core/otel-capture.mjs`、`otel-events.mjs`、`src/server/otel-ingest-service.mjs`、`src/adapters/claude-otel.mjs`、[Service 契约](otel-ingest-service-contract.md) | 在 HTTP route 复制配对算法，或让 core 解析层直接写 Store |
 | Codex Desktop 受管精确捕获、thread 选择性路由、等待/绑定与 rollout 观察 | `src/adapters/codex-desktop-installation.mjs`、`codex-desktop-managed-session.mjs`、`codex-app-server-relay.mjs`、`codex-app-server-protocol.mjs`、`codex-desktop-session.mjs`、`codex-desktop-discovery.mjs`、`codex-rollout-normalizer.mjs`、`codex-exact-proxy.mjs`、`src/server/codex-pending-capture-reader.mjs`、`codex-rollout-capture-reader.mjs`、[托管精确捕获](codex-desktop-managed-exact-capture.md)、[证据与 Viewer 契约](codex-rollout-evidence-and-viewer-contract.md) | 扫描并导入全部 Codex 历史、把 rollout 冒充 wire request、热切换已加载 thread、持久化 App Server JSON-RPC/认证值，或把订阅认证转发到非 first-party host |
 | 页面向 Agent 独立发送消息 | `src/server/agent-send-service.mjs`、`src/viewer/agent-composer-*`、[Service 契约](agent-send-service-contract.md) | renderer 启动进程、Service 直接拥有 watch 恢复，或暗示消息会进入原终端上下文 |
-| OpenClaw/Trae 或新 Agent | `src/adapters/`、对应 integration 和适配器 fixture | 在 Server/Client 散落 provider 条件分支，或混淆不同来源的证据等级 |
+| OpenClaw/Trae 或新 Agent | `src/adapters/`、对应 integration 和适配器 fixture、[新 Harness 适配工作手册](new-harness-adaptation-playbook.md)；OpenCode 调研见[专项计划](opencode-cli-adaptation-plan.md) | 在 SourceRepository、Viewer API、`client.js`、renderer 或翻译策略中增加 `agent/provider === "opencode"` 分支，先做 Viewer 再补协议证据，混淆证据等级，或过早固化未经第二个 Harness 验证的 SDK |
 | SQLite 连接/写入/维护与 schema migration | `src/core/persistence-store.mjs`、`src/persistence/migrations/`、[Response 写入事务契约](capture-response-transaction-contract.md) | 绕过 migration 直接改 schema、拆散 response 原子写入，或让 read repository 拥有连接生命周期/写事务 |
 | persisted Capture 分页、窗口、body 重建与 response 水合 | `src/persistence/repositories/sqlite-capture-read-repository.mjs`、[读取仓库契约](sqlite-capture-read-repository-contract.md) | 在 Source reader、HTTP route 或 Viewer projector 重写 SQLite 查询和 blob 水合 |
 | content、thinking、tool use、tool result 基础解析 | `src/trace/content-parts.mjs`、对应 contract smoke | 在上行/下行各维护一份 block 解析 |
