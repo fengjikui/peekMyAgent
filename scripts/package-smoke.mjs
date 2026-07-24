@@ -16,6 +16,12 @@ assert.equal(packs.length, 1);
 const files = new Set(packs[0].files.map((file) => file.path));
 const packageFiles = [...files].sort();
 const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const gitAttributes = fs.readFileSync(".gitattributes", "utf8");
+assert.match(
+  gitAttributes,
+  /^\* text=auto eol=lf$/m,
+  "repository text files must use LF so npm package metrics stay stable across platforms",
+);
 assert.match(packageJson.description || "", /agent|request|dashboard/i);
 assert.ok(packageJson.keywords?.includes("agent"));
 assert.ok(packageJson.keywords?.includes("observability"));
@@ -193,8 +199,6 @@ const MAX_PACKAGE_ENTRIES = 142;
 // post-feature budget while the path allowlist prevents fixtures, design docs,
 // captures, and other release-unsafe files from leaking into the package.
 const MAX_PACKED_BYTES = 338_000;
-// Windows npm pack reports the CRLF checkout representation, so this limit
-// includes the observed cross-platform line-ending delta plus a small margin.
 const MAX_UNPACKED_BYTES = 1_490_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);
