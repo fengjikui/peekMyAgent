@@ -44,7 +44,7 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
   if (isFrameworkReminderMessage(lastUser)) {
     return { type: "metadata", label: "Claude Code 框架提醒", confidence: "high" };
   }
-  if (isTitleGenerationRequest(body)) {
+  if (isTitleGenerationRequest(body, capture)) {
     return { type: "metadata", label: "生成会话标题", confidence: "high" };
   }
   if (isWebSearchInternalRequest(body)) {
@@ -141,19 +141,21 @@ export function isContextTokenCountingRequest(capture) {
   return /\/v1\/messages\/count_tokens(?:$|[?#/])/.test(requestPath);
 }
 
-export function isTitleGenerationRequest(body) {
+export function isTitleGenerationRequest(body, capture = {}) {
   const systemText = extractSystemParts(body)
     .map((part) => part.text)
     .join("\n");
   const format = body?.output_config?.format;
   return (
     /Generate a concise, sentence-case title/i.test(systemText) ||
-    isOpenCodeTitleGenerationRequest(body, systemText) ||
+    isOpenCodeTitleGenerationRequest(body, systemText, capture) ||
     (format?.type === "json_schema" && format?.schema?.properties?.title && Array.isArray(body?.tools) && body.tools.length === 0)
   );
 }
 
-function isOpenCodeTitleGenerationRequest(body, systemText) {
+function isOpenCodeTitleGenerationRequest(body, systemText, capture = {}) {
+  const agentProfile = String(capture?.agent_profile || capture?.agentProfile || "").trim();
+  if (agentProfile && !/^open\s*code$/i.test(agentProfile)) return false;
   const messages = extractRequestMessages(body);
   const promptText = messages
     .filter((message) => message?.role === "user")

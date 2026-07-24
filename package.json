@@ -58,6 +58,8 @@
     "smoke:codex-app-server-thread-routing": "node scripts/codex-app-server-thread-routing-smoke.mjs",
     "experiment:codex-app-server-thread-routing-real": "node scripts/codex-app-server-real-thread-routing-probe.mjs",
     "experiment:opencode-local-mock": "node scripts/opencode-local-mock-probe.mjs",
+    "experiment:opencode-compaction-local": "node scripts/opencode-compaction-local-probe.mjs",
+    "experiment:opencode-real-integration": "node scripts/opencode-real-integration-smoke.mjs",
     "smoke:opencode-config": "node scripts/opencode-config-contract-smoke.mjs",
     "smoke:opencode-classification": "node scripts/opencode-classification-smoke.mjs",
     "smoke:run-opencode": "node scripts/run-opencode-wrapper-smoke.mjs",

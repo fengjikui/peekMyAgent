@@ -4,6 +4,14 @@ import {
   inferRequestSource,
   isTitleGenerationRequest,
 } from "../src/trace/request-profile.mjs";
+import {
+  classifyMessageKind,
+  isCompactInjectionText,
+} from "../src/trace/message-semantics.mjs";
+import {
+  extractHarnessTranslationParts,
+  translationMaterialsForRequest,
+} from "../src/translation/request-materials.mjs";
 
 const titleRequest = {
   model: "mock",
@@ -25,6 +33,15 @@ assert.deepEqual(inferRequestSource({ body: titleRequest }), {
   label: "生成会话标题",
   confidence: "high",
 });
+assert.equal(
+  isTitleGenerationRequest(titleRequest, { agent_profile: "Claude Code" }),
+  false,
+  "an OpenCode title fingerprint must not classify another known Harness",
+);
+assert.equal(
+  inferRequestSource({ capture: { agent_profile: "Claude Code" }, body: titleRequest }).type,
+  "main",
+);
 
 const ordinaryRequest = {
   ...titleRequest,
@@ -55,5 +72,36 @@ const malformedFingerprint = {
   ],
 };
 assert.equal(isTitleGenerationRequest(malformedFingerprint), false);
+
+const compactPrompt = [
+  "Create a new anchored summary from the conversation history.",
+  "",
+  "Output exactly the Markdown structure shown inside <template> and keep the section order unchanged.",
+].join("\n");
+const compactMessage = { role: "user", content: compactPrompt };
+assert.equal(isCompactInjectionText(compactPrompt), true);
+assert.equal(classifyMessageKind(compactMessage), "compact");
+const compactMaterials = translationMaterialsForRequest({
+  raw: {
+    body: {
+      messages: [
+        {
+          role: "system",
+          content: "You are an anchored context summarization assistant for coding sessions.",
+        },
+        compactMessage,
+      ],
+    },
+  },
+}, {
+  section: "harness",
+  extractHarnessParts: extractHarnessTranslationParts,
+});
+assert.deepEqual(compactMaterials.map((item) => item.kind), ["harness_compact"]);
+assert.equal(
+  isCompactInjectionText("Please explain how anchored summaries work."),
+  false,
+  "ordinary user discussion must not be promoted to Harness evidence",
+);
 
 console.log("opencode request classification smoke passed");

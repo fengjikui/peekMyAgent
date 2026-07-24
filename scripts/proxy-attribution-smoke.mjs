@@ -139,13 +139,25 @@ async function main() {
       "x-peek-workspace": "/workspace/claude",
       "x-claude-code-session-id": "claude-native-session",
     }),
+    postJson(`${proxy.urlForWatch("opencode-header")}/v1/chat/completions`, payload("opencode-header"), {
+      "x-peek-agent-profile": "OpenCode",
+      "x-peek-workspace": "/workspace/opencode",
+      "x-session-id": "opencode-native-session",
+    }),
   ]);
 
-  assert.equal(proxy.captures.length, 5);
-  assert.equal(upstream.seen.length, 5);
+  assert.equal(proxy.captures.length, 6);
+  assert.equal(upstream.seen.length, 6);
   assert.deepEqual(
     upstream.seen.map((request) => request.url).sort(),
-    ["/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/messages"].sort(),
+    [
+      "/v1/chat/completions",
+      "/v1/chat/completions",
+      "/v1/chat/completions",
+      "/v1/chat/completions",
+      "/v1/chat/completions",
+      "/v1/messages",
+    ].sort(),
     "concurrent forwarding should preserve the expected path multiset without requiring arrival order",
   );
   assert.equal(resolveUpstreamUrl("https://api.example.com/anthropic", "/v1/messages", true).toString(), "https://api.example.com/anthropic/v1/messages");
@@ -165,11 +177,17 @@ async function main() {
   assert.equal(groups.get("openclaw-project-b").length, 1);
   assert.equal(groups.get("header-watch").length, 1);
   assert.equal(groups.get("claude-header").length, 1);
+  assert.equal(groups.get("opencode-header").length, 1);
   assert.equal(groups.get("claude-header")[0].conversation_id, "claude-native-session");
+  assert.equal(groups.get("opencode-header")[0].conversation_id, "opencode-native-session");
   assert.ok(proxy.captures.every((capture) => capture.capture_id && capture.received_at));
   assert.ok(proxy.captures.every((capture) => Object.values(capture.headers).some((value) => String(value).includes("[REDACTED"))));
 
-  const openclawCaptures = proxy.captures.filter((capture) => capture.path === "/v1/chat/completions");
+  const openclawCaptures = proxy.captures.filter(
+    (capture) =>
+      capture.path === "/v1/chat/completions" &&
+      /^openclaw\b/i.test(String(capture.agent_profile || "")),
+  );
   const normalized = openclawCaptures.map((capture) => normalizeOpenClawProxyCapture(capture));
   assert.ok(normalized.every((item) => item.capture_confidence === "exact"));
   assert.equal(normalized.find((item) => item.watch_id === "openclaw-project-b").conversation_id, "agent:helper:b");

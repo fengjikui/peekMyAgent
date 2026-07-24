@@ -55,6 +55,7 @@ export function parseJson(text) {
 export function resolveRequestAttribution(req, fallback = {}) {
   const parsed = new URL(req.url || "/", "http://127.0.0.1");
   const agentRoute = parseAgentRoutePath(parsed.pathname);
+  const agentProfile = firstHeader(req.headers["x-peek-agent-profile"]) || fallback.agentProfile || null;
   if (agentRoute) {
     const watchId = fallback.watchId || `${agentRoute.agentSlug}-${agentRoute.installId}`;
     return {
@@ -62,9 +63,9 @@ export function resolveRequestAttribution(req, fallback = {}) {
       forwardPath: `${agentRoute.forwardPath}${parsed.search}`,
       originalUrl: req.url || `${agentRoute.forwardPath}${parsed.search}`,
       agentRoute,
-      agentProfile: firstHeader(req.headers["x-peek-agent-profile"]) || fallback.agentProfile || null,
+      agentProfile,
       workspace: firstHeader(req.headers["x-peek-workspace"]) || fallback.workspace || null,
-      conversationId: conversationIdFromHeaders(req.headers, fallback),
+      conversationId: conversationIdFromHeaders(req.headers, { ...fallback, agentProfile }),
     };
   }
   const pathWatch = parsed.pathname.match(/^\/watch\/([^/]+)(\/.*)?$/);
@@ -77,9 +78,9 @@ export function resolveRequestAttribution(req, fallback = {}) {
     watchId,
     forwardPath,
     originalUrl: req.url || forwardPath,
-    agentProfile: firstHeader(req.headers["x-peek-agent-profile"]) || fallback.agentProfile || null,
+    agentProfile,
     workspace: firstHeader(req.headers["x-peek-workspace"]) || fallback.workspace || null,
-    conversationId: conversationIdFromHeaders(req.headers, fallback),
+    conversationId: conversationIdFromHeaders(req.headers, { ...fallback, agentProfile }),
     agentRoute: null,
   };
 }

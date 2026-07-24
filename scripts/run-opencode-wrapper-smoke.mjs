@@ -34,23 +34,69 @@ const upstream = http.createServer(async (req, res) => {
     "cache-control": "no-cache",
     connection: "keep-alive",
   });
-  res.write(
-    `data: ${JSON.stringify({
-      id: "chatcmpl-opencode-wrapper",
-      object: "chat.completion.chunk",
-      model: "mock",
-      choices: [{ index: 0, delta: { role: "assistant", content: "OPEN_CODE_OK" }, finish_reason: null }],
-    })}\n\n`,
-  );
-  res.write(
-    `data: ${JSON.stringify({
-      id: "chatcmpl-opencode-wrapper",
-      object: "chat.completion.chunk",
-      model: "mock",
-      choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
-      usage: { prompt_tokens: 100, completion_tokens: 4, total_tokens: 104 },
-    })}\n\n`,
-  );
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const titleRequest = Array.isArray(body.tools) && body.tools.length === 0;
+  const hasToolResult = messages.some((message) => message?.role === "tool");
+  const chunks = titleRequest
+    ? [
+        {
+          id: "chatcmpl-opencode-title",
+          object: "chat.completion.chunk",
+          model: "mock",
+          choices: [{ index: 0, delta: { role: "assistant", content: "Wrapper title" }, finish_reason: null }],
+        },
+        {
+          id: "chatcmpl-opencode-title",
+          object: "chat.completion.chunk",
+          model: "mock",
+          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+          usage: { prompt_tokens: 24, completion_tokens: 2, total_tokens: 26 },
+        },
+      ]
+    : hasToolResult
+      ? [
+          {
+            id: "chatcmpl-opencode-final",
+            object: "chat.completion.chunk",
+            model: "mock",
+            choices: [{ index: 0, delta: { role: "assistant", content: "OPEN_CODE_OK" }, finish_reason: null }],
+          },
+          {
+            id: "chatcmpl-opencode-final",
+            object: "chat.completion.chunk",
+            model: "mock",
+            choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+            usage: { prompt_tokens: 112, completion_tokens: 4, total_tokens: 116 },
+          },
+        ]
+      : [
+          {
+            id: "chatcmpl-opencode-tool",
+            object: "chat.completion.chunk",
+            model: "mock",
+            choices: [{
+              index: 0,
+              delta: {
+                role: "assistant",
+                tool_calls: [{
+                  index: 0,
+                  id: "call-opencode-read",
+                  type: "function",
+                  function: { name: "read", arguments: '{"filePath":"README.md"}' },
+                }],
+              },
+              finish_reason: null,
+            }],
+          },
+          {
+            id: "chatcmpl-opencode-tool",
+            object: "chat.completion.chunk",
+            model: "mock",
+            choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+            usage: { prompt_tokens: 100, completion_tokens: 8, total_tokens: 108 },
+          },
+        ];
+  for (const chunk of chunks) res.write(`data: ${JSON.stringify(chunk)}\n\n`);
   res.end("data: [DONE]\n\n");
 });
 
@@ -145,7 +191,7 @@ await post({
   tools: [],
   stream: true,
 });
-const mainResponse = await post({
+const toolCallResponse = await post({
   model: "mimo-v2.5-pro",
   messages: [
     {
@@ -166,7 +212,43 @@ const mainResponse = await post({
   ],
   stream: true,
 });
-if (!mainResponse.includes("OPEN_CODE_OK")) process.exit(6);
+if (!toolCallResponse.includes("call-opencode-read")) process.exit(6);
+const finalResponse = await post({
+  model: "mimo-v2.5-pro",
+  messages: [
+    {
+      role: "system",
+      content: "You are opencode, an interactive CLI tool that helps users with software engineering tasks.",
+    },
+    { role: "user", content: "hello from OpenCode wrapper" },
+    {
+      role: "assistant",
+      content: null,
+      tool_calls: [{
+        id: "call-opencode-read",
+        type: "function",
+        function: { name: "read", arguments: "{\\"filePath\\":\\"README.md\\"}" },
+      }],
+    },
+    {
+      role: "tool",
+      tool_call_id: "call-opencode-read",
+      content: "# peekMyAgent",
+    },
+  ],
+  tools: [
+    {
+      type: "function",
+      function: {
+        name: "read",
+        description: "Read a file",
+        parameters: { type: "object", properties: { filePath: { type: "string" } } },
+      },
+    },
+  ],
+  stream: true,
+});
+if (!finalResponse.includes("OPEN_CODE_OK")) process.exit(7);
 console.log("fake opencode ok");
 `,
   );
@@ -213,14 +295,14 @@ console.log("fake opencode ok");
   });
   assert.match(childConfig.provider.mimo.options.baseURL, /^http:\/\/127\.0\.0\.1:\d+\/watch\//);
 
-  assert.equal(upstreamRequests.length, 2);
+  assert.equal(upstreamRequests.length, 3);
   assert.ok(upstreamRequests.every((request) => request.method === "POST"));
   assert.ok(upstreamRequests.every((request) => request.path === "/v1/chat/completions"));
   assert.ok(upstreamRequests.every((request) => request.headers["x-provider-feature"] === "enabled"));
   assert.ok(upstreamRequests.every((request) => request.headers["x-peek-opencode-command"] === undefined));
   assert.deepEqual(
     upstreamRequests.map((request) => request.body.tools.length),
-    [0, 1],
+    [0, 1, 1],
   );
 
   const sources = await getJson(`${viewer.url}/api/sources`);
@@ -228,10 +310,12 @@ console.log("fake opencode ok");
   assert.ok(source);
   assert.equal(source.kind, "opencode_proxy_exact");
   assert.equal(source.live_status, "stopped");
-  assert.equal(source.request_count, 2);
+  assert.equal(source.request_count, 3);
 
   const data = await getJson(`${viewer.url}/api/view?source=${encodeURIComponent(source.id)}`);
   assert.equal(data.source.workbench.capture_label, "OpenCode exact Chat Completions capture");
+  assert.equal(data.stats.tool_call_count, 1);
+  assert.equal(data.stats.tool_result_count, 1);
   assert.equal(data.requests[0].source_hint.type, "metadata");
   assert.equal(data.requests[0].source_hint.label, "生成会话标题");
   assert.equal(data.requests[1].source_hint.type, "main");
@@ -244,6 +328,14 @@ console.log("fake opencode ok");
     data.requests[1].raw.body.messages.map((message) => message.role),
     ["system", "user"],
   );
+  assert.equal(data.requests[1].summary.response.tool_calls[0].name, "read");
+  assert.equal(data.requests[1].summary.response.tool_calls[0].id, "call-opencode-read");
+  assert.deepEqual(
+    data.requests[2].raw.body.messages.map((message) => message.role),
+    ["system", "user", "assistant", "tool"],
+  );
+  assert.equal(data.requests[2].summary.current_tool_results[0].id, "call-opencode-read");
+  assert.equal(data.requests[2].summary.response.preview, "OPEN_CODE_OK");
 
   const failure = await runCli(
     [

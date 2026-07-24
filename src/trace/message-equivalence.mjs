@@ -1,11 +1,31 @@
 const comparableMessageKeyCache = new WeakMap();
 
-export function commonMessagePrefixLength(previousMessages, currentMessages) {
+export function commonMessagePrefixLength(
+  previousMessages,
+  currentMessages,
+  { ignoreLeadingContextContent = false } = {},
+) {
   const previous = Array.isArray(previousMessages) ? previousMessages : [];
   const current = Array.isArray(currentMessages) ? currentMessages : [];
   const limit = Math.min(previous.length, current.length);
   let index = 0;
-  while (index < limit && comparableMessageKey(previous[index]) === comparableMessageKey(current[index])) index += 1;
+  let withinLeadingContext = ignoreLeadingContextContent;
+  while (index < limit) {
+    const previousMessage = previous[index];
+    const currentMessage = current[index];
+    if (
+      withinLeadingContext &&
+      isLeadingContextMessage(previousMessage) &&
+      isLeadingContextMessage(currentMessage) &&
+      previousMessage.role === currentMessage.role
+    ) {
+      index += 1;
+      continue;
+    }
+    withinLeadingContext = false;
+    if (comparableMessageKey(previousMessage) !== comparableMessageKey(currentMessage)) break;
+    index += 1;
+  }
   return index;
 }
 
@@ -45,6 +65,10 @@ function normalizeComparableContent(content) {
 function normalizeComparableContentPart(part) {
   if (typeof part === "string") return { type: "text", text: part };
   return normalizeComparableValue(part);
+}
+
+function isLeadingContextMessage(message) {
+  return ["system", "developer"].includes(String(message?.role || "").toLowerCase());
 }
 
 function stableJson(value) {
