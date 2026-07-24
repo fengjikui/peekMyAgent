@@ -16,6 +16,7 @@ const storePath = path.join(tmpDir, "state", "captures.sqlite");
 const argsPath = path.join(tmpDir, "opencode-args.json");
 const envPath = path.join(tmpDir, "opencode-env.json");
 const sessionId = `opencode-smoke-${Date.now()}-${process.pid}`;
+const learnedSessionId = `${sessionId}-learned`;
 const failureSessionId = `${sessionId}-failure`;
 const upstreamRequests = [];
 fs.mkdirSync(binDir, { recursive: true });
@@ -119,6 +120,7 @@ const post = async (body) => {
     headers: {
       "content-type": "application/json",
       authorization: "Bearer wrapper-secret",
+      "x-session-id": ${JSON.stringify(learnedSessionId)},
     },
     body: JSON.stringify(body),
   });
@@ -181,8 +183,6 @@ console.log("fake opencode ok");
       "run",
       "--model",
       "mimo/mimo-v2.5-pro",
-      "--session",
-      sessionId,
       "hello",
     ],
     baseEnv,
@@ -197,8 +197,6 @@ console.log("fake opencode ok");
     "run",
     "--model",
     "mimo/mimo-v2.5-pro",
-    "--session",
-    sessionId,
     "hello",
   ]);
   const childConfig = JSON.parse(fs.readFileSync(envPath, "utf8"));
@@ -216,7 +214,7 @@ console.log("fake opencode ok");
   );
 
   const sources = await getJson(`${viewer.url}/api/sources`);
-  const source = sources.find((item) => item.agent === "OpenCode" && item.conversation_id === sessionId);
+  const source = sources.find((item) => item.agent === "OpenCode" && item.conversation_id === learnedSessionId);
   assert.ok(source);
   assert.equal(source.kind, "opencode_proxy_exact");
   assert.equal(source.live_status, "stopped");

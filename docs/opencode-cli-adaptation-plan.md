@@ -73,16 +73,17 @@ pma opencode --auto
 - 当前 shell 未设置 `OPENCODE_*` 或 `XDG_*` runtime override；
 - 本次没有读取认证内容、日志正文，没有发模型请求，也没有创建会话。
 
-### 2.3 尚未证实
+### 2.3 已关闭的协议未知项
 
-下列内容不能在实现前当作事实：
+随后使用隔离 XDG 目录、loopback mock upstream 和真实 OpenCode `1.18.4` 继续确认：
 
-- effective config 的完整合并结果和嵌套字段语义；
-- `OPENCODE_CONFIG_CONTENT` 在 `1.18.4` 上对 project/managed config 的真实覆盖关系；
-- 当前 driver 的实际 endpoint、headers、stream、错误和取消传播；
-- TUI 首次请求前的稳定 session identity；
-- server event 与 wire request 的确定关联键；
-- child session、Skill、summarize/compact 与真实模型交换的对应关系。
+- `OPENCODE_CONFIG_CONTENT` 会与既有 provider/models/options 深合并；进程内只覆盖当前 provider 的 `baseURL` 时，driver、模型目录、header 和认证保持不变；
+- 当前 `@ai-sdk/openai-compatible` driver 发送 `POST /v1/chat/completions`，请求和响应都使用 OpenAI Chat Completions streaming；
+- 新会话先发无 tools 的 title-generation 内部请求，再发包含动态 tools schema 的主 Agent 请求；
+- 两类请求都携带 `x-session-id` 和 `x-session-affinity`，且 `x-session-id` 与 CLI JSONL 事件公开的 `sessionID` 完全相同；
+- 因而第一轮尚无 `--session` 参数时，Capture Proxy 也能在请求到达时精确学习 conversation id；该规则只对 `agent_profile=OpenCode` 生效，不泛化解释其他 Harness 的同名 header。
+
+仍未关闭的是 server event 与 wire request、child session、Skill、summarize/compact 的完整关联证据；它们必须由后续真实场景实验逐项确认。
 
 ## 3. 最重要的架构结论
 
@@ -108,7 +109,7 @@ CLI wrapper 的默认目标是 exact proxy。OpenCode server/event API 可以补
 
 但这些语义事件不自动等价于模型 wire request。二者需要独立 provenance，后续再按稳定 identity 合并。
 
-当前尚无 server event 与 wire capture 的 identity 实证，也没有 child session、summarize 或 Skill lifecycle 的关联证据。在这些实验完成前，server/event 只能作为独立语义来源显示，不能宣称已确定合并。
+当前已有 wire request 与 OpenCode 主 session 的精确 `x-session-id` 关联证据，但尚无 server event、child session、summarize 或 Skill lifecycle 的完整关联证据。在这些实验完成前，server/event 只能作为独立语义来源显示，不能宣称已确定合并。
 
 ### 3.3 不修改用户主配置
 
@@ -428,14 +429,10 @@ OpenCode 翻译已接入共享 provider policy，当前实现满足：
 
 ## 9. 关键未知项
 
-开始写真实 adapter 前必须关闭以下问题：
+继续推进真实场景适配前仍须关闭以下问题：
 
-- 当前安装版本和源码 commit；
-- inline config 对嵌套 provider/model 的真实 merge 语义；
-- 如何可靠获知当前 effective provider/model/npm driver；
-- baseURL 对不同 driver 的拼接规则；
-- TUI 首次请求前能否拿到稳定 session id；
-- continue/session/fork 对本地 session 和 wire identity 的影响；
+- 不同 provider driver 的 baseURL 拼接差异；
+- continue/session/fork 是否始终复用公开的 `x-session-id`；
 - server event 与 provider request 的稳定关联键；
 - child session 与子 Agent wire request 的关联键；
 - compaction 的真实 request 和生命周期；

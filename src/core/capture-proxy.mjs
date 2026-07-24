@@ -64,11 +64,7 @@ export function resolveRequestAttribution(req, fallback = {}) {
       agentRoute,
       agentProfile: firstHeader(req.headers["x-peek-agent-profile"]) || fallback.agentProfile || null,
       workspace: firstHeader(req.headers["x-peek-workspace"]) || fallback.workspace || null,
-      conversationId:
-        firstHeader(req.headers["x-peek-conversation-id"]) ||
-        firstHeader(req.headers["x-claude-code-session-id"]) ||
-        fallback.conversationId ||
-        null,
+      conversationId: conversationIdFromHeaders(req.headers, fallback),
     };
   }
   const pathWatch = parsed.pathname.match(/^\/watch\/([^/]+)(\/.*)?$/);
@@ -83,13 +79,21 @@ export function resolveRequestAttribution(req, fallback = {}) {
     originalUrl: req.url || forwardPath,
     agentProfile: firstHeader(req.headers["x-peek-agent-profile"]) || fallback.agentProfile || null,
     workspace: firstHeader(req.headers["x-peek-workspace"]) || fallback.workspace || null,
-    conversationId:
-      firstHeader(req.headers["x-peek-conversation-id"]) ||
-      firstHeader(req.headers["x-claude-code-session-id"]) ||
-      fallback.conversationId ||
-      null,
+    conversationId: conversationIdFromHeaders(req.headers, fallback),
     agentRoute: null,
   };
+}
+
+function conversationIdFromHeaders(headers = {}, fallback = {}) {
+  return (
+    firstHeader(headers["x-peek-conversation-id"]) ||
+    firstHeader(headers["x-claude-code-session-id"]) ||
+    (/^open\s*code$/i.test(String(fallback.agentProfile || ""))
+      ? firstHeader(headers["x-session-id"])
+      : null) ||
+    fallback.conversationId ||
+    null
+  );
 }
 
 export function buildCaptureRecord({

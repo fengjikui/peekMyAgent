@@ -96,6 +96,12 @@ try {
   assert.ok(Array.isArray(primary.body?.messages));
   assert.ok(Array.isArray(primary.body?.tools));
   assert.equal(primary.body?.stream, true);
+  const emittedSessionIds = openCodeSessionIds(result.stdout);
+  assert.equal(emittedSessionIds.size, 1, "OpenCode JSONL should report exactly one session ID.");
+  assert.ok(
+    requests.every((entry) => emittedSessionIds.has(entry.headers?.["x-session-id"])),
+    "OpenCode x-session-id should match the session ID emitted by the CLI.",
+  );
 
   const roles = primary.body.messages.map((message) => message?.role).filter(Boolean);
   const toolNames = primary.body.tools
@@ -115,6 +121,7 @@ try {
       stream: primary.body.stream,
     },
     response_observed: "PMA_MOCK_OK",
+    request_session_matches_cli: true,
     isolated_state_removed: true,
   }, null, 2)}\n`);
 } finally {
@@ -202,6 +209,16 @@ function parseJson(value) {
   }
 }
 
+function openCodeSessionIds(stdout) {
+  const ids = new Set();
+  for (const line of String(stdout || "").split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const event = parseJson(line);
+    if (typeof event?.sessionID === "string") ids.add(event.sessionID);
+  }
+  return ids;
+}
+
 function redactedHeaders(headers) {
   return Object.fromEntries(
     Object.entries(headers || {}).map(([key, value]) => [
@@ -217,6 +234,11 @@ function summarizeRequest(entry) {
   return {
     method: entry.method,
     path: entry.path,
+    header_names: Object.keys(entry.headers || {}).sort(),
+    user_agent: entry.headers?.["user-agent"] || null,
+    x_header_names: Object.keys(entry.headers || {}).filter((name) => name.startsWith("x-")).sort(),
+    x_session_id: entry.headers?.["x-session-id"] || null,
+    x_session_affinity: entry.headers?.["x-session-affinity"] || null,
     model: entry.body?.model || null,
     message_count: messages.length,
     roles: messages.map((message) => message?.role).filter(Boolean),
