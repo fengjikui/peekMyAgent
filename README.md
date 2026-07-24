@@ -235,9 +235,7 @@ pma opencode --session <session-id>
 pma opencode --model <provider/model>
 ```
 
-PMA reads OpenCode's effective non-secret provider/model configuration and injects a `baseURL` override through `OPENCODE_CONFIG_CONTENT` only for the child process. It does not rewrite your global or project OpenCode configuration, read or copy `auth.json`, or capture unrelated OpenCode sessions. When the process exits, the override disappears.
-
-The current exact path requires the selected provider to expose an explicit `baseURL`. OpenCode can use different provider drivers and wire protocols; PMA preserves the real request path and body instead of pretending every provider uses one schema. Unsupported configurations fail with a diagnostic rather than silently falling back to reconstructed history.
+PMA only overrides the wrapped process's `baseURL`; it does not change config, read `auth.json`, or capture other sessions. An explicit `baseURL` is required.
 
 ## Resume A Claude Code Session
 

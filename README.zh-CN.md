@@ -204,9 +204,7 @@ pma opencode --session <session-id>
 pma opencode --model <provider/model>
 ```
 
-PMA 只读取 OpenCode 生效配置中的非敏感 provider/model 信息，并通过 `OPENCODE_CONFIG_CONTENT` 给当前子进程注入临时 `baseURL`。它不会改写全局或项目 OpenCode 配置，不读取或复制 `auth.json`，也不会捕获其他 OpenCode 会话；子进程退出后覆盖立即失效。
-
-当前精确捕获要求所选 provider 显式提供 `baseURL`。OpenCode 可使用不同 driver 和 wire protocol，因此 PMA 会保留真实请求 path/body，而不会假装所有 provider 都是一种 schema。不支持的配置会明确报错，不会静默退回重建历史。
+PMA 只覆盖当前子进程的 `baseURL`，不改配置、不读 `auth.json`、不捕获其他会话，并要求显式 `baseURL`。
 
 ## 快速开始：OpenClaw
 
