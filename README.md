@@ -4,7 +4,7 @@
 
 peekMyAgent is a local-first dashboard for inspecting what coding agents send to model providers.
 
-It helps you understand how tools such as Claude Code, Codex, and OpenClaw assemble system prompts, user messages, tool definitions, tool results, history, model parameters, and raw request bodies before they reach the remote model.
+It helps you understand how tools such as Claude Code, Codex, OpenCode, and OpenClaw assemble system prompts, user messages, tool definitions, tool results, history, model parameters, and raw request bodies before they reach the remote model.
 
 peekMyAgent is not meant to "steal hidden prompts". It is an observability tool for your own local agent sessions, in environments where you explicitly choose to record and inspect the traffic.
 
@@ -37,8 +37,9 @@ See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated
 - Open a local dashboard at `http://127.0.0.1:43110`.
 - Start Claude Code through `pma claude ...` and capture its model requests.
 - Use the native Codex Desktop UI with managed exact Responses capture on supported macOS builds, fall back explicitly to zero-copy rollout observation, or start Codex CLI behind the exact proxy.
+- Start OpenCode through `pma opencode ...` and capture only that CLI/TUI process through an exact, reversible proxy overlay.
 - Start OpenClaw through `pma openclaw ...` and capture its model requests.
-- Switch the sidebar's observed Agent so Codex, Claude Code, OpenClaw, and imported traces stay separate.
+- Switch the sidebar's observed Agent so Codex, Claude Code, OpenCode, OpenClaw, and imported traces stay separate.
 - Inspect requests as a timeline with user input, system summaries, tools, tool calls, tool results, responses, token usage, and raw JSON.
 - Inspect Claude Code subagent traffic and group child-agent requests.
 - Open the dashboard from inside Claude Code with `/peekmyagent`.
@@ -49,7 +50,7 @@ See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated
 
 - macOS, Windows, or Linux.
 - Node.js 24 or newer. peekMyAgent currently uses Node's built-in `node:sqlite` runtime for its local store.
-- Claude Code, Codex, and/or OpenClaw already installed and working for the integration you want to use.
+- Claude Code, Codex, OpenCode, and/or OpenClaw already installed and working for the integration you want to use.
 - Your model provider configuration should already work in the terminal where you run the Agent.
 
 If `claude` does not work by itself, fix that first:
@@ -216,6 +217,27 @@ pma codex desktop --select --capture exact
 ```
 
 An already loaded thread cannot switch provider in place. PMA reports whether the selected thread was actually cold-resumed and routed; it never labels an untouched thread as exact capture.
+
+## Quick Start With OpenCode
+
+From the project you want to inspect, start OpenCode behind a process-local exact proxy:
+
+```bash
+cd <your-project>
+pma opencode
+```
+
+Continue using the native OpenCode TUI in that terminal. PMA preserves OpenCode's normal stdin/stdout and passes its arguments through:
+
+```bash
+pma opencode --continue
+pma opencode --session <session-id>
+pma opencode --model <provider/model>
+```
+
+PMA reads OpenCode's effective non-secret provider/model configuration and injects a `baseURL` override through `OPENCODE_CONFIG_CONTENT` only for the child process. It does not rewrite your global or project OpenCode configuration, read or copy `auth.json`, or capture unrelated OpenCode sessions. When the process exits, the override disappears.
+
+The current exact path requires the selected provider to expose an explicit `baseURL`. OpenCode can use different provider drivers and wire protocols; PMA preserves the real request path and body instead of pretending every provider uses one schema. Unsupported configurations fail with a diagnostic rather than silently falling back to reconstructed history.
 
 ## Resume A Claude Code Session
 
@@ -509,7 +531,7 @@ npm run smoke:agent-trace-view
 npm run smoke:timeline-display
 ```
 
-Smoke tests that need real Claude Code, OpenClaw, Codex, provider access, or local credentials are listed separately in the [manual integration smoke matrix](docs/manual-integration-smoke-matrix.md). They are useful before a release, but they are not part of the deterministic release gate.
+Smoke tests that need real Claude Code, OpenCode, OpenClaw, Codex, provider access, or local credentials are listed separately in the [manual integration smoke matrix](docs/manual-integration-smoke-matrix.md). They are useful before a release, but they are not part of the deterministic release gate.
 
 Run a syntax check on the dashboard client:
 
@@ -528,4 +550,5 @@ node --check src/viewer/client.js
 - [Security and performance audit notes](docs/security-performance-audit.md)
 - [Manual integration smoke matrix](docs/manual-integration-smoke-matrix.md)
 - [Claude Code current-session control](docs/claude-code-current-session-control.md)
+- [OpenCode CLI adaptation plan and evidence](docs/opencode-cli-adaptation-plan.md)
 - [OpenClaw profile watch](docs/openclaw-profile-watch.md)

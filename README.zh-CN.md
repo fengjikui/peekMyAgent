@@ -1,6 +1,6 @@
 # peekMyAgent
 
-peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 Claude Code、Codex、OpenClaw 等 coding agent 的执行链路和模型请求。
+peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 Claude Code、Codex、OpenCode、OpenClaw 等 coding agent 的执行链路和模型请求。
 
 它可以帮助你理解 Agent 如何组织 system prompt、用户消息、工具定义、工具调用、工具结果、历史上下文、模型参数和原始 JSON。peekMyAgent 不是用来“破解隐藏提示词”的工具，而是面向你自己授权的本地 Agent 会话的可观测性工具。
 
@@ -33,8 +33,9 @@ peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 
 - 打开本地 dashboard：`http://127.0.0.1:43110`。
 - 通过 `pma claude ...` 启动 Claude Code 并捕获模型请求。
 - 在受支持的 macOS 版本上继续使用 Codex Desktop 原生界面并进行 Responses 精确捕获，也可显式退回零复制 rollout 观察，或通过精确代理启动 Codex CLI。
+- 通过 `pma opencode ...` 启动 OpenCode，只精确捕获当前 CLI/TUI 进程，并在退出后自动撤销代理覆盖。
 - 通过 `pma openclaw ...` 启动 OpenClaw 并捕获模型请求。
-- 在左侧切换当前观察的 Agent，让 Codex、Claude Code、OpenClaw 和导入 Trace 分开显示。
+- 在左侧切换当前观察的 Agent，让 Codex、Claude Code、OpenCode、OpenClaw 和导入 Trace 分开显示。
 - 在时间线中查看用户输入、System 摘要、Tools、Tool calls、Tool results、Response、token 统计和 Raw JSON。
 - 识别并展示 Claude Code 子 Agent 请求流。
 - 在 Claude Code 内通过 `/peekmyagent` 打开 dashboard。
@@ -45,7 +46,7 @@ peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 
 
 - macOS、Windows 或 Linux。
 - Node.js 24 或更新版本。peekMyAgent 当前使用 Node 内置的 `node:sqlite` 作为本地存储运行时。
-- 已安装并可正常使用你准备观察的 Claude Code、Codex 或 OpenClaw。
+- 已安装并可正常使用你准备观察的 Claude Code、Codex、OpenCode 或 OpenClaw。
 - 模型供应商配置需要先在原 Agent 中可用。
 
 如果 `claude` 本身不能运行，请先修好 Claude Code 配置：
@@ -186,6 +187,27 @@ pma codex desktop --select --capture exact
 
 已经加载的 thread 无法原地热切换 provider。PMA 会报告目标 thread 是否真的发生冷恢复和路由，不会把未改写的会话标成精确捕获。
 
+## 快速开始：OpenCode
+
+在希望观察的项目目录中，让 OpenCode 通过当前进程专属的精确代理启动：
+
+```bash
+cd <your-project>
+pma opencode
+```
+
+之后继续在该终端的原生 OpenCode TUI 中工作。OpenCode 自己的参数会被原样透传：
+
+```bash
+pma opencode --continue
+pma opencode --session <session-id>
+pma opencode --model <provider/model>
+```
+
+PMA 只读取 OpenCode 生效配置中的非敏感 provider/model 信息，并通过 `OPENCODE_CONFIG_CONTENT` 给当前子进程注入临时 `baseURL`。它不会改写全局或项目 OpenCode 配置，不读取或复制 `auth.json`，也不会捕获其他 OpenCode 会话；子进程退出后覆盖立即失效。
+
+当前精确捕获要求所选 provider 显式提供 `baseURL`。OpenCode 可使用不同 driver 和 wire protocol，因此 PMA 会保留真实请求 path/body，而不会假装所有 provider 都是一种 schema。不支持的配置会明确报错，不会静默退回重建历史。
+
 ## 快速开始：OpenClaw
 
 ```bash
@@ -270,7 +292,7 @@ npm run release:check
 
 这会运行跨平台核心 smoke gate，包括路径解析、doctor、源码安装、临时全局安装、维护/卸载、dashboard、Claude wrapper、发送消息、Trae CN 路由、持久化和请求树检查。
 
-需要真实 Claude Code、OpenClaw、Codex、provider 或本机登录态的验证不放进默认 gate，维护者可参考 [手动集成 smoke 矩阵](docs/manual-integration-smoke-matrix.md)。
+需要真实 Claude Code、OpenCode、OpenClaw、Codex、provider 或本机登录态的验证不放进默认 gate，维护者可参考 [手动集成 smoke 矩阵](docs/manual-integration-smoke-matrix.md)。
 
 ## 更多文档
 
@@ -283,4 +305,5 @@ npm run release:check
 - [安全与性能审计纪要](docs/security-performance-audit.md)
 - [手动集成 smoke 矩阵](docs/manual-integration-smoke-matrix.md)
 - [Claude Code 当前会话控制](docs/claude-code-current-session-control.md)
+- [OpenCode CLI 适配计划与证据](docs/opencode-cli-adaptation-plan.md)
 - [OpenClaw profile watch](docs/openclaw-profile-watch.md)
