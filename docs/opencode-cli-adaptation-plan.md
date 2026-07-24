@@ -2,7 +2,7 @@
 
 更新时间：2026-07-24
 
-状态：**研究与实施计划，尚未实现 OpenCode 捕获**。当前仓库没有 `pma opencode`、OpenCode adapter 或 OpenCode smoke。通用流程和验收门槛见 [新 Harness 适配工作手册](new-harness-adaptation-playbook.md)。
+状态：**实施中**。当前分支已经具备 `pma opencode`、进程级 exact proxy、OpenCode 配置 adapter、标题请求分类、确定性 wrapper smoke 和同 Harness 翻译；真实多轮、工具、Skill、子 Agent、压缩证据与最终 Viewer 验收仍在进行。通用流程和验收门槛见 [新 Harness 适配工作手册](new-harness-adaptation-playbook.md)。
 
 ## 1. 产品目标
 
@@ -415,7 +415,7 @@ smoke:normalize
 
 ## 8. 翻译策略
 
-当前翻译 provider policy 只明确识别 Claude Code 和 Codex。OpenCode 接入时必须同时解决：
+OpenCode 翻译已接入共享 provider policy，当前实现满足：
 
 1. Source 明确标记 `agent_profile=OpenCode`；
 2. 优先使用 OpenCode 可用的低成本模型/低 reasoning 配置；
@@ -424,7 +424,7 @@ smoke:normalize
 5. System、单工具 description、单 schema field、单 Harness 注入继续复用共享 block hash；
 6. 同一原文跨 Source 可复用全局翻译块，History 只按会话内内容复用。
 
-翻译实现属于 M3；M1/M2 可以先声明 capability 不可用，避免伪装成功。
+实现通过进程内 inline config 创建无工具、禁分享的专用翻译 Agent；材料经 stdin 输入，不进入进程参数。模型选择优先同一 provider 中的 `small_model` 或明显更轻量的已配置模型，失败时才回退到用户已配置的默认 OpenCode 模型。每次调用解析 JSONL 中的 session ID 并执行 `opencode session delete`，同时以 deterministic fake CLI smoke 约束密钥不输出、Claude 不回退和清理行为。真实 provider 验证仍属于手工集成门禁。
 
 ## 9. 关键未知项
 

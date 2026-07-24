@@ -342,7 +342,7 @@ Viewer 会从 capture 中派生：
 
 翻译对象被提取为语义块，规范化后以 `kind + "\0" + source_text` 作为 lookup key，并计算 SHA-256。Server、浏览器 Client、离线提取脚本和翻译 worker 共用 `src/translation/blocks.mjs`；Node 路径共用 `hash.mjs`，浏览器对同一 key 使用 Web Crypto，因此已有缓存 key 保持兼容。并发翻译返回通过共享 parser 解析 `@@PEEK_TRANSLATION <hash>` marker，与原块重新对齐，不依赖响应顺序。
 
-系统支持 Markdown 感知的长块拆分、部分成功和块级重译。翻译可使用兼容 API，也可回退到本机 `claude -p`。Viewer 的整条 Source、单 Request 和显式材料刷新由 `ViewerTranslationAdapter` 统一转成 Translation Material；Harness 提取复用共享 message semantics，单 Request 刷新只调用详情读取端口。浏览器继续负责当前可见结构的展示与搜索，但不重新定义 block identity。维护契约见[翻译块协议](translation-block-contract.md)和[Viewer Translation Adapter 契约](viewer-translation-adapter-contract.md)。
+系统支持 Markdown 感知的长块拆分、部分成功和块级重译。翻译既可显式使用兼容 API，也可按捕获来源选择该 Harness 自己的本地 CLI：Claude Code 使用无会话持久化的 `claude -p`，Codex 使用 ephemeral/read-only 的 `codex exec`，OpenCode 使用无工具、禁分享的临时 `opencode run` 并在响应后删除 session。已知 Harness 不会因环境中恰好存在另一套凭据而静默切换到别的 Agent。Viewer 的整条 Source、单 Request 和显式材料刷新由 `ViewerTranslationAdapter` 统一转成 Translation Material；Harness 提取复用共享 message semantics，单 Request 刷新只调用详情读取端口。浏览器继续负责当前可见结构的展示与搜索，但不重新定义 block identity。维护契约见[翻译块协议](translation-block-contract.md)和[Viewer Translation Adapter 契约](viewer-translation-adapter-contract.md)。
 
 浏览器缓存以 `sourceId + targetLanguage` 为上下文，通过有序 Agent 候选查找首个可用 cache。每次 Source/语言变化都会使旧 cache load、lookup rebuild、生成 operation 和自动刷新 timer 失效；同一上下文重复加载也只有最后一次操作可以提交。compact request 无论在缓存网络等待还是 lookup hash 计算期间被详情补载，都会把当前 lookup 标为 dirty，并在提交前使用最新 request 集合重建。缓存缺失的自动刷新按 `source + agent + language` 去重，`invalidate()` 同时清除 timer 与 attempt，实际生成仍由应用层执行。完整边界见[Viewer 翻译缓存上下文契约](translation-cache-controller-contract.md)。
 

@@ -3,6 +3,7 @@ import path from "node:path";
 import { childProcessSpawnConfig, safeProcessCwd } from "../core/platform.mjs";
 
 export const OPENCODE_CONFIG_CONTENT_ENV = "OPENCODE_CONFIG_CONTENT";
+export const OPENCODE_TRANSLATION_AGENT = "peekmyagent-translation";
 
 export function inspectOpenCodeConfiguration({
   args = [],
@@ -105,6 +106,53 @@ export function buildOpenCodeProxyEnv({
   return {
     ...env,
     [OPENCODE_CONFIG_CONTENT_ENV]: JSON.stringify(merged),
+  };
+}
+
+export function buildOpenCodeTranslationEnv({
+  env = process.env,
+  model,
+  agentName = OPENCODE_TRANSLATION_AGENT,
+} = {}) {
+  if (!model) throw new Error("OpenCode translation model is required.");
+  const existing = parseInlineConfig(env[OPENCODE_CONFIG_CONTENT_ENV]);
+  const existingAgent = objectValue(existing.agent?.[agentName]);
+  return {
+    ...env,
+    [OPENCODE_CONFIG_CONTENT_ENV]: JSON.stringify({
+      ...existing,
+      share: "disabled",
+      tools: {
+        ...objectValue(existing.tools),
+        "*": false,
+      },
+      agent: {
+        ...objectValue(existing.agent),
+        [agentName]: {
+          ...existingAgent,
+          description: "Translate peekMyAgent trace materials without tools or workspace access.",
+          mode: "primary",
+          model,
+          prompt:
+            "Translate only the material supplied by the user. Preserve the requested marker format exactly. " +
+            "Do not inspect files, use tools, or add commentary.",
+          permission: {
+            ...objectValue(existingAgent.permission),
+            "*": "deny",
+          },
+          tools: {
+            ...objectValue(existingAgent.tools),
+            "*": false,
+          },
+          temperature: 0.1,
+        },
+      },
+    }),
+    OPENCODE_DISABLE_AUTOUPDATE: "1",
+    OPENCODE_DISABLE_MODELS_FETCH: "1",
+    OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+    OPENCODE_DISABLE_CLAUDE_CODE: "1",
+    OPENCODE_DISABLE_AUTOCOMPACT: "1",
   };
 }
 

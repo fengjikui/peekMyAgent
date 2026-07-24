@@ -199,6 +199,7 @@
     "smoke:viewer-translation-adapter-contract": "node scripts/viewer-translation-adapter-contract-smoke.mjs",
     "smoke:translation-claude-cli": "node scripts/translation-claude-cli-smoke.mjs",
     "smoke:translation-codex-cli": "node scripts/translation-codex-cli-smoke.mjs",
+    "smoke:translation-opencode-cli": "node scripts/translation-opencode-cli-smoke.mjs",
     "release:check": "node scripts/release-check.mjs --profile current",
     "release:check:linux": "node scripts/release-check.mjs --profile linux",
     "release:check:linux:list": "node scripts/release-check.mjs --profile linux --list",

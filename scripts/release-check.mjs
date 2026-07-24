@@ -132,6 +132,7 @@ const viewerCommands = [
   ["npm", "run", "smoke:translation-tolerance"],
   ["npm", "run", "smoke:translation-claude-cli"],
   ["npm", "run", "smoke:translation-codex-cli"],
+  ["npm", "run", "smoke:translation-opencode-cli"],
 ];
 const protocolCommands = [
   ["npm", "run", "smoke:provenance-contract"],

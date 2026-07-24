@@ -7,6 +7,11 @@ import {
   codexModelsCachePath,
   translationsDir,
 } from "../src/core/app-paths.mjs";
+import {
+  buildOpenCodeTranslationEnv,
+  OPENCODE_TRANSLATION_AGENT,
+  runOpenCodeDebugConfig,
+} from "../src/adapters/opencode-config.mjs";
 import { childProcessSpawnConfig } from "../src/core/platform.mjs";
 import {
   formatTranslationSourceBlock,
@@ -18,6 +23,7 @@ import { sha256Text } from "../src/translation/hash.mjs";
 import {
   resolveTranslationProtocol,
   selectCodexTranslationModel,
+  selectOpenCodeTranslationModel,
 } from "../src/translation/provider-policy.mjs";
 
 const args = process.argv.slice(2);
@@ -347,6 +353,7 @@ function createTranslationClient() {
   if (protocol === "anthropic") return createAnthropicCompatibleClient();
   if (protocol === "claude-cli") return createClaudeCliClient();
   if (protocol === "codex-cli") return createCodexCliClient();
+  if (protocol === "opencode-cli") return createOpenCodeCliClient();
   throw new Error(`Unsupported translation protocol: ${protocol}`);
 }
 
@@ -427,6 +434,48 @@ function createCodexCliClient() {
   return client;
 }
 
+function createOpenCodeCliClient() {
+  const command = process.env.PEEKMYAGENT_TRANSLATION_OPENCODE_BIN || "opencode";
+  const config = runOpenCodeDebugConfig({
+    command,
+    env: process.env,
+  });
+  const modelChoice = selectOpenCodeTranslationModel({ config, env: process.env });
+  let selectedModel = modelChoice.model;
+  const client = {
+    protocol: "opencode-cli",
+    baseUrl: `local:${command}`,
+    model: selectedModel,
+    modelSource: modelChoice.source,
+    reasoningEffort: "provider-default",
+    maxConcurrency: 2,
+    async request({ prompt }) {
+      const attemptedModel = selectedModel;
+      try {
+        const content = await runOpenCodeCli(command, prompt, {
+          model: attemptedModel,
+        });
+        return { content };
+      } catch (error) {
+        if (!modelChoice.fallbackModel || attemptedModel === modelChoice.fallbackModel || !isOpenCodeModelSelectionError(error)) {
+          throw error;
+        }
+        console.error(
+          `[translations] OpenCode fast model ${attemptedModel} is unavailable; retrying with configured model ${modelChoice.fallbackModel}.`,
+        );
+        selectedModel = modelChoice.fallbackModel;
+        client.model = selectedModel;
+        client.modelSource = "opencode-default-fallback";
+        const content = await runOpenCodeCli(command, prompt, {
+          model: selectedModel,
+        });
+        return { content };
+      }
+    },
+  };
+  return client;
+}
+
 async function runCodexCli(command, prompt, { model, reasoningEffort }) {
   return withTemporaryDirectory("peek-translation-codex-", async (workingDirectory) => {
     const outputPath = path.join(workingDirectory, "last-message.txt");
@@ -460,13 +509,85 @@ async function runCodexCli(command, prompt, { model, reasoningEffort }) {
   });
 }
 
-function runCliCommand(command, args, { input = "", cwd, label }) {
+async function runOpenCodeCli(command, prompt, { model }) {
+  return withTemporaryDirectory("peek-translation-opencode-", async (workingDirectory) => {
+    const childEnv = buildOpenCodeTranslationEnv({
+      env: process.env,
+      model,
+    });
+    const args = [
+      "run",
+      "--pure",
+      "--format",
+      "json",
+      "--title",
+      "peekMyAgent translation",
+      "--agent",
+      OPENCODE_TRANSLATION_AGENT,
+      "--model",
+      model,
+    ];
+    let result;
+    let sessionId = null;
+    try {
+      result = await runCliCommand(command, args, {
+        input: prompt,
+        cwd: workingDirectory,
+        env: childEnv,
+        label: "OpenCode CLI",
+      });
+      const parsed = parseOpenCodeJsonEvents(result.stdout);
+      sessionId = parsed.sessionId;
+      if (!parsed.text) throw new Error("OpenCode CLI translation completed without a final text response.");
+      return parsed.text;
+    } catch (error) {
+      sessionId ||= parseOpenCodeJsonEvents(error?.stdout || "").sessionId;
+      throw error;
+    } finally {
+      if (sessionId) {
+        try {
+          await runCliCommand(command, ["session", "delete", sessionId], {
+            cwd: workingDirectory,
+            env: childEnv,
+            label: "OpenCode CLI session cleanup",
+          });
+        } catch (error) {
+          console.error(`[translations] warning: could not remove temporary OpenCode session ${sessionId}: ${error.message}`);
+        }
+      }
+    }
+  });
+}
+
+function parseOpenCodeJsonEvents(stdout) {
+  let sessionId = null;
+  const text = [];
+  for (const line of String(stdout || "").split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    sessionId ||= typeof event?.sessionID === "string" ? event.sessionID : null;
+    if (event?.type === "text" && typeof event?.part?.text === "string") {
+      text.push(event.part.text);
+    }
+  }
+  return {
+    sessionId,
+    text: text.join("").trim(),
+  };
+}
+
+function runCliCommand(command, args, { input = "", cwd, env = process.env, label }) {
   return new Promise((resolve, reject) => {
-    const spawnConfig = childProcessSpawnConfig(command, args, { env: process.env });
+    const spawnConfig = childProcessSpawnConfig(command, args, { env });
     const child = spawn(spawnConfig.command, spawnConfig.args, {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
-      env: process.env,
+      env,
       ...spawnConfig.options,
     });
     let stdout = "";
@@ -492,7 +613,10 @@ function runCliCommand(command, args, { input = "", cwd, label }) {
       settled = true;
       clearTimeout(timer);
       if (code === 0) return resolve({ stdout, stderr });
-      reject(new Error(`${label} translation exited ${code}: ${stderr.slice(0, 1000)}`));
+      const error = new Error(`${label} translation exited ${code}: ${stderr.slice(0, 1000)}`);
+      error.stdout = stdout;
+      error.stderr = stderr;
+      reject(error);
     });
     child.stdin.on("error", (error) => {
       if (error.code !== "EPIPE") fail(new Error(`${label} input failed: ${error.message}`));
@@ -520,6 +644,12 @@ function normalizeCodexReasoningEffort(value) {
 
 function isCodexModelSelectionError(error) {
   return /model[\s\S]{0,160}(?:not exist|not available|not found|no access|have access|requires a newer|unsupported|unknown|invalid)/i.test(String(error?.message || error));
+}
+
+function isOpenCodeModelSelectionError(error) {
+  return /model[\s\S]{0,200}(?:not exist|not available|not found|no access|have access|unsupported|unknown|invalid)/i.test(
+    String(error?.message || error),
+  );
 }
 
 async function withTemporaryDirectory(prefix, operation) {
