@@ -142,6 +142,69 @@ Fixture 必须：
 - 标注来源、Harness 版本、provider 协议、实验场景和已删除字段；
 - 覆盖首轮、多轮、工具闭环和错误响应；有能力时再补 Skill、压缩和子 Agent。
 
+### 3.4 Harness 注入的识别规则
+
+“它看起来像提示词”不是分类证据。System、Developer、Harness 注入、slash command 和用户正文可能共用同一种协议 role，也可能混在同一个 content block 中。适配器必须先保存原始位置和内容，再按以下证据顺序建立额外投影：
+
+1. 协议中明确的 `system` / `developer` role 或官方独立字段；
+2. 真实 fixture 证明的命令 envelope、command name、message metadata 或生命周期事件；
+3. 真实 fixture 证明的、结构完整且在该 Harness 中有稳定语义的标签；
+4. 版本受控的精确模板指纹；
+5. 无法证明时保留为普通 Message 或 `unknown`，不得靠语气、关键词或泛化 XML 正则升级为 Harness。
+
+分类结果应保留：
+
+```text
+kind / subtype / projected_role
+source_path / source_range
+evidence_type / evidence_value
+confidence
+raw block reference
+```
+
+展示遵循“来源不搬移、语义可投影”：
+
+- Developer 默认独立于 Harness；只有内部经过验证的注入子块额外投影到 Harness；
+- slash command 只有在原生命令 envelope、metadata 或精确模板可证明时才投影到 Harness；
+- slash 的原始 message 继续保留在 History/Message，不能因为投影而消失；
+- `/compact` 等命令生成的 summary 仍属于压缩后的 History，不因命令来源而重复复制到 Harness；
+- Tools schema 属于上行参考，不属于模型 Response；
+- 当前模型下行中的 tool call 属于 Response，只有下一次发给模型的 tool result 才属于上行；
+- organized view 可以去除重复投影，Raw、History 和原始 Response 不得去重或改写。
+
+每增加一种 marker 或 slash 模板，必须同时增加：
+
+1. 一个真实脱敏正例；
+2. 一个用户正文讨论相同标签或命令的反例；
+3. 一个结构损坏、嵌套或未知标签的边界例；
+4. 对 History/Message/Harness/Raw 四个范围的断言。
+
+### 3.5 Codex 适配复盘
+
+Codex 的 CLI、rollout、Desktop 和精确代理适配暴露了以下可复用问题。新 Harness 的实现和评审必须逐项检查，而不是等 UI 出错后再补规则。
+
+| 现象 | 根因 | 可复用规则 | 必须具备的回归 |
+| --- | --- | --- | --- |
+| rollout 看起来像完整请求 | 本地记录只有 observed upstream delta 和重建 downstream | artifact fidelity 与 association confidence 分开；exact、partial、missing 不互相升级 | 同一会话 exact proxy 与本地记录的 Raw、来源文案和 capability 不同 |
+| 多轮或压缩后 History/Message 错位 | 用上一请求总消息数充当当前切分下标 | 使用当前来源提供的 reused prefix/delta 证据；没有证据就显示未知 | 普通复用、零复用、压缩后首条输入、replacement history |
+| 当前 tool call 重复出现在上行 | 混淆模型下行 call 与下一次上行 result | call 属于 Response；result 属于下一次 request | 跨请求 call/result 配对，当前上行不含当前 response call |
+| 结构化工具发现结果为空或只剩摘要 | 把动态工具目录当普通文本 | 保存完整工具名、描述、schema 和参数说明；摘要只作预览 | 多 namespace、长 schema、缺字段及 Raw/整理一致性 |
+| Tools schema 看起来像模型返回 | 请求详情、Response 详情和参考信息共用 DTO | 上下行 DTO 分开；Response 中的 Tools 只能标为“上行参考” | 完整请求无 response 派生字段，Response 仍可查对应 Tools reference |
+| 普通 Developer 被标成 Harness | 按 role、关键词或任意标签猜测 | Developer 独立展示；只投影白名单强证据子块 | 普通 Developer、白名单、未知和嵌套同名标签 |
+| slash 原文消失或重复 | 把额外投影误做成来源搬移 | Harness 可投影，History/Message 必须保留原文 | `/compact`、未知 slash、双层 command envelope、replacement history |
+| 精确捕获绑定到错误会话 | provider override 只在会话创建或冷恢复时生效 | 明确配置生效时机；未命中目标只能报告“尚未捕获” | 并行会话、项目不匹配、resume、fork、重复启动 |
+| 真实 Desktop 重启打断发布门禁 | 把破坏性生命周期实验放进默认 gate | 自动 gate 只跑 fake relay/session；真实重启为显式手工矩阵 | 默认测试证明不启动真实 Desktop，手工报告记录精确 SHA |
+| 子 Agent 永久显示运行中或串错 | 把 spawn 尝试当成功实例，或只按相邻顺序关联 | 需要稳定 child id/task name/metadata；终态来自明确 result/notification | spawn 失败、跨请求 child activity、回流、取消、旧新版终态 |
+| Harness 通知和 tool result 重复完成 | 同一事实的两种证据被当成两个事件 | 原生 tool result 为主事实；通知保留在 Harness 证据 | 两者同时存在、仅一方存在、call id 不匹配 |
+| exact 与本地语义记录相互覆盖 | 按会话合并值，而不是按 artifact/provenance 关联 | 来源可并列关联，不得覆盖；每块保留 origin/fidelity/scope | 同一会话双来源下 Raw、范围和置信度仍独立 |
+| relay 扩大本地攻击面 | 未限制绑定、帧、大小和方法 | 仅 loopback、有界解析、白名单改写、认证只在内存 | 非 loopback、非法帧、超限 payload、未知方法 |
+
+这些问题形成三个总原则：
+
+1. **先证明信息从哪里来，再讨论怎样组织。**
+2. **Raw 保存事实，Trace Domain 建立关系，Viewer 只消费显式 DTO。**
+3. **任何“更聪明”的整理都必须有反例，且不能删除原始证据。**
+
 ## 4. 适配器验收问题清单
 
 以下内容是评审时必须回答的问题，不是要求立即实现的 SDK 接口。首个 OpenCode 适配可以先用显式模块实现；只有第二个新 Harness 证明多个实现出现真实重复后，才抽取稳定接口。

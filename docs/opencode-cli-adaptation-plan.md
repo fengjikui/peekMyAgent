@@ -267,6 +267,16 @@ provider-specific path/header/body 规则只有在真实 fixture 证明共享 Pr
 - slash command/project instruction/plugin 注入如何标为 Harness；
 - 不把用户正文中的同名 XML/Markdown 误判为注入。
 
+OpenCode 首轮实验按[工作手册中的 Harness 注入识别规则](new-harness-adaptation-playbook.md#34-harness-注入的识别规则)记录每个候选块的：
+
+- 原始 role、content index 和 JSON path；
+- 是否有 command envelope、metadata 或本地 lifecycle event；
+- 标签是否结构完整、是否在不同轮次和版本中稳定；
+- 同一文本是否仍保留在 History/Message；
+- 用户正文包含同名 slash/tag 时是否会被误判。
+
+首版只允许“实验证明的白名单 marker + 明确命令 envelope”。单纯以 `/` 开头、包含 `system`/`skill`/`agent` 关键词、使用 XML/Markdown 或位于 `developer` role，都不足以单独判定 Harness 注入。
+
 E5 只是观测实验，不属于 M1/M2 承诺。若没有稳定 wire/event 证据，首版只显示 Raw/unknown，不增加 Skill 专用 API 或 Viewer 分支。
 
 ### E6：压缩
