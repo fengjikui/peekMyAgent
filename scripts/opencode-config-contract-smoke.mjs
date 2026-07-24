@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import path from "node:path";
 import {
   buildOpenCodeProxyEnv,
   inspectOpenCodeConfiguration,
   openCodeModelFromArgs,
   openCodeSessionFromArgs,
+  openCodeWorkingDirectory,
   parseInlineConfig,
   providerFromOpenCodeModel,
 } from "../src/adapters/opencode-config.mjs";
@@ -35,6 +37,7 @@ assert.deepEqual(inspected, {
   target_base_url: "https://provider.example/v1",
   provider_npm: "@ai-sdk/openai-compatible",
   conversation_id: "ses-123",
+  workspace: process.cwd(),
 });
 assert.doesNotMatch(JSON.stringify(inspected), /must-not-leak/);
 
@@ -55,6 +58,7 @@ assert.equal(commandLineModel.model, "custom/fast");
 assert.equal(commandLineModel.provider_id, "custom");
 assert.equal(commandLineModel.target_base_url, "https://custom.example/api");
 assert.equal(commandLineModel.conversation_id, "ses-456");
+assert.equal(commandLineModel.workspace, process.cwd());
 
 const existingInlineConfig = {
   model: "mimo/mimo-v2.5-pro",
@@ -90,6 +94,10 @@ assert.equal(openCodeModelFromArgs(["run", "-m", "a/b"]), "a/b");
 assert.equal(openCodeModelFromArgs(["--model=a/b"]), "a/b");
 assert.equal(openCodeSessionFromArgs(["run", "-s", "session-a"]), "session-a");
 assert.equal(openCodeSessionFromArgs(["--session=session-b"]), "session-b");
+assert.equal(
+  openCodeWorkingDirectory(["run", "--dir", "nested/project"], "/tmp/workspace"),
+  path.resolve("/tmp/workspace/nested/project"),
+);
 assert.equal(providerFromOpenCodeModel("provider/model"), "provider");
 assert.deepEqual(parseInlineConfig(""), {});
 

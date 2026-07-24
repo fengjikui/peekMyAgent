@@ -1317,15 +1317,16 @@ async function runOpenClawAgent(parsed, viewerUrl) {
 }
 
 async function runOpenCodeAgent(parsed, viewerUrl) {
-  const workspace = safeProcessCwd();
+  const launchDirectory = safeProcessCwd();
   const configuration = inspectOpenCodeConfiguration({
     args: parsed.childArgs,
-    cwd: workspace,
+    cwd: launchDirectory,
     env: process.env,
     targetBaseUrl: optionValueIn(parsed.wrapperArgs, "--target-base-url"),
     providerId: optionValueIn(parsed.wrapperArgs, "--provider"),
     model: optionValueIn(parsed.wrapperArgs, "--model"),
   });
+  const workspace = configuration.workspace;
   const watchPolicy = normalizeWatchPolicy(optionValueIn(parsed.wrapperArgs, "--watch"), { allowAsk: false });
   const watch = await postJson(`${trimSlash(viewerUrl)}/api/watch/start`, {
     agent: "OpenCode",

@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import path from "node:path";
 import { childProcessSpawnConfig, safeProcessCwd } from "../core/platform.mjs";
 
 export const OPENCODE_CONFIG_CONTENT_ENV = "OPENCODE_CONFIG_CONTENT";
@@ -45,6 +46,7 @@ export function inspectOpenCodeConfiguration({
     target_base_url: stripTrailingSlash(resolvedTargetBaseUrl),
     provider_npm: stringValue(provider.npm) || null,
     conversation_id: openCodeSessionFromArgs(args),
+    workspace: openCodeWorkingDirectory(args, cwd),
   };
 }
 
@@ -112,6 +114,11 @@ export function openCodeModelFromArgs(args = []) {
 
 export function openCodeSessionFromArgs(args = []) {
   return optionValue(args, ["--session", "-s"]);
+}
+
+export function openCodeWorkingDirectory(args = [], cwd = safeProcessCwd()) {
+  const directory = optionValue(args, ["--dir"]);
+  return directory ? path.resolve(cwd, directory) : path.resolve(cwd);
 }
 
 export function providerFromOpenCodeModel(model) {
