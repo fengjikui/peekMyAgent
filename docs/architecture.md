@@ -112,6 +112,8 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/viewer/session-navigator-renderer.js` | Session Navigator 项目组、会话项和动作菜单的纯 HTML renderer |
 | `src/viewer/session-navigator-controller.js` | 长期管理根事件委派、菜单互斥、外部关闭和项目折叠持久化 |
 | `src/viewer/raw-view-model.js` | Raw Inspector 上行、下行、Harness、Metadata 的纯 section 数据与方向约束 |
+| `src/viewer/metadata-view-model.js` | 请求身份、传输事实、厂商 usage、上行构成和捕获证据的纯 Metadata DTO |
+| `src/viewer/metadata-renderer.js` | Metadata 原文/整理切换及分来源统计的纯 HTML renderer |
 | `src/viewer/raw-search-model.js` | Raw 搜索条目构建、过滤、摘要命中分段与导航索引的纯模型 |
 | `src/viewer/raw-search-controller.js` | Raw 搜索输入法生命周期、延迟重绘、当前命中、高亮和滚动控制器 |
 | `src/viewer/raw-inspector-controller.js` | Raw 请求选择、详情懒加载、竞态失效、面板状态与重绘生命周期控制器 |
@@ -323,6 +325,8 @@ Viewer UI 文案由纯 `ui-i18n.js` 集中所有，当前支持 `zh-CN` 与 `en-
 
 Trace Timeline 的搜索分类、命中计数、结果上限、latest-only 和 Turn 窗口由纯 `trace-timeline-model.js` 计算。查询栏、空状态、窗口边界与 Turn 容器编排由 `trace-timeline-renderer.js` 生成；`TraceTimelineController` 长期持有查询栏和 Timeline 根节点，通过一次事件委派处理 IME、筛选、Raw、通用请求证据跳转、折叠与活动态同步。复杂 Turn 在请求卡前增加由 `turn-story-model.js` 生成的“机制流程”：它只消费共享 entry/response/tool result/semantic event/Agent graph DTO，按顺序概括用户请求、工具或 Skill、子 Agent 启动/确认/回流、最终回答和 Harness 压缩事件；简单单请求对话不显示该层。`turn-story-renderer.js` 只负责紧凑呈现，每一步通过统一 `data-request-jump` 回到对应请求，不按 Agent/provider 建第二套分支。请求身份、上行类别/标签/预览、快捷 section、工具事件配对和 Assistant response metadata/折叠由 `request-card-model.js` 生成显式 View DTO，再由 `request-card-renderer.js` 生成请求卡外壳、工具交换和回复 HTML。Thinking 默认折叠，翻译动作只在展开后出现；翻译开始即锁定并显示进度，按 request 保存的展开状态保证异步重绘不会打断阅读。多 Agent 看板由 `agent-graph-model.js` 按 Trace Domain 已确认的分支关系计算筛选、分页和交错事件流，再由 `agent-graph-renderer.js` 生成 HTML；看板不自行推断 parent/child，“子 Agent”Trace 筛选也保留对应看板而不是只留下离散请求卡。上行详情由 `upstream-detail-model.js` 把完整 request 规范成 System、Tools、历史消息、当前新增消息/子 Agent 回流和 provider token DTO，再由 `upstream-detail-renderer.js` 生成 HTML；request-detail cache、展开状态与局部重绘仍由应用层所有。左侧 Session Navigator 由纯 Model/Renderer 与长生命周期 Controller 组成；Controller 持有菜单和折叠偏好，通过动作端口把选择、归档、删除、重命名和导出交回应用层。底部 Agent Composer 同样使用纯 Model/Renderer 与 Controller；Controller 按 source 隔离草稿和发送结果，通过注入的 API/刷新回调执行 detached resume，不读取全局 state。应用层只装配详情/展开状态、翻译动作、API 与局部重绘，把纯 Model DTO 和受信任子块交给 Renderer；renderer 不读取全局 state、不注册动作，也不访问 DOM。应用渲染仍分成 Header、Timeline 和 Composer 三个表面：Timeline 内部动作只重建 Timeline，翻译 Raw 块只刷新 Raw，翻译 Thinking 块只刷新 Timeline；source 装载、完整数据刷新、全局错误状态和 UI/目标翻译语言切换仍可使用组合 `renderAll()`。详细契约见 [Viewer Timeline 模型与局部渲染契约](viewer-timeline-contract.md)、[请求/回复卡片 View 契约](request-card-renderer-contract.md)、[多 Agent 看板 View 契约](agent-graph-view-contract.md)、[上行详情 View 契约](upstream-detail-view-contract.md)、[Session Navigator View 契约](session-navigator-view-contract.md)和[Agent Composer View 契约](agent-composer-view-contract.md)。
 
+用户输入的请求编号进入与其他上行请求共用的固定编号轨道，渐隐连接线表达编号与右对齐自适应气泡的归属，气泡本身不再为编号预留一列。该轨道属于请求卡 renderer 的视觉语义，不改变 request index 或 Turn 归属。
+
 工具事件与子 Agent 事件筛选会保留所属 Turn 的“机制流程”，避免过滤后只剩离散证据而失去链路语义；异常和慢请求筛选继续保持紧凑。筛选计数统一表示匹配的请求/事件数量，顶部统计则保留子 Agent 实例数、工具调用数与工具结果数，两种口径不混用。纯数字或 `#数字` 查询按精确 request index 解释，避免正文、token 或工具结果里的相同数字造成伪命中；其他查询继续搜索可见语义文本。
 
 compact 首屏后的完整 request 由 `RequestDetailCache` 按需读取。同一 request 的并发展开共享 Promise，失败可重试，source 切换统一清空；首次加载和缓存命中的应用副作用通过回调注入，缓存层不反向依赖 DOM、全局 state 或翻译模块。
@@ -330,6 +334,8 @@ compact 首屏后的完整 request 由 `RequestDetailCache` 按需读取。同�
 Raw Inspector 的请求/响应方向由 `raw-view-model.js` 统一。它从完整上行和 Metadata 移除 response 派生字段，单独组织完整 Response 与 capture facts，并通过调用方注入 Harness 材料，避免 renderer 各自重新解释同一份 DTO。Response 优先展示 Capture Proxy 保存的 `body_json`；流式协议若提供终止响应则展示该协议原生终止对象，否则仅在 normalizer 能保持 Anthropic Messages 或 Chat Completions 原生字段层级时展示协议终态重建。旧版通用 `stream_assembly` 和证据不足的不完整流不再伪装成 Raw。Raw 不展示 SSE 事件序列，也不重复展示 normalizer 的顶层 `text`、`thinking` 或统一 `tool_calls`；单独的调用页直接抽取协议原始调用条目并以原始类型命名。
 
 Raw Inspector 按数据方向组织证据：请求卡和上行视图只展示 System、Tools、Harness、Messages、历史工具调用与回传结果；“完整请求”和“请求 Metadata”会从 capture 中剔除 response、响应状态以及 response 派生统计。请求侧标签保持单层排列，完整请求在首位、Metadata 在末位。完整 Response 与本次响应的协议原生调用条目只从 Assistant 回复进入“模型下行”视图。Assistant 视图保留独立的“上行参考”Tools schema，并明确它不是 response body 返回内容；当该响应包含工具调用时，可按下行的精确工具名一键过滤上行 schema，这只改变显示范围，不混淆证据方向。
+
+请求 Metadata 同时提供“原文”和“整理”两种视图。原文直接展示剔除下行派生字段后的上行 capture metadata；整理视图把请求身份和 HTTP 传输标为捕获事实，把 token usage 标为厂商返回，把 context delta 等证据标为 PMA 规范化，并把字符数和构成占比标为 PMA 计算。整理视图不得把计算结果伪装成协议字段，也不得覆盖原文。
 
 中间时间线与右侧 Inspector 使用不同的信息密度：时间线只消费有界摘要，右侧是完整证据与语义整理入口。右侧 `tool_result` 从本轮原始上行 message 增量读取完整条目，并提供原文/整理切换；例如 `tool_search_output` 会在整理视图中按命名空间展示完整工具描述、参数 schema、参数说明、原始定义与块级翻译操作，不受时间线 800 字预览限制。
 

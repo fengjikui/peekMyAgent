@@ -82,9 +82,12 @@ const upstream = renderTimelineUpstreamEntry({
   escapeHtml,
 });
 assert.match(upstream, /upstream-entry tool-result user-turn/);
+assert.match(upstream, /class="user-turn-index-anchor"/);
+assert.match(upstream, /class="user-turn-connector"/);
+assert.match(upstream, /class="user-turn-bubble"/);
 assert.match(upstream, /class="user-turn-content"/);
 assert.match(upstream, /<span class="request-index">#7<\/span>/);
-assert.match(upstream, /request-index[\s\S]*upstream-entry-preview[\s\S]*upstream-entry-actions/);
+assert.match(upstream, /request-index[\s\S]*user-turn-connector[\s\S]*user-turn-bubble[\s\S]*upstream-entry-preview[\s\S]*upstream-entry-actions/);
 assert.doesNotMatch(upstream, /class="upstream-entry-row"/);
 assert.doesNotMatch(upstream, /&lt;User &amp; result&gt;/);
 assert.doesNotMatch(upstream, /<script>/);

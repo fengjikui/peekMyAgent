@@ -44,13 +44,18 @@ export function renderTimelineUpstreamEntry({ entry, escapeHtml }) {
   if (userTurn) {
     return `
       <section class="upstream-entry ${escapeHtml(kindClass)} user-turn ${compact ? "compact" : ""}">
-        <div class="user-turn-content">
+        <div class="user-turn-index-anchor">
           <span class="request-index">#${escapeHtml(requestIndex)}</span>
+        </div>
+        <span class="user-turn-connector" aria-hidden="true"></span>
+        <div class="user-turn-bubble">
+          <div class="user-turn-content">
           ${preview ? `<div class="upstream-entry-preview">${escapeHtml(preview)}</div>` : ""}
           <div class="upstream-entry-actions">
             ${actionsHtml}
           </div>
           ${metaHtml ? `<div class="upstream-entry-meta" aria-label="${escapeHtml(ownerAria)}">${metaHtml}</div>` : ""}
+          </div>
         </div>
       </section>
     `;

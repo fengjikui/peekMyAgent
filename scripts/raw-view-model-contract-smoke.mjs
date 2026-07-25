@@ -21,6 +21,7 @@ import {
   responseToolCallSectionLabel,
   responseUsesReconstructedDownstream,
 } from "../src/viewer/raw-view-model.js";
+import { buildMetadataView } from "../src/viewer/metadata-view-model.js";
 
 const request = {
   id: "request-1",
@@ -94,6 +95,47 @@ assert.equal(metadata.capture_id, "capture-1");
 assert.deepEqual(metadata.context_delta, { status: "changed" });
 assert.equal("response" in metadata, false);
 assert.equal("status" in metadata, false);
+
+const metadataView = buildMetadataView({
+  ...request,
+  raw: {
+    ...request.raw,
+    conversation_id: "conversation-1",
+    received_at: "2026-07-25T10:00:00.000Z",
+    raw_body_length: 1000,
+    body_source: "original",
+  },
+  summary: {
+    ...request.summary,
+    composition: {
+      unit: "chars",
+      total_payload_chars: 1000,
+      input_chars: 1000,
+      sections: {
+        system: { chars: 300, ratio: 0.3 },
+        tools: { chars: 500, ratio: 0.5 },
+        history_context: { chars: 150, ratio: 0.15 },
+        current_user: { chars: 50, ratio: 0.05 },
+      },
+    },
+    response: {
+      ...request.summary.response,
+      usage: {
+        input_tokens: 100,
+        cache_read_input_tokens: 80,
+        output_tokens: 12,
+      },
+    },
+  },
+});
+assert.equal(metadataView.identity.find((fact) => fact.key === "capture_id").value, "capture-1");
+assert.equal(metadataView.providerUsage.cache, 80);
+assert.equal(metadataView.providerUsage.actualInput, 100);
+assert.equal(metadataView.composition.total, 1000);
+assert.deepEqual(
+  metadataView.composition.sections.map((section) => section.key),
+  ["system", "tools", "history_context", "current_user"],
+);
 
 assert.deepEqual(rawSectionData(request, "system").value, {
   body_system: "system prompt",

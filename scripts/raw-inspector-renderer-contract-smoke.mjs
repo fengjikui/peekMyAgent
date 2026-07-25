@@ -12,6 +12,10 @@ import {
   renderRequestRawNavigation,
   renderResponseRawNavigation,
 } from "../src/viewer/raw-inspector-renderer.js";
+import {
+  renderMetadataControls,
+  renderOrganizedMetadata,
+} from "../src/viewer/metadata-renderer.js";
 
 const translate = (key, values = {}) => `${key}${values.section ? `:${values.section}` : ""}${values.count != null ? `:${values.count}` : ""}`;
 const escapeHtml = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
@@ -158,5 +162,50 @@ assert.match(sectionEvidence, /raw-section-evidence/);
 assert.match(sectionEvidence, /PMA &lt;view>/);
 assert.doesNotMatch(sectionEvidence, /<script>/);
 assert.equal(renderRawSectionEvidence({ evidence: null, escapeHtml }), "");
+
+const metadataControls = renderMetadataControls({ mode: "organized", translate, escapeHtml });
+assert.match(metadataControls, /data-metadata-mode="source"/);
+assert.match(metadataControls, /data-metadata-mode="organized"/);
+assert.match(metadataControls, /class="active" data-metadata-mode="organized"/);
+
+const metadataSummary = renderOrganizedMetadata({
+  view: {
+    identity: [{ key: "request_index", value: 18 }],
+    transport: [{ key: "path", value: "/v1/messages?<unsafe>" }],
+    providerUsage: {
+      input: 120,
+      cache: 80,
+      actualInput: 40,
+      output: 12,
+      totalInput: 120,
+      cacheRatio: 2 / 3,
+      actualRatio: 1 / 3,
+    },
+    composition: {
+      unit: "chars",
+      total: 1000,
+      sections: [
+        { key: "system", chars: 300, ratio: 0.3 },
+        { key: "tools", chars: 500, ratio: 0.5 },
+      ],
+    },
+    evidence: {
+      transport: "capture_proxy",
+      request: { exact: true, available: true },
+      headerRedactions: ["authorization"],
+      contextDelta: { new_messages: 1 },
+    },
+  },
+  translate,
+  escapeHtml,
+  formatNumber: (value) => String(value),
+});
+assert.match(metadataSummary, /metadata-summary/);
+assert.match(metadataSummary, /metadataCapturedFact/);
+assert.match(metadataSummary, /metadataProviderFact/);
+assert.match(metadataSummary, /metadataCalculated/);
+assert.match(metadataSummary, /66\.7%/);
+assert.match(metadataSummary, /30\.0%/);
+assert.doesNotMatch(metadataSummary, /<unsafe>/);
 
 console.log("raw inspector renderer contract smoke passed");

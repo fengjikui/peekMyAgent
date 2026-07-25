@@ -5,6 +5,11 @@ import {
   renderMessagesControls as renderMessagesControlsView,
   renderMessagesSection as renderMessagesSectionView,
 } from "./messages-renderer.js";
+import { buildMetadataView } from "./metadata-view-model.js";
+import {
+  renderMetadataControls as renderMetadataControlsView,
+  renderOrganizedMetadata as renderOrganizedMetadataView,
+} from "./metadata-renderer.js";
 import { messageTimelineRequestIndexes, responseConversationMessages } from "./message-view-model.js";
 import { ViewerApiClient } from "./api-client.js";
 import { ViewerClientStore } from "./client-store.js";
@@ -138,6 +143,7 @@ const state = Object.assign(clientStore.state, {
 const LIVE_REFRESH_MS = 1200;
 const LATEST_ONLY_KEY = "peekmyagent.latestOnly";
 const RAW_MESSAGES_MODE_KEY = "peekmyagent.rawMessagesMode";
+const RAW_METADATA_MODE_KEY = "peekmyagent.rawMetadataMode";
 const INITIAL_SOURCE_REQUEST_LIMIT = 32;
 const CURSOR_PAGE_REQUEST_LIMIT = 100;
 const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
@@ -481,6 +487,10 @@ function normalizeMessagesMode(value) {
   return value === "source" ? "source" : "organized";
 }
 
+function normalizeMetadataMode(value) {
+  return value === "source" ? "source" : "organized";
+}
+
 function currentTargetLanguage() {
   return languagePreferencesController.currentTargetLanguage();
 }
@@ -501,6 +511,7 @@ async function init() {
       ...languagePreferencesController.readPreferences(),
       latestOnly: localStorage.getItem(LATEST_ONLY_KEY) === "true",
       rawMessagesMode: normalizeMessagesMode(localStorage.getItem(RAW_MESSAGES_MODE_KEY)),
+      rawMetadataMode: normalizeMetadataMode(localStorage.getItem(RAW_METADATA_MODE_KEY)),
     },
     { reason: "hydrate-preferences", silent: true },
   );
@@ -537,6 +548,11 @@ async function init() {
     const messagesModeButton = event.target.closest("[data-messages-mode]");
     if (messagesModeButton && els.rawTree.contains(messagesModeButton)) {
       setMessagesMode(messagesModeButton.dataset.messagesMode || "organized");
+      return;
+    }
+    const metadataModeButton = event.target.closest("[data-metadata-mode]");
+    if (metadataModeButton && els.rawTree.contains(metadataModeButton)) {
+      setMetadataMode(metadataModeButton.dataset.metadataMode || "organized");
       return;
     }
     const generateButton = event.target.closest("[data-translation-generate]");
@@ -734,6 +750,16 @@ function setMessagesMode(mode) {
   localStorage.setItem(RAW_MESSAGES_MODE_KEY, state.rawMessagesMode);
   if (state.activeRequestId) {
     rawInspectorController.show(state.activeRequestId, state.activeRawSection || "history", {
+      mode: state.activeRawMode || "request",
+    });
+  }
+}
+
+function setMetadataMode(mode) {
+  clientStore.setRawView({ rawMetadataMode: normalizeMetadataMode(mode) }, { reason: "set-metadata-mode" });
+  localStorage.setItem(RAW_METADATA_MODE_KEY, state.rawMetadataMode);
+  if (state.activeRequestId) {
+    rawInspectorController.show(state.activeRequestId, "metadata", {
       mode: state.activeRawMode || "request",
     });
   }
@@ -1836,7 +1862,10 @@ function renderRawStickyControls(request, section, mode = "request") {
   return renderRawStickyControlsView({
     navigation,
     searchControls: renderRawSearchControls(request, section, mode),
-    viewControls: renderTranslationControls(request, section) || renderMessagesControls(section),
+    viewControls:
+      renderTranslationControls(request, section) ||
+      renderMessagesControls(section) ||
+      renderMetadataControls(section),
   });
 }
 
@@ -1937,6 +1966,7 @@ function highlightSearchSnippet(text, query) {
 }
 
 function renderRawSectionContent(request, section, sectionData) {
+  if (section === "metadata") return renderMetadataSection(request, sectionData);
   if (["developer", "history", "message", "messages", "tool_results"].includes(section)) {
     return renderMessagesSection(request, section, sectionData.value);
   }
@@ -1946,6 +1976,30 @@ function renderRawSectionContent(request, section, sectionData) {
   }
   if (normalizedRawSearchQuery()) return renderRawSearchResults(request, section, state.activeRawMode || "request");
   return renderRawDetail(sectionData.title, sectionData.value);
+}
+
+function renderMetadataControls(section) {
+  if (section !== "metadata") return "";
+  return renderMetadataControlsView({
+    mode: normalizeMetadataMode(state.rawMetadataMode),
+    translate: t,
+    escapeHtml,
+  });
+}
+
+function renderMetadataSection(request, sectionData) {
+  if (normalizedRawSearchQuery()) {
+    return renderRawSearchResults(request, "metadata", state.activeRawMode || "request");
+  }
+  if (normalizeMetadataMode(state.rawMetadataMode) === "source") {
+    return renderRawDetail(sectionData.title, sectionData.value);
+  }
+  return renderOrganizedMetadataView({
+    view: buildMetadataView(request),
+    translate: t,
+    escapeHtml,
+    formatNumber: formatCompactNumber,
+  });
 }
 
 function usesTranslatedStructuredSearch(section, mode = state.activeRawMode || "request") {

@@ -20,6 +20,8 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/language-preferences-controller.js", javascriptAsset("language-preferences-controller.js")],
   ["/markdown.js", javascriptAsset("markdown.js")],
   ["/message-view-model.js", javascriptAsset("message-view-model.js")],
+  ["/metadata-view-model.js", javascriptAsset("metadata-view-model.js")],
+  ["/metadata-renderer.js", javascriptAsset("metadata-renderer.js")],
   ["/messages-renderer.js", javascriptAsset("messages-renderer.js")],
   ["/pane-layout-controller.js", javascriptAsset("pane-layout-controller.js")],
   ["/pane-layout-model.js", javascriptAsset("pane-layout-model.js")],
