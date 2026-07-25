@@ -11,17 +11,17 @@ import {
   panelContentShare,
 } from "../src/viewer/pane-layout-model.js";
 
-assert.equal(maximumRawPanelWidth({ shellWidth: 1400, sidebarOpen: true, sidebarWidth: 300 }), 568);
-assert.equal(maximumRawPanelWidth({ shellWidth: 1400, sidebarOpen: false, sidebarWidth: 300 }), 760);
-assert.equal(maximumSidebarWidth({ shellWidth: 1400, rawOpen: true, rawWidth: 400 }), 420);
-assert.equal(maximumSidebarWidth({ shellWidth: 1000, rawOpen: true, rawWidth: 320 }), 220);
-assert.equal(clampRawPanelWidth(900, { shellWidth: 1400, sidebarOpen: true, sidebarWidth: 300 }), 568);
-assert.equal(clampSidebarWidth(100, { shellWidth: 1400, rawOpen: true, rawWidth: 400 }), 220);
-assert.equal(contentPanelWidth({ shellWidth: 1400, sidebarOpen: true, sidebarWidth: 300, rawOpen: true }), 1088);
+assert.equal(maximumRawPanelWidth({ shellWidth: 1400, sidebarOpen: true, sidebarWidth: 300 }), 452);
+assert.equal(maximumRawPanelWidth({ shellWidth: 1400, sidebarOpen: false, sidebarWidth: 300 }), 640);
+assert.equal(maximumSidebarWidth({ shellWidth: 1400, rawOpen: true, rawWidth: 400 }), 352);
+assert.equal(maximumSidebarWidth({ shellWidth: 1000, rawOpen: true, rawWidth: 320 }), 216);
+assert.equal(clampRawPanelWidth(900, { shellWidth: 1400, sidebarOpen: true, sidebarWidth: 300 }), 452);
+assert.equal(clampSidebarWidth(100, { shellWidth: 1400, rawOpen: true, rawWidth: 400 }), 216);
+assert.equal(contentPanelWidth({ shellWidth: 1400, sidebarOpen: true, sidebarWidth: 300, rawOpen: true }), 1092);
 assert.equal(panelContentShare(400, 1000), 0.4);
 assert.equal(panelContentShare(400, 0), 0);
 
-const appShell = fakeElement({ left: 0, right: 1400, width: 1400 });
+const appShell = fakeElement({ left: 0, right: 1600, width: 1600 });
 const rawPanel = fakeElement({ width: 400 });
 rawPanel.getBoundingClientRect = () => ({
   left: 0,
@@ -34,7 +34,7 @@ const sidebarResizer = fakeElement();
 const sidebarToggle = fakeElement();
 const documentTarget = fakeEventTarget();
 const windowTarget = fakeEventTarget({
-  innerWidth: 1400,
+  innerWidth: 1600,
   matchMedia: () => ({ matches: false }),
   getComputedStyle: () => ({ getPropertyValue: () => "300px" }),
 });

@@ -1,10 +1,10 @@
 export const PANE_LAYOUT_LIMITS = Object.freeze({
   rawMin: 320,
-  rawMax: 760,
-  sidebarMin: 220,
-  sidebarMax: 420,
-  mainMin: 520,
-  resizerWidth: 6,
+  rawMax: 640,
+  sidebarMin: 216,
+  sidebarMax: 360,
+  mainMin: 640,
+  resizerWidth: 4,
 });
 
 export function clampRawPanelWidth(width, layout, limits = PANE_LAYOUT_LIMITS) {
