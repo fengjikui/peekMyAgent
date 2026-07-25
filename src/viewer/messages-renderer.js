@@ -1,7 +1,7 @@
 import { organizedMessagesViewModel } from "./message-view-model.js";
 
 export function renderMessagesControls({ section, mode, translate, escapeHtml }) {
-  if (!["developer", "history", "message", "messages", "response", "tool_results"].includes(section)) return "";
+  if (!["developer", "history", "message", "messages", "response", "tool_calls", "tool_results"].includes(section)) return "";
   return `
     <div class="translation-toolbar compact">
       <div class="translation-segmented" role="group" aria-label="${escapeHtml(translate("messagesViewAria"))}">

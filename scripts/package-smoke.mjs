@@ -78,6 +78,9 @@ for (const required of [
   "src/viewer/session-navigator-renderer.js",
   "src/viewer/system-diff-model.js",
   "src/viewer/system-diff-renderer.js",
+  "src/viewer/theme-controller.js",
+  "src/viewer/tool-call-renderer.js",
+  "src/viewer/tool-call-view-model.js",
   "src/viewer/translation-action-controller.js",
   "src/viewer/translation-action-model.js",
   "src/viewer/translation-cache-controller.js",
@@ -195,14 +198,14 @@ const allowedPatterns = [
 const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);
 
-const MAX_PACKAGE_ENTRIES = 144;
+const MAX_PACKAGE_ENTRIES = 147;
 // The managed Agent runtimes, protocol-native response reconstruction, semantic
 // trace views, and provider-neutral subagent correlation are shipped product
 // code. Keep a narrow post-feature budget while the unchanged unpacked-size cap
 // and path allowlist prevent fixtures, design docs, captures, and other
 // release-unsafe files from leaking into the package.
-const MAX_PACKED_BYTES = 348_000;
-const MAX_UNPACKED_BYTES = 1_510_000;
+const MAX_PACKED_BYTES = 349_000;
+const MAX_UNPACKED_BYTES = 1_525_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);
 assert.ok(

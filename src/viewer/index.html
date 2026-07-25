@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="system">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -46,6 +46,10 @@
               <div class="topbar-control-row">
                 <div id="viewControls" class="view-controls"></div>
                 <div class="language-controls" aria-label="语言设置" data-i18n-aria-label="languageSettingsAria">
+                  <label class="language-control theme-control">
+                    <span data-i18n="themeLabel">主题</span>
+                    <select id="themeSelect" aria-label="选择主题" data-i18n-aria-label="themeSelectAria"></select>
+                  </label>
                   <label class="language-control">
                     <span data-i18n="uiLanguageLabel">界面</span>
                     <select id="uiLanguageSelect"></select>

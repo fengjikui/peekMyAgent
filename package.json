@@ -151,6 +151,8 @@
     "smoke:raw-inspector-controller-contract": "node scripts/raw-inspector-controller-contract-smoke.mjs",
     "smoke:system-diff-view-contract": "node scripts/system-diff-view-contract-smoke.mjs",
     "smoke:raw-inspector-renderer-contract": "node scripts/raw-inspector-renderer-contract-smoke.mjs",
+    "smoke:tool-call-detail-contract": "node scripts/tool-call-detail-contract-smoke.mjs",
+    "smoke:theme-controller-contract": "node scripts/theme-controller-contract-smoke.mjs",
     "smoke:message-view-renderer-contract": "node scripts/message-view-renderer-contract-smoke.mjs",
     "smoke:translation-view-renderer-contract": "node scripts/translation-view-renderer-contract-smoke.mjs",
     "smoke:viewer-static-assets-contract": "node scripts/viewer-static-assets-contract-smoke.mjs",

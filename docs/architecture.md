@@ -89,9 +89,10 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/viewer/server.mjs` | Viewer daemon composition root、shared proxy/Store/Service/Router 装配与公开 DTO presenter |
 | `src/viewer/client.js` | 浏览器应用装配、共享状态、数据加载和尚未迁出的 feature renderer |
 | `src/viewer/api-client.js` | 浏览器 `/api/*` URL、method、intent header、body、错误协议与共享响应 DTO 断言门面 |
-| `src/viewer/client-store.js` | source/Turn/request、Raw、语言、布局和 latest-only 的最小可订阅状态边界 |
+| `src/viewer/client-store.js` | source/Turn/request、Raw、语言、外观主题、布局和 latest-only 的最小可订阅状态边界 |
 | `src/viewer/pane-layout-model.js` | 三栏宽度上下限、可用空间和内容占比的纯几何模型 |
 | `src/viewer/pane-layout-controller.js` | 三栏折叠、宽度偏好、键盘/指针拖动和窗口变化的长期 DOM Controller |
+| `src/viewer/theme-controller.js` | `system/light/dark/studio` 外观偏好的水合、持久化、根节点应用和双语选择器 |
 | `src/viewer/ui-i18n.js` | Viewer 中英文 UI 资源、默认语言、fallback 与占位符插值纯函数 |
 | `src/viewer/evidence-view-model.js` | Source/request/response 证据完整度到侧栏、时间线与 Raw 文案的共享纯 View Model |
 | `src/viewer/trace-timeline-model.js` | Trace 查询分类、命中 Turn、结果上限、latest-only 与中栏窗口的纯 View Model |
@@ -122,6 +123,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/viewer/system-diff-renderer.js` | System diff 行/块摘要的双语、安全 HTML renderer |
 | `src/viewer/message-view-model.js` | History、Message、Response 三类会话信息的切分，role/type 协议推断、同次模型回复分组、请求链编号映射、工具调用/结果投影和长文本截断 DTO |
 | `src/viewer/messages-renderer.js` | History、Message、Response 共用的原文/整理切换、时间线编号、安全 Markdown、推理与工具交换语义化 renderer |
+| `src/viewer/tool-call-view-model.js`、`tool-call-renderer.js` | Anthropic/OpenAI 原生工具调用形状到紧凑参数 DTO、命令代码块和安全 HTML 的整理视图 |
 | `src/viewer/active-source-controller.js` | Source 清单、首屏/后台分页、live polling、翻译等待和迟到 UI 提交拒绝的应用编排 |
 | `src/viewer/translation-language-catalog.js` | UI/翻译目标语言目录、alias 解析、系统语言推荐与无效值回退纯契约 |
 | `src/viewer/language-preferences-controller.js` | 语言偏好水合/持久化、选择器绑定、静态 i18n 与目标语言切换副作用编排 |
@@ -313,11 +315,13 @@ Turn Rail 已作为首个 Viewer Client feature 从全局脚本迁出。`client.
 
 Viewer 的浏览器请求统一通过 `ViewerApiClient`。它集中定义 source/view/request/translation/import/export/send/watch API 的 URL 编码、method、Content-Type、intent 和错误传播；它不持有界面状态，也不操作 DOM。Server 继续承担最终的 loopback 与请求意图校验。
 
-Viewer 的核心选择和偏好状态已经由最小 `ViewerClientStore` 所有。当前涵盖 source/Turn/request 选择、Raw section/mode、UI 与目标翻译语言、三栏开关/宽度和 latest-only。Store 只提供原子 patch、领域写入约束和带 `changedKeys` 的订阅通知，不访问 DOM、网络或 `localStorage`；`client.js` 暂时复用同一 state 引用读取，并继续装配副作用。受管字段禁止再直接赋值；活动 Turn/request 已由 Store 通知统一同步 DOM 和 Turn Rail。详细契约见 [Viewer Client Store 契约](viewer-client-store-contract.md)。
+Viewer 的核心选择和偏好状态已经由最小 `ViewerClientStore` 所有。当前涵盖 source/Turn/request 选择、Raw section/mode、UI 与目标翻译语言、外观主题、三栏开关/宽度和 latest-only。Store 只提供原子 patch、领域写入约束和带 `changedKeys` 的订阅通知，不访问 DOM、网络或 `localStorage`；`client.js` 暂时复用同一 state 引用读取，并继续装配副作用。受管字段禁止再直接赋值；活动 Turn/request 已由 Store 通知统一同步 DOM 和 Turn Rail。详细契约见 [Viewer Client Store 契约](viewer-client-store-contract.md)。
 
 Source 数据层和应用生命周期现在分层：`SourceTimelineController` 独占 generation/cursor/normalized store；`ActiveSourceController` 编排 Source catalog、渐进首屏、后台 page、自动刷新、snapshot 翻译和 token-gated 可见提交。DOM、selection、URL 和滚动仍由 `client.js` 注入，mutation 返回的 catalog 经 version gate 防止旧轮询覆盖。边界见 [Active Source Controller 契约](active-source-controller-contract.md) 与 [Source Timeline Controller 契约](source-timeline-controller-contract.md)。
 
 语言目录和偏好生命周期不再由 `client.js` 维护。`translation-language-catalog.js` 纯粹规范化语言代码、alias 与系统推荐；`LanguagePreferencesController` 统一水合和持久化 UI/翻译目标语言，绑定选择器并通过注入端口协调翻译 operation 失效、cache reload 和可见 feature 刷新。它不拥有翻译 cache、provider、HTML 或 Source 数据。完整边界见 [Viewer 语言偏好契约](language-preferences-controller-contract.md)。
+
+外观偏好由 `ThemeController` 独立管理。控制器只负责从 `localStorage` 水合 `system/light/dark/studio`、写入 Store 的 appearance domain、设置根节点 `data-theme` 和刷新双语选择器；它不拥有 feature HTML，也不改变 Trace 数据。CSS 以 canvas、surface、ink、line、accent、status、code 和 syntax 等语义 token 定义主题，功能样式不得按主题复制分支。`system` 通过媒体查询复用亮色/暗色契约，用户显式选择则覆盖系统偏好。
 
 三栏布局的状态仍由 `ViewerClientStore` 所有，宽度约束和内容占比由纯 `pane-layout-model.js` 计算，`PaneLayoutController` 只长期管理折叠按钮、resizer、ARIA、CSS 变量和 `localStorage` 偏好。应用层注入 Store 写入端口、翻译函数以及 Turn Rail/窗口回调；Controller 不访问网络或全局 state。中栏继续承担因果时间线导航，右栏承担选中证据的主要阅读，因此默认布局让右栏约占可用内容区的 44%-46%，但不交换两栏；用户手动拖动后的宽度优先保留。折叠左栏时 Raw 栏按中间内容区占比重新分配，指针、鼠标和键盘调整共享同一宽度入口，窗口变化会重新钳制两侧宽度。详细边界见 [Viewer Pane Layout Controller 契约](pane-layout-controller-contract.md)。
 
@@ -325,13 +329,15 @@ Viewer UI 文案由纯 `ui-i18n.js` 集中所有，当前支持 `zh-CN` 与 `en-
 
 Trace Timeline 的搜索分类、命中计数、结果上限、latest-only 和 Turn 窗口由纯 `trace-timeline-model.js` 计算。查询栏、空状态、窗口边界与 Turn 容器编排由 `trace-timeline-renderer.js` 生成；`TraceTimelineController` 长期持有查询栏和 Timeline 根节点，通过一次事件委派处理 IME、筛选、Raw、通用请求证据跳转、折叠与活动态同步。复杂 Turn 在请求卡前增加由 `turn-story-model.js` 生成的“机制流程”：它只消费共享 entry/response/tool result/semantic event/Agent graph DTO，按顺序概括用户请求、工具或 Skill、子 Agent 启动/确认/回流、最终回答和 Harness 压缩事件；简单单请求对话不显示该层。`turn-story-renderer.js` 只负责紧凑呈现，每一步通过统一 `data-request-jump` 回到对应请求，不按 Agent/provider 建第二套分支。请求身份、上行类别/标签/预览、快捷 section、工具事件配对和 Assistant response metadata/折叠由 `request-card-model.js` 生成显式 View DTO，再由 `request-card-renderer.js` 生成请求卡外壳、工具交换和回复 HTML。Thinking 默认折叠，翻译动作只在展开后出现；翻译开始即锁定并显示进度，按 request 保存的展开状态保证异步重绘不会打断阅读。多 Agent 看板由 `agent-graph-model.js` 按 Trace Domain 已确认的分支关系计算筛选、分页和交错事件流，再由 `agent-graph-renderer.js` 生成 HTML；看板不自行推断 parent/child，“子 Agent”Trace 筛选也保留对应看板而不是只留下离散请求卡。上行详情由 `upstream-detail-model.js` 把完整 request 规范成 System、Tools、历史消息、当前新增消息/子 Agent 回流和 provider token DTO，再由 `upstream-detail-renderer.js` 生成 HTML；request-detail cache、展开状态与局部重绘仍由应用层所有。左侧 Session Navigator 由纯 Model/Renderer 与长生命周期 Controller 组成；Controller 持有菜单和折叠偏好，通过动作端口把选择、归档、删除、重命名和导出交回应用层。底部 Agent Composer 同样使用纯 Model/Renderer 与 Controller；Controller 按 source 隔离草稿和发送结果，通过注入的 API/刷新回调执行 detached resume，不读取全局 state。应用层只装配详情/展开状态、翻译动作、API 与局部重绘，把纯 Model DTO 和受信任子块交给 Renderer；renderer 不读取全局 state、不注册动作，也不访问 DOM。应用渲染仍分成 Header、Timeline 和 Composer 三个表面：Timeline 内部动作只重建 Timeline，翻译 Raw 块只刷新 Raw，翻译 Thinking 块只刷新 Timeline；source 装载、完整数据刷新、全局错误状态和 UI/目标翻译语言切换仍可使用组合 `renderAll()`。详细契约见 [Viewer Timeline 模型与局部渲染契约](viewer-timeline-contract.md)、[请求/回复卡片 View 契约](request-card-renderer-contract.md)、[多 Agent 看板 View 契约](agent-graph-view-contract.md)、[上行详情 View 契约](upstream-detail-view-contract.md)、[Session Navigator View 契约](session-navigator-view-contract.md)和[Agent Composer View 契约](agent-composer-view-contract.md)。
 
-用户输入的请求编号进入与其他上行请求共用的固定编号轨道，渐隐连接线表达编号与右对齐自适应气泡的归属，气泡本身不再为编号预留一列。该轨道属于请求卡 renderer 的视觉语义，不改变 request index 或 Turn 归属。
+用户输入的请求编号进入与其他上行请求共用的固定编号轨道，一条极淡的 1px 连续线在气泡上缘高度连接编号与右对齐自适应气泡，气泡本身不再为编号预留一列。该轨道属于请求卡 renderer 的视觉语义，不改变 request index 或 Turn 归属。
 
 工具事件与子 Agent 事件筛选会保留所属 Turn 的“机制流程”，避免过滤后只剩离散证据而失去链路语义；异常和慢请求筛选继续保持紧凑。筛选计数统一表示匹配的请求/事件数量，顶部统计则保留子 Agent 实例数、工具调用数与工具结果数，两种口径不混用。纯数字或 `#数字` 查询按精确 request index 解释，避免正文、token 或工具结果里的相同数字造成伪命中；其他查询继续搜索可见语义文本。
 
 compact 首屏后的完整 request 由 `RequestDetailCache` 按需读取。同一 request 的并发展开共享 Promise，失败可重试，source 切换统一清空；首次加载和缓存命中的应用副作用通过回调注入，缓存层不反向依赖 DOM、全局 state 或翻译模块。
 
 Raw Inspector 的请求/响应方向由 `raw-view-model.js` 统一。它从完整上行和 Metadata 移除 response 派生字段，单独组织完整 Response 与 capture facts，并通过调用方注入 Harness 材料，避免 renderer 各自重新解释同一份 DTO。Response 优先展示 Capture Proxy 保存的 `body_json`；流式协议若提供终止响应则展示该协议原生终止对象，否则仅在 normalizer 能保持 Anthropic Messages 或 Chat Completions 原生字段层级时展示协议终态重建。旧版通用 `stream_assembly` 和证据不足的不完整流不再伪装成 Raw。Raw 不展示 SSE 事件序列，也不重复展示 normalizer 的顶层 `text`、`thinking` 或统一 `tool_calls`；单独的调用页直接抽取协议原始调用条目并以原始类型命名。
+
+工具调用区块保留原文与整理两种证据阅读方式。原文继续展示协议条目；整理视图由 `tool-call-view-model.js` 兼容 Anthropic `tool_use.input`、OpenAI Responses `function_call.arguments` 和 Chat Completions `function.arguments`，保留原生类型、工具名和 call id，再由安全 Renderer 将命令/脚本作为代码块、结构化参数作为格式化 JSON、普通标量作为紧凑字段展示。该视图只改变阅读方式，不改写 Raw 或跨 Harness 统一字段名。
 
 Raw Inspector 按数据方向组织证据：请求卡和上行视图只展示 System、Tools、Harness、Messages、历史工具调用与回传结果；“完整请求”和“请求 Metadata”会从 capture 中剔除 response、响应状态以及 response 派生统计。请求侧标签保持单层排列，完整请求在首位、Metadata 在末位。完整 Response 与本次响应的协议原生调用条目只从 Assistant 回复进入“模型下行”视图。Assistant 视图保留独立的“上行参考”Tools schema，并明确它不是 response body 返回内容；当该响应包含工具调用时，可按下行的精确工具名一键过滤上行 schema，这只改变显示范围，不混淆证据方向。
 

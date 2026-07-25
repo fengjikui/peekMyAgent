@@ -11,6 +11,7 @@ import {
   renderOrganizedMetadata as renderOrganizedMetadataView,
 } from "./metadata-renderer.js";
 import { messageTimelineRequestIndexes, responseConversationMessages } from "./message-view-model.js";
+import { renderOrganizedToolCalls as renderOrganizedToolCallsView } from "./tool-call-renderer.js";
 import { ViewerApiClient } from "./api-client.js";
 import { ViewerClientStore } from "./client-store.js";
 import { AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView } from "./agent-graph-model.js";
@@ -68,6 +69,7 @@ import { renderSystemDiffView } from "./system-diff-renderer.js";
 import { SessionNavigatorController } from "./session-navigator-controller.js";
 import { PaneLayoutController } from "./pane-layout-controller.js";
 import { LanguagePreferencesController } from "./language-preferences-controller.js";
+import { ThemeController } from "./theme-controller.js";
 import {
   renderRawDetail as renderRawDetailView,
   renderRawSearchControls as renderRawSearchControlsView,
@@ -155,6 +157,7 @@ const els = {
   traceImportInput: document.querySelector("#traceImportInput"),
   uiLanguageSelect: document.querySelector("#uiLanguageSelect"),
   translationLanguageSelect: document.querySelector("#translationLanguageSelect"),
+  themeSelect: document.querySelector("#themeSelect"),
   sessionNav: document.querySelector("#sessionNav"),
   pageTitle: document.querySelector("#pageTitle"),
   stats: document.querySelector("#stats"),
@@ -184,6 +187,7 @@ const languagePreferencesController = new LanguagePreferencesController({
   escapeHtml,
   async onUiLanguageChanged() {
     paneLayoutController.refreshLabels();
+    themeController.renderSelector();
     if (state.data) renderAll();
     if (state.activeRequestId) rawInspectorController.refresh();
   },
@@ -197,6 +201,15 @@ const languagePreferencesController = new LanguagePreferencesController({
     if (state.activeRequestId) rawInspectorController.refresh();
   },
   onWarning: (message, error) => console.warn(`peekMyAgent ${message}`, error),
+});
+
+const themeController = new ThemeController({
+  store: clientStore,
+  storage: localStorage,
+  documentTarget: document,
+  select: els.themeSelect,
+  translate: t,
+  escapeHtml,
 });
 
 const turnRailController = new TurnRailController({
@@ -509,6 +522,7 @@ async function init() {
     {
       ...layoutPreferences,
       ...languagePreferencesController.readPreferences(),
+      ...themeController.readPreference(),
       latestOnly: localStorage.getItem(LATEST_ONLY_KEY) === "true",
       rawMessagesMode: normalizeMessagesMode(localStorage.getItem(RAW_MESSAGES_MODE_KEY)),
       rawMetadataMode: normalizeMetadataMode(localStorage.getItem(RAW_METADATA_MODE_KEY)),
@@ -517,12 +531,15 @@ async function init() {
   );
   languagePreferencesController.applyStaticI18n();
   languagePreferencesController.renderSelectors();
+  themeController.applyCurrentTheme({ persist: false });
+  themeController.renderSelector();
   paneLayoutController.applyCurrentState({ persist: false });
   const requestedSource = new URLSearchParams(window.location.search).get("source");
   await activeSourceController.initialize(requestedSource);
   els.traceImportButton?.addEventListener("click", () => els.traceImportInput?.click());
   els.traceImportInput?.addEventListener("change", importTraceFromFile);
   languagePreferencesController.bind();
+  themeController.bind();
   rawSearchController.bind();
   traceTimelineController.bind();
   els.rawTree.addEventListener("click", (event) => {
@@ -1843,7 +1860,13 @@ function renderResponseOnlyRawSection(request, activeSection) {
       : normalizedRawSearchQuery()
         ? renderRawSearchResults(request, section, "response")
         : section === "tool_calls"
-        ? renderRawDetail(responseToolCallSectionLabel(request, { translate: t }), rawResponseToolCalls(request))
+        ? normalizeMessagesMode(state.rawMessagesMode) === "organized"
+          ? renderOrganizedToolCallsView({
+              calls: rawResponseToolCalls(request),
+              translate: t,
+              escapeHtml,
+            })
+          : renderRawDetail(responseToolCallSectionLabel(request, { translate: t }), rawResponseToolCalls(request))
         : normalizeMessagesMode(state.rawMessagesMode) === "organized"
           ? renderMessagesSection(request, "response", responseConversationMessages(request))
           : renderRawDetail(responseRawSectionLabel("response", request), rawResponseSectionValue(request));

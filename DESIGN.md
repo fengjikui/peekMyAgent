@@ -138,6 +138,26 @@ accent and independent semantic hues for responses, reasoning, tools, and risk.
 Color never acts alone. Every semantic hue is paired with a label, icon, shape, or
 position.
 
+### Appearance themes
+
+Themes change the viewing environment, not the information grammar. Every theme
+uses the same semantic role tokens for canvas, surfaces, ink, dividers, focus,
+status, code, selection, and syntax. Feature CSS must consume those tokens instead
+of introducing theme-specific selectors or literal light-only backgrounds.
+
+- **Light** is the neutral reference theme for daylight work and screenshots.
+- **Dark** is a low-luminance graphite workspace. It avoids pure black, preserves
+  visible hairlines, and keeps semantic colors subordinate to evidence.
+- **Studio** is a restrained blue-green editorial surface for long reading
+  sessions. It changes temperature without turning the product into a branded
+  color wash.
+- **System** follows the operating-system appearance while preserving the same
+  Light and Dark contracts.
+
+All themes must retain visible keyboard focus, readable code and JSON syntax, and
+distinguishable interactive states. Theme choice is a global user preference; it
+must not alter capture data, provenance, layout ownership, or translation language.
+
 ## Typography
 
 Use the native system sans stack for speed, familiarity, and correct rendering
