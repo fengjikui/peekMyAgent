@@ -16,6 +16,10 @@ export function translationBlockClipboardText(
   item,
   { translatedTextFor = () => "", labelForKind = (kind) => kind || "description", translate = identityTranslate } = {},
 ) {
+  const groupedMaterials = translationActionMaterials(item);
+  if (groupedMaterials.length > 1 || item?.metadata?.group === "tool") {
+    return toolsTranslationClipboardText(groupedMaterials, { translatedTextFor, translate });
+  }
   const kind = item?.kind || "";
   const sourceText = item?.sourceText || item?.source_text || "";
   const label = item?.metadata?.label || labelForKind(kind);

@@ -55,6 +55,19 @@ const eventActions = renderTimelineUpstreamQuickActions({
 assert.doesNotMatch(eventActions, /data-upstream-toggle/);
 assert.match(eventActions, /data-raw="request-event"/);
 
+const summaryActions = renderTimelineUpstreamQuickActions({
+  requestId: "request-summary",
+  expanded: true,
+  expandable: true,
+  summaryOnly: true,
+  sections: [{ section: "system", label: "System" }],
+  translate,
+  escapeHtml,
+});
+assert.match(summaryActions, /data-raw="request-summary"/);
+assert.doesNotMatch(summaryActions, /data-upstream-toggle/);
+assert.doesNotMatch(summaryActions, /data-raw-section="system"/);
+
 const upstream = renderTimelineUpstreamEntry({
   entry: {
     requestIndex: 7,
@@ -69,7 +82,7 @@ const upstream = renderTimelineUpstreamEntry({
   escapeHtml,
 });
 assert.match(upstream, /upstream-entry tool-result user-turn/);
-assert.match(upstream, /&lt;User &amp; result&gt;/);
+assert.doesNotMatch(upstream, /&lt;User &amp; result&gt;/);
 assert.doesNotMatch(upstream, /<script>/);
 assert.match(upstream, /trusted-meta/);
 
@@ -97,6 +110,7 @@ assert.match(semanticEvent, /Not a model HTTP request/);
 assert.doesNotMatch(semanticEvent, /Entered Window 1 <exact>/);
 
 const exchange = renderTimelineToolExchange({
+  requestId: "request-tools",
   pairs: [
     {
       call: { id: "call-1", name: "Bash", arguments: { command: "pwd" } },
@@ -112,22 +126,20 @@ const exchange = renderTimelineToolExchange({
   counts: { calls: 2, results: 1 },
   translate,
   escapeHtml,
-  renderPre,
-  serializeArguments: (value) => JSON.stringify(value, null, 2),
 });
 assert.match(exchange, /currentToolExchange:calls=2,results=1/);
 assert.match(exchange, /pairedById/);
 assert.match(exchange, /waitingToolResult/);
-assert.match(exchange, /&lt;secret&gt;/);
-assert.match(exchange, /noMatchedToolResult/);
+assert.match(exchange, /data-raw="request-tools" data-raw-section="tool_results"/);
+assert.match(exchange, /data-raw-section="upstream_tool_calls"/);
+assert.doesNotMatch(exchange, /&lt;secret&gt;/);
+assert.doesNotMatch(exchange, /\/tmp/);
 assert.equal(
   renderTimelineToolExchange({
     pairs: [],
     counts: { calls: 0, results: 0 },
     translate,
     escapeHtml,
-    renderPre,
-    serializeArguments: JSON.stringify,
   }),
   "",
 );
@@ -142,12 +154,15 @@ const response = renderTimelineAssistantResponse({
     toolCalls: [{ id: "call-1", name: "Bash", arguments: { command: "pwd" } }],
     thinking: {
       text: "Need inspect first.",
+      requestId: "request-7",
+      label: "Thinking",
       charCount: "19 chars",
       preview: "Need inspect",
       translation: "先检查。",
       actionId: "translation-1",
-      actionLabel: "Retranslate",
+      actionLabel: "Translating…",
       translationLoading: true,
+      expanded: true,
     },
   },
   translate,
@@ -155,14 +170,21 @@ const response = renderTimelineAssistantResponse({
   renderMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
   renderTranslationMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
   renderPre,
-  serialize: (value) => JSON.stringify(value),
 });
 assert.match(response, /assistant-response-markdown collapsed/);
 assert.match(response, /data-response-toggle="request-7"/);
 assert.match(response, /data-raw-section="tool_calls" data-raw-mode="response"/);
 assert.match(response, /translation-inline-button[^>]*disabled/);
+assert.match(response, /assistant-thinking" data-thinking-request="request-7" open/);
+assert.match(response, /Translating…/);
+assert.match(response, /assistant-thinking-shell[\s\S]*thinking-title-action[\s\S]*data-translation-retranslate="translation-1"/);
+assert.doesNotMatch(response, /thinking-translation-toolbar/);
 assert.match(response, /先检查。/);
-assert.match(response, /tool_use Bash \(call-1\)/);
+assert.match(response, /toolCallSummary/);
+assert.match(response, /<strong>Bash<\/strong>/);
+assert.doesNotMatch(response, /finish: tool_use/);
+assert.doesNotMatch(response, /input 120/);
+assert.doesNotMatch(response, /command/);
 assert.doesNotMatch(response, /<unsafe>/);
 
 const emptyResponse = renderTimelineAssistantResponse({
@@ -172,7 +194,6 @@ const emptyResponse = renderTimelineAssistantResponse({
   renderMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
   renderTranslationMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
   renderPre,
-  serialize: JSON.stringify,
 });
 assert.match(emptyResponse, /responseNoText/);
 
@@ -187,10 +208,10 @@ const toolOnlyResponse = renderTimelineAssistantResponse({
   renderMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
   renderTranslationMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
   renderPre,
-  serialize: JSON.stringify,
 });
 assert.doesNotMatch(toolOnlyResponse, /responseNoText/);
-assert.match(toolOnlyResponse, /tool_use Read \(call-tool-only\)/);
+assert.match(toolOnlyResponse, /<strong>Read<\/strong>/);
+assert.doesNotMatch(toolOnlyResponse, /README\.md/);
 
 const semanticSpawnResponse = renderTimelineAssistantResponse({
   view: {
@@ -212,7 +233,6 @@ const semanticSpawnResponse = renderTimelineAssistantResponse({
   renderMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
   renderTranslationMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
   renderPre,
-  serialize: JSON.stringify,
 });
 assert.match(semanticSpawnResponse, /spawn_agent · context_probe/);
 assert.match(semanticSpawnResponse, /Inherited parent context/);
@@ -237,11 +257,10 @@ const nestedDispatchResponse = renderTimelineAssistantResponse({
   renderMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
   renderTranslationMarkdown: (value) => `<p>${escapeHtml(value)}</p>`,
   renderPre,
-  serialize: JSON.stringify,
 });
-assert.match(nestedDispatchResponse, /tool_use exec \(call-exec\)/);
+assert.match(nestedDispatchResponse, /<strong>exec<\/strong>/);
 assert.match(nestedDispatchResponse, /internal dispatch to exec_command/);
-assert.match(nestedDispatchResponse, /tools\.exec_command/);
+assert.doesNotMatch(nestedDispatchResponse, /tools\.exec_command/);
 assert.doesNotMatch(nestedDispatchResponse, /tool_use exec → exec_command/);
 
 const card = renderTimelineRequestCard({

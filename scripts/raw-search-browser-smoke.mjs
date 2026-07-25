@@ -77,10 +77,14 @@ try {
   browser = await launchChromiumPage();
   await browser.navigate(`${viewer.url}/?source=${encodeURIComponent(watch.id)}`);
   await browser.waitFor(
-    `Boolean(document.querySelector('.request-card [data-raw-section="system"]'))`,
+    `Boolean(document.querySelector('.request-card .raw-button[data-raw]'))`,
     { description: "the captured request card" },
   );
-  await browser.evaluate(`document.querySelector('.request-card [data-raw-section="system"]').click()`);
+  await browser.evaluate(`document.querySelector('.request-card .raw-button[data-raw]').click()`);
+  await browser.waitFor(`Boolean(document.querySelector('.raw-sticky-controls [data-raw-section="system"]'))`, {
+    description: "the System evidence tab",
+  });
+  await browser.evaluate(`document.querySelector('.raw-sticky-controls [data-raw-section="system"]').click()`);
   await browser.waitFor(`Boolean(document.querySelector('[data-raw-search]'))`, { description: "the System Raw search field" });
 
   await browser.evaluate(`(() => {

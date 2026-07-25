@@ -45,7 +45,9 @@ import {
 import {
   requestHasSemanticEvent,
   requestUsesReconstructedUpstream,
+  responseToolCallSectionLabel,
   responseUsesReconstructedDownstream,
+  rawResponseToolCalls,
   rawResponseSectionValue,
   rawSectionData as buildRawSectionData,
 } from "./raw-view-model.js";
@@ -79,6 +81,7 @@ import {
 } from "./translation-renderer.js";
 import {
   buildTranslationSectionView,
+  responseInvokedToolNames,
   translationSectionStats as summarizeTranslationSection,
 } from "./translation-view-model.js";
 import { TurnRailController } from "./turn-rail.js";
@@ -119,6 +122,7 @@ const state = Object.assign(clientStore.state, {
   sessionInfoControlsBound: false,
   responseExpanded: new Set(),
   upstreamExpanded: new Set(),
+  expandedThinking: new Set(),
   translationGenerate: { loading: false, error: "", message: "" },
   expandedAgentBranches: new Set(),
   openAgentDashboards: new Set(),
@@ -128,6 +132,7 @@ const state = Object.assign(clientStore.state, {
   traceQuery: "",
   traceFilter: "all",
   traceResultLimit: 24,
+  responseToolsSchemaFilter: "all",
 });
 
 const LIVE_REFRESH_MS = 1200;
@@ -227,6 +232,11 @@ const traceTimelineController = new TraceTimelineController({
   onResponseToggle: toggleResponseExpansion,
   onUpstreamToggle: toggleUpstreamDetails,
   onUpstreamPanelToggle: syncUpstreamDetailsState,
+  onThinkingToggle({ requestId, open }) {
+    if (!requestId) return;
+    if (open) state.expandedThinking.add(requestId);
+    else state.expandedThinking.delete(requestId);
+  },
   onTurnWindowJump(turnId) {
     jumpToTurn(turnId, true);
   },
@@ -517,6 +527,13 @@ async function init() {
       setTranslationMode(translationButton.dataset.translationMode || "source", translationButton.dataset.translationSection || "system");
       return;
     }
+    const toolsSchemaFilterButton = event.target.closest("[data-tools-schema-filter]");
+    if (toolsSchemaFilterButton && els.rawTree.contains(toolsSchemaFilterButton)) {
+      state.responseToolsSchemaFilter = toolsSchemaFilterButton.dataset.toolsSchemaFilter === "invoked" ? "invoked" : "all";
+      rawSearchController.contextChanged();
+      rawInspectorController.refresh();
+      return;
+    }
     const messagesModeButton = event.target.closest("[data-messages-mode]");
     if (messagesModeButton && els.rawTree.contains(messagesModeButton)) {
       setMessagesMode(messagesModeButton.dataset.messagesMode || "organized");
@@ -571,6 +588,7 @@ function resetActiveSourceContext() {
   translationCacheController.invalidate();
   state.openSupportingTimelines.clear();
   state.openAgentDashboards.clear();
+  state.expandedThinking.clear();
   state.expandedAgentBranches.clear();
   state.agentBranchLimits.clear();
   state.agentBranchFilters.clear();
@@ -1355,6 +1373,7 @@ function renderUpstreamQuickActions(request, expanded, evidenceView = buildReque
     requestId: request.id,
     expanded,
     expandable: !isTimelineSemanticEvent(request),
+    summaryOnly: true,
     sections: timelineUpstreamQuickSections(request),
     expandLabel: evidenceView.upstream.expandLabel,
     collapseLabel: evidenceView.upstream.collapseLabel,
@@ -1375,9 +1394,8 @@ function renderTurnRequest(request, turnInput = null) {
 function renderRequestCard(request, options = {}) {
   const semanticEvent = isTimelineSemanticEvent(request);
   const evidenceView = buildRequestEvidenceView(request, { translate: t });
-  const showInlineContent = shouldShowTimelineRequestContent(request);
   const assistantResponse = shouldShowTimelineAssistantResponse(request) ? renderAssistantResponse(request) : "";
-  const toolExchange = showInlineContent ? renderToolExchange(request) : "";
+  const toolExchange = renderToolExchange(request);
   const upstreamOpen = !semanticEvent && state.upstreamExpanded.has(request.id);
   return renderTimelineRequestCardView({
     requestId: request.id,
@@ -1389,7 +1407,7 @@ function renderRequestCard(request, options = {}) {
     upstreamBodyHtml: upstreamOpen ? renderUpstreamDetailsBody(request) : renderCollapsedUpstreamPlaceholder(request),
     toolExchangeHtml: toolExchange,
     assistantResponseHtml: assistantResponse,
-    showUpstreamDetails: !semanticEvent,
+    showUpstreamDetails: false,
     upstreamDetailsLabel: evidenceView.upstream.detailsLabel,
     translate: t,
     escapeHtml,
@@ -1465,16 +1483,31 @@ function markdownPreview(value, limit) {
 }
 
 function renderToolExchange(request) {
-  const view = buildTimelineToolExchangeView(request);
+  const view = buildTimelineToolExchangeView(request, { priorToolCalls: priorTimelineToolCalls(request) });
   if (!view) return "";
   return renderTimelineToolExchangeView({
+    requestId: request.id,
     pairs: view.pairs,
     counts: view.counts,
     translate: t,
     escapeHtml,
-    renderPre,
-    serializeArguments: (value) => JSON.stringify(value, null, 2),
   });
+}
+
+function priorTimelineToolCalls(request) {
+  const requestIndex = Number(request?.request_index || 0);
+  const callsById = new Map();
+  for (const candidate of state.data?.requests || []) {
+    if (Number(candidate?.request_index || 0) >= requestIndex) continue;
+    const calls = [
+      ...(candidate?.summary?.current_tool_calls || []),
+      ...(candidate?.summary?.response?.tool_calls || []),
+    ];
+    for (const call of calls) {
+      if (call?.id) callsById.set(call.id, call);
+    }
+  }
+  return [...callsById.values()];
 }
 
 function renderAssistantResponse(request) {
@@ -1485,7 +1518,6 @@ function renderAssistantResponse(request) {
     cleanText: cleanDisplayText,
     preview: shortPreview,
     markdownPreview,
-    formatCompactNumber,
     formatCharCount,
   });
   if (!view) return "";
@@ -1499,7 +1531,6 @@ function renderAssistantResponse(request) {
     renderMarkdown: renderSafeMarkdown,
     renderTranslationMarkdown: renderMarkdownPreview,
     renderPre,
-    serialize: stableJson,
   });
 }
 
@@ -1516,10 +1547,17 @@ function buildAssistantThinkingView(thinking, request) {
   });
   return {
     ...thinking,
+    requestId: request.id,
+    label: t("thinkingLabel"),
     translation,
     actionId,
-    actionLabel: translation ? t("retranslateThinking") : t("translateThinking"),
+    actionLabel: state.translationGenerate.loading
+      ? t("translatingThinking")
+      : translation
+        ? t("retranslateThinking")
+        : t("translateThinking"),
     translationLoading: state.translationGenerate.loading,
+    expanded: state.expandedThinking.has(request.id),
   };
 }
 
@@ -1771,7 +1809,7 @@ function renderResponseOnlyRawSection(request, activeSection) {
       : normalizedRawSearchQuery()
         ? renderRawSearchResults(request, section, "response")
         : section === "tool_calls"
-        ? renderRawDetail("response tool_use", { [t("currentResponseToolUse")]: request.summary?.response?.tool_calls || [] })
+        ? renderRawDetail(responseToolCallSectionLabel(request, { translate: t }), rawResponseToolCalls(request))
         : normalizeMessagesMode(state.rawMessagesMode) === "organized"
           ? renderMessagesSection(request, "response", responseConversationMessages(request))
           : renderRawDetail(responseRawSectionLabel("response", request), rawResponseSectionValue(request));
@@ -1844,7 +1882,9 @@ function rawSearchEntriesForSection(request, section, mode = "request") {
 
 function rawSearchCandidateEntries(request, section, mode = "request") {
   if (mode === "response") {
-    if (section === "tool_calls") return rawSearchEntries({ [t("currentResponseToolUse")]: request.summary?.response?.tool_calls || [] }, "response.tool_use");
+    if (section === "tool_calls") {
+      return rawSearchEntries(rawResponseToolCalls(request), responseToolCallSectionLabel(request, { translate: t }));
+    }
     if (section === "tools") return rawSearchEntries(rawSectionData(request, "tools").value, "Tools");
     return rawSearchEntries(rawResponseSectionValue(request), "response");
   }
@@ -1874,7 +1914,9 @@ function normalizedRawSearchQuery() {
 
 function rawSearchScopeLabel(section, mode = "request", request = null) {
   if (mode === "response" && section === "tools") return "Tools schema";
-  if (mode === "response" && section === "tool_calls") return "Response tool_use";
+  if (mode === "response" && section === "tool_calls") {
+    return responseToolCallSectionLabel(request, { translate: t });
+  }
   if (mode === "response") return responseRawSectionLabel(section, request);
   return rawSectionLabel(section, request);
 }
@@ -1889,6 +1931,7 @@ function renderRawSectionContent(request, section, sectionData) {
   if (["developer", "history", "message", "messages", "tool_results"].includes(section)) {
     return renderMessagesSection(request, section, sectionData.value);
   }
+  if (section === "tools") return renderTranslatedSection(request, section);
   if (state.translationMode === currentTargetLanguage() && translationCacheController.available) {
     if (["system", "tools", "harness"].includes(section)) return renderTranslatedSection(request, section);
   }
@@ -1900,8 +1943,7 @@ function usesTranslatedStructuredSearch(section, mode = state.activeRawMode || "
   return (
     (mode === "request" || (mode === "response" && section === "tools")) &&
     ["system", "tools", "harness"].includes(section) &&
-    state.translationMode === currentTargetLanguage() &&
-    translationCacheController.available
+    (section === "tools" || (state.translationMode === currentTargetLanguage() && translationCacheController.available))
   );
 }
 
@@ -1964,6 +2006,7 @@ function renderTranslationControls(request, section) {
     languageLabel,
     translationMode: state.translationMode,
     sectionLabel: rawSectionLabel(section),
+    toolFilter: toolsSchemaFilterView(request, section),
     translate: t,
     escapeHtml,
   });
@@ -1974,17 +2017,56 @@ function translationViewForSection(request, section) {
     section,
     materials: sectionTranslationMaterials(request, section),
     query: normalizedRawSearchQuery(),
+    toolNames: responseToolsSchemaFilterNames(request, section),
+    displaySource: state.translationMode === "source",
     translatedTextFor,
     labelForKind: translationKindLabel,
   });
 }
 
+function toolsSchemaFilterView(request, section) {
+  if ((state.activeRawMode || "request") !== "response" || section !== "tools") return null;
+  const invoked = responseInvokedToolNames(request?.summary?.response);
+  if (!invoked.length) return null;
+  const all = new Set(
+    sectionTranslationMaterials(request, "tools")
+      .map((material) => material?.metadata?.tool_name)
+      .filter(Boolean),
+  );
+  return {
+    available: true,
+    mode: state.responseToolsSchemaFilter === "invoked" ? "invoked" : "all",
+    invoked: invoked.length,
+    total: all.size,
+  };
+}
+
+function responseToolsSchemaFilterNames(request, section) {
+  if (
+    section !== "tools" ||
+    (state.activeRawMode || "request") !== "response" ||
+    state.responseToolsSchemaFilter !== "invoked"
+  ) {
+    return null;
+  }
+  return responseInvokedToolNames(request?.summary?.response);
+}
+
 function renderTranslatedSection(request, section) {
   const view = translationViewForSection(request, section);
   const fallback = section === "system" ? t("noSystemPrompt") : section === "tools" ? t("noToolDescriptions") : t("noHarnessPrompts");
+  const invokedNames = responseInvokedToolNames(request?.summary?.response);
+  const invokedSchemaUnavailable =
+    section === "tools" &&
+    (state.activeRawMode || "request") === "response" &&
+    state.responseToolsSchemaFilter === "invoked" &&
+    invokedNames.length > 0 &&
+    view.scopedGroups === 0;
   const emptyText = view.query && view.totalMaterials
     ? t("rawSearchNoResults", { section: rawSearchScopeLabel(section, state.activeRawMode || "request"), query: view.query })
-    : fallback;
+    : invokedSchemaUnavailable
+      ? t("invokedToolSchemaUnavailable", { tools: invokedNames.join(", ") })
+      : fallback;
   return renderTranslationSectionView({
     view,
     emptyText,
@@ -2068,7 +2150,7 @@ function rawSectionLabel(section, request = null) {
 }
 
 function responseRawSectionLabel(section, request = null) {
-  if (section === "tool_calls") return "Response tool_use";
+  if (section === "tool_calls") return responseToolCallSectionLabel(request, { translate: t });
   if (section === "tools") return "Tools schema";
   return responseUsesReconstructedDownstream(request) ? t("rawReconstructedResponse") : "Response";
 }

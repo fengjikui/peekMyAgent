@@ -1,4 +1,8 @@
-import { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
+import {
+  extractRequestMessages,
+  extractRequestTools,
+  isResponsesToolCallItem,
+} from "../shared/request-payload.mjs";
 import {
   requestHasSemanticEvent,
   requestUsesReconstructedUpstream,
@@ -67,8 +71,8 @@ export function rawSectionData(request, section, { translate = (key) => key, har
   }
   if (section === "tool_calls") {
     return {
-      title: "tool_use",
-      value: { [translate("currentResponseToolUse")]: request?.summary?.response?.tool_calls || [] },
+      title: responseToolCallSectionLabel(request, { translate }),
+      value: rawResponseToolCalls(request),
     };
   }
   if (section === "tool_results") {
@@ -180,9 +184,10 @@ export function rawUpstreamComposition(request) {
 export function rawResponseSectionValue(request) {
   const response = request?.summary?.response || {};
   const rawResponse = request?.raw?.response || null;
+  const originalResponse = rawProviderResponse(request);
   return {
-    complete_response: response.captured
-      ? response.complete_response || {
+    response: response.captured
+      ? originalResponse || {
           id: response.message_id || null,
           role: "assistant",
           content: [
@@ -196,32 +201,8 @@ export function rawResponseSectionValue(request) {
               input: call.arguments ?? null,
             })),
           ],
-          text: response.text || "",
-          thinking: response.thinking || "",
-          opaque_reasoning: response.opaque_reasoning || [],
-          tool_use: response.tool_calls || [],
           stop_reason: response.finish_reason || null,
-          finish_reason: response.finish_reason || null,
-          status: response.response_status || null,
           usage: response.usage || null,
-          stream: Boolean(response.stream),
-          event_count: response.event_count || 0,
-          truncated: Boolean(response.truncated),
-        }
-      : null,
-    parsed_from_response: response.captured
-      ? {
-          message_id: response.message_id || null,
-          text: response.text || "",
-          thinking: response.thinking || "",
-          opaque_reasoning: response.opaque_reasoning || [],
-          tool_use: response.tool_calls || [],
-          usage: response.usage || null,
-          finish_reason: response.finish_reason || null,
-          response_status: response.response_status || null,
-          stream: Boolean(response.stream),
-          event_count: response.event_count || 0,
-          truncated: Boolean(response.truncated),
         }
       : null,
     response_capture: rawResponse
@@ -235,7 +216,61 @@ export function rawResponseSectionValue(request) {
           body_text_omitted: rawResponse.body_text_omitted || null,
           stream: Boolean(response.stream),
           event_count: response.event_count || 0,
+          displayed_response:
+            rawResponse.body_json !== undefined && rawResponse.body_json !== null
+              ? "captured_body_json"
+              : response.complete_response
+                ? response.stream
+                  ? "protocol_complete_response"
+                  : "captured_complete_response"
+                : "semantic_fallback",
         }
       : null,
   };
+}
+
+export function rawResponseToolCalls(request) {
+  const response = rawProviderResponse(request);
+  const calls = [];
+  if (Array.isArray(response?.content)) {
+    calls.push(...response.content.filter((item) => item?.type === "tool_use"));
+  }
+  if (Array.isArray(response?.output)) {
+    calls.push(...response.output.filter(isResponsesToolCallItem));
+  }
+  for (const choice of Array.isArray(response?.choices) ? response.choices : []) {
+    if (Array.isArray(choice?.message?.tool_calls)) calls.push(...choice.message.tool_calls);
+    if (Array.isArray(choice?.delta?.tool_calls)) calls.push(...choice.delta.tool_calls);
+  }
+  if (calls.length) return calls;
+  return request?.summary?.response?.tool_calls || [];
+}
+
+export function responseToolCallSectionLabel(request, { translate = (key) => key } = {}) {
+  const response = rawProviderResponse(request);
+  const protocolTypes = [];
+  if (Array.isArray(response?.content) && response.content.some((item) => item?.type === "tool_use")) {
+    protocolTypes.push("tool_use");
+  }
+  for (const item of Array.isArray(response?.output) ? response.output : []) {
+    if (isResponsesToolCallItem(item)) protocolTypes.push(item.type);
+  }
+  if (
+    Array.isArray(response?.choices) &&
+    response.choices.some(
+      (choice) => Array.isArray(choice?.message?.tool_calls) || Array.isArray(choice?.delta?.tool_calls),
+    )
+  ) {
+    protocolTypes.push("tool_calls");
+  }
+  const uniqueTypes = [...new Set(protocolTypes.filter(Boolean))];
+  return uniqueTypes.length ? uniqueTypes.join(" / ") : translate("currentResponseToolCalls");
+}
+
+function rawProviderResponse(request) {
+  const rawResponse = request?.raw?.response || null;
+  if (rawResponse?.body_json !== undefined && rawResponse?.body_json !== null) {
+    return rawResponse.body_json;
+  }
+  return request?.summary?.response?.complete_response || null;
 }

@@ -67,6 +67,7 @@ export function summarizeJsonResponse(body) {
   if (body.stop_reason) finishReasons.push(body.stop_reason);
   if (body.finish_reason) finishReasons.push(body.finish_reason);
   return {
+    complete_response: body,
     message_id: body.id || null,
     role: body.role || null,
     model: body.model || null,
@@ -171,6 +172,7 @@ export function summarizeSseResponse(text) {
     const terminal = summarizeJsonResponse(terminalResponse);
     return {
       ...terminal,
+      complete_response: redactOpaqueReasoningPayload(terminalResponse),
       text: terminal.text || textParts.filter(Boolean).join("") || fallbackTextParts.filter(Boolean).join("\n"),
       thinking: terminal.thinking || thinkingParts.filter(Boolean).join("") || fallbackThinkingParts.filter(Boolean).join("\n"),
       opaque_reasoning: terminal.opaque_reasoning?.length
@@ -186,6 +188,7 @@ export function summarizeSseResponse(text) {
   }
 
   return {
+    complete_response: null,
     message_id: messageId,
     role,
     model,
@@ -205,6 +208,9 @@ export function summarizeSseResponse(text) {
 }
 
 export function assembleCompleteResponse(parsed, { stream = false, truncated = false } = {}) {
+  if (parsed?.complete_response && typeof parsed.complete_response === "object") {
+    return parsed.complete_response;
+  }
   const content = [];
   content.push(...(parsed?.opaque_reasoning || []));
   if (parsed?.thinking) content.push({ type: "thinking", thinking: parsed.thinking });
@@ -222,17 +228,9 @@ export function assembleCompleteResponse(parsed, { stream = false, truncated = f
     role: parsed?.role || "assistant",
     model: parsed?.model || null,
     content,
-    text: parsed?.text || "",
-    thinking: parsed?.thinking || "",
-    opaque_reasoning: parsed?.opaque_reasoning || [],
-    tool_use: parsed?.tool_calls || [],
     stop_reason: parsed?.finish_reason || null,
-    finish_reason: parsed?.finish_reason || null,
-    status: parsed?.response_status || null,
     usage: parsed?.usage || null,
-    stream: Boolean(stream),
-    event_count: parsed?.event_count || 0,
-    truncated: Boolean(truncated),
+    ...(stream ? { stream_assembly: { event_count: parsed?.event_count || 0, truncated: Boolean(truncated) } } : {}),
   };
 }
 
@@ -258,6 +256,7 @@ function emptyResponseSummary() {
 
 function emptyParsedResponse() {
   return {
+    complete_response: null,
     message_id: null,
     role: null,
     model: null,
@@ -270,6 +269,24 @@ function emptyParsedResponse() {
     response_status: null,
     event_count: 0,
   };
+}
+
+function redactOpaqueReasoningPayload(value) {
+  if (Array.isArray(value)) return value.map(redactOpaqueReasoningPayload);
+  if (!value || typeof value !== "object") return value;
+  const output = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "encrypted_content" && typeof child === "string" && child) {
+      output.encrypted_content_omitted = {
+        reason: "opaque_encrypted_reasoning",
+        chars: child.length,
+        preview: OPAQUE_REASONING_PREVIEW,
+      };
+      continue;
+    }
+    output[key] = redactOpaqueReasoningPayload(child);
+  }
+  return output;
 }
 
 function collectChoiceResponse(choices, output) {

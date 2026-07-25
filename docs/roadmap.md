@@ -37,6 +37,7 @@
 
 - **复杂多 Agent 边界加固**：继续验证嵌套子 Agent、长工具链、异步回流、OTel request/response 文件顺序错位等边界 case。
 - **Response 证据面板继续打磨**：保持最终解析结果优先展示，同时保留流式原始事件，方便用户同时看“结果”和“原始证据”。
+- **动态工具描述溯源**：Codex 等 Harness 通过 `tool_search` 动态披露工具时，不把搜索结果伪装成当前请求的静态 Tools schema。工具调用详情应标明“描述来源”，可跳转到对应 `tool_search_output` 的完整上行证据，并提供返回上一证据的导航；若当前 Trace 没有捕获该结果，则明确显示证据缺失。
 - **Trace 脱敏导出**：导出前支持对 secrets、路径、headers 和选定消息内容做脱敏，便于安全分享。
 - **Issue 附件工作流**：用户报告 bug 时，可以方便地附上一份脱敏 Trace 包。
 - **回归样例沉淀**：把有代表性的 Trace 转成 replay/eval fixtures，用于覆盖工具失败、上下文压缩、子 Agent 路由和 response 解析回归。

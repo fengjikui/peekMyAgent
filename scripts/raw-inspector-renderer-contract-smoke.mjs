@@ -59,7 +59,29 @@ const responseNav = renderResponseRawNavigation({ request, activeSection: "respo
 assert.match(responseNav, /rawNavDownstream/);
 assert.match(responseNav, /rawNavReference/);
 assert.match(responseNav, /Tools schema/);
+assert.match(responseNav, /currentResponseToolCalls/);
 assert.match(responseNav, /data-raw-mode="response"/);
+
+const codexResponseNav = renderResponseRawNavigation({
+  request: {
+    ...request,
+    summary: {
+      response: {
+        complete_response: {
+          output: [
+            { type: "function_call", name: "exec_command", call_id: "call-1", arguments: '{"cmd":"pwd"}' },
+            { type: "tool_search_call", call_id: "call-2", arguments: '{"query":"tools"}' },
+          ],
+        },
+      },
+    },
+  },
+  activeSection: "tool_calls",
+  translate,
+  escapeHtml,
+});
+assert.match(codexResponseNav, /function_call \/ tool_search_call/);
+assert.doesNotMatch(codexResponseNav, />tool_use</);
 
 const reconstructedResponseNav = renderResponseRawNavigation({
   request: { ...request, summary: { evidence: { response: { available: true, exact: false } } } },

@@ -9,6 +9,7 @@ export class TraceTimelineController {
     onResponseToggle,
     onUpstreamToggle,
     onUpstreamPanelToggle,
+    onThinkingToggle = () => {},
     onTurnWindowJump,
     onRaw,
     onRequestJump,
@@ -32,6 +33,7 @@ export class TraceTimelineController {
     this.onResponseToggle = requiredFunction(onResponseToggle, "onResponseToggle");
     this.onUpstreamToggle = requiredFunction(onUpstreamToggle, "onUpstreamToggle");
     this.onUpstreamPanelToggle = requiredFunction(onUpstreamPanelToggle, "onUpstreamPanelToggle");
+    this.onThinkingToggle = requiredFunction(onThinkingToggle, "onThinkingToggle");
     this.onTurnWindowJump = requiredFunction(onTurnWindowJump, "onTurnWindowJump");
     this.onRaw = requiredFunction(onRaw, "onRaw");
     this.onRequestJump = requiredFunction(onRequestJump || onAgentJump, "onRequestJump");
@@ -139,6 +141,14 @@ export class TraceTimelineController {
   }
 
   handleTimelineToggle(event) {
+    const thinking = closestWithin(event.target, "[data-thinking-request]", this.timelineElement);
+    if (thinking) {
+      this.onThinkingToggle({
+        requestId: thinking.dataset.thinkingRequest || "",
+        open: Boolean(thinking.open),
+      });
+      return;
+    }
     const panel = closestWithin(event.target, "[data-upstream-panel]", this.timelineElement);
     if (panel) this.onUpstreamPanelToggle(panel);
   }

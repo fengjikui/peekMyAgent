@@ -123,11 +123,10 @@ const responseView = buildTimelineAssistantResponseView(userRequest, {
   ...commonOptions,
   expanded: false,
   markdownPreview: preview,
-  formatCompactNumber: (value) => (value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value)),
   formatCharCount: (value) => `${value} chars`,
 });
 assert.equal(responseView.requestId, "request-user");
-assert.deepEqual(responseView.meta, ["1234ms", "finish: tool_use", "input 120", "cache 8.0k", "output 45"]);
+assert.equal(Object.hasOwn(responseView, "meta"), false);
 assert.deepEqual(responseView.thinking, {
   text: "Need inspect disk usage.",
   charCount: "24 chars",
@@ -385,6 +384,18 @@ assert.equal(buildTimelineToolExchangeView({ summary: {} }), null);
 assert.deepEqual(pairTimelineToolEvents([], [{ id: "orphan" }]), [
   { call: null, result: { id: "orphan" }, confidence: "result_only" },
 ]);
+assert.deepEqual(
+  pairTimelineToolEvents([], [{ id: "call-history", content: "done" }], {
+    priorToolCalls: [{ id: "call-history", name: "Bash", arguments: { command: "pwd" } }],
+  }),
+  [
+    {
+      call: { id: "call-history", name: "Bash", arguments: { command: "pwd" } },
+      result: { id: "call-history", content: "done" },
+      confidence: "historical_id",
+    },
+  ],
+);
 
 assert.equal(timelineMessageKindLabel("framework_reminder", "system", translate), "Framework reminder");
 assert.equal(timelineMessageKindLabel("custom", "user", translate), "user");

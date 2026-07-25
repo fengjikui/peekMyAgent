@@ -11,12 +11,14 @@ import {
   requestHasSemanticEvent,
   requestUsesReconstructedUpstream,
   rawResponseSectionValue,
+  rawResponseToolCalls,
   rawSemanticEventMetadata,
   rawSectionData,
   rawUpstreamComposition,
   rawUpstreamEvidenceMetadata,
   rawUpstreamRequestMetadata,
   rawUpstreamRequestValue,
+  responseToolCallSectionLabel,
   responseUsesReconstructedDownstream,
 } from "../src/viewer/raw-view-model.js";
 
@@ -115,14 +117,47 @@ assert.deepEqual(
 );
 
 const downstream = rawResponseSectionValue(request);
-assert.equal(downstream.complete_response.id, "message-1");
-assert.equal(downstream.complete_response.stop_reason, "tool_use");
-assert.equal(downstream.complete_response.content.at(-1).type, "tool_use");
-assert.equal(downstream.parsed_from_response.text, "done");
+assert.deepEqual(downstream.response, { type: "message" }, "Raw Response prefers the captured provider body");
+assert.equal("complete_response" in downstream, false);
+assert.equal("parsed_from_response" in downstream, false);
 assert.equal(downstream.response_capture.status, 200);
 assert.equal(downstream.response_capture.content_type, "text/event-stream");
 assert.equal(downstream.response_capture.body_json_available, true);
-assert.equal(rawSectionData(request, "response").value.complete_response.text, "done");
+assert.equal(downstream.response_capture.displayed_response, "captured_body_json");
+assert.deepEqual(rawSectionData(request, "response").value.response, { type: "message" });
+
+const streamOnlyRequest = {
+  ...request,
+  raw: {
+    ...request.raw,
+    response: {
+      ...request.raw.response,
+      body_json: null,
+      body_text_omitted: { reason: "stream" },
+    },
+  },
+  summary: {
+    ...request.summary,
+    response: {
+      ...request.summary.response,
+      complete_response: {
+        id: "resp-codex",
+        status: "completed",
+        output: [
+          { type: "message", role: "assistant", content: [{ type: "output_text", text: "done" }] },
+          { type: "function_call", call_id: "call-1", name: "exec_command", arguments: '{"cmd":"pwd"}' },
+        ],
+      },
+    },
+  },
+};
+const streamOnlyDownstream = rawResponseSectionValue(streamOnlyRequest);
+assert.equal(streamOnlyDownstream.response.output[1].type, "function_call");
+assert.equal(streamOnlyDownstream.response_capture.displayed_response, "protocol_complete_response");
+assert.equal("tool_use" in streamOnlyDownstream.response, false, "Codex Raw keeps the Responses API field names");
+assert.equal(responseToolCallSectionLabel(streamOnlyRequest), "function_call");
+assert.equal(rawResponseToolCalls(streamOnlyRequest)[0].type, "function_call");
+assert.equal(rawSectionData(streamOnlyRequest, "tool_calls").title, "function_call");
 
 const responsesRequest = {
   request_index: 4,

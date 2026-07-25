@@ -106,10 +106,11 @@ async function testGroupedRetranslationAndActionRegistry() {
     metadata: { label: "Bash · description" },
   });
   const timelineAction = fixture.controller.registerAction({
-    kind: "tool_parameter_description",
+    kind: "tool_description",
     sourceText: "",
     section: "tools",
     surface: "timeline",
+    metadata: { label: "Bash", group: "tool", tool_name: "Bash" },
     materials: toolMaterials(),
   });
 
@@ -119,15 +120,18 @@ async function testGroupedRetranslationAndActionRegistry() {
   assert.match(fixture.calls.copies[0].text, /Bash · description/);
   assert.equal(fixture.controller.copySection("tools", "copy-all-button"), true);
   assert.match(fixture.calls.copies[1].text, /^## Tool: Bash$/m);
+  assert.equal(fixture.controller.copyBlock(timelineAction, "copy-tool-button"), true);
+  assert.match(fixture.calls.copies[2].text, /^## Tool: Bash$/m);
+  assert.match(fixture.calls.copies[2].text, /^### Parameter: command$/m);
 
   fixture.controller.clearActions("raw");
   assert.equal(fixture.controller.copyBlock(rawAction), false, "surface clearing removes only matching actions");
   const outcome = await fixture.controller.retranslate(timelineAction);
   assert.equal(outcome.status, "completed");
-  assert.equal(fixture.calls.generate.at(-1).materials.length, 2, "parameter/tool groups are sent in one provider request");
-  assert.equal(fixture.calls.timelineRenders, 1);
+  assert.equal(fixture.calls.generate.at(-1).materials.length, 2, "the full tool is sent in one provider request");
+  assert.equal(fixture.calls.timelineRenders, 2, "timeline translation renders both the locked loading state and the result");
   assert.deepEqual(fixture.calls.modes.at(-1), { mode: "zh-CN", reason: "translation-block-generated" });
-  assert.match(fixture.generationState.message, /^retranslatedParametersDone/);
+  assert.match(fixture.generationState.message, /^retranslatedToolDone/);
 
   fixture.controller.clearActions();
   const resetAction = fixture.controller.registerAction({ kind: "system_prompt", sourceText: "system" });

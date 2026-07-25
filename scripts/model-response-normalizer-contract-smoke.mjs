@@ -61,6 +61,8 @@ assert.equal(json.finish_reason, "tool_use");
 assert.equal(json.tool_calls[0].arguments.file_path, "AGENTS.md");
 assert.deepEqual(json.complete_response.content.map((part) => part.type), ["thinking", "text", "tool_use"]);
 assert.equal(json.complete_response.stop_reason, "tool_use");
+assert.equal("text" in json.complete_response, false, "provider JSON is preserved without PMA aggregate duplicates");
+assert.equal("tool_use" in json.complete_response, false);
 assert.equal(json.latency_ms, 42);
 assert.equal(json.status, 200);
 
@@ -83,7 +85,7 @@ assert.equal(openAi.text, "stream reply");
 assert.equal(openAi.thinking, "plan carefully");
 assert.equal(openAi.finish_reason, "stop");
 assert.deepEqual(openAi.tool_calls[0], { id: "call-stream", name: "Bash", arguments: { command: "pwd" } });
-assert.equal(openAi.complete_response.stream, true);
+assert.ok(openAi.complete_response.stream_assembly.event_count >= 7);
 assert.ok(openAi.event_count >= 7);
 
 const responsesStream = sse([
@@ -122,6 +124,12 @@ assert.equal(responses.response_status, "completed");
 assert.equal(responses.finish_reason, "completed");
 assert.deepEqual(responses.tool_calls, [{ id: "call-codex", name: "exec", arguments: { cmd: "pwd" } }]);
 assert.equal(responses.complete_response.status, "completed");
+assert.deepEqual(
+  responses.complete_response.output.map((item) => item.type),
+  ["reasoning", "message", "custom_tool_call"],
+  "Responses API terminal field names remain protocol-native",
+);
+assert.equal("content" in responses.complete_response, false);
 
 const opaqueResponses = summarizeModelResponse({
   headers: { "content-type": "text/event-stream" },
@@ -163,13 +171,13 @@ const opaqueResponses = summarizeModelResponse({
 });
 assert.equal(opaqueResponses.thinking, "", "encrypted reasoning must not be represented as readable thinking");
 assert.equal(opaqueResponses.opaque_reasoning.length, 1);
-assert.equal(opaqueResponses.complete_response.content[0].type, "reasoning");
-assert.equal(opaqueResponses.complete_response.content[0].encrypted_content, undefined);
+assert.equal(opaqueResponses.complete_response.output[0].type, "reasoning");
+assert.equal(opaqueResponses.complete_response.output[0].encrypted_content, undefined);
 assert.equal(
-  opaqueResponses.complete_response.content[0].encrypted_content_omitted.reason,
+  opaqueResponses.complete_response.output[0].encrypted_content_omitted.reason,
   "opaque_encrypted_reasoning",
 );
-assert.equal(opaqueResponses.complete_response.content[1].text, "visible answer");
+assert.equal(opaqueResponses.complete_response.output[1].content[0].text, "visible answer");
 
 const toolSearchResponse = summarizeModelResponse({
   headers: { "content-type": "text/event-stream" },
@@ -210,7 +218,7 @@ assert.equal(toolSearchResponse.text, "Searching tools.");
 assert.deepEqual(toolSearchResponse.tool_calls, [
   { id: "call-search", name: "tool_search", arguments: { query: "multi-agent tools", limit: 5 } },
 ]);
-assert.deepEqual(toolSearchResponse.complete_response.content.map((part) => part.type), ["text", "tool_use"]);
+assert.deepEqual(toolSearchResponse.complete_response.output.map((part) => part.type), ["message", "tool_search_call"]);
 
 const anthropicStream = sse([
   { type: "message_start", message: { id: "msg-sse", role: "assistant", model: "claude-stream", content: [] } },

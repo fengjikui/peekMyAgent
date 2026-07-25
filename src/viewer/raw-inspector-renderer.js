@@ -1,6 +1,7 @@
 import {
   requestHasSemanticEvent,
   requestUsesReconstructedUpstream,
+  responseToolCallSectionLabel,
   responseUsesReconstructedDownstream,
 } from "./raw-view-model.js";
 import { extractRequestMessages } from "../shared/request-payload.mjs";
@@ -44,7 +45,7 @@ export function renderRequestRawNavigation({ request, activeSection, hasPrevious
 export function renderResponseRawNavigation({ request, activeSection, translate, escapeHtml }) {
   const downstream = [
     ["response", responseUsesReconstructedDownstream(request) ? translate("rawReconstructedResponse") : "Response"],
-    ["tool_calls", "tool_use"],
+    ["tool_calls", responseToolCallSectionLabel(request, { translate })],
   ];
   return `
     <div class="raw-section-nav">

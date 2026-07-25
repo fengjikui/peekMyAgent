@@ -1,9 +1,9 @@
 export const PANE_LAYOUT_LIMITS = Object.freeze({
   rawMin: 320,
-  rawMax: 640,
-  sidebarMin: 216,
-  sidebarMax: 360,
-  mainMin: 640,
+  rawMax: 760,
+  sidebarMin: 220,
+  sidebarMax: 420,
+  mainMin: 520,
   resizerWidth: 4,
 });
 

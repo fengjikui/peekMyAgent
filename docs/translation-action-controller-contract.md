@@ -1,12 +1,12 @@
 # Viewer 翻译动作控制器契约
 
-更新时间：2026-07-14
+更新时间：2026-07-25
 
 本文描述 Viewer 中“用户触发一次翻译动作”所经过的边界。翻译缓存 identity 与 lookup 见[翻译缓存上下文契约](translation-cache-controller-contract.md)，材料 hash 与 marker 见[翻译块协议](translation-block-contract.md)，结构化展示见[翻译视图契约](translation-view-renderer-contract.md)。
 
 ## 为什么存在这个模块
 
-刷新当前区块、自动补齐、重译一个块、整组重译工具参数和复制译文都不是纯展示动作。它们同时依赖当前 Source、目标语言、request、缓存 operation token、provider 请求、剪贴板和局部重绘。过去这些步骤分散在 `client.js` 中，容易出现三类问题：
+刷新当前区块、自动补齐、重译一个块、重译整个工具和复制译文都不是纯展示动作。它们同时依赖当前 Source、目标语言、request、缓存 operation token、provider 请求、剪贴板和局部重绘。过去这些步骤分散在 `client.js` 中，容易出现三类问题：
 
 - 切换 Source 或语言后，旧 provider 结果仍覆盖当前页面；
 - Raw 与 Timeline 各自维护 action id、复制格式或重译分支；
@@ -67,8 +67,9 @@
 2. prepare、provider、cache reload 任一阶段后发现 token 失效，后续副作用必须停止。
 3. 自动刷新携带预期 Source/语言；timer 到期前已经切换上下文时返回 `stale`，不能调用 provider。
 4. 同一时刻只允许一个 generation；重复点击返回 `busy`。
-5. Raw action 只重绘原 request/section；Timeline Thinking action 只重绘 Timeline。
-6. 工具参数组作为一次 `materials` 请求重译，不逐参数制造 provider 风暴。
+5. Raw action 只重绘原 request/section；Timeline Thinking action 在开始与完成时各重绘一次 Timeline。开始重绘用于立即显示不可重复点击的 loading 状态，完成重绘用于提交译文。
+6. Timeline 按 request 保存 Thinking 展开状态。翻译按钮只在用户展开 Thinking 后出现；翻译期间显示明确的“正在翻译”文案并保持禁用，完成重绘不得把用户正在阅读的 Thinking 折叠。
+6. 工具说明和全部参数作为一次 `materials` 请求重译，不按说明/参数或逐参数制造 provider 风暴；缓存 identity 仍属于各个原始材料。
 7. `clearActions("raw")` 只移除 Raw action；全清理会重置 render-local id。
 8. Tools 的“复制全部”必须包含工具名、工具说明、参数名、原文和已有译文。
 9. Action Controller 不得把 provider 成功等同于当前页面可提交；必须同时通过自身 sequence 与缓存 token。
@@ -93,4 +94,4 @@ npm run smoke:translation-view-renderer-contract
 npm run smoke:viewer-timeline-surface-contract
 ```
 
-`smoke:translation-action-controller-contract` 覆盖单块/Tools 整段复制、完整工具名、显式生成、详情补载、provider payload、cache reload、模式切换、旧 Source 结果拒绝、整组参数重译、surface action 清理和 action id 重置。浏览器回归还需验证 Raw 翻译工具栏、复制、重译、Source/语言切换与控制台无错误。
+`smoke:translation-action-controller-contract` 覆盖单块/Tools 整段与单工具复制、完整工具名、显式生成、详情补载、provider payload、cache reload、模式切换、旧 Source 结果拒绝、完整工具重译、surface action 清理和 action id 重置。浏览器回归还需验证 Raw 翻译工具栏、复制、重译、Source/语言切换与控制台无错误。

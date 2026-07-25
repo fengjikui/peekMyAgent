@@ -1,6 +1,6 @@
 # Coding Agent 代码库地图
 
-更新时间：2026-07-24
+更新时间：2026-07-25
 
 本文帮助 Codex、Claude Code 和其他 Coding Agent 在几分钟内找到正确改动边界。它不是第二份架构事实源：运行行为以[当前架构](architecture.md)为准，未来设计以[重构路线图](refactoring-roadmap.md)为准，协作和验证规则以仓库根目录的 `AGENTS.md` 为准。
 
@@ -55,8 +55,8 @@ pma CLI / adapter
 | 大 Trace 首屏、Source 生命周期、file sidecar、cursor 续读、跨页语义和 Client normalized store | `json-array-file-index.mjs`、`source-capture-reader.mjs`、`timeline-cursor-service.mjs`、`timeline-page-assembler.mjs`、`timeline-view-projector.mjs`、`active-source-controller.js`、`source-timeline-controller.js`、`TimelineEntityStore`（`timeline-entity-store.js`）、[Active Source 契约](active-source-controller-contract.md)、[Source Timeline 契约](source-timeline-controller-contract.md) | 修改原始 Trace、在 route 暴露 reader offset、每页重复完整 Turn/Agent 图，在应用层维护第二份 generation/cursor/Store，绕过 catalog version gate 覆盖 Source 清单，或重新下载整条 compact Trace |
 | Capture 到 Viewer request/Turn/Agent/stats DTO | `viewer-trace-projector.mjs`、`src/trace/*`、[投影器契约](viewer-trace-projector-contract.md) | 在 HTTP route、Source provider、详情或 cursor 路径分别拼 DTO |
 | Viewer HTTP 安全和 API | `src/contracts/viewer-api.mjs`、`http.mjs`、`viewer-router.mjs`、[DTO 契约](viewer-api-dto-contract.md)、[Router 契约](viewer-router-contract.md)、`src/viewer/api-client.js` | 在 `server.mjs` 重新写 URL/method/intent 分支、分别解释 Source/request detail/Timeline envelope，或让 feature renderer 发 `fetch` |
-| 中栏 Timeline、Turn 机制流程、请求卡、多 Agent 看板、上行详情 | `trace-timeline-*`、`turn-story-*`、`request-card-model.js`、`request-card-renderer.js`、`agent-graph-*`、`upstream-detail-*`、[请求卡 View 契约](request-card-renderer-contract.md) | 在 `client.js` 重写请求分类/摘要/工具配对，在机制流程中按 provider 分支，或让 renderer 读取全局 `state`/DOM |
-| Raw、Messages、翻译展示 | `raw-inspector-controller.js`、`raw-*`、`message-*`、`translation-*`、[Raw Inspector Controller 契约](raw-inspector-controller-contract.md)、[Raw 搜索浏览器契约](raw-search-browser-contract.md) | `client.js` 新增长段领域 HTML，或绕过 Controller 直接提交异步 Raw 结果；Raw 搜索只检查截断预览而不检查完整值 |
+| 中栏 Timeline、Turn 机制流程、请求卡、多 Agent 看板、上行详情 | `trace-timeline-*`、`turn-story-*`、`request-card-model.js`、`request-card-renderer.js`、`agent-graph-*`、`upstream-detail-*`、[请求卡 View 契约](request-card-renderer-contract.md)；中栏只呈现可扫读摘要，完整参数、结果和统计进入右侧证据栏 | 在 `client.js` 重写请求分类/摘要/工具配对，在机制流程中按 provider 分支，让 renderer 读取全局 `state`/DOM，或把 Raw/统计重新塞入中栏 |
+| Raw、Messages、翻译展示 | `raw-inspector-controller.js`、`raw-view-model.js`、`raw-*`、`message-*`、`translation-*`、[Raw Inspector Controller 契约](raw-inspector-controller-contract.md)、[翻译视图契约](translation-view-renderer-contract.md)、[Raw 搜索浏览器契约](raw-search-browser-contract.md)；Tools schema 以一个工具一个整体展示，Assistant 可按当前下行工具名过滤上行参考；Raw Response 保留厂商协议原始字段，统一摘要只服务整理视图 | `client.js` 新增长段领域 HTML，或绕过 Controller 直接提交异步 Raw 结果；Raw 搜索只检查截断预览而不检查完整值；把 Tools schema 误称为 Response 内容；把统一 `text/thinking/tool_calls` 再拼回 Raw Response |
 | System 提示词变化与大文本退化 | `system-diff-model.js`、`system-diff-renderer.js`、[System Diff 契约](system-diff-view-contract.md) | 在 `client.js` 重建无上限 LCS 矩阵，或把块摘要称作精确行 diff |
 | 三栏折叠、宽度与拖动 | `pane-layout-model.js`、`pane-layout-controller.js`；状态在 `client-store.js` | 在 `client.js` 直接读写 CSS 变量或重复绑定 resizer |
 | UI 状态与交互动作 | `client-store.js`、feature controller、`session-navigator-*`、`agent-composer-*`、`client.js` 装配层 | model/renderer 写全局状态 |

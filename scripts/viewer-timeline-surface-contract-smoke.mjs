@@ -22,6 +22,7 @@ const translationCacheControllerSource = fs.readFileSync(new URL("../src/viewer/
 const translationActionControllerSource = fs.readFileSync(new URL("../src/viewer/translation-action-controller.js", import.meta.url), "utf8");
 const translationActionModelSource = fs.readFileSync(new URL("../src/viewer/translation-action-model.js", import.meta.url), "utf8");
 const translationGenerationOperationSource = fs.readFileSync(new URL("../src/viewer/translation-generation-operation.js", import.meta.url), "utf8");
+const stylesSource = fs.readFileSync(new URL("../src/viewer/styles.css", import.meta.url), "utf8");
 
 assert.match(source, /import \{[\s\S]*?buildTraceTimelineView,[\s\S]*?from "\.\/trace-timeline-model\.js";/);
 assert.match(source, /import \{ TraceTimelineController \} from "\.\/trace-timeline-controller\.js";/);
@@ -87,6 +88,34 @@ assert.match(controllerSource, /queryElement\.addEventListener\("compositionstar
 assert.match(rendererSource, /export function renderTurnTimeline/);
 assert.match(requestCardRendererSource, /export function renderTimelineRequestCard/);
 assert.match(requestCardRendererSource, /export function renderTimelineAssistantResponse/);
+assert.match(
+  stylesSource,
+  /\.assistant-thinking\[open\] summary small\s*\{\s*display:\s*none;/,
+  "expanded thinking should hide the duplicated one-line preview",
+);
+assert.match(
+  stylesSource,
+  /\.thinking-title-action\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?top:\s*4px;/,
+  "the Thinking translation action should stay in the title row",
+);
+assert.match(
+  stylesSource,
+  /\.assistant-thinking:not\(\[open\]\) \+ \.thinking-title-action\s*\{\s*display:\s*none;/,
+  "the Thinking translation action should only appear after the user expands the reasoning",
+);
+assert.match(source, /expandedThinking:\s*new Set\(\)/);
+assert.match(source, /onThinkingToggle\(\{ requestId, open \}\)/);
+assert.match(source, /actionLabel:\s*state\.translationGenerate\.loading[\s\S]*?t\("translatingThinking"\)/);
+assert.match(
+  stylesSource,
+  /\.upstream-entry-actions\s*\{[\s\S]*?grid-column:\s*3;/,
+  "timeline detail actions should keep a stable right-edge column",
+);
+assert.match(
+  stylesSource,
+  /\.request-card:has\(> \.upstream-entry\.tool-result\)\s*\{\s*gap:\s*2px;/,
+  "tool-result headings should stay close to their activity summary",
+);
 assert.match(source, /renderTimelineRequestCardView\(/);
 assert.match(source, /renderTimelineAssistantResponseView\(/);
 assert.doesNotMatch(source, /function renderAssistantToolCalls\(/);
