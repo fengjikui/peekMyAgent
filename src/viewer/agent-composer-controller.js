@@ -51,10 +51,17 @@ export class AgentComposerController {
       const sendState = this.currentState();
       if (sendState) sendState.draft = event.target.value;
     };
+    this.handleClick = (event) => {
+      const toggle = event.target?.closest?.("[data-agent-compose-toggle]") ||
+        (event.target?.matches?.("[data-agent-compose-toggle]") ? event.target : null);
+      if (!toggle) return;
+      this.toggleComposer();
+    };
 
     this.element.addEventListener("submit", this.handleSubmit);
     this.element.addEventListener("keydown", this.handleKeydown);
     this.element.addEventListener("input", this.handleInput);
+    this.element.addEventListener("click", this.handleClick);
   }
 
   render(source) {
@@ -75,6 +82,7 @@ export class AgentComposerController {
     let stateSourceId = sourceId;
 
     sendState.loading = true;
+    sendState.expanded = true;
     sendState.error = "";
     sendState.message = this.translate("sentWaitingCapture");
     sendState.result = null;
@@ -141,6 +149,15 @@ export class AgentComposerController {
     return this.currentState()?.draft || "";
   }
 
+  toggleComposer() {
+    const sendState = this.currentState();
+    if (!sendState || !this.source) return;
+    const view = this.buildView(this.source, sendState);
+    if (!view.expanded && !view.canExpand) return;
+    sendState.expanded = !view.expanded;
+    this.render(this.source);
+  }
+
   moveState(sourceId, targetSourceId, sendState) {
     if (!targetSourceId || sourceId === targetSourceId) return;
     this.stateBySource.delete(sourceId);
@@ -156,6 +173,7 @@ export class AgentComposerController {
     this.element.removeEventListener("submit", this.handleSubmit);
     this.element.removeEventListener("keydown", this.handleKeydown);
     this.element.removeEventListener("input", this.handleInput);
+    this.element.removeEventListener("click", this.handleClick);
     this.element.innerHTML = "";
     this.source = null;
     this.stateBySource.clear();
@@ -163,7 +181,7 @@ export class AgentComposerController {
 }
 
 function emptySendState() {
-  return { loading: false, error: "", message: "", result: null, draft: "" };
+  return { loading: false, error: "", message: "", result: null, draft: "", expanded: false };
 }
 
 function defaultNextTick() {

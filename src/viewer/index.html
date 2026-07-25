@@ -42,8 +42,12 @@
               <h2 id="pageTitle" data-i18n="timelineTitle">Agent 请求时间线</h2>
             </div>
             <div class="topbar-actions">
-              <div id="stats" class="stats"></div>
+              <section id="traceQuery" class="trace-query"></section>
               <div class="topbar-control-row">
+                <details class="stats-disclosure">
+                  <summary class="stat stat-button" data-i18n="sessionStats">统计</summary>
+                  <div id="stats" class="stats" aria-label="会话统计" data-i18n-aria-label="sessionStatsAria"></div>
+                </details>
                 <div id="viewControls" class="view-controls"></div>
                 <div class="language-controls" aria-label="语言设置" data-i18n-aria-label="languageSettingsAria">
                   <label class="language-control theme-control">
@@ -64,7 +68,6 @@
           </div>
         </header>
         <section id="watchSummary" class="watch-summary"></section>
-        <section id="traceQuery" class="trace-query"></section>
         <section id="timeline" class="timeline"></section>
         <section id="agentComposer" class="agent-composer"></section>
         <nav id="turnRail" class="turn-rail" aria-label="当前会话轮次导航" data-i18n-aria-label="turnRailAria"></nav>

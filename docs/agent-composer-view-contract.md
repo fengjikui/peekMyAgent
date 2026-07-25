@@ -1,6 +1,6 @@
 # Agent Composer View 契约
 
-更新时间：2026-07-14
+更新时间：2026-07-26
 
 底部 Agent Composer 是一个独立的 Agent 消息发送 feature。它不是当前终端的 PTY：发送会启动一次 detached resume，原终端不显示该消息，也不会把该消息继承进原终端后续上下文。
 
@@ -15,6 +15,8 @@
 ## 稳定行为
 
 - 只有可恢复、正在监听且受支持的 Claude Code/OpenClaw source 可以发送。
+- Composer 默认只显示一个轻量“发送消息”入口；用户显式打开后才挂载完整表单，切换 source 时各 source 的展开状态和草稿相互隔离。
+- 不可发送的 source 不得展示完整输入框；暂停或停止状态可以保留禁用入口和原因，但不能制造可发送的错觉。
 - Enter 发送；Shift+Enter 换行；IME 组词时 Enter 不发送。
 - 同一 source 的局部或整页重绘保留尚未发送的草稿。
 - 发送状态按 source 隔离，不得把上一会话的结果展示到另一会话。

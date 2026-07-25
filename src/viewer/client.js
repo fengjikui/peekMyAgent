@@ -951,7 +951,14 @@ function renderHeaderSurface() {
     [t("statToolResult"), stats.tool_result_count],
     ["Raw", formatBytes(stats.raw_body_bytes)],
   ]
-    .map(([label, value]) => `<span class="stat">${label}: ${escapeHtml(String(value))}</span>`)
+    .map(
+      ([label, value]) => `
+        <div class="stats-item">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(String(value))}</strong>
+        </div>
+      `,
+    )
     .join("");
   renderViewControls();
   els.watchSummary.innerHTML = renderProgressiveLoadNotice(state.data?.partial);

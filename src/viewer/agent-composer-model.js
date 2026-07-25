@@ -14,7 +14,9 @@ export function buildAgentComposerView({
   const watching = source.live_status === "watching";
   const supported = /claude|openclaw/i.test(source.agent || "");
   const loading = Boolean(sendState.loading);
-  const enabled = canSend && watching && supported && !loading;
+  const canExpand = canSend && watching && supported;
+  const enabled = canExpand && !loading;
+  const expanded = Boolean(sendState.expanded && (canExpand || loading));
   const result = sendState.result || null;
   const statusText = composerTargetText(source, {
     canSend,
@@ -32,12 +34,17 @@ export function buildAgentComposerView({
   return {
     sourceId: source.id || "",
     agentLabel: source.agent || "Agent",
+    visible: canSend && supported,
+    expanded,
+    canExpand,
     enabled,
     loading,
     targetText: statusText,
     showResumeNote: supported && canSend,
     resumeNote: translate("sendViaResumeNote"),
     placeholder: enabled ? translate("composerPlaceholder") : statusText,
+    openLabel: translate("openComposer"),
+    closeLabel: translate("closeComposer"),
     buttonLabel: loading ? translate("sending") : translate("send"),
     statusMessage,
     statusError: Boolean(sendState.error || Number(result?.exit_code || 0)),
