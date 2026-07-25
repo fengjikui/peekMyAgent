@@ -14,7 +14,7 @@
 `src/viewer/request-card-renderer.js` 负责中栏单条请求卡的稳定 HTML 结构，覆盖：
 
 - request card 外壳和上行详情容器；
-- 上行标题、摘要、owner 信息和快捷 Raw 动作；
+- 上行标题、摘要、owner 信息和快捷 Raw 动作；真实用户输入把 request 编号、正文和详情动作收进同一个自适应气泡，短消息按内容收紧，长消息在受限宽度内换行；
 - 当前 `tool_use` / `tool_result` 配对展示；
 - Assistant response 的 metadata、Thinking、`tool_use`、Markdown 正文、折叠和 Raw 动作。
 

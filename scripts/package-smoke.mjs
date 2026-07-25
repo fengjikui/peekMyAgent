@@ -194,11 +194,12 @@ const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pat
 assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);
 
 const MAX_PACKAGE_ENTRIES = 142;
-// The managed Codex Desktop runtime, semantic trace views, and provider-neutral
-// subagent lifecycle correlation are shipped product code. Keep a narrow
-// post-feature budget while the path allowlist prevents fixtures, design docs,
-// captures, and other release-unsafe files from leaking into the package.
-const MAX_PACKED_BYTES = 340_000;
+// The managed Agent runtimes, protocol-native response reconstruction, semantic
+// trace views, and provider-neutral subagent correlation are shipped product
+// code. Keep a narrow post-feature budget while the unchanged unpacked-size cap
+// and path allowlist prevent fixtures, design docs, captures, and other
+// release-unsafe files from leaking into the package.
+const MAX_PACKED_BYTES = 345_000;
 const MAX_UNPACKED_BYTES = 1_490_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);

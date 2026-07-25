@@ -186,25 +186,7 @@ export function rawResponseSectionValue(request) {
   const rawResponse = request?.raw?.response || null;
   const originalResponse = rawProviderResponse(request);
   return {
-    response: response.captured
-      ? originalResponse || {
-          id: response.message_id || null,
-          role: "assistant",
-          content: [
-            ...(response.opaque_reasoning || []),
-            ...(response.thinking ? [{ type: "thinking", thinking: response.thinking }] : []),
-            ...(response.text ? [{ type: "text", text: response.text }] : []),
-            ...(response.tool_calls || []).map((call) => ({
-              type: "tool_use",
-              id: call.id || null,
-              name: call.name || "unknown",
-              input: call.arguments ?? null,
-            })),
-          ],
-          stop_reason: response.finish_reason || null,
-          usage: response.usage || null,
-        }
-      : null,
+    response: response.captured ? originalResponse : null,
     response_capture: rawResponse
       ? {
           status: rawResponse.status ?? response.status ?? null,
@@ -213,17 +195,10 @@ export function rawResponseSectionValue(request) {
           captured_body_bytes: rawResponse.captured_body_length ?? response.captured_body_bytes ?? null,
           received_at: rawResponse.received_at || response.received_at || null,
           body_json_available: rawResponse.body_json !== undefined && rawResponse.body_json !== null,
-          body_text_omitted: rawResponse.body_text_omitted || null,
-          stream: Boolean(response.stream),
-          event_count: response.event_count || 0,
-          displayed_response:
-            rawResponse.body_json !== undefined && rawResponse.body_json !== null
-              ? "captured_body_json"
-              : response.complete_response
-                ? response.stream
-                  ? "protocol_complete_response"
-                  : "captured_complete_response"
-                : "semantic_fallback",
+          transport: response.stream ? "stream" : "json",
+          response_protocol: response.response_protocol || null,
+          displayed_response: displayedResponseSource(rawResponse, response),
+          reconstructed: response.complete_response_source === "stream_reconstruction",
         }
       : null,
   };
@@ -240,10 +215,8 @@ export function rawResponseToolCalls(request) {
   }
   for (const choice of Array.isArray(response?.choices) ? response.choices : []) {
     if (Array.isArray(choice?.message?.tool_calls)) calls.push(...choice.message.tool_calls);
-    if (Array.isArray(choice?.delta?.tool_calls)) calls.push(...choice.delta.tool_calls);
   }
-  if (calls.length) return calls;
-  return request?.summary?.response?.tool_calls || [];
+  return calls;
 }
 
 export function responseToolCallSectionLabel(request, { translate = (key) => key } = {}) {
@@ -272,5 +245,23 @@ function rawProviderResponse(request) {
   if (rawResponse?.body_json !== undefined && rawResponse?.body_json !== null) {
     return rawResponse.body_json;
   }
-  return request?.summary?.response?.complete_response || null;
+  const response = request?.summary?.response || {};
+  if (!isProtocolResponse(response.complete_response, response.complete_response_source)) return null;
+  return response.complete_response;
+}
+
+function displayedResponseSource(rawResponse, response) {
+  if (rawResponse?.body_json !== undefined && rawResponse?.body_json !== null) return "captured_body_json";
+  if (isProtocolResponse(response?.complete_response, response?.complete_response_source)) {
+    return response.complete_response_source || "protocol_complete_response";
+  }
+  return "unavailable";
+}
+
+function isProtocolResponse(value, source) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (value.stream_assembly) return false;
+  if (["captured_body_json", "protocol_terminal_event", "stream_reconstruction"].includes(source)) return true;
+  if (Array.isArray(value.output) || Array.isArray(value.choices)) return true;
+  return value.type === "message" && Array.isArray(value.content);
 }

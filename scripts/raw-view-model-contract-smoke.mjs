@@ -140,6 +140,8 @@ const streamOnlyRequest = {
     ...request.summary,
     response: {
       ...request.summary.response,
+      response_protocol: "openai_responses",
+      complete_response_source: "protocol_terminal_event",
       complete_response: {
         id: "resp-codex",
         status: "completed",
@@ -153,11 +155,71 @@ const streamOnlyRequest = {
 };
 const streamOnlyDownstream = rawResponseSectionValue(streamOnlyRequest);
 assert.equal(streamOnlyDownstream.response.output[1].type, "function_call");
-assert.equal(streamOnlyDownstream.response_capture.displayed_response, "protocol_complete_response");
+assert.equal(streamOnlyDownstream.response_capture.displayed_response, "protocol_terminal_event");
+assert.equal(streamOnlyDownstream.response_capture.reconstructed, false);
 assert.equal("tool_use" in streamOnlyDownstream.response, false, "Codex Raw keeps the Responses API field names");
 assert.equal(responseToolCallSectionLabel(streamOnlyRequest), "function_call");
 assert.equal(rawResponseToolCalls(streamOnlyRequest)[0].type, "function_call");
 assert.equal(rawSectionData(streamOnlyRequest, "tool_calls").title, "function_call");
+
+const chatStreamRequest = {
+  ...streamOnlyRequest,
+  summary: {
+    ...streamOnlyRequest.summary,
+    response: {
+      ...streamOnlyRequest.summary.response,
+      response_protocol: "openai_chat_completions",
+      complete_response_source: "stream_reconstruction",
+      complete_response: {
+        id: "chatcmpl-1",
+        object: "chat.completion",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: "done",
+              tool_calls: [
+                {
+                  id: "call-chat",
+                  type: "function",
+                  function: { name: "Bash", arguments: '{"command":"pwd"}' },
+                },
+              ],
+            },
+            finish_reason: "tool_calls",
+          },
+        ],
+      },
+    },
+  },
+};
+const chatDownstream = rawResponseSectionValue(chatStreamRequest);
+assert.equal(chatDownstream.response.choices[0].message.tool_calls[0].function.name, "Bash");
+assert.equal(chatDownstream.response_capture.displayed_response, "stream_reconstruction");
+assert.equal(chatDownstream.response_capture.reconstructed, true);
+assert.equal(responseToolCallSectionLabel(chatStreamRequest), "tool_calls");
+
+const legacyGenericStreamRequest = {
+  ...streamOnlyRequest,
+  summary: {
+    ...streamOnlyRequest.summary,
+    response: {
+      ...streamOnlyRequest.summary.response,
+      response_protocol: null,
+      complete_response_source: null,
+      complete_response: {
+        id: "legacy",
+        role: "assistant",
+        content: [{ type: "text", text: "assembled" }],
+        stream_assembly: { event_count: 12 },
+      },
+    },
+  },
+};
+const legacyDownstream = rawResponseSectionValue(legacyGenericStreamRequest);
+assert.equal(legacyDownstream.response, null, "legacy generic stream assemblies are not presented as protocol Raw");
+assert.equal(legacyDownstream.response_capture.displayed_response, "unavailable");
 
 const responsesRequest = {
   request_index: 4,

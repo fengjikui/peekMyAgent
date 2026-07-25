@@ -41,12 +41,26 @@ export function renderTimelineUpstreamEntry({ entry, escapeHtml }) {
     actionsHtml = "",
     semanticEvent = null,
   } = entry;
+  if (userTurn) {
+    return `
+      <section class="upstream-entry ${escapeHtml(kindClass)} user-turn ${compact ? "compact" : ""}">
+        <div class="user-turn-content">
+          <span class="request-index">#${escapeHtml(requestIndex)}</span>
+          ${preview ? `<div class="upstream-entry-preview">${escapeHtml(preview)}</div>` : ""}
+          <div class="upstream-entry-actions">
+            ${actionsHtml}
+          </div>
+          ${metaHtml ? `<div class="upstream-entry-meta" aria-label="${escapeHtml(ownerAria)}">${metaHtml}</div>` : ""}
+        </div>
+      </section>
+    `;
+  }
   return `
-    <section class="upstream-entry ${escapeHtml(kindClass)} ${userTurn ? "user-turn" : ""} ${compact ? "compact" : ""}">
+    <section class="upstream-entry ${escapeHtml(kindClass)} ${compact ? "compact" : ""}">
       <div class="upstream-entry-row">
         <div class="upstream-entry-title">
           <span class="request-index">#${escapeHtml(requestIndex)}</span>
-          ${label && !userTurn ? `<span class="upstream-label">${escapeHtml(label)}</span>` : ""}
+          ${label ? `<span class="upstream-label">${escapeHtml(label)}</span>` : ""}
         </div>
         ${metaHtml ? `<div class="upstream-entry-meta" aria-label="${escapeHtml(ownerAria)}">${metaHtml}</div>` : ""}
         <div class="upstream-entry-actions">

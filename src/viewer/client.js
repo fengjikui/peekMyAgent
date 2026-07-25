@@ -1803,6 +1803,14 @@ function renderRequestDetailError(error) {
 
 function renderResponseOnlyRawSection(request, activeSection) {
   const section = ["response", "tool_calls", "tools"].includes(activeSection) ? activeSection : "response";
+  const responseNotice =
+    section === "response" && request?.summary?.response?.response_protocol === "openai_responses"
+      ? renderRawSourceNotice({
+          title: t("rawResponsesDownstreamNoticeTitle"),
+          text: t("rawResponsesDownstreamNotice"),
+          escapeHtml,
+        })
+      : "";
   const detail =
     section === "tools"
       ? renderResponseOnlyToolsSchemaSection(request)
@@ -1815,6 +1823,7 @@ function renderResponseOnlyRawSection(request, activeSection) {
           : renderRawDetail(responseRawSectionLabel("response", request), rawResponseSectionValue(request));
   return `
     ${renderRawStickyControls(request, section, "response")}
+    ${responseNotice}
     ${detail}
   `;
 }

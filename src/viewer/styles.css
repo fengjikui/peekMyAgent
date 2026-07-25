@@ -2149,17 +2149,49 @@ button.turn-story-step:focus-visible {
 /* A real user input / slash command — the start of a new turn. Just a faint
    tint so it's lightly perceptible as a turn boundary, nothing heavy. */
 .upstream-entry.user-turn {
-  width: min(78%, 780px);
+  width: fit-content;
+  max-width: min(84%, 900px);
   margin: 4px 0 8px;
-  padding: 10px 2px 11px 12px;
-  border: 1px solid color-mix(in oklch, var(--accent) 18%, var(--line));
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--accent-soft) 72%, #fff);
+  padding: 0;
+  border: 1px solid color-mix(in oklch, var(--accent) 16%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--accent-soft) 66%, #fff);
   justify-self: end;
 }
 
+.user-turn-content {
+  display: grid;
+  grid-template-columns: max-content minmax(0, auto) max-content;
+  align-items: start;
+  gap: 7px;
+  min-width: 0;
+  padding: 9px 10px 9px 11px;
+}
+
+.upstream-entry.user-turn .request-index {
+  min-height: 22px;
+  color: color-mix(in oklch, var(--text) 78%, var(--muted));
+  font-size: 11px;
+}
+
 .upstream-entry.user-turn .upstream-entry-preview {
-  padding-right: 10px;
+  max-width: 100%;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.upstream-entry.user-turn .upstream-entry-actions {
+  grid-column: 3;
+  width: auto;
+  align-self: start;
+  justify-self: end;
+}
+
+.upstream-entry.user-turn .upstream-entry-meta {
+  grid-column: 2 / 4;
+  justify-self: end;
+  padding-top: 1px;
 }
 
 .upstream-entry-row {
@@ -5485,6 +5517,7 @@ details .details-body {
   }
 
   .upstream-entry.user-turn {
-    width: min(92%, 780px);
+    width: fit-content;
+    max-width: 94%;
   }
 }

@@ -160,6 +160,9 @@ export const UI_I18N = {
     rawSectionEvidenceDynamicToolsReference: "用于解释下行 tool_use 的上行参考；来自 rollout 会话动态工具清单，不属于 response，也不证明每次线上 request 逐字携带这些 schema。",
     rawNavDownstream: "模型下行",
     rawNavReference: "上行参考",
+    rawResponsesDownstreamNoticeTitle: "Responses 下行原文",
+    rawResponsesDownstreamNotice:
+      "这是模型服务返回的完整 Responses 对象。服务端会在其中回显 instructions、tools 等请求配置；模型生成内容位于 output[]，上行 input 不在此处。",
     fullCaptureTitle: "查看捕获到的完整上行请求",
     reconstructedUpstreamActionHelp: "查看由 Harness 本地证据重建的上行；它不是原始网络请求",
     rawFullCapture: "完整请求",
@@ -638,6 +641,9 @@ export const UI_I18N = {
     rawSectionEvidenceDynamicToolsReference: "Upstream reference for explaining downstream tool_use. It comes from the rollout session's dynamic tool catalog, is not part of the response, and does not prove every wire request carried these schemas verbatim.",
     rawNavDownstream: "Model response",
     rawNavReference: "Upstream reference",
+    rawResponsesDownstreamNoticeTitle: "Responses downstream source",
+    rawResponsesDownstreamNotice:
+      "This is the complete Responses object returned by the model service. The server echoes request configuration such as instructions and tools; model-generated items are in output[], while upstream input is not included here.",
     fullCaptureTitle: "View the complete captured upstream request",
     reconstructedUpstreamActionHelp: "View upstream reconstructed from local Harness evidence; this is not the original wire request",
     rawFullCapture: "Full request",

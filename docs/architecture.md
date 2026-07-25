@@ -327,7 +327,7 @@ Trace Timeline 的搜索分类、命中计数、结果上限、latest-only 和 T
 
 compact 首屏后的完整 request 由 `RequestDetailCache` 按需读取。同一 request 的并发展开共享 Promise，失败可重试，source 切换统一清空；首次加载和缓存命中的应用副作用通过回调注入，缓存层不反向依赖 DOM、全局 state 或翻译模块。
 
-Raw Inspector 的请求/响应方向由 `raw-view-model.js` 统一。它从完整上行和 Metadata 移除 response 派生字段，单独组织完整 Response 与 capture facts，并通过调用方注入 Harness 材料，避免 renderer 各自重新解释同一份 DTO。Response 优先展示 Capture Proxy 保存的 `body_json`；流式协议若提供终止响应则展示该协议原生终止对象；只有旧数据或不完整流缺少两类证据时才构造最小语义兜底。Raw 不重复展示 normalizer 的顶层 `text`、`thinking` 或统一 `tool_calls`，单独的调用页也直接抽取协议原始调用条目并以原始类型命名。
+Raw Inspector 的请求/响应方向由 `raw-view-model.js` 统一。它从完整上行和 Metadata 移除 response 派生字段，单独组织完整 Response 与 capture facts，并通过调用方注入 Harness 材料，避免 renderer 各自重新解释同一份 DTO。Response 优先展示 Capture Proxy 保存的 `body_json`；流式协议若提供终止响应则展示该协议原生终止对象，否则仅在 normalizer 能保持 Anthropic Messages 或 Chat Completions 原生字段层级时展示协议终态重建。旧版通用 `stream_assembly` 和证据不足的不完整流不再伪装成 Raw。Raw 不展示 SSE 事件序列，也不重复展示 normalizer 的顶层 `text`、`thinking` 或统一 `tool_calls`；单独的调用页直接抽取协议原始调用条目并以原始类型命名。
 
 Raw Inspector 按数据方向组织证据：请求卡和上行视图只展示 System、Tools、Harness、Messages、历史工具调用与回传结果；“完整请求”和“请求 Metadata”会从 capture 中剔除 response、响应状态以及 response 派生统计。请求侧标签保持单层排列，完整请求在首位、Metadata 在末位。完整 Response 与本次响应的协议原生调用条目只从 Assistant 回复进入“模型下行”视图。Assistant 视图保留独立的“上行参考”Tools schema，并明确它不是 response body 返回内容；当该响应包含工具调用时，可按下行的精确工具名一键过滤上行 schema，这只改变显示范围，不混淆证据方向。
 

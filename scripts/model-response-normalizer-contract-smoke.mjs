@@ -54,13 +54,14 @@ const json = summarizeModelResponse({
 assert.equal(json.captured, true);
 assert.equal(json.stream, false);
 assert.equal(json.message_id, "msg-json");
-assert.match(json.text, /^done\n/);
-assert.match(json.text, /call-json/);
+assert.equal(json.text, "done");
 assert.equal(json.thinking, "inspect first");
 assert.equal(json.finish_reason, "tool_use");
 assert.equal(json.tool_calls[0].arguments.file_path, "AGENTS.md");
 assert.deepEqual(json.complete_response.content.map((part) => part.type), ["thinking", "text", "tool_use"]);
 assert.equal(json.complete_response.stop_reason, "tool_use");
+assert.equal(json.response_protocol, "anthropic_messages");
+assert.equal(json.complete_response_source, "captured_body_json");
 assert.equal("text" in json.complete_response, false, "provider JSON is preserved without PMA aggregate duplicates");
 assert.equal("tool_use" in json.complete_response, false);
 assert.equal(json.latency_ms, 42);
@@ -85,7 +86,15 @@ assert.equal(openAi.text, "stream reply");
 assert.equal(openAi.thinking, "plan carefully");
 assert.equal(openAi.finish_reason, "stop");
 assert.deepEqual(openAi.tool_calls[0], { id: "call-stream", name: "Bash", arguments: { command: "pwd" } });
-assert.ok(openAi.complete_response.stream_assembly.event_count >= 7);
+assert.equal(openAi.response_protocol, "openai_chat_completions");
+assert.equal(openAi.complete_response_source, "stream_reconstruction");
+assert.equal(openAi.complete_response.object, "chat.completion");
+assert.equal(openAi.complete_response.choices[0].message.content, "stream reply");
+assert.equal(openAi.complete_response.choices[0].message.reasoning_content, "plan carefully");
+assert.equal(openAi.complete_response.choices[0].message.tool_calls[0].type, "function");
+assert.equal(openAi.complete_response.choices[0].message.tool_calls[0].function.name, "Bash");
+assert.equal(openAi.complete_response.choices[0].message.tool_calls[0].function.arguments, '{"command":"pwd"}');
+assert.equal("content" in openAi.complete_response, false, "Chat Completions Raw must not use Anthropic content blocks");
 assert.ok(openAi.event_count >= 7);
 
 const responsesStream = sse([
@@ -124,12 +133,74 @@ assert.equal(responses.response_status, "completed");
 assert.equal(responses.finish_reason, "completed");
 assert.deepEqual(responses.tool_calls, [{ id: "call-codex", name: "exec", arguments: { cmd: "pwd" } }]);
 assert.equal(responses.complete_response.status, "completed");
+assert.equal(responses.response_protocol, "openai_responses");
+assert.equal(responses.complete_response_source, "protocol_terminal_event");
 assert.deepEqual(
   responses.complete_response.output.map((item) => item.type),
   ["reasoning", "message", "custom_tool_call"],
   "Responses API terminal field names remain protocol-native",
 );
 assert.equal("content" in responses.complete_response, false);
+
+const codexSparseTerminal = summarizeModelResponse({
+  headers: { "content-type": "text/plain" },
+  body_text: sse([
+    {
+      type: "response.output_item.done",
+      output_index: 0,
+      item: {
+        id: "reasoning-sparse",
+        type: "reasoning",
+        summary: [{ type: "summary_text", text: "inspect" }],
+      },
+    },
+    {
+      type: "response.output_item.done",
+      output_index: 1,
+      item: {
+        id: "message-sparse",
+        type: "message",
+        role: "assistant",
+        status: "completed",
+        content: [{ type: "output_text", text: "I will inspect." }],
+      },
+    },
+    {
+      type: "response.output_item.done",
+      output_index: 2,
+      item: {
+        id: "function-sparse",
+        type: "function_call",
+        call_id: "call-sparse",
+        name: "exec_command",
+        arguments: '{"cmd":"pwd"}',
+        status: "completed",
+      },
+    },
+    {
+      type: "response.completed",
+      response: {
+        id: "resp-sparse",
+        object: "response",
+        status: "completed",
+        instructions: "system contract",
+        tools: [{ type: "function", name: "exec_command" }],
+        output: [],
+        usage: { input_tokens: 10, output_tokens: 4 },
+      },
+    },
+  ]),
+  status: 200,
+});
+assert.equal(codexSparseTerminal.response_protocol, "openai_responses");
+assert.equal(codexSparseTerminal.complete_response_source, "stream_reconstruction");
+assert.equal(codexSparseTerminal.complete_response.instructions, "system contract");
+assert.deepEqual(codexSparseTerminal.complete_response.output.map((item) => item.type), [
+  "reasoning",
+  "message",
+  "function_call",
+]);
+assert.equal(codexSparseTerminal.complete_response.output[2].arguments, '{"cmd":"pwd"}');
 
 const opaqueResponses = summarizeModelResponse({
   headers: { "content-type": "text/event-stream" },
@@ -239,11 +310,19 @@ assert.equal(anthropic.text, "answer");
 assert.equal(anthropic.thinking, "reason");
 assert.equal(anthropic.finish_reason, "tool_use");
 assert.deepEqual(anthropic.tool_calls[0].arguments, { file_path: "README.md" });
+assert.equal(anthropic.response_protocol, "anthropic_messages");
+assert.equal(anthropic.complete_response_source, "stream_reconstruction");
+assert.deepEqual(anthropic.complete_response.content.map((part) => part.type), ["thinking", "text", "tool_use"]);
+assert.equal(anthropic.complete_response.content[0].thinking, "reason");
+assert.equal(anthropic.complete_response.content[1].text, "answer");
+assert.deepEqual(anthropic.complete_response.content[2].input, { file_path: "README.md" });
+assert.deepEqual(anthropic.complete_response.usage, { input_tokens: 8, output_tokens: 4 });
 
 const malformed = summarizeSseResponse("data: not-json\n\ndata: [DONE]\n\n");
 assert.equal(malformed.text, "");
 assert.deepEqual(malformed.tool_calls, []);
 assert.equal(malformed.event_count, 2);
+assert.equal(malformed.complete_response, null);
 
 const parsedJson = summarizeJsonResponse({
   id: "chatcmpl-1",
