@@ -1,6 +1,6 @@
 # 模型回复归一化契约
 
-更新时间：2026-07-21
+更新时间：2026-07-25
 
 `src/trace/model-response-normalizer.mjs` 把捕获层保存的 JSON 或 SSE 模型回复转换成 Viewer 与 Trace Domain 共用的下行 DTO。它属于协议归一化边界，不属于 HTTP Server，也不负责页面渲染；content/tool block 基础解析复用 [Trace Content Parts 契约](content-parts-contract.md)。
 
@@ -50,6 +50,7 @@ captured
 message_id
 text / preview
 thinking / thinking_preview
+opaque_reasoning[]
 tool_calls[]
 usage
 finish_reason
@@ -59,7 +60,9 @@ stream / event_count / truncated
 raw_body_bytes / captured_body_bytes / received_at
 ```
 
-`complete_response.content` 始终按 thinking、text、tool_use 的顺序组装；`tool_calls[].arguments` 与 `complete_response.content[].input` 使用解析后的同一值。流式 function arguments 无法形成 JSON 时保留原字符串，不伪造结构。
+`complete_response.content` 始终按 reasoning、thinking、text、tool_use 的顺序组装；`tool_calls[].arguments` 与 `complete_response.content[].input` 使用解析后的同一值。流式 function arguments 无法形成 JSON 时保留原字符串，不伪造结构。
+
+Anthropic/OpenAI-compatible provider 返回可读 `thinking`、`reasoning_content` 或 reasoning summary 时，原文进入 `thinking` 并由整理视图按 Markdown 展示。Responses API 只返回 `encrypted_content` 而没有可读 summary/content 时，归一化结果保留一个 `type: reasoning` 的存在性标记，并在 `opaque_reasoning[]` 与 `encrypted_content_omitted` 中记录原因和字符数；密文本身只保留在本地原始捕获，不复制进聚合 DTO，也不会伪造成可读思考过程。
 
 Responses API 中所有已捕获的 `*_call` output item 都按模型下行工具调用归一化；有显式 `name` 时保留原名，否则从协议类型派生可读名称，例如 `tool_search_call` 映射为 `tool_search`。对应的 `tool_search_output` 属于下一次请求的上行工具结果，由共享 request payload 语义处理，不混入当前 response。
 
@@ -82,4 +85,4 @@ Responses API 中所有已捕获的 `*_call` output item 都按模型下行工�
 npm run smoke:model-response-normalizer-contract
 ```
 
-它覆盖 Anthropic JSON、Anthropic SSE、OpenAI-compatible JSON/SSE、thinking、分片工具参数、损坏 SSE、空 response 和依赖方向。`npm run smoke:response-capture` 继续用真实本地 HTTP 流程验证 Capture Proxy、SQLite 重启与 Viewer DTO 的端到端兼容。
+它覆盖 Anthropic JSON、Anthropic SSE、OpenAI-compatible JSON/SSE、可读 thinking、仅含加密内容的 Responses reasoning、分片工具参数、损坏 SSE、空 response 和依赖方向。`npm run smoke:response-capture` 继续用真实本地 HTTP 流程验证 Capture Proxy、SQLite 重启与 Viewer DTO 的端到端兼容。

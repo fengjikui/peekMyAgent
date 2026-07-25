@@ -186,6 +186,7 @@ export function rawResponseSectionValue(request) {
           id: response.message_id || null,
           role: "assistant",
           content: [
+            ...(response.opaque_reasoning || []),
             ...(response.thinking ? [{ type: "thinking", thinking: response.thinking }] : []),
             ...(response.text ? [{ type: "text", text: response.text }] : []),
             ...(response.tool_calls || []).map((call) => ({
@@ -197,6 +198,7 @@ export function rawResponseSectionValue(request) {
           ],
           text: response.text || "",
           thinking: response.thinking || "",
+          opaque_reasoning: response.opaque_reasoning || [],
           tool_use: response.tool_calls || [],
           stop_reason: response.finish_reason || null,
           finish_reason: response.finish_reason || null,
@@ -212,6 +214,7 @@ export function rawResponseSectionValue(request) {
           message_id: response.message_id || null,
           text: response.text || "",
           thinking: response.thinking || "",
+          opaque_reasoning: response.opaque_reasoning || [],
           tool_use: response.tool_calls || [],
           usage: response.usage || null,
           finish_reason: response.finish_reason || null,

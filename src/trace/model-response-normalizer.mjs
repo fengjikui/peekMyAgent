@@ -15,6 +15,7 @@ const DEFAULT_TEXT_PREVIEW_CHARS = 1200;
 const DEFAULT_TEXT_CHARS = 8000;
 const DEFAULT_THINKING_CHARS = 8000;
 const DEFAULT_THINKING_PREVIEW_CHARS = 240;
+const OPAQUE_REASONING_PREVIEW = "<encrypted reasoning retained only in the original captured response>";
 
 export function summarizeModelResponse(response) {
   if (!response) return emptyResponseSummary();
@@ -29,6 +30,7 @@ export function summarizeModelResponse(response) {
     text: textPreview(parsed.text, DEFAULT_TEXT_CHARS),
     thinking: textPreview(parsed.thinking, DEFAULT_THINKING_CHARS),
     thinking_preview: textPreview(parsed.thinking, DEFAULT_THINKING_PREVIEW_CHARS),
+    opaque_reasoning: parsed.opaque_reasoning || [],
     tool_calls: parsed.tool_calls || [],
     usage: parsed.usage,
     finish_reason: parsed.finish_reason || null,
@@ -50,6 +52,7 @@ export function summarizeJsonResponse(body) {
 
   const textParts = [];
   const thinkingParts = [];
+  const opaqueReasoning = [];
   const toolCalls = [];
   const finishReasons = [];
   if (Array.isArray(body.content)) textParts.push(extractContentText(body.content));
@@ -58,7 +61,9 @@ export function summarizeJsonResponse(body) {
   if (body.content && typeof body.content === "object" && !Array.isArray(body.content)) thinkingParts.push(extractThinkingText(body.content));
   if (typeof body.content === "string") textParts.push(body.content);
   if (Array.isArray(body.choices)) collectChoiceResponse(body.choices, { textParts, thinkingParts, toolCalls, finishReasons });
-  if (Array.isArray(body.output)) collectOutputResponse(body.output, { textParts, thinkingParts, toolCalls });
+  if (Array.isArray(body.output)) {
+    collectOutputResponse(body.output, { textParts, thinkingParts, opaqueReasoning, toolCalls });
+  }
   if (body.stop_reason) finishReasons.push(body.stop_reason);
   if (body.finish_reason) finishReasons.push(body.finish_reason);
   return {
@@ -67,6 +72,7 @@ export function summarizeJsonResponse(body) {
     model: body.model || null,
     text: textParts.filter(Boolean).join("\n"),
     thinking: thinkingParts.filter(Boolean).join("\n"),
+    opaque_reasoning: opaqueReasoning,
     tool_calls: dedupeToolCalls(toolCalls),
     usage: body.usage || null,
     finish_reason: uniqueValues(finishReasons).join(", ") || null,
@@ -85,6 +91,7 @@ export function summarizeSseResponse(text) {
   const toolCallBlocks = new Map();
   const openAiToolCallBlocks = new Map();
   const responsesToolCallBlocks = new Map();
+  const opaqueReasoningBlocks = new Map();
   const finishReasons = [];
   let usage = null;
   let messageId = null;
@@ -112,6 +119,7 @@ export function summarizeSseResponse(text) {
       thinkingParts.push(data.delta);
     }
     collectResponsesToolCallEvent(data, responsesToolCallBlocks);
+    collectResponsesReasoningEvent(data, opaqueReasoningBlocks);
     if (data.model) model = data.model;
     if (Array.isArray(data.choices)) {
       collectStreamingChoices(data.choices, {
@@ -165,6 +173,9 @@ export function summarizeSseResponse(text) {
       ...terminal,
       text: terminal.text || textParts.filter(Boolean).join("") || fallbackTextParts.filter(Boolean).join("\n"),
       thinking: terminal.thinking || thinkingParts.filter(Boolean).join("") || fallbackThinkingParts.filter(Boolean).join("\n"),
+      opaque_reasoning: terminal.opaque_reasoning?.length
+        ? terminal.opaque_reasoning
+        : [...opaqueReasoningBlocks.values()],
       tool_calls: terminal.tool_calls.length
         ? terminal.tool_calls
         : dedupeToolCalls(finalizeResponsesStreamToolCalls(responsesToolCallBlocks)),
@@ -180,6 +191,7 @@ export function summarizeSseResponse(text) {
     model,
     text: textParts.filter(Boolean).join("") || fallbackTextParts.filter(Boolean).join("\n"),
     thinking: thinkingParts.filter(Boolean).join("") || fallbackThinkingParts.filter(Boolean).join("\n"),
+    opaque_reasoning: [...opaqueReasoningBlocks.values()],
     tool_calls: dedupeToolCalls([
       ...mergeStreamToolCallInputs(toolCalls, toolCallBlocks),
       ...finalizeOpenAiStreamToolCalls(openAiToolCallBlocks),
@@ -194,6 +206,7 @@ export function summarizeSseResponse(text) {
 
 export function assembleCompleteResponse(parsed, { stream = false, truncated = false } = {}) {
   const content = [];
+  content.push(...(parsed?.opaque_reasoning || []));
   if (parsed?.thinking) content.push({ type: "thinking", thinking: parsed.thinking });
   if (parsed?.text) content.push({ type: "text", text: parsed.text });
   for (const call of parsed?.tool_calls || []) {
@@ -211,6 +224,7 @@ export function assembleCompleteResponse(parsed, { stream = false, truncated = f
     content,
     text: parsed?.text || "",
     thinking: parsed?.thinking || "",
+    opaque_reasoning: parsed?.opaque_reasoning || [],
     tool_use: parsed?.tool_calls || [],
     stop_reason: parsed?.finish_reason || null,
     finish_reason: parsed?.finish_reason || null,
@@ -230,6 +244,7 @@ function emptyResponseSummary() {
     text: "",
     thinking: "",
     thinking_preview: "",
+    opaque_reasoning: [],
     usage: null,
     finish_reason: null,
     response_status: null,
@@ -248,6 +263,7 @@ function emptyParsedResponse() {
     model: null,
     text: "",
     thinking: "",
+    opaque_reasoning: [],
     tool_calls: [],
     usage: null,
     finish_reason: null,
@@ -276,6 +292,10 @@ function collectOutputResponse(items, output) {
     if (item.type === "reasoning") {
       const reasoningText = extractResponsesReasoningText(item);
       if (reasoningText) output.thinkingParts.push(reasoningText);
+      else {
+        const opaqueReasoning = opaqueReasoningMarker(item);
+        if (opaqueReasoning) output.opaqueReasoning.push(opaqueReasoning);
+      }
       continue;
     }
     if (isResponsesToolCallItem(item)) {
@@ -298,6 +318,32 @@ function collectOutputResponse(items, output) {
     }
     if (typeof item.output_text === "string") output.textParts.push(item.output_text);
   }
+}
+
+function collectResponsesReasoningEvent(data, blocks) {
+  const type = String(data?.type || "");
+  if (!["response.output_item.added", "response.output_item.done"].includes(type)) return;
+  const marker = opaqueReasoningMarker(data?.item);
+  if (!marker) return;
+  const key = data.item?.id || (data.output_index != null ? `output:${data.output_index}` : `reasoning:${blocks.size}`);
+  blocks.set(key, marker);
+}
+
+function opaqueReasoningMarker(item) {
+  if (item?.type !== "reasoning" || typeof item.encrypted_content !== "string" || !item.encrypted_content) {
+    return null;
+  }
+  if (extractResponsesReasoningText(item)) return null;
+  return {
+    type: "reasoning",
+    id: item.id || null,
+    summary: [],
+    encrypted_content_omitted: {
+      reason: "opaque_encrypted_reasoning",
+      chars: item.encrypted_content.length,
+      preview: OPAQUE_REASONING_PREVIEW,
+    },
+  };
 }
 
 function extractResponsesReasoningText(item) {

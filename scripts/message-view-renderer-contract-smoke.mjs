@@ -324,7 +324,42 @@ assert.deepEqual(
 );
 const responseMessages = responseConversationMessages(exactRequest);
 assert.deepEqual(responseMessages[0].content.map((block) => block.type), ["thinking", "text"]);
+assert.equal(normalizeMessageBlocks(responseMessages[0])[0].text, "summarize the outputs");
 assert.equal(responseMessages[0].content[1].text, "**Done.**");
+assert.match(
+  renderMessagesSection({
+    messagesValue: responseMessages,
+    mode: "organized",
+    ...dependencies,
+  }),
+  /summarize the outputs/,
+);
+
+const opaqueReasoningMessages = responseConversationMessages({
+  summary: {
+    response: {
+      captured: true,
+      complete_response: {
+        role: "assistant",
+        content: [
+          {
+            type: "reasoning",
+            summary: [],
+            encrypted_content_omitted: { reason: "opaque_encrypted_reasoning", chars: 24 },
+          },
+          { type: "text", text: "Visible answer" },
+        ],
+      },
+    },
+  },
+});
+const opaqueReasoningHtml = renderMessagesSection({
+  messagesValue: opaqueReasoningMessages,
+  mode: "organized",
+  ...dependencies,
+});
+assert.match(opaqueReasoningHtml, /messageReasoningUnavailable/);
+assert.match(opaqueReasoningHtml, /Visible answer/);
 
 const groupedResponses = renderMessagesSection({
   messagesValue: responsesMessages,

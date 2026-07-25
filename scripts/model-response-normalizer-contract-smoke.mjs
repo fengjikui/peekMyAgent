@@ -123,6 +123,54 @@ assert.equal(responses.finish_reason, "completed");
 assert.deepEqual(responses.tool_calls, [{ id: "call-codex", name: "exec", arguments: { cmd: "pwd" } }]);
 assert.equal(responses.complete_response.status, "completed");
 
+const opaqueResponses = summarizeModelResponse({
+  headers: { "content-type": "text/event-stream" },
+  body_text: sse([
+    {
+      type: "response.output_item.added",
+      output_index: 0,
+      item: {
+        id: "reasoning-opaque",
+        type: "reasoning",
+        content: [],
+        encrypted_content: "opaque-ciphertext-fixture",
+      },
+    },
+    {
+      type: "response.completed",
+      response: {
+        id: "resp-opaque",
+        model: "gpt-codex",
+        status: "completed",
+        output: [
+          {
+            id: "reasoning-opaque",
+            type: "reasoning",
+            content: [],
+            encrypted_content: "opaque-ciphertext-fixture",
+          },
+          { type: "message", role: "assistant", content: [{ type: "output_text", text: "visible answer" }] },
+        ],
+        usage: {
+          input_tokens: 11,
+          output_tokens: 7,
+          output_tokens_details: { reasoning_tokens: 4 },
+        },
+      },
+    },
+  ]),
+  status: 200,
+});
+assert.equal(opaqueResponses.thinking, "", "encrypted reasoning must not be represented as readable thinking");
+assert.equal(opaqueResponses.opaque_reasoning.length, 1);
+assert.equal(opaqueResponses.complete_response.content[0].type, "reasoning");
+assert.equal(opaqueResponses.complete_response.content[0].encrypted_content, undefined);
+assert.equal(
+  opaqueResponses.complete_response.content[0].encrypted_content_omitted.reason,
+  "opaque_encrypted_reasoning",
+);
+assert.equal(opaqueResponses.complete_response.content[1].text, "visible answer");
+
 const toolSearchResponse = summarizeModelResponse({
   headers: { "content-type": "text/event-stream" },
   body_text: sse([
