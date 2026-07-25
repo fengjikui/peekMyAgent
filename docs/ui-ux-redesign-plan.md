@@ -1,7 +1,9 @@
 # Viewer UI/UX Redesign
 
-Status: active implementation plan  
-Branch: `codex/viewer-uiux-redesign`  
+Status: implementation checkpoint complete; release hardening in progress
+
+Branch: `codex/viewer-uiux-redesign`
+
 Design context: [PRODUCT.md](../PRODUCT.md), [DESIGN.md](../DESIGN.md)
 
 ## Objective
@@ -91,6 +93,7 @@ The right pane answers “show me the proof”, not “repeat the timeline”.
 
 ### Phase 1: Foundation
 
+- Status: complete.
 - Introduce a complete design-token layer.
 - Normalize typography, spacing, controls, focus states, and semantic colors.
 - Rebalance pane defaults and compact the application chrome.
@@ -98,6 +101,7 @@ The right pane answers “show me the proof”, not “repeat the timeline”.
 
 ### Phase 2: Navigation and shell
 
+- Status: complete for the current desktop Viewer.
 - Simplify session rows and project groups.
 - Make the top bar a compact session command surface.
 - Add skeleton and empty states that preserve geometry.
@@ -105,6 +109,7 @@ The right pane answers “show me the proof”, not “repeat the timeline”.
 
 ### Phase 3: Causal timeline
 
+- Status: complete for request, response, tool-loop, and internal-event surfaces.
 - Replace nested-card rhythm with a unified event grammar.
 - Clarify turn headers and tool-loop storytelling.
 - Reduce repeated metadata and action weight.
@@ -112,6 +117,7 @@ The right pane answers “show me the proof”, not “repeat the timeline”.
 
 ### Phase 4: Evidence inspector
 
+- Status: complete.
 - Unify sticky navigation, search, translation, and provenance.
 - Improve structured/raw mode hierarchy.
 - Make the empty inspector yield space or provide an immediately useful state.
@@ -119,17 +125,52 @@ The right pane answers “show me the proof”, not “repeat the timeline”.
 
 ### Phase 5: Multi-agent and advanced flows
 
+- Status: complete for the existing Claude Code and Codex projections.
 - Rework the branch overview around ownership, parallel execution, and return flow.
 - Attach child evidence to the parent turn without hiding chronological order.
 - Validate slash commands, compaction, harness injection, and imported traces.
 
 ### Phase 6: Hardening
 
+- Status: active.
 - Chinese and English layout checks.
 - 1280px, 1440px, 1728px, 200% zoom, and reduced-motion checks.
 - Keyboard navigation and contrast audit.
 - Real large-trace performance and scroll-position checks.
 - Focused Viewer smokes, then the host release profile at the final checkpoint.
+
+## Implementation Checkpoint
+
+Validated on 2026-07-25 with the local daemon and real stored traces:
+
+| Scenario | Result |
+| --- | --- |
+| 1280 x 800 | 252px session pane, 640px timeline, 380px evidence pane; no document overflow |
+| 1440 x 900 | 252px session pane, flexible timeline, 432-456px evidence pane; no document overflow |
+| 1728 x 1000 | 252px session pane, 988px timeline, 480px evidence pane; no document overflow |
+| Sidebar collapsed | Remaining width is reallocated between timeline and evidence panes |
+| Evidence collapsed | Timeline receives the freed width; hidden controls add no scrollable overflow |
+| Large trace | 1,536 requests and 136.05 MB load progressively without losing pane controls |
+| Accessibility structure | No duplicate IDs or visible unnamed controls in the checked normal and large traces |
+| 200% equivalent reflow | 720px CSS viewport becomes a one-column reading flow; long raw JSON values wrap without horizontal overflow |
+| English interface | Session navigation, timeline actions, evidence inspector, and composer remain readable without horizontal overflow |
+
+The inspector is now named **Evidence inspector / 证据详情** in the interface.
+Timeline actions use **Details / 详情** because they may open exact evidence,
+organized content, or translation rather than raw JSON alone. The inspector title
+scrolls away while navigation and search remain sticky; section tabs stay on one
+horizontal rail, and the timeline continues to own the primary visual weight.
+
+The current implementation also honors `prefers-reduced-motion`. Desktop responsive
+checks at 1280, 1440, and 1728 are complete. A 720px CSS viewport was used as the
+200% reflow equivalent for the 1440px desktop layout, and the English interface was
+checked with a real trace rather than inferred only from static internationalization
+tests.
+
+The final visual pass adopts the **semantic ledger** grammar from `DESIGN.md`.
+Ownership is now communicated primarily through order, alignment, indentation,
+hairlines, and role markers. Full frames remain only around controls and atomic
+payloads such as code, JSON arguments, and editable input.
 
 ## Acceptance Scenarios
 

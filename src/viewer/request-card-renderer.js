@@ -97,7 +97,7 @@ export function renderTimelineUpstreamQuickActions({
         `,
       )
       .join("")}
-    <button class="raw-button compact" type="button" data-raw="${escapeHtml(requestId)}" title="${escapeHtml(rawTitle || translate("fullCaptureTitle"))}">Raw</button>
+    <button class="raw-button compact" type="button" data-raw="${escapeHtml(requestId)}" title="${escapeHtml(rawTitle || translate("fullCaptureTitle"))}">${escapeHtml(translate("inspectDetails"))}</button>
   `;
 }
 
@@ -143,7 +143,7 @@ export function renderTimelineAssistantResponse({ view, translate, escapeHtml, r
               ? `<button class="mini-raw-button response-toggle-button" type="button" data-response-toggle="${escapeHtml(requestId)}">${escapeHtml(expanded ? translate("collapse") : translate("viewAll"))}</button>`
               : ""
           }
-          <button class="mini-raw-button" type="button" data-raw="${escapeHtml(requestId)}" data-raw-section="response" data-raw-mode="response">Raw</button>
+          <button class="mini-raw-button" type="button" data-raw="${escapeHtml(requestId)}" data-raw-section="response" data-raw-mode="response">${escapeHtml(translate("inspectDetails"))}</button>
         </div>
       </div>
       ${renderTimelineAssistantThinking({ thinking, escapeHtml, renderTranslationMarkdown, renderPre })}

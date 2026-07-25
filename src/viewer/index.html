@@ -10,7 +10,7 @@
     <button class="layout-icon sidebar-toggle" id="toggleSidebar" type="button" title="折叠会话栏" aria-label="切换会话栏" data-i18n-title="toggleSidebarTitle" data-i18n-aria-label="toggleSidebarAria">
       <span class="pane-icon pane-icon-left" aria-hidden="true"></span>
     </button>
-    <button class="layout-icon raw-toggle" id="rawToggle" type="button" title="折叠 Raw JSON 面板" aria-label="切换 Raw JSON 面板" data-i18n-title="toggleRawTitle" data-i18n-aria-label="toggleRawAria">
+    <button class="layout-icon raw-toggle" id="rawToggle" type="button" title="折叠证据详情面板" aria-label="切换证据详情面板" data-i18n-title="toggleRawTitle" data-i18n-aria-label="toggleRawAria">
       <span class="pane-icon pane-icon-right" aria-hidden="true"></span>
     </button>
     <div class="app-shell">
@@ -66,17 +66,17 @@
         <nav id="turnRail" class="turn-rail" aria-label="当前会话轮次导航" data-i18n-aria-label="turnRailAria"></nav>
       </main>
 
-      <div class="raw-resizer" id="rawResizer" role="separator" aria-label="调整 Raw JSON 面板宽度" aria-orientation="vertical" tabindex="0" data-i18n-aria-label="rawResizerAria"></div>
+      <div class="raw-resizer" id="rawResizer" role="separator" aria-label="调整证据详情面板宽度" aria-orientation="vertical" tabindex="0" data-i18n-aria-label="rawResizerAria"></div>
 
       <aside class="raw-panel" id="rawPanel">
         <div class="raw-content">
           <div class="raw-header">
             <div>
-              <p class="eyeline">Raw JSON</p>
+              <p class="eyeline" data-i18n="evidenceInspectorEyeline">证据详情</p>
               <h2 id="rawTitle" data-i18n="rawTitleEmpty">选择一条请求</h2>
             </div>
           </div>
-          <div id="rawTree" class="raw-tree empty" data-i18n="rawEmpty">点击任意请求的 Raw 按钮查看完整捕获。</div>
+          <div id="rawTree" class="raw-tree empty" data-i18n="rawEmpty">点击时间线中的“详情”，查看原始证据、整理视图和翻译。</div>
         </div>
       </aside>
     </div>

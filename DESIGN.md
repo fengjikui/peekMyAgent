@@ -165,20 +165,43 @@ spacing, and 1px hairlines.
 - Selected rows use background tint and focus outline, not lift.
 - Request and response groups are not individually floated above the page.
 
+## Semantic Ledger Grammar
+
+The Viewer expresses ownership as a readable ledger, not as nested containers.
+Choose the lightest sufficient signal in this order:
+
+1. document order and shared alignment;
+2. whitespace and indentation;
+3. a 1px divider or vertical ancestry guide;
+4. a compact role, status, or provenance marker;
+5. a quiet tonal surface;
+6. a full frame only when the region is independently interactive or must preserve
+   an atomic payload.
+
+A turn owns one primary rail. Requests, responses, tool exchanges, and internal
+events are sibling rows on that rail. The evidence inspector uses an outline tree;
+translation views use technical-document sections; multi-agent views use a branch
+ledger. Code, JSON arguments, editable fields, menus, and the message composer may
+retain frames because their boundaries carry operational meaning.
+
+Do not add a second box merely to restate a relationship already communicated by
+position, indentation, a divider, or a semantic marker.
+
 ## Components
 
 ### App shell
 
 Three resizable panes with a center-first priority. Default desktop widths are
-approximately 252px for sessions, a flexible center with a 680px practical minimum,
+approximately 252px for sessions, a flexible center with a 640px practical minimum,
 and 400-460px for evidence. At narrower widths, the evidence pane becomes an overlay
 before the center timeline is allowed to become cramped.
 
 ### Buttons
 
-Buttons share one 30px compact control height, 5px radius, normal-weight labels, and
-visible focus rings. Icon-only controls are square, include tooltips, and use familiar
-symbols. Primary fill is reserved for one dominant action in a local context.
+Primary toolbar controls use a 30px height; dense inline actions use a 24-26px height.
+All buttons use a 5px radius, normal-weight labels, and visible focus rings. Icon-only
+controls are square, include tooltips, and use familiar symbols. Primary fill is
+reserved for one dominant action in a local context.
 
 ### Tabs and filters
 
@@ -207,10 +230,10 @@ Use tonal regions and small role markers rather than nested bordered cards.
 
 ### Evidence inspector
 
-The inspector header, section tabs, search, and original/translated switch remain
-sticky. The content area owns scrolling. Exact, reconstructed, inferred, cached, and
-translated provenance is stated once near the inspector title and repeated only when
-a block's provenance differs.
+The section tabs, search, and original/translated switch remain sticky while the
+inspector title scrolls away. The content area owns scrolling. Exact, reconstructed,
+inferred, cached, and translated provenance is stated once near the inspector title
+and repeated only when a block's provenance differs.
 
 ### Feedback states
 

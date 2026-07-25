@@ -8,7 +8,7 @@ export function renderAgentComposer(view, { escapeHtml }) {
         ${view.showResumeNote ? `<span class="agent-compose-note">${escapeHtml(view.resumeNote)}</span>` : ""}
       </div>
       <div class="agent-compose-row">
-        <textarea class="agent-compose-input" name="message" rows="1" placeholder="${escapeHtml(view.placeholder)}" ${view.enabled ? "" : "disabled"}>${escapeHtml(view.draft)}</textarea>
+        <textarea class="agent-compose-input" name="message" rows="1" placeholder="${escapeHtml(view.placeholder)}" aria-label="${escapeHtml(view.placeholder)}" ${view.enabled ? "" : "disabled"}>${escapeHtml(view.draft)}</textarea>
         <button class="primary-button small agent-compose-send" type="submit" ${view.enabled ? "" : "disabled"}>
           ${escapeHtml(view.buttonLabel)}
         </button>
