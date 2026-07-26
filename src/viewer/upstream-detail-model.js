@@ -45,12 +45,18 @@ export function buildUpstreamDetailView(request = {}, { cleanText = defaultClean
 
 export function providerUsageForRequest(request = {}) {
   const usage = request.summary?.response?.usage || request.response?.usage || {};
-  const hasPromptTokens = usage.prompt_tokens != null;
+  const cacheIsIncludedInInput =
+    usage.prompt_tokens != null || usage.input_tokens_details?.cached_tokens != null;
   const input = Number(usage.prompt_tokens ?? usage.input_tokens ?? 0);
   const output = Number(usage.completion_tokens ?? usage.output_tokens ?? 0);
-  const cache = Number(usage.prompt_tokens_details?.cached_tokens ?? usage.cache_read_input_tokens ?? 0);
-  const actualInput = Math.max(0, hasPromptTokens ? input - cache : input);
-  const total = hasPromptTokens ? input : input + cache;
+  const cache = Number(
+    usage.prompt_tokens_details?.cached_tokens ??
+      usage.input_tokens_details?.cached_tokens ??
+      usage.cache_read_input_tokens ??
+      0,
+  );
+  const actualInput = Math.max(0, cacheIsIncludedInInput ? input - cache : input);
+  const total = cacheIsIncludedInInput ? input : input + cache;
   return { input, output, cache, actualInput, total };
 }
 

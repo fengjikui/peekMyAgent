@@ -7,12 +7,31 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <button class="layout-icon sidebar-toggle" id="toggleSidebar" type="button" title="折叠会话栏" aria-label="切换会话栏" data-i18n-title="toggleSidebarTitle" data-i18n-aria-label="toggleSidebarAria">
-      <span class="pane-icon pane-icon-left" aria-hidden="true"></span>
-    </button>
-    <button class="layout-icon raw-toggle" id="rawToggle" type="button" title="折叠证据详情面板" aria-label="切换证据详情面板" data-i18n-title="toggleRawTitle" data-i18n-aria-label="toggleRawAria">
-      <span class="pane-icon pane-icon-right" aria-hidden="true"></span>
-    </button>
+    <!-- Lucide icon paths, ISC licensed: https://lucide.dev -->
+    <svg class="icon-sprite" aria-hidden="true">
+      <symbol id="icon-sun-moon" viewBox="0 0 24 24">
+        <path d="M12 2v2"></path>
+        <path d="M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715"></path>
+        <path d="M16 12a4 4 0 0 0-4-4"></path>
+        <path d="m19 5-1.256 1.256"></path>
+        <path d="M20 12h2"></path>
+      </symbol>
+      <symbol id="icon-funnel" viewBox="0 0 24 24">
+        <path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"></path>
+      </symbol>
+      <symbol id="icon-list-end" viewBox="0 0 24 24">
+        <path d="M16 5H3"></path>
+        <path d="M16 12H3"></path>
+        <path d="M9 19H3"></path>
+        <path d="m16 16-3 3 3 3"></path>
+        <path d="M21 5v12a2 2 0 0 1-2 2h-6"></path>
+      </symbol>
+      <symbol id="icon-chart-columns" viewBox="0 0 24 24">
+        <path d="M5 21v-6"></path>
+        <path d="M12 21V3"></path>
+        <path d="M19 21V9"></path>
+      </symbol>
+    </svg>
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
@@ -24,7 +43,7 @@
             </div>
           </div>
           <label class="sidebar-theme-control" title="选择界面主题" data-i18n-title="themeSelectAria">
-            <span class="theme-glyph" aria-hidden="true">◐</span>
+            <svg class="ui-icon theme-glyph" aria-hidden="true"><use href="#icon-sun-moon"></use></svg>
             <select id="themeSelect" aria-label="选择界面主题" data-i18n-aria-label="themeSelectAria"></select>
             <span class="select-chevron" aria-hidden="true"></span>
           </label>
@@ -63,10 +82,10 @@
                 </div>
                 <div id="viewControls" class="view-controls"></div>
                 <details class="session-overview-disclosure" id="sessionOverviewDisclosure">
-                  <summary class="session-overview-summary" data-i18n-title="sessionOverviewAria">
-                    <span class="session-overview-glyph" aria-hidden="true"></span>
+                  <summary class="session-overview-summary" aria-label="打开会话概览" data-i18n-aria-label="sessionOverviewAria">
+                    <svg class="ui-icon session-overview-glyph" aria-hidden="true"><use href="#icon-chart-columns"></use></svg>
                     <span class="visually-hidden" data-i18n="sessionOverview">概览</span>
-                    <span class="select-chevron" aria-hidden="true"></span>
+                    <span class="control-tooltip" aria-hidden="true" data-i18n="sessionOverviewAria">打开会话概览</span>
                   </summary>
                   <div class="session-overview-popover">
                     <div id="sessionOverviewActions" class="session-overview-actions"></div>
@@ -74,6 +93,14 @@
                   </div>
                 </details>
               </div>
+            </div>
+            <div class="topbar-pane-controls">
+              <button class="layout-icon sidebar-toggle" id="toggleSidebar" type="button" title="折叠会话栏" aria-label="切换会话栏" data-i18n-title="toggleSidebarTitle" data-i18n-aria-label="toggleSidebarAria">
+                <span class="pane-icon pane-icon-left" aria-hidden="true"></span>
+              </button>
+              <button class="layout-icon raw-toggle" id="rawToggle" type="button" title="折叠证据详情面板" aria-label="切换证据详情面板" data-i18n-title="toggleRawTitle" data-i18n-aria-label="toggleRawAria">
+                <span class="pane-icon pane-icon-right" aria-hidden="true"></span>
+              </button>
             </div>
           </div>
         </header>

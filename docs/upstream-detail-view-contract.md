@@ -1,6 +1,6 @@
 # 上行详情 View 契约
 
-更新时间：2026-07-14
+更新时间：2026-07-26
 
 上行详情回答“Agent 在这一轮真正发给模型的上下文由什么组成”。它分成两个无副作用模块：
 
@@ -23,7 +23,7 @@ Model 不建立新的 Trace 语义关系；历史消息、context delta、子 Ag
 - Tools 概览最多展示 18 个名称，并明确剩余数量。
 - 历史消息保留 role、上下文状态、命令、`tool_use` 和 `tool_result` 证据。
 - 普通请求显示 context delta 的新增消息；子 Agent 回流显示受限 Markdown 结果块。
-- OpenAI-compatible `prompt_tokens` 已包含 cached tokens；Anthropic-compatible `input_tokens` 与 `cache_read_input_tokens` 分开累计。
+- OpenAI Chat Completions 的 `prompt_tokens_details.cached_tokens` 与 Responses API 的 `input_tokens_details.cached_tokens` 都是输入 token 的子集；Anthropic-compatible `input_tokens` 与 `cache_read_input_tokens` 则分开累计。View Model 必须按协议口径计算实际输入与缓存占比，不能把 Responses 的缓存再次加到 `input_tokens` 上。
 - 所有普通文本必须转义；子 Agent Markdown 必须使用受限 Markdown renderer。
 
 `scripts/upstream-detail-view-contract-smoke.mjs` 直接锁定 DTO、两类 token 口径、Tools 截断、历史消息、子 Agent 回流、HTML 转义和无副作用边界。

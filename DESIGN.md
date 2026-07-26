@@ -219,9 +219,22 @@ before the center timeline is allowed to become cramped.
 ### Buttons
 
 Primary toolbar controls use a 30px height; dense inline actions use a 24-26px height.
-All buttons use a 5px radius, normal-weight labels, and visible focus rings. Icon-only
+Compact buttons use an 8px radius, normal-weight labels, and visible focus rings. Icon-only
 controls are square, include tooltips, and use familiar symbols. Primary fill is
 reserved for one dominant action in a local context.
+
+Use the shared Lucide line-icon vocabulary for compact shell controls: `SunMoon` for
+appearance, `Funnel` for filters, `ListEnd` for latest-turn mode, and
+`ChartNoAxesColumn` for session statistics. A chevron appears only when the control
+selects among options; commands and detail-panel triggers do not use one. Keep the
+corner hierarchy stable: 8px for compact controls, 10px for floating panels, and 14px
+for the user-message bubble. The softer geometry follows modern coding tools without
+turning dense trace content into pill-shaped decoration.
+
+Icon-only commands expose an immediate hover and keyboard-focus label. When the
+evidence pane collapses, both real pane toggles join the toolbar grid instead of being
+imitated by a guessed padding offset or placeholder. The remaining toolbar reflows from the right and stays
+on one row whenever its available width permits.
 
 ### Tabs and filters
 

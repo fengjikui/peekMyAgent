@@ -404,4 +404,13 @@ assert.deepEqual(
   ["request_units 3"],
 );
 
+assert.deepEqual(
+  formatTimelineResponseUsageMeta({
+    input_tokens: 21073,
+    input_tokens_details: { cached_tokens: 4480 },
+    output_tokens: 52,
+  }),
+  ["input 21073", "cache 4480", "output 52"],
+);
+
 console.log("request card model contract smoke passed");

@@ -16,8 +16,8 @@ export function renderTraceQueryBar({ timelineView, query, filter, resultPageSiz
       <input type="search" value="${escapeHtml(query)}" placeholder="${escapeHtml(translate("traceSearchPlaceholder"))}" aria-label="${escapeHtml(translate("traceSearchAria"))}" data-trace-search>
     </label>
     <details class="trace-filter-disclosure">
-      <summary class="trace-filter-summary" title="${escapeHtml(translate("traceFilterAria"))}" aria-label="${escapeHtml(translate("traceFilterAria"))}">
-        <span class="trace-filter-glyph" aria-hidden="true"></span>
+      <summary class="trace-filter-summary ${filter !== "all" ? "active" : ""}" title="${escapeHtml(translate("traceFilterAria"))}" aria-label="${escapeHtml(translate("traceFilterAria"))}">
+        <svg class="ui-icon trace-filter-glyph" aria-hidden="true"><use href="#icon-funnel"></use></svg>
         <span class="select-chevron" aria-hidden="true"></span>
       </summary>
       <div class="trace-filter-group" role="group" aria-label="${escapeHtml(translate("traceFilterAria"))}">

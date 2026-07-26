@@ -31,6 +31,8 @@ const queryHtml = renderTraceQueryBar({
   escapeHtml,
 });
 assert.match(queryHtml, /value="&lt;Agent id=&quot;1&quot;&gt;"/, "the query value must be escaped");
+assert.match(queryHtml, /trace-filter-summary active/, "a non-default filter should remain visibly active");
+assert.match(queryHtml, /<use href="#icon-funnel"><\/use>/, "the filter trigger should use the shared funnel icon");
 assert.match(queryHtml, /data-trace-filter="tools"[^>]*aria-pressed="true"/, "the active filter must be explicit");
 assert.match(queryHtml, /traceMatchCount:shown=24,total=40/, "the visible and total match counts must remain distinct");
 assert.match(queryHtml, /traceShowMore:count=16/, "show-more must be capped by the remaining results");

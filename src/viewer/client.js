@@ -987,8 +987,9 @@ function renderViewControls() {
     : latestOnlyActive
       ? t("latestOnlyEnabledHelp")
       : t("latestOnly");
-  els.viewControls.innerHTML = `<button class="latest-only-control ${latestOnlyActive ? "active" : ""}" type="button" data-latest-only aria-pressed="${escapeHtml(String(latestOnlyActive))}" aria-label="${escapeHtml(latestOnlyHelp)}" title="${escapeHtml(latestOnlyHelp)}" ${traceQueryActive() ? "disabled" : ""}>
-    <span class="latest-only-glyph" aria-hidden="true"></span>
+  els.viewControls.innerHTML = `<button class="latest-only-control ${latestOnlyActive ? "active" : ""}" type="button" data-latest-only aria-pressed="${escapeHtml(String(latestOnlyActive))}" aria-label="${escapeHtml(latestOnlyHelp)}" ${traceQueryActive() ? "disabled" : ""}>
+    <svg class="ui-icon latest-only-glyph" aria-hidden="true"><use href="#icon-list-end"></use></svg>
+    <span class="control-tooltip" aria-hidden="true">${escapeHtml(latestOnlyHelp)}</span>
   </button>`;
   els.sessionOverviewActions.innerHTML =
     `<button class="session-overview-action session-info-trigger" type="button" data-session-info title="${escapeHtml(captureModeHelp)}">

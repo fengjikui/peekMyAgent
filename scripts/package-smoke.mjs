@@ -204,8 +204,9 @@ const MAX_PACKAGE_ENTRIES = 147;
 // code. Keep a narrow post-feature budget while the unchanged unpacked-size cap
 // and path allowlist prevent fixtures, design docs, captures, and other
 // release-unsafe files from leaking into the package.
-const MAX_PACKED_BYTES = 349_000;
-const MAX_UNPACKED_BYTES = 1_525_000;
+// Keep a narrow allowance for the shipped Viewer assets while still catching accidental package growth.
+const MAX_PACKED_BYTES = 352_000;
+const MAX_UNPACKED_BYTES = 1_538_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);
 assert.ok(

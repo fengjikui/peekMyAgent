@@ -373,7 +373,10 @@ export function formatTimelineResponseUsageMeta(usage, { formatCompactNumber = d
   if (!usage || typeof usage !== "object") return [];
   const input = usage.input_tokens ?? usage.prompt_tokens;
   const output = usage.output_tokens ?? usage.completion_tokens;
-  const cache = usage.cache_read_input_tokens ?? usage.prompt_tokens_details?.cached_tokens;
+  const cache =
+    usage.cache_read_input_tokens ??
+    usage.input_tokens_details?.cached_tokens ??
+    usage.prompt_tokens_details?.cached_tokens;
   const total = usage.total_tokens;
   const items = [
     input != null ? `input ${formatCompactNumber(Number(input))}` : "",

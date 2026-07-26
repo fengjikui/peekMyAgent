@@ -23,6 +23,35 @@ const translationActionControllerSource = fs.readFileSync(new URL("../src/viewer
 const translationActionModelSource = fs.readFileSync(new URL("../src/viewer/translation-action-model.js", import.meta.url), "utf8");
 const translationGenerationOperationSource = fs.readFileSync(new URL("../src/viewer/translation-generation-operation.js", import.meta.url), "utf8");
 const stylesSource = fs.readFileSync(new URL("../src/viewer/styles.css", import.meta.url), "utf8");
+const indexSource = fs.readFileSync(new URL("../src/viewer/index.html", import.meta.url), "utf8");
+
+for (const iconId of ["sun-moon", "funnel", "list-end", "chart-columns"]) {
+  assert.match(indexSource, new RegExp(`id="icon-${iconId}"`), `missing shared icon ${iconId}`);
+}
+assert.match(source, /<use href="#icon-list-end"><\/use>/, "latest-turn mode should use the familiar list-end icon");
+assert.match(rendererSource, /<use href="#icon-funnel"><\/use>/, "the trace filter should use the familiar funnel icon");
+const overviewSummarySource = indexSource.match(/<summary class="session-overview-summary"[\s\S]*?<\/summary>/)?.[0] || "";
+assert.match(overviewSummarySource, /<use href="#icon-chart-columns"><\/use>/, "session statistics should use a chart icon");
+assert.doesNotMatch(overviewSummarySource, /select-chevron/, "session statistics opens a detail panel, not an option menu");
+assert.match(overviewSummarySource, /control-tooltip/, "session statistics should explain the compact icon immediately");
+assert.match(indexSource, /<use href="#icon-sun-moon"><\/use>/, "theme selection should use a familiar appearance icon");
+assert.match(source, /class="control-tooltip"[^>]*>\$\{escapeHtml\(latestOnlyHelp\)\}/, "latest-turn mode should explain the compact icon immediately");
+assert.doesNotMatch(stylesSource, /\.latest-only-glyph::(?:before|after)|\.trace-filter-glyph::(?:before|after)|conic-gradient/, "compact controls should use the shared SVG vocabulary instead of CSS-drawn glyphs");
+assert.match(stylesSource, /--radius-control:\s*8px/);
+assert.match(stylesSource, /--radius-panel:\s*10px/);
+assert.match(stylesSource, /--radius-message:\s*14px/);
+assert.match(stylesSource, /\.topbar-inner\s*\{[\s\S]*?padding:\s*9px 20px;/);
+assert.match(stylesSource, /@container trace-main \(max-width: 720px\)[\s\S]*?\.topbar-inner\s*\{[\s\S]*?padding:\s*8px 16px;/);
+assert.match(indexSource, /<div class="topbar-actions">[\s\S]*?<div class="topbar-pane-controls">[\s\S]*?id="toggleSidebar"[\s\S]*?id="rawToggle"/, "both real pane toggles should participate in the topbar layout");
+assert.match(stylesSource, /\.app-shell\.raw-collapsed \.topbar-inner\s*\{[\s\S]*?grid-template-columns:[\s\S]*?auto;/);
+assert.match(stylesSource, /\.topbar-pane-controls\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?display:\s*flex;/);
+assert.match(stylesSource, /\.app-shell\.raw-collapsed \.topbar-pane-controls\s*\{[\s\S]*?position:\s*static;[\s\S]*?justify-self:\s*end;/);
+assert.match(stylesSource, /\.app-shell\.raw-collapsed \.topbar-actions\s*\{[\s\S]*?flex-flow:\s*row wrap;[\s\S]*?justify-content:\s*flex-end;/);
+assert.match(stylesSource, /\.latest-only-glyph\s*\{[\s\S]*?width:\s*14px;[\s\S]*?height:\s*14px;/);
+assert.match(stylesSource, /\.session-overview-glyph\s*\{[\s\S]*?width:\s*14px;[\s\S]*?height:\s*14px;/);
+assert.match(stylesSource, /\.latest-only-control:hover > \.control-tooltip,[\s\S]*?visibility:\s*visible;/);
+assert.match(stylesSource, /\.session-overview-disclosure\s*\{[\s\S]*?border:\s*0;[\s\S]*?background:\s*transparent;/);
+assert.match(stylesSource, /\.trace-filter-disclosure\s*\{[\s\S]*?border:\s*0;[\s\S]*?background:\s*transparent;/);
 
 assert.match(source, /import \{[\s\S]*?buildTraceTimelineView,[\s\S]*?from "\.\/trace-timeline-model\.js";/);
 assert.match(source, /import \{ TraceTimelineController \} from "\.\/trace-timeline-controller\.js";/);
