@@ -96,7 +96,7 @@ assert.match(
   source,
   /buildTimelineAssistantResponseView,[\s\S]*?buildTimelineRequestIdentity,[\s\S]*?buildTimelineToolExchangeView,[\s\S]*?buildTimelineTurnInputView,[\s\S]*?buildTimelineUpstreamView,[\s\S]*?from "\.\/request-card-model\.js";/,
 );
-assert.match(source, /import \{ AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView \} from "\.\/agent-graph-model\.js";/);
+assert.match(source, /import \{ buildAgentGraphView \} from "\.\/agent-graph-model\.js";/);
 assert.match(source, /import \{ renderAgentGraph as renderAgentGraphView \} from "\.\/agent-graph-renderer\.js";/);
 assert.match(source, /import \{ buildTurnStoryView \} from "\.\/turn-story-model\.js";/);
 assert.match(source, /import \{ renderTurnStory as renderTurnStoryView \} from "\.\/turn-story-renderer\.js";/);
@@ -192,7 +192,7 @@ assert.doesNotMatch(sessionNavigatorControllerSource, /\bwindow\b|\blocalStorage
 for (const functionName of [
   "jumpToTurn",
   "jumpToAgentBranch",
-  "toggleAgentBranch",
+  "selectAgentBranch",
   "toggleUpstreamDetails",
   "syncUpstreamDetailsState",
   "toggleLatestOnly",

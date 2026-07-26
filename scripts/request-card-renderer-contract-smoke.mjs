@@ -118,11 +118,13 @@ assert.doesNotMatch(semanticEvent, /Entered Window 1 <exact>/);
 
 const exchange = renderTimelineToolExchange({
   requestId: "request-tools",
+  requestIndex: 13,
   pairs: [
     {
       call: { id: "call-1", name: "Bash", arguments: { command: "pwd" } },
       result: { id: "call-1", content: "/tmp" },
       confidence: "id",
+      origin: { requestId: "request-origin", requestIndex: 12, callId: "call-1" },
     },
     {
       call: { id: "call-2", name: "Read", arguments: { file_path: "<secret>" } },
@@ -130,21 +132,28 @@ const exchange = renderTimelineToolExchange({
       confidence: "call_only",
     },
   ],
-  counts: { calls: 2, results: 1 },
   translate,
   escapeHtml,
 });
-assert.match(exchange, /currentToolExchange:calls=2,results=1/);
+assert.doesNotMatch(exchange, /currentToolExchange/, "the redundant tool activity summary is removed");
 assert.match(exchange, /pairedById/);
 assert.match(exchange, /waitingToolResult/);
 assert.match(exchange, /data-raw="request-tools" data-raw-section="tool_results"/);
 assert.match(exchange, /data-raw-section="upstream_tool_calls"/);
+assert.match(exchange, /data-tool-origin-jump="request-origin"/);
+assert.match(exchange, /data-tool-result-request="request-tools"/);
+assert.match(exchange, /data-tool-result-index="13"/);
+assert.match(exchange, /toolOriginSource:index=12/);
+assert.match(exchange, /class="tool-exchange-row"/);
+assert.ok(
+  exchange.indexOf("</button>", exchange.indexOf('class="tool-exchange"')) < exchange.indexOf('class="tool-origin-link"'),
+  "the source action must be a sibling, not a nested button",
+);
 assert.doesNotMatch(exchange, /&lt;secret&gt;/);
 assert.doesNotMatch(exchange, /\/tmp/);
 assert.equal(
   renderTimelineToolExchange({
     pairs: [],
-    counts: { calls: 0, results: 0 },
     translate,
     escapeHtml,
   }),

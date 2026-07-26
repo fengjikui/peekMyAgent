@@ -132,9 +132,8 @@ export class TurnRailController {
     const activePosition = scrollTop + 118;
     let candidate = turnGroups[0];
     for (let index = 1; index < turnGroups.length; index += 1) {
-      const previousTop = turnGroups[index - 1].offsetTop;
-      const currentTop = turnGroups[index].offsetTop;
-      if (activePosition >= previousTop + (currentTop - previousTop) / 2) candidate = turnGroups[index];
+      const currentTop = elementScrollTop(turnGroups[index], this.mainPanel);
+      if (activePosition >= currentTop) candidate = turnGroups[index];
       else break;
     }
     this.activateCandidate(candidate);
@@ -144,6 +143,13 @@ export class TurnRailController {
     const id = candidate?.dataset.turnGroup;
     if (id && id !== this.getActiveId()) this.onActiveChange(id, false);
   }
+}
+
+function elementScrollTop(element, scroller) {
+  if (typeof element?.getBoundingClientRect === "function" && typeof scroller?.getBoundingClientRect === "function") {
+    return scroller.scrollTop + element.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+  }
+  return Number(element?.offsetTop || 0);
 }
 
 export function visibleTurnWindow(turns, activeId, maxItems) {

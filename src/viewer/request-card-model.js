@@ -402,6 +402,7 @@ export function formatTimelineResponseUsageMeta(usage, { formatCompactNumber = d
 }
 
 export function pairTimelineToolEvents(calls = [], results = [], { priorToolCalls = [] } = {}) {
+  const priorEvidence = priorToolCalls.map(normalizePriorToolCall).filter(({ call }) => call);
   const remainingResults = [...results];
   const pairs = calls.map((call) => {
     const matchIndex = remainingResults.findIndex((result) => result.id && call.id && result.id === call.id);
@@ -409,10 +410,39 @@ export function pairTimelineToolEvents(calls = [], results = [], { priorToolCall
     return { call, result, confidence: result ? "id" : "call_only" };
   });
   for (const result of remainingResults) {
-    const historicalCall = priorToolCalls.find((call) => result.id && call?.id && result.id === call.id) || null;
-    pairs.push({ call: historicalCall, result, confidence: historicalCall ? "historical_id" : "result_only" });
+    const historical = findPriorToolCall(priorEvidence, result.id);
+    pairs.push({
+      call: historical?.call || null,
+      result,
+      confidence: historical ? "historical_id" : "result_only",
+      ...(historical?.requestId ? { origin: toolCallOrigin(historical) } : {}),
+    });
   }
   return pairs;
+}
+
+function normalizePriorToolCall(value) {
+  if (value?.call && typeof value.call === "object") {
+    return {
+      call: value.call,
+      requestId: value.requestId || null,
+      requestIndex: value.requestIndex ?? null,
+    };
+  }
+  return { call: value, requestId: null, requestIndex: null };
+}
+
+function findPriorToolCall(priorEvidence, callId) {
+  if (!callId) return null;
+  return [...priorEvidence].reverse().find(({ call }) => call?.id === callId) || null;
+}
+
+function toolCallOrigin(evidence) {
+  return {
+    requestId: evidence.requestId,
+    requestIndex: evidence.requestIndex,
+    callId: evidence.call?.id || null,
+  };
 }
 
 function localizedTimelineEntryLabel(entry, translate) {

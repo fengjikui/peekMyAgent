@@ -70,6 +70,7 @@ for (const required of [
   "src/viewer/raw-view-model.js",
   "src/viewer/request-card-model.js",
   "src/viewer/request-card-renderer.js",
+  "src/viewer/request-rail.js",
   "src/viewer/request-detail-cache.js",
   "src/viewer/source-timeline-controller.js",
   "src/viewer/timeline-entity-store.js",
@@ -199,12 +200,12 @@ const allowedPatterns = [
 const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);
 
-const MAX_PACKAGE_ENTRIES = 148;
-// These limits include the shipped request-attribution runtime and leave less
+const MAX_PACKAGE_ENTRIES = 149;
+// These limits include the shipped causal request rail and leave less
 // than 0.5% headroom. The entry cap and allowlist remain the primary guards
 // against captures, fixtures, or design documents leaking into the package.
-const MAX_PACKED_BYTES = 357_900;
-const MAX_UNPACKED_BYTES = 1_566_000;
+const MAX_PACKED_BYTES = 361_500;
+const MAX_UNPACKED_BYTES = 1_579_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);
 assert.ok(

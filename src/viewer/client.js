@@ -14,7 +14,7 @@ import { messageTimelineRequestIndexes, responseConversationMessages } from "./m
 import { renderOrganizedToolCalls as renderOrganizedToolCallsView } from "./tool-call-renderer.js";
 import { ViewerApiClient } from "./api-client.js";
 import { ViewerClientStore } from "./client-store.js";
-import { AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView } from "./agent-graph-model.js";
+import { buildAgentGraphView } from "./agent-graph-model.js";
 import { renderAgentGraph as renderAgentGraphView } from "./agent-graph-renderer.js";
 import { RequestDetailCache, requestNeedsDetail } from "./request-detail-cache.js";
 import { SourceTimelineController } from "./source-timeline-controller.js";
@@ -92,6 +92,7 @@ import {
   translationSectionStats as summarizeTranslationSection,
 } from "./translation-view-model.js";
 import { TurnRailController } from "./turn-rail.js";
+import { RequestRailController } from "./request-rail.js";
 import { buildTurnStoryView } from "./turn-story-model.js";
 import { renderTurnStory as renderTurnStoryView } from "./turn-story-renderer.js";
 import {
@@ -131,11 +132,10 @@ const state = Object.assign(clientStore.state, {
   upstreamExpanded: new Set(),
   expandedThinking: new Set(),
   translationGenerate: { loading: false, error: "", message: "" },
-  expandedAgentBranches: new Set(),
+  selectedAgentBranches: new Map(),
   openAgentDashboards: new Set(),
   openSupportingTimelines: new Set(),
-  agentBranchLimits: new Map(),
-  agentBranchFilters: new Map(),
+  toolOriginReturnContext: null,
   traceQuery: "",
   traceFilter: "all",
   traceResultLimit: 24,
@@ -171,6 +171,7 @@ const els = {
   timeline: document.querySelector("#timeline"),
   agentComposer: document.querySelector("#agentComposer"),
   turnRail: document.querySelector("#turnRail"),
+  requestRail: document.querySelector("#requestRail"),
   sessionInfoModal: document.querySelector("#sessionInfoModal"),
   sessionInfoBody: document.querySelector("#sessionInfoBody"),
   rawPanel: document.querySelector("#rawPanel"),
@@ -227,6 +228,19 @@ const turnRailController = new TurnRailController({
   onJump: jumpToTurn,
   onActiveChange: markActiveTurn,
 });
+const requestRailController = new RequestRailController({
+  element: els.requestRail,
+  mainPanel: els.mainPanel,
+  getRequests: () => activeTurnRequestUniverse(),
+  getActiveId: () => state.activeRequestId,
+  getActiveTurnId: () => state.activeId,
+  titleFor: requestDisplayTitle,
+  excerptFor: requestExcerpt,
+  translate: t,
+  escapeHtml,
+  onJump: jumpToRequest,
+  onActiveChange: markActiveRequest,
+});
 const traceTimelineController = new TraceTimelineController({
   queryElement: els.traceQueryBar,
   timelineElement: els.timeline,
@@ -262,11 +276,13 @@ const traceTimelineController = new TraceTimelineController({
     jumpToTurn(turnId, true);
   },
   onRaw({ requestId, section, mode }) {
+    state.toolOriginReturnContext = null;
     rawInspectorController.show(requestId, section, { mode });
   },
+  onToolOriginJump: showToolOrigin,
   onRequestJump: jumpToRequest,
   onAgentBranchJump: jumpToAgentBranch,
-  onAgentBranchToggle: toggleAgentBranch,
+  onAgentBranchSelect: selectAgentBranch,
   onSupportingTimelineToggle(turnId) {
     if (state.openSupportingTimelines.has(turnId)) state.openSupportingTimelines.delete(turnId);
     else state.openSupportingTimelines.add(turnId);
@@ -275,16 +291,6 @@ const traceTimelineController = new TraceTimelineController({
   onAgentDashboardToggle(turnId) {
     if (state.openAgentDashboards.has(turnId)) state.openAgentDashboards.delete(turnId);
     else state.openAgentDashboards.add(turnId);
-    renderTimelineSurface();
-  },
-  onAgentBranchMore(turnId) {
-    const current = state.agentBranchLimits.get(turnId) || AGENT_BRANCH_PAGE_SIZE;
-    state.agentBranchLimits.set(turnId, current + AGENT_BRANCH_PAGE_SIZE);
-    renderTimelineSurface();
-  },
-  onAgentStatusFilter({ turnId, filter }) {
-    state.agentBranchFilters.set(turnId, filter);
-    state.agentBranchLimits.set(turnId, AGENT_BRANCH_PAGE_SIZE);
     renderTimelineSurface();
   },
   onSystemDiff: showSystemDiff,
@@ -432,8 +438,11 @@ const paneLayoutController = new PaneLayoutController({
   getLayoutState: () => state,
   setLayout: (patch, options) => clientStore.setLayout(patch, options),
   translate: t,
-  onLayoutChanged: () => turnRailController.scheduleActiveSync(),
-  onWindowResize: renderTurnRail,
+  onLayoutChanged: () => {
+    turnRailController.scheduleActiveSync();
+    requestRailController.scheduleActiveSync();
+  },
+  onWindowResize: renderNavigationRails,
 });
 const rawInspectorController = new RawInspectorController({
   root: els.rawTree,
@@ -593,6 +602,13 @@ async function init() {
       translationActionController.copySection(copyAllButton.dataset.translationCopyAll, copyAllButton);
       return;
     }
+    const toolOriginReturn = event.target.closest("[data-tool-origin-return]");
+    if (toolOriginReturn && els.rawTree.contains(toolOriginReturn)) {
+      event.preventDefault();
+      event.stopPropagation();
+      restoreToolOriginResult();
+      return;
+    }
     const button = event.target.closest("[data-raw]");
     if (!button || !els.rawTree.contains(button)) return;
     rawInspectorController.show(button.dataset.raw, button.dataset.rawSection || "full", { mode: button.dataset.rawMode || "request" });
@@ -613,6 +629,7 @@ async function init() {
     });
   });
   turnRailController.bind();
+  requestRailController.bind();
   paneLayoutController.bind();
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) activeSourceController.refreshLiveData({ force: true });
@@ -632,9 +649,8 @@ function resetActiveSourceContext() {
   state.openSupportingTimelines.clear();
   state.openAgentDashboards.clear();
   state.expandedThinking.clear();
-  state.expandedAgentBranches.clear();
-  state.agentBranchLimits.clear();
-  state.agentBranchFilters.clear();
+  state.selectedAgentBranches.clear();
+  state.toolOriginReturnContext = null;
   state.traceQuery = "";
   state.traceFilter = "all";
   state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
@@ -1030,6 +1046,7 @@ function renderTimelineSurface({ updateViewControls = true } = {}) {
     activeTurnId: state.activeId,
     activeRequestId: state.activeRequestId,
   });
+  renderNavigationRails();
 }
 
 function renderComposerSurface() {
@@ -1251,8 +1268,25 @@ function renderTurnRail() {
   turnRailController.render();
 }
 
+function renderRequestRail() {
+  requestRailController.render();
+}
+
+function renderNavigationRails() {
+  renderTurnRail();
+  renderRequestRail();
+}
+
 function railTurnUniverse(data = state.data) {
   return currentTimelineView(data).railTurns.filter((turn) => turn.kind !== "independent_background");
+}
+
+function activeTurnRequestUniverse() {
+  const timelineView = currentTimelineView();
+  const turn = [...(timelineView.turnWindow?.turns || []), ...(timelineView.filteredTurns || [])]
+    .find((item) => item.id === state.activeId);
+  if (!turn) return [];
+  return mainTimelineRequestsForTurn(turn, new Map((state.data?.requests || []).map((request) => [request.id, request])));
 }
 
 function activeTurnIds(data = state.data) {
@@ -1292,7 +1326,7 @@ function renderNavItem(request) {
 }
 
 function renderTurnGroup(turn, requestMap) {
-  const requests = turn.request_ids.map((id) => requestMap.get(id)).filter(Boolean);
+  const requests = mainTimelineRequestsForTurn(turn, requestMap);
   if (turn.kind === "independent_background") return renderIndependentBackgroundGroup(turn, requests);
   if (turn.trace_filter_active) {
     return `
@@ -1304,7 +1338,7 @@ function renderTurnGroup(turn, requestMap) {
           </div>
         </header>
         ${traceFilterShowsMechanismStory(turn.trace_filter) ? renderTurnStoryForTurn(turn, requestMap) : ""}
-        ${turn.trace_filter === "subagents" ? renderAgentBranchesForTurn(turn) : ""}
+        ${(turn.agent_branches || []).length ? renderAgentBranchesForTurn(turn) : ""}
         <div class="turn-request-list trace-match-requests">${requests.map(renderTurnRequest).join("")}</div>
       </section>
     `;
@@ -1336,6 +1370,23 @@ function renderTurnGroup(turn, requestMap) {
       ${renderSupportingRequests(supportingRequests, turn.id)}
     </section>
   `;
+}
+
+function mainTimelineRequestsForTurn(turn, requestMap) {
+  const childRequestIds = childRequestIdsForTurn(turn);
+  return (turn.request_ids || [])
+    .map((id) => requestMap.get(id))
+    .filter((request) => request && !childRequestIds.has(request.id));
+}
+
+function childRequestIdsForTurn(turn) {
+  const branchIds = new Set(turn?.agent_branches || []);
+  const ids = new Set();
+  for (const branch of state.data?.agent_trace?.branches || []) {
+    if (!branchIds.has(branch.id)) continue;
+    for (const requestId of branch.request_ids || []) ids.add(requestId);
+  }
+  return ids;
 }
 
 function renderIndependentBackgroundGroup(turn, requests) {
@@ -1397,15 +1448,19 @@ function renderAgentBranchesForTurn(turn) {
     turn,
     trace,
     dashboardOpen: state.openAgentDashboards.has(turn.id),
-    activeFilter: state.agentBranchFilters.get(turn.id) || "all",
-    branchLimit: state.agentBranchLimits.get(turn.id) || AGENT_BRANCH_PAGE_SIZE,
-    expandedBranchIds: state.expandedAgentBranches,
+    selectedBranchId: state.selectedAgentBranches.get(turn.id) || null,
   });
+  const selectedRequestIds = view?.dashboardOpen ? view.selectedBranch?.branch?.request_ids || [] : [];
+  const selectedTimelineHtml = selectedRequestIds
+    .map((requestId) => currentRequestById(requestId))
+    .filter(Boolean)
+    .map(renderTurnRequest)
+    .join("") || "";
   return renderAgentGraphView(view, {
     translate: t,
     escapeHtml,
-    shortId,
     shortPreview,
+    selectedTimelineHtml,
   });
 }
 
@@ -1424,7 +1479,8 @@ function renderRequestAgentBranchStat(request) {
   const branch = request.trace?.agent_branch;
   const agentId = branch?.agent_id || request.trace?.agent_instance_id || request.trace?.claude_agent_id || null;
   if (!agentId && !request.is_subagent) return "";
-  const label = branch?.index ? `${t("subagentShort")}${branch.index}` : t("subagentShort");
+  const fallbackLabel = branch?.index ? `${t("subagentShort")}${branch.index}` : t("subagentShort");
+  const label = cleanDisplayText(branch?.label || "") ? shortPreview(cleanDisplayText(branch.label), 28) : fallbackLabel;
   const titleParts = [
     branch?.label ? t("branchTooltipLabel", { label: branch.label }) : "",
     branch?.agent_type ? t("typeTooltipLabel", { type: branch.agent_type }) : "",
@@ -1579,8 +1635,8 @@ function renderToolExchange(request) {
   if (!view) return "";
   return renderTimelineToolExchangeView({
     requestId: request.id,
+    requestIndex: request.request_index,
     pairs: view.pairs,
-    counts: view.counts,
     translate: t,
     escapeHtml,
   });
@@ -1596,7 +1652,13 @@ function priorTimelineToolCalls(request) {
       ...(candidate?.summary?.response?.tool_calls || []),
     ];
     for (const call of calls) {
-      if (call?.id) callsById.set(call.id, call);
+      if (call?.id) {
+        callsById.set(call.id, {
+          call,
+          requestId: candidate.id,
+          requestIndex: candidate.request_index,
+        });
+      }
     }
   }
   return [...callsById.values()];
@@ -1686,11 +1748,44 @@ function jumpToRequest(requestId) {
   const request = state.data?.requests?.find((item) => item.id === requestId);
   if (!request) return;
   if (request.turn_id && request.turn_id !== state.activeId) jumpToTurn(request.turn_id, false);
+  const agentBranch = agentBranchForRequest(requestId);
+  if (agentBranch && request.turn_id) {
+    state.openAgentDashboards.add(request.turn_id);
+    state.selectedAgentBranches.set(request.turn_id, agentBranch.id);
+    renderTimelineSurface();
+  }
   if (!els.timeline.querySelector(`[data-card="${cssEscape(requestId)}"]`) && request.turn_id) {
     state.openSupportingTimelines.add(request.turn_id);
     renderTimelineSurface();
   }
   markActiveRequest(requestId, true);
+}
+
+function agentBranchForRequest(requestId) {
+  return (state.data?.agent_trace?.branches || []).find((branch) => (branch.request_ids || []).includes(requestId)) || null;
+}
+
+function showToolOrigin({ originRequestId, resultRequestId, resultRequestIndex, callId } = {}) {
+  if (!originRequestId || !resultRequestId) return;
+  const originRequest = currentRequestById(originRequestId);
+  const resultRequest = currentRequestById(resultRequestId);
+  if (!originRequest || !resultRequest) return;
+  state.toolOriginReturnContext = {
+    originRequestId,
+    resultRequestId,
+    resultRequestIndex: Number(resultRequestIndex || resultRequest.request_index || 0),
+    callId: callId || "",
+  };
+  jumpToRequest(originRequestId);
+  rawInspectorController.show(originRequestId, "tool_calls", { mode: "response" });
+}
+
+function restoreToolOriginResult() {
+  const context = state.toolOriginReturnContext;
+  if (!context?.resultRequestId) return;
+  state.toolOriginReturnContext = null;
+  jumpToRequest(context.resultRequestId);
+  rawInspectorController.show(context.resultRequestId, "tool_results", { mode: "request" });
 }
 
 function jumpToAgentBranch(branchId) {
@@ -1699,21 +1794,10 @@ function jumpToAgentBranch(branchId) {
   if (turn) {
     clientStore.setSelection({ activeId: turn.id }, { reason: "jump-to-agent-branch" });
     state.openAgentDashboards.add(turn.id);
-    state.agentBranchFilters.set(turn.id, "all");
-    const sortedBranchIds = (state.data?.agent_trace?.branches || [])
-      .filter((item) => (turn.agent_branches || []).includes(item.id))
-      .sort((left, right) => Number(left.first_request_index || 0) - Number(right.first_request_index || 0))
-      .map((item) => item.id);
-    const branchIndex = sortedBranchIds.indexOf(branchId);
-    if (branchIndex >= 0) {
-      state.agentBranchLimits.set(turn.id, Math.max(AGENT_BRANCH_PAGE_SIZE, Math.ceil((branchIndex + 1) / AGENT_BRANCH_PAGE_SIZE) * AGENT_BRANCH_PAGE_SIZE));
-    }
-  }
-  if (!state.expandedAgentBranches.has(branchId)) {
-    state.expandedAgentBranches.add(branchId);
+    state.selectedAgentBranches.set(turn.id, branchId);
   }
   renderTimelineSurface();
-  const target = document.querySelector(`[data-branch="${cssEscape(branchId)}"]`);
+  const target = document.querySelector(`[data-agent-selected-branch="${cssEscape(branchId)}"]`);
   if (!target) return;
   const turnElement = target.closest("[data-turn-group]");
   if (turnElement?.dataset.turnGroup && turnElement.dataset.turnGroup !== state.activeId) markActiveTurn(turnElement.dataset.turnGroup, false);
@@ -1722,10 +1806,11 @@ function jumpToAgentBranch(branchId) {
   setTimeout(() => target.classList.remove("focus"), 1800);
 }
 
-function toggleAgentBranch(branchId) {
+function selectAgentBranch(branchId) {
   if (!branchId) return;
-  if (state.expandedAgentBranches.has(branchId)) state.expandedAgentBranches.delete(branchId);
-  else state.expandedAgentBranches.add(branchId);
+  const turn = state.data?.turns?.find((item) => (item.agent_branches || []).includes(branchId));
+  if (!turn) return;
+  state.selectedAgentBranches.set(turn.id, branchId);
   renderTimelineSurface();
 }
 
@@ -1832,7 +1917,7 @@ function markActiveTurn(id, scroll) {
 }
 
 function syncActiveTurnDom(id) {
-  renderTurnRail();
+  renderNavigationRails();
   els.turnRail.querySelectorAll("[data-turn]").forEach((button) => button.classList.toggle("active", button.dataset.turn === id));
   traceTimelineController.syncActiveTurn(id);
 }
@@ -1845,6 +1930,7 @@ function markActiveRequest(id, scroll) {
 
 function syncActiveRequestDom(id) {
   traceTimelineController.syncActiveRequest(id);
+  requestRailController.syncActiveRequest(id);
 }
 
 function showSystemDiff(id) {
@@ -1932,13 +2018,24 @@ function renderRawStickyControls(request, section, mode = "request") {
       ? renderResponseRawNavigation({ request, activeSection: section, translate: t, escapeHtml })
       : renderRequestRawNavigation({ request, activeSection: section, hasPrevious: Boolean(previousRequest(request)), translate: t, escapeHtml });
   return renderRawStickyControlsView({
-    navigation,
+    navigation: `${renderToolOriginReturnAction(request)}${navigation}`,
     searchControls: renderRawSearchControls(request, section, mode),
     viewControls:
       renderTranslationControls(request, section) ||
       renderMessagesControls(section) ||
       renderMetadataControls(section),
   });
+}
+
+function renderToolOriginReturnAction(request) {
+  const context = state.toolOriginReturnContext;
+  if (!context || request?.id !== context.originRequestId) return "";
+  return `
+    <div class="tool-origin-return-context">
+      <span>${escapeHtml(t("toolOriginContext", { callId: context.callId || t("emptyNotRecorded") }))}</span>
+      <button type="button" data-tool-origin-return="${escapeHtml(context.resultRequestId)}">${escapeHtml(t("toolOriginReturn", { index: context.resultRequestIndex || "?" }))}</button>
+    </div>
+  `;
 }
 
 function renderResponseOnlyToolsSchemaSection(request) {

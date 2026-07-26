@@ -1,19 +1,18 @@
-export const AGENT_BRANCH_PAGE_SIZE = 24;
-export const AGENT_EVENT_LIMIT = 80;
 export const AGENT_SUMMARY_DOT_LIMIT = 8;
-export const AGENT_STATUS_FILTER_THRESHOLD = 6;
 
-const AGENT_BRANCH_COLORS = ["#2563eb", "#16a34a", "#b4690e", "#7c3aed", "#dc2626", "#0891b2", "#db2777", "#65a30d"];
-const AGENT_STATUS_FILTERS = new Set(["all", "running", "completed", "returned"]);
+const AGENT_BRANCH_COLORS = [
+  "oklch(56% 0.2 258)",
+  "oklch(52% 0.12 155)",
+  "oklch(55% 0.13 302)",
+  "oklch(57% 0.13 75)",
+  "oklch(54% 0.19 27)",
+  "oklch(55% 0.11 210)",
+  "oklch(58% 0.14 340)",
+  "oklch(52% 0.12 125)",
+];
+const AGENT_BRANCH_GLYPHS = ["circle", "square", "diamond", "triangle", "hexagon", "cross"];
 
-export function buildAgentGraphView({
-  turn,
-  trace,
-  dashboardOpen = false,
-  activeFilter = "all",
-  branchLimit = AGENT_BRANCH_PAGE_SIZE,
-  expandedBranchIds = new Set(),
-} = {}) {
+export function buildAgentGraphView({ turn, trace, dashboardOpen = false, selectedBranchId = null } = {}) {
   const turnId = String(turn?.id || "");
   const branchIds = new Set(Array.isArray(turn?.agent_branches) ? turn.agent_branches : []);
   const branches = (Array.isArray(trace?.branches) ? trace.branches : [])
@@ -21,49 +20,34 @@ export function buildAgentGraphView({
     .sort((left, right) => Number(left.first_request_index || 0) - Number(right.first_request_index || 0));
   if (!branches.length) return null;
 
-  const normalizedFilter = AGENT_STATUS_FILTERS.has(activeFilter) ? activeFilter : "all";
-  const branchEntries = branches.map((branch, index) => {
-    const returnStepIndex = (branch.steps || []).findIndex((step) => stepRepresentsReturn(step, branch.return));
-    return {
-      branch,
-      index,
-      color: agentBranchColor(index),
-      expanded: expandedBranchIds.has(branch.id),
-      detailSteps: (branch.steps || []).map((step, stepIndex) => ({
-        step,
-        representsReturn: stepIndex === returnStepIndex,
-        displayPreview:
-          stepIndex === returnStepIndex ? branch.return?.result_preview || step.response_preview : step.response_preview,
-      })),
-      returnEdge: returnStepIndex >= 0 ? null : branch.return,
-      returnRepresentedByStep: returnStepIndex >= 0,
-    };
-  });
-  const filteredEntries = normalizedFilter === "all" ? branchEntries : branchEntries.filter(({ branch }) => branch.status === normalizedFilter);
-  const normalizedLimit = Math.max(AGENT_BRANCH_PAGE_SIZE, Math.floor(Number(branchLimit) || AGENT_BRANCH_PAGE_SIZE));
-  const visibleBranches = filteredEntries.slice(0, normalizedLimit);
-  const hiddenBranchCount = Math.max(0, filteredEntries.length - visibleBranches.length);
+  const branchEntries = branches.map((branch, index) => ({
+    branch,
+    index,
+    displayName: agentBranchDisplayName(branch, index),
+    visual: agentBranchVisualIdentity(branch),
+  }));
+  const selectedBranch =
+    branchEntries.find((entry) => entry.branch.id === selectedBranchId) || branchEntries[0];
   const statusCounts = {
     returned: branches.filter((branch) => branch.status === "returned").length,
     completed: branches.filter((branch) => branch.status === "completed").length,
     running: branches.filter((branch) => branch.status === "running").length,
   };
-  const allEvents = agentFlowEvents(filteredEntries);
+  const allEvents = agentFlowEvents(branchEntries);
 
   return {
     turnId,
     dashboardOpen: Boolean(dashboardOpen),
-    activeFilter: normalizedFilter,
     branches,
+    branchEntries,
     branchCount: branches.length,
-    typeEntries: branchEntries,
-    summaryDots: branchEntries.slice(0, AGENT_SUMMARY_DOT_LIMIT).map(({ color }) => color),
+    selectedBranch,
+    summaryDots: branchEntries.slice(0, AGENT_SUMMARY_DOT_LIMIT).map(({ visual }) => visual),
     summaryOverflow: Math.max(0, branches.length - AGENT_SUMMARY_DOT_LIMIT),
     spawnIndexes: uniqueIndexes(branches, (branch) => branch.spawn?.parent_request_index),
     launchIndexes: uniqueIndexes(branches, (branch) => branch.launch?.parent_request_index),
     returnIndexes: uniqueIndexes(branches, (branch) => branch.return?.parent_request_index),
     statusCounts,
-    showStatusFilters: branches.length > AGENT_STATUS_FILTER_THRESHOLD,
     confidence: trace?.confidence,
     summary: {
       branches: branches.length,
@@ -73,13 +57,30 @@ export function buildAgentGraphView({
       results: branches.reduce((sum, branch) => sum + (branch.request_tool_result_count || 0), 0),
       signal: trace?.signals?.child_instance || "agent id",
     },
-    filteredCount: filteredEntries.length,
-    visibleBranches,
-    hiddenBranchCount,
-    nextPageCount: Math.min(AGENT_BRANCH_PAGE_SIZE, hiddenBranchCount),
-    events: allEvents.slice(0, AGENT_EVENT_LIMIT),
+    events: allEvents,
     eventCount: allEvents.length,
   };
+}
+
+export function agentBranchVisualIdentity(branch = {}) {
+  const identity = String(branch.agent_id || branch.id || branch.label || "subagent");
+  const hash = stableIdentityHash(identity);
+  return {
+    identity,
+    color: AGENT_BRANCH_COLORS[hash % AGENT_BRANCH_COLORS.length],
+    glyph: AGENT_BRANCH_GLYPHS[Math.floor(hash / AGENT_BRANCH_COLORS.length) % AGENT_BRANCH_GLYPHS.length],
+  };
+}
+
+export function agentBranchDisplayName(branch = {}, index = 0) {
+  return (
+    branch.launch?.nickname ||
+    branch.label ||
+    branch.spawn?.description ||
+    branch.spawn?.label ||
+    branch.agent_type ||
+    `Subagent ${index + 1}`
+  );
 }
 
 export function agentFlowEvents(branchEntries = []) {
@@ -104,6 +105,14 @@ export function agentFlowEvents(branchEntries = []) {
   return events.sort((left, right) => Number(left.requestIndex || 0) - Number(right.requestIndex || 0) || left.order - right.order);
 }
 
+export function agentStepEventType(step = {}) {
+  if (step.event_type === "agent_message") return "return";
+  if (step.request_tool_results?.length) return "tool_result";
+  if (step.response_tool_calls?.length) return "tool_use";
+  if (step.finish_reason === "end_turn") return "done";
+  return "request";
+}
+
 function stepRepresentsReturn(step, returned) {
   if (step?.event_type !== "agent_message" || !returned) return false;
   return (
@@ -113,16 +122,13 @@ function stepRepresentsReturn(step, returned) {
   );
 }
 
-export function agentStepEventType(step = {}) {
-  if (step.event_type === "agent_message") return "return";
-  if (step.request_tool_results?.length) return "tool_result";
-  if (step.response_tool_calls?.length) return "tool_use";
-  if (step.finish_reason === "end_turn") return "done";
-  return "request";
-}
-
-function agentBranchColor(index) {
-  return AGENT_BRANCH_COLORS[index % AGENT_BRANCH_COLORS.length];
+function stableIdentityHash(value) {
+  let hash = 2166136261;
+  for (const character of value) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }
 
 function uniqueIndexes(branches, pick) {

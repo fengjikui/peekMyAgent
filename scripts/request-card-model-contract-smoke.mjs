@@ -466,6 +466,45 @@ assert.deepEqual(
     },
   ],
 );
+assert.deepEqual(
+  pairTimelineToolEvents([], [{ id: "call-history", content: "done" }], {
+    priorToolCalls: [
+      {
+        call: { id: "call-history", name: "Bash", arguments: { command: "pwd" } },
+        requestId: "request-origin",
+        requestIndex: 12,
+      },
+    ],
+  }),
+  [
+    {
+      call: { id: "call-history", name: "Bash", arguments: { command: "pwd" } },
+      result: { id: "call-history", content: "done" },
+      confidence: "historical_id",
+      origin: { requestId: "request-origin", requestIndex: 12, callId: "call-history" },
+    },
+  ],
+  "matched historical results retain the exact originating request without changing bare-call compatibility",
+);
+assert.deepEqual(
+  pairTimelineToolEvents([{ id: "call-current", name: "Bash" }], [{ id: "call-current", content: "done" }], {
+    priorToolCalls: [
+      {
+        call: { id: "call-current", name: "older call" },
+        requestId: "request-older",
+        requestIndex: 3,
+      },
+    ],
+  }),
+  [
+    {
+      call: { id: "call-current", name: "Bash" },
+      result: { id: "call-current", content: "done" },
+      confidence: "id",
+    },
+  ],
+  "a result paired to a current call never receives a stale historical origin",
+);
 
 assert.equal(timelineMessageKindLabel("framework_reminder", "system", translate), "Framework reminder");
 assert.equal(timelineMessageKindLabel("custom", "user", translate), "user");

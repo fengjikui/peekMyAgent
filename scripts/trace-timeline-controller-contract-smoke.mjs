@@ -66,14 +66,13 @@ const callbacks = Object.fromEntries(
     "onThinkingToggle",
     "onTurnWindowJump",
     "onRaw",
+    "onToolOriginJump",
     "onRequestJump",
     "onAgentJump",
     "onAgentBranchJump",
-    "onAgentBranchToggle",
+    "onAgentBranchSelect",
     "onSupportingTimelineToggle",
     "onAgentDashboardToggle",
-    "onAgentBranchMore",
-    "onAgentStatusFilter",
     "onSystemDiff",
   ].map((name) => [name, (...args) => calls.push([name, ...args])]),
 );
@@ -140,15 +139,26 @@ assert.deepEqual(calls.find(([name]) => name === "onRaw"), [
   "onRaw",
   { type: "raw", requestId: "request-7", section: "system", mode: "request" },
 ]);
-const statusButton = fakeElement(
-  "[data-agent-status-filter]",
-  { agentStatusFilter: "turn-3", agentFilterValue: "returned" },
+const toolOriginButton = fakeElement(
+  "[data-tool-origin-jump]",
+  {
+    toolOriginJump: "request-12",
+    toolResultRequest: "request-13",
+    toolResultIndex: "13",
+    toolCallId: "call-1",
+  },
   timelineRoot,
 );
-timelineRoot.emit("click", eventFor(statusButton));
-assert.deepEqual(calls.find(([name]) => name === "onAgentStatusFilter"), [
-  "onAgentStatusFilter",
-  { type: "agent-status-filter", turnId: "turn-3", filter: "returned" },
+timelineRoot.emit("click", eventFor(toolOriginButton));
+assert.deepEqual(calls.find(([name]) => name === "onToolOriginJump"), [
+  "onToolOriginJump",
+  {
+    type: "tool-origin-jump",
+    originRequestId: "request-12",
+    resultRequestId: "request-13",
+    resultRequestIndex: "13",
+    callId: "call-1",
+  },
 ]);
 const panel = fakeElement("[data-upstream-panel]", { upstreamPanel: "request-9" }, timelineRoot);
 timelineRoot.emit("toggle", eventFor(panel));
@@ -174,6 +184,9 @@ assert.deepEqual(
   timelineAction(fakeElement("[data-agent-branch-jump]", { agentBranchJump: "branch-1" }, timelineRoot), timelineRoot),
   { type: "agent-branch-jump", branchId: "branch-1" },
 );
+const branchTab = fakeElement("[data-agent-branch-select]", { agentBranchSelect: "branch-euclid" }, timelineRoot);
+timelineRoot.emit("click", eventFor(branchTab));
+assert.deepEqual(calls.find(([name]) => name === "onAgentBranchSelect"), ["onAgentBranchSelect", "branch-euclid"]);
 assert.equal(timelineAction(fakeElement("[data-raw]", { raw: "outside" }, queryRoot), timelineRoot), null, "actions outside the Timeline root must be ignored");
 
 console.log("trace timeline controller contract smoke passed");

@@ -39,6 +39,7 @@ Controller 负责：
 
 - 中文、日文等 IME composition 生命周期与延迟搜索刷新；
 - filter/show-more、Raw、窗口跳转、Agent 分支、System diff 等动作分发；
+- tool result 来源跳转与 Agent tab 选择动作分发；
 - `<details>` 上行展开状态回调；
 - 活动 Turn/request 的局部 DOM class 同步。
 
@@ -53,6 +54,14 @@ Controller 不拥有业务状态，不发网络请求，不解释 Trace DTO。�
 - Composer：当前 Agent 发送框。
 
 `renderAll()` 只用于 source 初次装载、完整 source 刷新、全局错误状态和 UI/目标翻译语言变化。Timeline 内部的搜索、筛选、分页、Turn 跳转、展开上行、展开回复和多 Agent 面板只调用 `renderTimelineSurface()`，不得重建 Header、Source 导航、Composer 或 Raw Inspector。
+
+## 两级导航 rail
+
+- `turn-rail.js` 导航当前 Trace 的 Turn。
+- `request-rail.js` 只在 active Turn 至少有 5 条主线 request 时出现，视觉权重低于 Turn rail。
+- request rail 复用 Store 的 `activeRequestId`，点击和滚动都走同一选择端口；窗口最多保留有界数量的 marks。
+- 已进入 child Agent tab timeline 的 request id 不进入 request rail。切换 active Turn、筛选窗口、pane 几何或活动 request 时，两个 rail 由应用装配层同步刷新。
+- Turn rail 的滚动激活线越过下一 Turn 起点后才切换，避免超长 Turn 在后半段提前失去 request rail。
 
 翻译单块时：
 
@@ -73,4 +82,5 @@ Controller 不拥有业务状态，不发网络请求，不解释 Trace DTO。�
 - `trace-timeline-controller-contract-smoke.mjs` 模拟 IME、延迟刷新、单次事件委派、Raw/Agent 动作和活动态同步。
 - `viewer-timeline-surface-contract-smoke.mjs` 锁定应用装配、局部表面、Controller 归属和 Store 通知边界。
 - `timeline-window-smoke.mjs` 继续覆盖 Timeline、Turn Rail、多 Agent 折叠和容器响应式集成约束。
+- `turn-rail-contract-smoke.mjs` 同时覆盖 request rail 的 threshold、活动请求滚动同步和底部吸附。
 - 真实浏览器验证必须覆盖 source 切换、搜索/筛选、Turn Rail、Raw tab、回复展开和三栏布局。

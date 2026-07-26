@@ -8,6 +8,11 @@ import {
   railMaxItems,
   visibleTurnWindow,
 } from "../src/viewer/turn-rail.js";
+import {
+  REQUEST_RAIL_THRESHOLD,
+  RequestRailController,
+  visibleRequestWindow,
+} from "../src/viewer/request-rail.js";
 
 const turns = Array.from({ length: 100 }, (_, index) => ({ id: `turn-${index + 1}`, index: index + 1 }));
 
@@ -62,5 +67,77 @@ controller.syncActiveFromScroll();
 assert.deepEqual(activeChanges.at(-1), { id: "turn-c", scroll: false }, "the bottom snap should activate the final rendered turn");
 controller.syncActiveFromScroll();
 assert.equal(activeChanges.length, 2, "an already-active turn should not emit duplicate state changes");
+
+const longTurnChanges = [];
+let longTurnActiveId = "turn-long";
+const longTurnPanel = { scrollTop: 1200, scrollHeight: 2800, clientHeight: 400, addEventListener() {} };
+const longTurnController = new TurnRailController({
+  element: null,
+  mainPanel: longTurnPanel,
+  getTurns: () => [],
+  getActiveId: () => longTurnActiveId,
+  hasData: () => true,
+  titleFor: () => "",
+  excerptFor: () => "",
+  translate: (key) => key,
+  escapeHtml: String,
+  onJump() {},
+  onActiveChange(id, scroll) {
+    longTurnChanges.push({ id, scroll });
+    longTurnActiveId = id;
+  },
+  documentRef: {
+    querySelectorAll: () => [
+      { offsetTop: 0, dataset: { turnGroup: "turn-long" } },
+      { offsetTop: 2000, dataset: { turnGroup: "turn-next" } },
+    ],
+  },
+  windowRef: { innerHeight: 800, requestAnimationFrame: (callback) => callback() },
+});
+longTurnController.syncActiveFromScroll();
+assert.deepEqual(longTurnChanges, [], "a long Turn stays active until the next Turn heading reaches the activation line");
+longTurnPanel.scrollTop = 1900;
+longTurnController.syncActiveFromScroll();
+assert.deepEqual(longTurnChanges, [{ id: "turn-next", scroll: false }]);
+
+const requestChanges = [];
+let activeRequestId = "request-a";
+const activeTurnRequests = Array.from({ length: REQUEST_RAIL_THRESHOLD }, (_, index) => ({
+  id: `request-${String.fromCharCode(97 + index)}`,
+  request_index: index + 1,
+}));
+const requestCards = activeTurnRequests.map((request, index) => ({
+  offsetTop: index * 140,
+  dataset: { card: request.id },
+}));
+const activeGroup = {
+  dataset: { turnGroup: "turn-active" },
+  querySelectorAll: () => requestCards,
+};
+const requestPanel = { scrollTop: 180, scrollHeight: 900, clientHeight: 220, addEventListener() {} };
+const requestController = new RequestRailController({
+  element: null,
+  mainPanel: requestPanel,
+  getRequests: () => activeTurnRequests,
+  getActiveId: () => activeRequestId,
+  getActiveTurnId: () => "turn-active",
+  titleFor: () => "",
+  excerptFor: () => "",
+  translate: (key) => key,
+  escapeHtml: String,
+  onJump() {},
+  onActiveChange(id, scroll) {
+    requestChanges.push({ id, scroll });
+    activeRequestId = id;
+  },
+  documentRef: { querySelectorAll: () => [activeGroup] },
+  windowRef: { innerHeight: 800, requestAnimationFrame: (callback) => callback() },
+});
+requestController.syncActiveFromScroll();
+assert.deepEqual(requestChanges, [{ id: "request-c", scroll: false }], "request rail should track the nearest main request in the active Turn");
+assert.deepEqual(visibleRequestWindow(activeTurnRequests, "request-c", 3), activeTurnRequests.slice(1, 4));
+requestPanel.scrollTop = 680;
+requestController.syncActiveFromScroll();
+assert.deepEqual(requestChanges.at(-1), { id: "request-e", scroll: false }, "request rail should snap to the final request at the bottom");
 
 console.log("turn rail contract smoke passed");

@@ -180,7 +180,7 @@ src/
 - 已迁移 Agent Send Service：页面消息限制、Claude/OpenClaw detached 命令、workspace 回退、跨平台进程执行、诊断参数脱敏和临时 settings 清理不再由 Viewer Server 所有；active/persisted watch 恢复继续通过显式端口注入。
 - 已迁移 Watch Runtime Service：active registry、new/reuse/restore、pause/resume/stop、共享/独立代理、稳定 Agent route、Capture 回调和幂等关闭不再由 Viewer Server 所有；Source Reader/Lifecycle 与 Agent Send 通过窄 runtime 端口协作。
 - Watch 生命周期扩展字段持久化、persisted-only 控制面、shared per-watch cache 清理和大 watch 流式恢复仍需独立 schema/proxy 协议阶段，不属于本次抽离的已实现行为。
-- 已迁移首个 Viewer Client feature：Turn Rail 的窗口策略、悬停、点击跳转和滚动激活由独立控制器管理，并有直接契约测试。
+- 已迁移 Viewer 两级导航 feature：Turn Rail 管全局 Turn，Request Rail 只在长 active Turn 中出现；二者的窗口策略、点击跳转和滚动激活由独立控制器管理，并有直接契约测试。
 - 已建立 Viewer API Client：source/view/request/translation/import/export/send/watch 的浏览器协议与错误处理不再散落在全局脚本。
 - 已建立共享 Viewer API 读取 DTO：SourceSummary、单请求窗口以及完整/compact/cursor Timeline 的身份、信封和分页不变量在 Server 序列化前与 API Client 解析后双向执行；领域实体内部字段继续由 Trace Domain 和 normalized Store 所有。
 - 已迁移 request-detail cache：compact request 的详情判定、并发去重、错误重试和 source 生命周期由独立对象管理。
@@ -193,8 +193,8 @@ src/
 - 最小 client store 已建立：source/Turn/request selection、Raw/messages mode、UI/翻译语言、pane layout 与 latest-only 已有单一写入边界和原子变更通知；大 Trace cursor、Client entity store 与 file/imported sidecar 已在阶段 4 落地，page eviction/细粒度订阅继续演进。
 - 已迁移 Trace Timeline View Model：查询分类、命中 Turn、结果上限、latest-only、lead request 与窗口策略成为无 DOM 纯模块；Header、Timeline、Composer 已形成局部渲染表面，Timeline 内部交互和 Thinking 块翻译不再默认触发整页 `renderAll()`，活动选择由 Store 通知统一同步 DOM。
 - 已迁移 Trace Timeline Renderer/Controller：查询、空状态和窗口 HTML 使用显式 DTO；IME、筛选、Raw/Agent 动作和活动态通过长生命周期控制器做单次事件委派，不再在每次 Timeline 重绘后逐按钮重新绑定。
-- 已迁移 Request Card Renderer：请求卡外壳、上行标题与快捷动作、当前工具交换、Thinking 和 Assistant 回复 HTML 只消费显式 View DTO；详情读取、请求分类、翻译动作注册和响应折叠状态继续由应用层所有。
-- 已迁移 Agent Graph View：Turn 内分支选择、稳定编号/颜色、状态筛选、分页和交错事件流成为纯 View Model；看板 HTML 成为纯 Renderer，展开/跳转等动作仍由 Timeline Controller 和应用状态所有。
+- 已迁移 Request Card Renderer：请求卡外壳、上行标题与快捷动作、当前工具交换、历史调用来源、Thinking 和 Assistant 回复 HTML 只消费显式 View DTO；冗余工具活动标题已移除，来源跳转/返回、详情读取、翻译动作注册和响应折叠状态继续由应用层所有。
+- 已迁移 Agent Graph View：Turn 内分支选择、真实昵称、稳定身份颜色/glyph 和关联证据成为纯 View Model；看板以 child tabs + 单一选中完整 timeline 呈现，选中 timeline 复用普通 Request Card Renderer，child request 不再重复进入主/幕后时间线；Trace Domain 同时用精确 nested tool dispatch/result JSON 闭合经 `exec` 派发的 Codex child 生命周期。
 - 已迁移 Upstream Detail View：System/Tools、历史消息、当前新增消息/子 Agent 回流和 provider token 口径成为纯 View Model；上行详情 HTML 成为纯 Renderer，compact detail 懒加载、缓存与展开状态仍由应用层所有；同时删除已无调用方的旧 context/badge/structure 渲染分支。
 - 已迁移 Agent Composer View：source 能力、发送目标/警示与结果文案成为纯 View Model，表单成为纯 Renderer；长生命周期 Controller 按 source 隔离草稿和发送状态，并管理 Enter/IME、detached resume 与 source 刷新，不再依赖全局 client state 或逐次事件绑定。
 - 已迁移 Session Navigator View：Source 的 Agent/项目分组、跨平台项目名、活动/可用状态成为纯 View Model，项目组和会话菜单成为纯 Renderer；长生命周期 Controller 管理根事件委派、菜单互斥和折叠持久化，归档/删除等副作用继续由应用层编排。
@@ -222,7 +222,7 @@ src/
 - 已抽出 `TranslationActionController` 与纯 Action Model：翻译生成、块/整段复制、工具参数整组重译、action registry 和 Source/语言切换后的 stale 副作用拒绝通过显式端口协作；剪贴板格式与完成文案不再由 `client.js` 所有，Cache Controller、Renderer 和搜索 Controller 仍保持独立。
 - 已抽出翻译语言目录与 `LanguagePreferencesController`：完整目标语言 catalog、alias/系统语言推荐、偏好水合与持久化、选择器绑定、静态 i18n 和切换副作用顺序不再散落在 `client.js`；Cache/Action/Renderer/Raw 搜索仍保持各自边界。
 - 已抽出 `ActiveSourceController`：Source catalog、首屏与后台 page、live polling、snapshot 翻译、catalog version 和 token-gated UI continuation 形成应用级生命周期；`SourceTimelineController` 仍独占 generation/cursor/normalized store，DOM/selection/URL/滚动仍由装配端口所有。
-- 已抽出 `request-card-model.js`：请求身份、上行类别/标签/预览、快捷 section、工具事件配对和 Assistant response metadata/折叠成为可直接验证的纯 View Model；`client.js` 只注入当前展开状态、格式化依赖和 Thinking 翻译动作，`request-card-renderer.js` 只生成安全 HTML。
+- 已抽出 `request-card-model.js`：请求身份、上行类别/标签/预览、快捷 section、工具事件配对、历史 tool origin 和 Assistant response metadata/折叠成为可直接验证的纯 View Model；`client.js` 只注入当前展开状态、格式化依赖、来源返回上下文和 Thinking 翻译动作，`request-card-renderer.js` 只生成安全 HTML。
 
 验收：
 
