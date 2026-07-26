@@ -629,45 +629,61 @@ textarea:focus-visible,
 }
 
 .agent-branch-map {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
-  min-width: 0;
-  max-width: 100%;
   margin: 0 0 10px;
-  padding: 0;
-  border-top: 1px solid var(--line);
-  border-right: 0;
-  border-bottom: 1px solid var(--line);
-  border-left: 0;
-  border-radius: 0;
-  background: transparent;
+  border: 0;
+  border-block: 1px solid var(--line);
 }
 
-.agent-dashboard-header {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+.agent-branch-summary {
+  display: flex;
   align-items: center;
-  gap: 14px;
-  min-width: 0;
+  gap: 12px;
   padding: 8px 0;
-  border-bottom: 1px solid var(--line-soft);
+  list-style: none;
+  cursor: pointer;
 }
 
-.agent-dashboard-title {
-  display: grid;
-  gap: 1px;
-  white-space: nowrap;
+.agent-branch-summary::-webkit-details-marker {
+  display: none;
 }
 
-.agent-dashboard-title strong {
+.agent-branch-summary strong {
+  color: var(--text);
   font-size: 11px;
   font-weight: 720;
 }
 
-.agent-dashboard-title span {
-  color: var(--muted);
-  font-size: 10px;
+.agent-branch-summary::after {
+  color: var(--faint);
+  content: "⌄";
+  transform: rotate(-90deg);
+  transition: transform 140ms ease;
+}
+
+.agent-branch-map[open] > .agent-branch-summary::after {
+  transform: rotate(0deg);
+}
+
+.agent-branch-summary:hover strong,
+.agent-branch-summary:focus-visible strong {
+  color: var(--accent);
+}
+
+.agent-branch-summary:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 3px;
+}
+
+.agent-summary-glyphs {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.agent-summary-glyph {
+  width: 7px;
+  height: 7px;
+  opacity: 0.82;
 }
 
 .agent-identity-glyph {
@@ -752,41 +768,38 @@ textarea:focus-visible,
 .agent-tab-list {
   display: flex;
   gap: 3px;
-  justify-content: flex-end;
+  justify-content: flex-start;
   min-width: 0;
-  max-width: 100%;
-  padding: 0;
+  padding: 0 0 1px;
   overflow-x: auto;
   scrollbar-width: thin;
 }
 
 .agent-tab {
-  display: grid;
-  grid-template-columns: auto minmax(72px, auto);
+  display: inline-flex;
   align-items: center;
   gap: 7px;
   flex: 0 0 auto;
-  min-height: 34px;
-  padding: 4px 8px;
+  min-height: 29px;
+  padding: 4px 1px;
   border: 0;
-  border-radius: var(--radius-control);
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   background: transparent;
   color: var(--muted);
-  text-align: left;
   cursor: pointer;
 }
 
 .agent-tab:hover,
 .agent-tab:focus-visible {
-  background: var(--surface-sunken);
-  color: var(--text);
+  border-bottom-color: color-mix(in oklch, var(--branch-color) 50%, transparent);
+  color: var(--branch-color);
   outline: none;
 }
 
 .agent-tab.active {
-  background: color-mix(in oklch, var(--branch-color) 9%, var(--surface));
-  color: var(--text);
-  box-shadow: inset 0 -1px 0 var(--branch-color);
+  border-bottom-color: var(--branch-color);
+  color: var(--branch-color);
 }
 
 .agent-tab-glyph {
@@ -794,28 +807,14 @@ textarea:focus-visible,
   height: 10px;
 }
 
-.agent-tab-copy {
-  display: grid;
-  gap: 1px;
-  min-width: 0;
-}
-
-.agent-tab-copy strong,
-.agent-tab-copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-tab-copy strong {
+.agent-tab-name {
   max-width: 160px;
+  min-width: 0;
+  overflow: hidden;
   font-size: 11px;
   font-weight: 720;
-}
-
-.agent-tab-copy small {
-  color: var(--muted);
-  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-selected-branch {
@@ -1573,11 +1572,6 @@ textarea:focus-visible,
     margin-left: 16px;
   }
 
-  .agent-dashboard-header {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-  }
-
   .agent-tab-list {
     justify-content: flex-start;
   }
@@ -2204,12 +2198,18 @@ textarea:focus-visible,
 }
 
 .request-rail-track {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
+  align-items: center;
   gap: 3px;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+}
+
+.request-rail-track.dense {
+  gap: 3px;
 }
 
 .request-rail-track::-webkit-scrollbar {
@@ -2225,7 +2225,8 @@ textarea:focus-visible,
   height: 28px;
   padding: 0 7px;
   border: 0;
-  border-radius: var(--radius-control);
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -2237,14 +2238,99 @@ textarea:focus-visible,
 
 .request-mark:hover,
 .request-mark:focus-visible {
-  background: var(--surface-subtle);
-  color: var(--text);
+  border-bottom-color: color-mix(in oklch, var(--accent) 42%, transparent);
+  color: var(--accent);
+  outline: none;
 }
 
 .request-mark.active {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  box-shadow: inset 0 -1px 0 color-mix(in oklch, var(--accent) 58%, var(--line));
+  border-bottom-color: var(--accent);
+  background: transparent;
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.request-mark.signal {
+  display: flex;
+  flex: 0 0 8px;
+  align-items: center;
+  justify-content: center;
+  min-width: 8px;
+  padding: 0;
+  border-bottom-color: transparent;
+}
+
+.request-line {
+  width: 1.5px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--rail-mark);
+  opacity: 0.88;
+  transform-origin: center;
+  transition: height 140ms ease, background-color 140ms ease, opacity 140ms ease;
+}
+
+.request-mark.signal .request-number {
+  display: none;
+}
+
+.request-mark.signal:hover,
+.request-mark.signal:focus-visible {
+  border-bottom-color: transparent;
+}
+
+.request-mark.signal:hover .request-line,
+.request-mark.signal:focus-visible .request-line,
+.request-mark.signal.active .request-line {
+  height: 14px;
+  background: var(--accent);
+  opacity: 1;
+}
+
+.request-mark.signal.active {
+  border-bottom-color: transparent;
+}
+
+.request-mark.signal.active .request-line {
+  animation: request-signal-breathe 1.9s ease-in-out infinite;
+}
+
+.request-rail-track.hovering .request-mark.signal:not(.hover-center):not(.hover-near-1):not(.hover-near-2):not(.hover-near-3):not(.active) .request-line {
+  opacity: 0.42;
+}
+
+.request-mark.signal.hover-near-3 .request-line {
+  height: 8px;
+  opacity: 0.78;
+}
+
+.request-mark.signal.hover-near-2 .request-line {
+  height: 10px;
+  opacity: 0.88;
+}
+
+.request-mark.signal.hover-near-1 .request-line {
+  height: 13px;
+  opacity: 0.96;
+}
+
+.request-mark.signal.hover-center .request-line {
+  height: 18px;
+  background: var(--accent);
+  opacity: 1;
+}
+
+@keyframes request-signal-breathe {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: scaleY(0.76);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
 }
 
 .request-tooltip {

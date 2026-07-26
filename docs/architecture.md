@@ -299,9 +299,9 @@ cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 ses
 
 浏览器中的 Source 数据生命周期由 `SourceTimelineController` 所有。它为每次 Source 加载分配 generation token，在持久的 `TimelineEntityStore` 上合并首屏、cursor page 和详情覆盖，并在临时 Store 中完成 live refresh 或过期 cursor 回建后原子提交。旧 Source/旧 cursor 的迟到结果会被拒绝；progressive cursor 工作期间自动刷新会跳过该周期，避免两个异步写入者竞争同一 Store。DOM、URL、滚动、翻译和活动选择仍由 `client.js` 装配。完整边界见 [Source Timeline Controller 契约](source-timeline-controller-contract.md)。
 
-折叠状态是实际渲染边界，而不只是 CSS 隐藏：幕后请求时间线在展开前不创建 request card；多 Agent 看板的 child tabs 始终可见，并只为一个选中分支生成完整 request card timeline。同一 Turn 内切换 child tab 只原位替换该 Agent 区域，不重建整条 Timeline。这个边界既省去额外一次 disclosure 点击，也避免多个不可见子分支同时阻塞长 Trace 的主线程。
+折叠状态是实际渲染边界，而不只是 CSS 隐藏：幕后请求时间线和 multi-Agent 看板在展开前都不创建 request card。multi-Agent 看板显式展开后才显示 child tabs，并只为一个选中分支生成完整 request card timeline；从因果关系跳入 child 会自动展开。同一 Turn 内折叠看板或切换 child tab 只原位替换该 Agent 区域，不重建整条 Timeline，避免不可见子分支阻塞长 Trace 的主线程。
 
-多 Agent 看板第一行是一位 child Agent 一个 tab。真实 spawn nickname/分支 label 是主标签，通用 `子N` 只作辅助；颜色和几何 glyph 由稳定 `agent_id` 派生，不随显示顺序变化。选中 tab 后使用主 Agent 相同的 Request Card/Assistant/Thinking/工具语言展示该 child 的完整有序上行/下行 timeline，每张 request 保留 child owner 与右侧详情动作；parent spawn、启动确认、结果回流和 linkage confidence 放在 timeline 后的次级证据区。已进入 child panel 的 request id 从主请求、幕后请求和 request rail 中去除，避免同一请求出现两次；未捕获 child 模型请求时只显示诚实空态，不推断虚构步骤。Trace 顶层搜索索引派生摘要而不是 Raw body，可按异常、慢请求、工具和子 Agent 定位请求。结果以 Turn 为归属、以命中请求为证据，每次最多追加 24 条，避免搜索本身重新制造超大 DOM。主栏使用容器条件适配真实栏宽，三栏拖拽或折叠不会再把标题挤成竖排。
+多 Agent 看板紧跟 Turn 的发起请求，保持“原因在上、分支活动在下”的稳定阅读顺序。收起时只呈现聚合标题和 child 身份 glyph。展开后的第一行是一位 child Agent 一个 tab，tab 只显示稳定 glyph 和真实 spawn nickname/分支 label，选中态使用对应身份色文字与下划线；运行、完成、回流状态只放在选中分支详情行。颜色和几何 glyph 由稳定 `agent_id` 派生，不随显示顺序变化。选中 tab 后使用主 Agent 相同的 Request Card/Assistant/Thinking/工具语言展示该 child 的完整有序上行/下行 timeline，每张 request 保留 child owner 与右侧详情动作；parent spawn、启动确认、结果回流和 linkage confidence 放在 timeline 后的次级证据区。已进入 child panel 的 request id 从主请求、幕后请求和 request rail 中去除，避免同一请求出现两次；未捕获 child 模型请求时只显示诚实空态，不推断虚构步骤。Trace 顶层搜索索引派生摘要而不是 Raw body，可按异常、慢请求、工具和子 Agent 定位请求。结果以 Turn 为归属、以命中请求为证据，每次最多追加 24 条，避免搜索本身重新制造超大 DOM。主栏使用容器条件适配真实栏宽，三栏拖拽或折叠不会再把标题挤成竖排。
 
 Raw Inspector 的分类标签、当前区块搜索和原文/翻译操作组成同一个粘性控制区。原文模式只搜索原始 JSON 路径和值；整理/翻译模式只搜索当前可见的结构化 system、harness 或工具文本，并筛选原有块和工具组。匹配计数以可见关键词的实际出现次数为准，上一个/下一个按钮逐词循环定位并强化当前高亮。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属；单个工具的说明、全部参数、合并原文、复制与重译作为一个视觉及动作单元，底层仍沿用既有块级 hash 缓存。
 
@@ -313,7 +313,7 @@ System diff 只在用户按需打开时计算。小输入由 `system-diff-model.
 
 顶部 Trace 搜索和 Raw 区块搜索均遵守浏览器 IME composition 生命周期：中文、日文、韩文等输入法组词期间不替换输入框 DOM，只有选词完成后才触发过滤和重绘。Trace 搜索与事件筛选是顶部主操作；界面语言、翻译语言和独立的 latest-only 图标保留在外层，会话请求数、回复数、子 Agent、工具事件、Raw 体积与捕获方式收进按需展开的会话概览，避免高频操作被低频数字挤出首屏。主题是跨会话外观偏好，以左栏紧凑图标选择器呈现，不占用 Trace 工作区。
 
-Turn Rail 已作为首个 Viewer Client feature 从全局脚本迁出。`client.js` 只注入当前 Turn 集合、active id、文案和状态回调；窗口密度、边缘提示、悬停层级、点击跳转与滚动激活由 `TurnRailController` 所有。滚动激活线必须真正越过下一 Turn 的起点才切换，不能在超长 Turn 两个起点的中点提前跳走。长 active Turn 另由 `RequestRailController` 提供视觉更安静的第二级 request 导航，主线 request 少于 5 条时不显示，并排除 child Agent panel 已拥有的 request id。两个 rail 共用 Store selection 和滚动同步端口。纯窗口策略和滚动选择规则有独立契约测试，后续 feature 也应遵循“依赖注入、纯策略可测、应用层只装配”的边界。
+Turn Rail 已作为首个 Viewer Client feature 从全局脚本迁出。`client.js` 只注入当前 Turn 集合、active id、上行问题文案和状态回调；窗口密度、边缘提示、悬停层级、点击跳转与滚动激活由 `TurnRailController` 所有。滚动激活线必须真正越过下一 Turn 的起点才切换，不能在超长 Turn 两个起点的中点提前跳走。长 active Turn 另由 `RequestRailController` 提供视觉更安静的第二级 request 导航，主线 request 少于 5 条时不显示，并排除 child Agent panel 已拥有的 request id。18 条以内保留可读编号和下划线选中态；超过 18 条时显示本 Turn 全部 request，采用 Turn Rail 横置后的固定间距刻度，不绘制额外基线。悬停时相邻刻度形成涟漪，当前 request 使用着色与克制的呼吸动画并遵守 reduced-motion。Turn/Request tooltip 都只显示截断后的上行用户问题，不混入工具或 Assistant 摘要。滚动同步同时更新活动标记和当前位置文案。两个 rail 共用 Store selection 和滚动同步端口。纯窗口、悬停距离和滚动选择规则有独立契约测试，后续 feature 也应遵循“依赖注入、纯策略可测、应用层只装配”的边界。
 
 Viewer 的浏览器请求统一通过 `ViewerApiClient`。它集中定义 source/view/request/translation/import/export/send/watch API 的 URL 编码、method、Content-Type、intent 和错误传播；它不持有界面状态，也不操作 DOM。Server 继续承担最终的 loopback 与请求意图校验。
 

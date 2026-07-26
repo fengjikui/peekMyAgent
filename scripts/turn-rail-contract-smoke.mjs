@@ -6,6 +6,7 @@ import {
   TurnRailController,
   hoverClassForDistance,
   railMaxItems,
+  truncateRailPrompt,
   visibleTurnWindow,
 } from "../src/viewer/turn-rail.js";
 import {
@@ -32,6 +33,8 @@ assert.equal(hoverClassForDistance(2), "hover-near-2");
 assert.equal(hoverClassForDistance(-3), "hover-near-3");
 assert.equal(hoverClassForDistance(4), "");
 assert.equal(hoverClassForDistance(0, false), "");
+assert.equal(truncateRailPrompt("  user   question  "), "user question");
+assert.equal(truncateRailPrompt("abcdefgh", 5), "abcde...", "rail prompts should use a fixed ellipsis");
 
 const activeChanges = [];
 let activeId = "turn-a";
@@ -47,8 +50,7 @@ const controller = new TurnRailController({
   getTurns: () => [],
   getActiveId: () => activeId,
   hasData: () => true,
-  titleFor: () => "",
-  excerptFor: () => "",
+  promptFor: () => "",
   translate: (key) => key,
   escapeHtml: String,
   onJump() {},
@@ -77,8 +79,7 @@ const longTurnController = new TurnRailController({
   getTurns: () => [],
   getActiveId: () => longTurnActiveId,
   hasData: () => true,
-  titleFor: () => "",
-  excerptFor: () => "",
+  promptFor: () => "",
   translate: (key) => key,
   escapeHtml: String,
   onJump() {},
@@ -121,8 +122,7 @@ const requestController = new RequestRailController({
   getRequests: () => activeTurnRequests,
   getActiveId: () => activeRequestId,
   getActiveTurnId: () => "turn-active",
-  titleFor: () => "",
-  excerptFor: () => "",
+  promptFor: () => "",
   translate: (key) => key,
   escapeHtml: String,
   onJump() {},

@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
 import {
+  RequestRailController,
   REQUEST_RAIL_MAX_ITEMS,
+  REQUEST_RAIL_DENSE_THRESHOLD,
   REQUEST_RAIL_THRESHOLD,
   requestRailMaxItems,
   visibleRequestWindow,
@@ -46,8 +48,43 @@ assert.match(turnRailSource, /syncActiveFromScroll\(\)/, "the turn rail controll
 assert.equal(REQUEST_RAIL_THRESHOLD, 5, "short turns should not show a second navigation rail");
 assert.equal(requestRailMaxItems(400), REQUEST_RAIL_THRESHOLD, "narrow panes retain a usable horizontal request window");
 assert.equal(requestRailMaxItems(2000), REQUEST_RAIL_MAX_ITEMS, "request rail density stays bounded");
+assert.equal(REQUEST_RAIL_DENSE_THRESHOLD, 18, "dozens of requests should switch to the complete signal rail");
 const railRequests = Array.from({ length: 60 }, (_, index) => ({ id: `request-${index + 1}` }));
 assert.deepEqual(visibleRequestWindow(railRequests, "request-30", 20), railRequests.slice(19, 39));
+const denseRailElement = {
+  hidden: false,
+  innerHTML: "",
+  attributes: new Map(),
+  setAttribute(name, value) {
+    this.attributes.set(name, value);
+  },
+  removeAttribute(name) {
+    this.attributes.delete(name);
+  },
+};
+const requests39To63 = Array.from({ length: 25 }, (_, offset) => ({
+  id: `request-${39 + offset}`,
+  request_index: 39 + offset,
+  summary: { response: offset % 4 === 0 ? { tool_calls: [{ id: `call-${offset}` }] } : { text: "ok" } },
+}));
+new RequestRailController({
+  element: denseRailElement,
+  mainPanel: { clientWidth: 900 },
+  getRequests: () => requests39To63,
+  getActiveId: () => "request-39",
+  getActiveTurnId: () => "turn-dense",
+  promptFor: () => "user prompt",
+  translate: (key, values = {}) => `${key}:${Object.values(values).join("/")}`,
+  escapeHtml: (value) => String(value),
+  onJump: () => {},
+  onActiveChange: () => {},
+  documentRef: {},
+  windowRef: { innerWidth: 900 },
+}).render();
+assert.equal((denseRailElement.innerHTML.match(/data-request=/g) || []).length, 25, "#39-#63 must all exist in the dense request rail");
+assert.match(denseRailElement.innerHTML, /data-request="request-63"/, "the final request must remain directly reachable");
+assert.match(denseRailElement.innerHTML, /request-rail-track dense/, "dozens of requests should use the complete fixed-mark rail");
+assert.equal((denseRailElement.innerHTML.match(/class="request-line"/g) || []).length, 25, "dense navigation should use fixed rail marks for every request");
 assert.match(clientSource, /import \{ RequestRailController \} from "\.\/request-rail\.js";/, "long turns should use a dedicated request rail feature");
 assert.match(clientSource, /function activeTurnRequestUniverse\(\)/, "request rail scope should be the active Turn");
 assert.match(clientSource, /function childRequestIdsForTurn\(turn\)/, "child requests should be removed from the main request universe");
@@ -69,8 +106,13 @@ assert.match(messagesRendererSource, /renderMarkdown\(block\.textPreview\.text\)
 assert.match(markdownSource, /export function renderSafeMarkdown\(text\)/, "safe markdown renderer should be testable as a module");
 assert.match(messagesRendererSource, /messageTextTruncated/, "organized Messages truncation should be visible to users");
 assert.match(clientSource, /state\.openSupportingTimelines\.has\(turnId\)/, "supporting timelines should only render after they are opened");
-assert.match(agentGraphRendererSource, /class="agent-dashboard-header"/, "child Agent tabs should remain visible without an extra disclosure click");
-assert.doesNotMatch(agentGraphRendererSource, /data-agent-dashboard-toggle/, "the child timeline should not require an extra dashboard toggle");
+assert.match(clientSource, /function markActiveTurn[\s\S]*?scrollIntoView\(\{ behavior: "auto", block: "start" \}\)/, "Turn navigation should settle immediately so the request rail does not move beneath the pointer");
+assert.match(clientSource, /function markActiveTimelineRequest[\s\S]*?scrollIntoView\(\{ behavior: "auto", block: "start" \}\)/, "request navigation should settle immediately instead of racing a smooth-scroll observer");
+assert.match(requestRailSource, /track\.scrollTo\?\.\(\{ left, behavior: "auto" \}\)/, "centering an active request marker should scroll only the horizontal rail");
+assert.doesNotMatch(requestRailSource, /activeButton\.scrollIntoView/, "request marker centering must not pull the main timeline away from the selected card");
+assert.match(clientSource, /function requestNavigationPrompt[\s\S]*?summary\?\.current_user/, "request tooltips should use the upstream user prompt");
+assert.match(agentGraphRendererSource, /data-agent-dashboard-toggle/, "the multi-Agent console should disclose its child timelines on demand");
+assert.match(clientSource, /state\.openAgentDashboards\.has\(turn\.id\)/, "folded Agent consoles should not build their child request-card DOM");
 assert.match(agentGraphRendererSource, /data-agent-branch-select/, "each child Agent should be selectable through a tab");
 assert.match(agentGraphRendererSource, /selectedTimelineHtml/, "the selected branch should accept the shared request-card timeline language");
 assert.match(clientSource, /state\.selectedAgentBranches\.set\(turn\.id, branchId\)/, "selected child Agent state should be stable per Turn");
@@ -85,6 +127,10 @@ assert.match(stylesSource, /\.timeline-window-edge-card/, "window edge UI should
 assert.match(stylesSource, /\.agent-tab-list/, "child Agent tabs should use the shared product tab grammar");
 assert.match(stylesSource, /\.agent-selected-timeline/, "the selected child timeline should have a stable reading surface");
 assert.match(stylesSource, /\.request-rail\s*\{[\s\S]*?position:\s*sticky/, "request navigation should live in the main reading flow instead of a second floating side rail");
+assert.match(stylesSource, /\.request-mark\.active\s*\{[\s\S]*?border-bottom-color:\s*var\(--accent\);[\s\S]*?background:\s*transparent;/, "short request navigation should use the same underline selection grammar as inspector tabs");
+assert.match(stylesSource, /@keyframes request-signal-breathe/, "dense request navigation should identify the active position with restrained breathing motion");
+assert.match(requestRailSource, /hoverClassForDistance/, "dense request navigation should share the Turn rail ripple grammar");
+assert.doesNotMatch(stylesSource, /\.request-rail-track\.dense::before/, "dense request navigation should not add a baseline behind the fixed marks");
 assert.match(stylesSource, /\.raw-message-truncation/, "organized Messages truncation notice should be styled");
 assert.match(stylesSource, /container-name:\s*trace-main/, "the main pane should expose its own responsive container");
 assert.match(stylesSource, /@container trace-main \(max-width: 720px\)/, "the topbar should adapt to the actual main-pane width");

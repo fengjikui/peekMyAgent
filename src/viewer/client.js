@@ -134,6 +134,7 @@ const state = Object.assign(clientStore.state, {
   expandedThinking: new Set(),
   translationGenerate: { loading: false, error: "", message: "" },
   selectedAgentBranches: new Map(),
+  openAgentDashboards: new Set(),
   openSupportingTimelines: new Set(),
   toolOriginReturnContext: null,
   traceQuery: "",
@@ -223,8 +224,7 @@ const turnRailController = new TurnRailController({
   getTurns: () => railTurnUniverse(),
   getActiveId: () => state.activeId,
   hasData: () => Boolean(state.data?.requests?.length),
-  titleFor: turnTitleText,
-  excerptFor: turnExcerptText,
+  promptFor: turnNavigationPrompt,
   translate: t,
   escapeHtml,
   onJump: jumpToTurn,
@@ -236,8 +236,7 @@ const requestRailController = new RequestRailController({
   getRequests: () => activeTurnRequestUniverse(),
   getActiveId: () => state.activeTimelineRequestId,
   getActiveTurnId: () => state.activeId,
-  titleFor: requestDisplayTitle,
-  excerptFor: requestExcerpt,
+  promptFor: requestNavigationPrompt,
   translate: t,
   escapeHtml,
   onJump: jumpToRequest,
@@ -286,6 +285,7 @@ const traceTimelineController = new TraceTimelineController({
   onRequestJump: jumpToRequest,
   onAgentBranchJump: jumpToAgentBranch,
   onAgentBranchSelect: selectAgentBranch,
+  onAgentDashboardToggle: toggleAgentDashboard,
   onSupportingTimelineToggle(turnId) {
     if (state.openSupportingTimelines.has(turnId)) state.openSupportingTimelines.delete(turnId);
     else state.openSupportingTimelines.add(turnId);
@@ -653,6 +653,7 @@ function resetActiveSourceContext() {
   state.openSupportingTimelines.clear();
   state.expandedThinking.clear();
   state.selectedAgentBranches.clear();
+  state.openAgentDashboards.clear();
   state.toolOriginReturnContext = null;
   state.traceQuery = "";
   state.traceFilter = "all";
@@ -1324,15 +1325,21 @@ function turnTitleText(turn) {
   return cleanDisplayText(turn.user_input || turn.title || `#${turn.first_request_index || ""}-${turn.last_request_index || ""}`) || `Turn ${turn.index}`;
 }
 
-function turnExcerptText(turn) {
-  const parts = [
-    turn.command_message ? commandMessagePreview(turn.command_message) : turn.user_input ? shortPreview(cleanDisplayText(turn.user_input), 150) : "",
-    t("turnRequests", { count: turn.request_count || turn.request_ids?.length || 0 }),
-    turn.internal_request_count ? t("turnInternal", { count: turn.internal_request_count }) : "",
-    turn.tool_call_count || turn.tool_result_count ? t("turnTools", { calls: turn.tool_call_count || 0, results: turn.tool_result_count || 0 }) : "",
-    `#${turn.first_request_index || ""}-${turn.last_request_index || ""}`,
-  ].filter(Boolean);
-  return parts.join(" · ");
+function turnNavigationPrompt(turn) {
+  return turn.command_message
+    ? commandMessagePreview(turn.command_message)
+    : cleanDisplayText(turn.user_input || turn.title || "");
+}
+
+function requestNavigationPrompt(request) {
+  const turn = state.data?.turns?.find((item) => item.id === request.turn_id);
+  const entry = request.summary?.entry;
+  if (request.summary?.command_message) return commandMessagePreview(request.summary.command_message);
+  return cleanDisplayText(
+    request.summary?.current_user ||
+      (entry?.kind === "user_input" ? entry.text : "") ||
+      turnNavigationPrompt(turn || {}),
+  );
 }
 
 function renderNavItem(request) {
@@ -1386,15 +1393,24 @@ function renderTurnGroup(turn, requestMap) {
         </div>
       </header>
       ${renderTurnStoryForTurn(turn, requestMap)}
-      ${
-        primaryRequests.length
-          ? `<div class="turn-request-list primary-requests">${primaryRequests.map((request) => renderTurnRequest(request, request.id === lead?.id ? turn : null)).join("")}</div>`
-          : ""
-      }
-      ${renderAgentBranchesForTurn(turn)}
+      ${renderPrimaryRequestsWithAgentDashboard(primaryRequests, lead, turn)}
       ${responseRequests.length ? `<div class="turn-request-list response-requests">${responseRequests.map(renderTurnRequest).join("")}</div>` : ""}
       ${renderSupportingRequests(supportingRequests, turn.id)}
     </section>
+  `;
+}
+
+function renderPrimaryRequestsWithAgentDashboard(primaryRequests, lead, turn) {
+  const hasAgents = Boolean((turn.agent_branches || []).length);
+  if (!primaryRequests.length) return hasAgents ? renderAgentBranchesForTurn(turn) : "";
+  if (!hasAgents) {
+    return `<div class="turn-request-list primary-requests">${primaryRequests.map((request) => renderTurnRequest(request, request.id === lead?.id ? turn : null)).join("")}</div>`;
+  }
+  const [firstRequest, ...remainingRequests] = primaryRequests;
+  return `
+    <div class="turn-request-list primary-requests">${renderTurnRequest(firstRequest, firstRequest.id === lead?.id ? turn : null)}</div>
+    ${renderAgentBranchesForTurn(turn)}
+    ${remainingRequests.length ? `<div class="turn-request-list primary-requests">${remainingRequests.map(renderTurnRequest).join("")}</div>` : ""}
   `;
 }
 
@@ -1474,13 +1490,14 @@ function renderAgentBranchesForTurn(turn) {
     turn,
     trace,
     selectedBranchId: state.selectedAgentBranches.get(turn.id) || null,
+    dashboardOpen: state.openAgentDashboards.has(turn.id),
   });
   const selectedRequestIds = view?.selectedBranch?.branch?.request_ids || [];
-  const selectedTimelineHtml = selectedRequestIds
+  const selectedTimelineHtml = view?.dashboardOpen ? selectedRequestIds
     .map((requestId) => currentRequestById(requestId))
     .filter(Boolean)
     .map((request) => renderRequestCard(request, { includeSubagentContent: true }))
-    .join("") || "";
+    .join("") || "" : "";
   return renderAgentGraphView(view, {
     translate: t,
     escapeHtml,
@@ -1495,6 +1512,14 @@ function renderAgentBranchesForTurnInPlace(turn) {
   current.outerHTML = renderAgentBranchesForTurn(turn);
   traceTimelineController.syncActiveRequest(state.activeTimelineRequestId);
   return true;
+}
+
+function toggleAgentDashboard(turnId) {
+  if (!turnId) return;
+  if (state.openAgentDashboards.has(turnId)) state.openAgentDashboards.delete(turnId);
+  else state.openAgentDashboards.add(turnId);
+  const turn = state.data?.turns?.find((item) => item.id === turnId);
+  if (!turn || !renderAgentBranchesForTurnInPlace(turn)) renderTimelineSurface();
 }
 
 function requestAgentBranchStatusLabel(status) {
@@ -1780,6 +1805,10 @@ function jumpToRequest(requestId) {
   }
   const agentBranch = agentBranchForRequest(requestId);
   if (agentBranch && request.turn_id) {
+    if (!state.openAgentDashboards.has(request.turn_id)) {
+      state.openAgentDashboards.add(request.turn_id);
+      needsRender = true;
+    }
     if (state.selectedAgentBranches.get(request.turn_id) !== agentBranch.id) {
       state.selectedAgentBranches.set(request.turn_id, agentBranch.id);
       needsRender = true;
@@ -1830,6 +1859,7 @@ function jumpToAgentBranch(branchId) {
       needsRender = true;
     }
     state.selectedAgentBranches.set(turn.id, branchId);
+    state.openAgentDashboards.add(turn.id);
   }
   if (needsRender || !turn || !renderAgentBranchesForTurnInPlace(turn)) renderTimelineSurface();
   const target = document.querySelector(`[data-agent-selected-branch="${cssEscape(branchId)}"]`);
@@ -1846,6 +1876,7 @@ function selectAgentBranch(branchId) {
   const turn = state.data?.turns?.find((item) => (item.agent_branches || []).includes(branchId));
   if (!turn) return;
   state.selectedAgentBranches.set(turn.id, branchId);
+  state.openAgentDashboards.add(turn.id);
   if (!renderAgentBranchesForTurnInPlace(turn)) renderTimelineSurface();
 }
 
@@ -1948,7 +1979,7 @@ function toggleResponseExpansion(requestId) {
 function markActiveTurn(id, scroll) {
   clientStore.setSelection({ activeId: id }, { reason: "mark-active-turn" });
   const target = document.getElementById(id);
-  if (scroll) target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (scroll) target?.scrollIntoView({ behavior: "auto", block: "start" });
 }
 
 function syncActiveTurnDom(id) {
@@ -1960,7 +1991,7 @@ function syncActiveTurnDom(id) {
 function markActiveTimelineRequest(id, scroll) {
   clientStore.setSelection({ activeTimelineRequestId: id }, { reason: "mark-active-timeline-request" });
   const target = document.getElementById(id);
-  if (scroll) target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (scroll) target?.scrollIntoView({ behavior: "auto", block: "start" });
 }
 
 function syncActiveRequestDom(id) {

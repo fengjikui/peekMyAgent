@@ -3,35 +3,44 @@ export function renderAgentGraph(
   { translate, escapeHtml, shortPreview, selectedTimelineHtml = "" },
 ) {
   if (!view) return "";
-  const summaryStatus = agentSummaryStatus(view.statusCounts, translate);
   const dependencies = { translate, escapeHtml, shortPreview };
   return `
-    <section class="agent-branch-map" aria-label="${escapeHtml(translate("multiAgentAria"))}" data-agent-dashboard="${escapeHtml(view.turnId)}">
-      <header class="agent-dashboard-header">
-        <div class="agent-dashboard-title">
-          <strong>${escapeHtml(translate("multiAgentSummary", { count: view.branchCount }))}</strong>
-          <span>${escapeHtml(summaryStatus)}</span>
+    <details class="agent-branch-map" aria-label="${escapeHtml(translate("multiAgentAria"))}" data-agent-dashboard="${escapeHtml(view.turnId)}" ${view.dashboardOpen ? "open" : ""}>
+      <summary class="agent-branch-summary" data-agent-dashboard-toggle="${escapeHtml(view.turnId)}">
+        <strong>${escapeHtml(translate("multiAgentSummary", { count: view.branchCount }))}</strong>
+        ${renderAgentSummaryGlyphs(view.branchEntries, escapeHtml)}
+      </summary>
+      ${view.dashboardOpen ? `
+        <div>
+          <div class="agent-tab-list" role="tablist" aria-label="${escapeHtml(translate("agentTabsAria"))}">
+            ${view.branchEntries.map((entry) => renderAgentTab(entry, view.selectedBranch?.branch.id, dependencies)).join("")}
+          </div>
+          ${renderSelectedAgentBranch(view.selectedBranch, selectedTimelineHtml, dependencies)}
+          ${renderAgentEvidence(view, dependencies)}
         </div>
-        <div class="agent-tab-list" role="tablist" aria-label="${escapeHtml(translate("agentTabsAria"))}">
-          ${view.branchEntries.map((entry) => renderAgentTab(entry, view.selectedBranch?.branch.id, dependencies)).join("")}
-        </div>
-      </header>
-      ${renderSelectedAgentBranch(view.selectedBranch, selectedTimelineHtml, dependencies)}
-      ${renderAgentEvidence(view, dependencies)}
-    </section>
+      ` : ""}
+    </details>
   `;
 }
 
-function renderAgentTab(entry, selectedBranchId, { translate, escapeHtml }) {
+function renderAgentTab(entry, selectedBranchId, { escapeHtml }) {
   const selected = entry.branch.id === selectedBranchId;
   return `
     <button class="agent-tab ${selected ? "active" : ""}" type="button" role="tab" aria-selected="${escapeHtml(String(selected))}" data-agent-branch-select="${escapeHtml(entry.branch.id)}" style="--branch-color:${escapeHtml(entry.visual.color)}">
       ${renderAgentGlyph(entry.visual, escapeHtml, "agent-tab-glyph")}
-      <span class="agent-tab-copy">
-        <strong>${escapeHtml(entry.displayName)}</strong>
-        <small>${escapeHtml(`${translate("childSeq", { index: entry.index + 1 })} · ${branchStatusLabel(entry.branch.status, translate)}`)}</small>
-      </span>
+      <strong class="agent-tab-name">${escapeHtml(entry.displayName)}</strong>
     </button>
+  `;
+}
+
+function renderAgentSummaryGlyphs(entries, escapeHtml) {
+  const visibleEntries = entries.slice(0, 8);
+  const hiddenCount = Math.max(0, entries.length - visibleEntries.length);
+  return `
+    <span class="agent-summary-glyphs" aria-hidden="true">
+      ${visibleEntries.map((entry) => renderAgentGlyph(entry.visual, escapeHtml, "agent-summary-glyph")).join("")}
+      ${hiddenCount ? `<span>+${escapeHtml(hiddenCount)}</span>` : ""}
+    </span>
   `;
 }
 
@@ -122,7 +131,7 @@ function renderAgentTaskEvidence(spawn, { translate, escapeHtml, shortPreview })
 
 function renderAgentEvidence(view, { translate, escapeHtml }) {
   const evidence = [
-    translate("agentLinkageSignal", { signal: view.summary.signal }),
+    translate("agentLinkageSignal", { signal: view.signal }),
     view.spawnIndexes.length ? translate("agentSpawnEvidence", { indexes: requestIndexes(view.spawnIndexes) }) : "",
     view.launchIndexes.length ? translate("agentLaunchEvidence", { indexes: requestIndexes(view.launchIndexes) }) : "",
     view.returnIndexes.length ? translate("agentReturnEvidence", { indexes: requestIndexes(view.returnIndexes) }) : "",
@@ -137,14 +146,6 @@ function renderAgentEvidence(view, { translate, escapeHtml }) {
 
 function renderAgentGlyph(visual, escapeHtml, className) {
   return `<span class="agent-identity-glyph ${escapeHtml(className)} glyph-${escapeHtml(visual.glyph)}" style="--branch-color:${escapeHtml(visual.color)}" aria-hidden="true"></span>`;
-}
-
-function agentSummaryStatus(statusCounts, translate) {
-  return [
-    statusCounts.running ? translate("agentFilterRunning", { count: statusCounts.running }) : "",
-    statusCounts.completed ? translate("agentFilterCompleted", { count: statusCounts.completed }) : "",
-    statusCounts.returned ? translate("agentFilterReturned", { count: statusCounts.returned }) : "",
-  ].filter(Boolean).join(" · ");
 }
 
 function requestIndexes(indexes) {

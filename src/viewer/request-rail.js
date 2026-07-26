@@ -1,5 +1,8 @@
+import { hoverClassForDistance, truncateRailPrompt } from "./turn-rail.js";
+
 export const REQUEST_RAIL_THRESHOLD = 5;
 export const REQUEST_RAIL_MAX_ITEMS = 18;
+export const REQUEST_RAIL_DENSE_THRESHOLD = REQUEST_RAIL_MAX_ITEMS;
 export const REQUEST_RAIL_ITEM_PITCH = 52;
 
 export class RequestRailController {
@@ -9,8 +12,7 @@ export class RequestRailController {
     getRequests,
     getActiveId,
     getActiveTurnId,
-    titleFor,
-    excerptFor,
+    promptFor,
     translate,
     escapeHtml,
     onJump,
@@ -24,8 +26,7 @@ export class RequestRailController {
     this.getRequests = requiredFunction(getRequests, "getRequests");
     this.getActiveId = requiredFunction(getActiveId, "getActiveId");
     this.getActiveTurnId = requiredFunction(getActiveTurnId, "getActiveTurnId");
-    this.titleFor = requiredFunction(titleFor, "titleFor");
-    this.excerptFor = requiredFunction(excerptFor, "excerptFor");
+    this.promptFor = requiredFunction(promptFor, "promptFor");
     this.translate = requiredFunction(translate, "translate");
     this.escapeHtml = requiredFunction(escapeHtml, "escapeHtml");
     this.onJump = requiredFunction(onJump, "onJump");
@@ -45,6 +46,13 @@ export class RequestRailController {
       if (!button || !this.element.contains(button)) return;
       this.onJump(button.dataset.request);
     });
+    const updateHover = (event) => {
+      const button = event.target.closest("[data-request]");
+      if (button && this.element.contains(button)) this.updateHover(button.dataset.request);
+    };
+    this.element.addEventListener("pointerover", updateHover);
+    this.element.addEventListener("pointermove", updateHover);
+    this.element.addEventListener("pointerleave", () => this.clearHover());
     this.mainPanel.addEventListener("scroll", () => this.scheduleActiveSync(), { passive: true });
   }
 
@@ -59,22 +67,27 @@ export class RequestRailController {
     }
     const activeId = this.getActiveId();
     const activePosition = allRequests.findIndex((request) => request.id === activeId);
-    const requests = visibleRequestWindow(
-      allRequests,
-      activeId,
-      requestRailMaxItems(this.mainPanel?.clientWidth || this.window.innerWidth),
-    );
+    const dense = allRequests.length > REQUEST_RAIL_DENSE_THRESHOLD;
+    const requests = dense
+      ? allRequests
+      : visibleRequestWindow(
+          allRequests,
+          activeId,
+          requestRailMaxItems(this.mainPanel?.clientWidth || this.window.innerWidth),
+        );
+    const activeRequest = activePosition >= 0 ? allRequests[activePosition] : allRequests[0];
     this.element.hidden = false;
     this.element.removeAttribute("aria-hidden");
     this.element.innerHTML = `
       <span class="request-rail-context">
         <strong>${this.escapeHtml(this.translate("requestRailContext"))}</strong>
-        <span>${this.escapeHtml(this.translate("requestRailPosition", {
+        <span data-request-rail-position>${this.escapeHtml(this.translate("requestRailPosition", {
+          index: activeRequest?.request_index || activePosition + 1 || 1,
           current: activePosition >= 0 ? activePosition + 1 : 1,
           total: allRequests.length,
         }))}</span>
       </span>
-      <span class="request-rail-track">${requests.map((request) => this.renderItem(request, activeId)).join("")}</span>
+      <span class="request-rail-track ${dense ? "dense" : ""}">${requests.map((request) => this.renderItem(request, activeId, dense)).join("")}</span>
     `;
     this.element.setAttribute(
       "aria-label",
@@ -84,13 +97,15 @@ export class RequestRailController {
     );
   }
 
-  renderItem(request, activeId) {
+  renderItem(request, activeId, dense = false) {
+    const active = request.id === activeId;
     return `
-      <button class="request-mark ${request.id === activeId ? "active" : ""}" type="button" data-request="${this.escapeHtml(request.id)}" aria-label="${this.escapeHtml(this.translate("jumpToRequestAria", { index: request.request_index }))}">
+      <button class="request-mark ${dense ? "signal" : ""} ${active ? "active" : ""}" type="button" data-request="${this.escapeHtml(request.id)}" aria-label="${this.escapeHtml(this.translate("jumpToRequestAria", { index: request.request_index }))}" ${active ? 'aria-current="step"' : ""}>
+        ${dense ? '<span class="request-line"></span>' : ""}
         <span class="request-number">#${this.escapeHtml(request.request_index)}</span>
         <span class="request-tooltip">
-          <strong>#${this.escapeHtml(request.request_index)} · ${this.escapeHtml(this.titleFor(request))}</strong>
-          <span>${this.escapeHtml(this.excerptFor(request))}</span>
+          <strong>#${this.escapeHtml(request.request_index)}</strong>
+          <span>${this.escapeHtml(truncateRailPrompt(this.promptFor(request)))}</span>
         </span>
       </button>
     `;
@@ -98,9 +113,56 @@ export class RequestRailController {
 
   syncActiveRequest(id) {
     if (!this.element) return;
-    this.element
-      .querySelectorAll("[data-request]")
-      .forEach((button) => button.classList.toggle("active", button.dataset.request === id));
+    let activeButton = null;
+    this.element.querySelectorAll("[data-request]").forEach((button) => {
+      const active = button.dataset.request === id;
+      button.classList.toggle("active", active);
+      if (active) {
+        button.setAttribute("aria-current", "step");
+        activeButton = button;
+      } else {
+        button.removeAttribute("aria-current");
+      }
+    });
+    this.syncActiveContext(id);
+    const track = activeButton?.closest?.(".request-rail-track");
+    if (track && track.scrollWidth > track.clientWidth) {
+      const left = Math.max(0, activeButton.offsetLeft - (track.clientWidth - activeButton.offsetWidth) / 2);
+      track.scrollTo?.({ left, behavior: "auto" });
+    }
+  }
+
+  updateHover(requestId) {
+    const buttons = [...this.element.querySelectorAll("[data-request]")];
+    const hoveredIndex = buttons.findIndex((button) => button.dataset.request === requestId);
+    this.element.classList.toggle("hovering", hoveredIndex >= 0);
+    buttons.forEach((button, index) => {
+      button.classList.remove("hover-center", "hover-near-1", "hover-near-2", "hover-near-3");
+      const hoverClass = hoverClassForDistance(index - hoveredIndex, hoveredIndex >= 0);
+      if (hoverClass) button.classList.add(hoverClass);
+    });
+  }
+
+  clearHover() {
+    this.element.classList.remove("hovering");
+    this.element.querySelectorAll("[data-request]").forEach((button) => {
+      button.classList.remove("hover-center", "hover-near-1", "hover-near-2", "hover-near-3");
+    });
+  }
+
+  syncActiveContext(id) {
+    const requests = this.getRequests() || [];
+    const activePosition = requests.findIndex((request) => request.id === id);
+    if (activePosition < 0) return;
+    const activeRequest = requests[activePosition];
+    const values = {
+      index: activeRequest.request_index || activePosition + 1,
+      current: activePosition + 1,
+      total: requests.length,
+    };
+    const position = this.element.querySelector("[data-request-rail-position]");
+    if (position) position.textContent = this.translate("requestRailPosition", values);
+    this.element.setAttribute("aria-label", this.translate("requestRailAriaDynamic", values));
   }
 
   scheduleActiveSync() {

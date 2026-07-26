@@ -17,6 +17,7 @@ export class TraceTimelineController {
     onAgentJump,
     onAgentBranchJump,
     onAgentBranchSelect = () => {},
+    onAgentDashboardToggle = () => {},
     onSupportingTimelineToggle,
     onSystemDiff,
     searchDelay = 160,
@@ -38,6 +39,7 @@ export class TraceTimelineController {
     this.onRequestJump = requiredFunction(onRequestJump || onAgentJump, "onRequestJump");
     this.onAgentBranchJump = requiredFunction(onAgentBranchJump, "onAgentBranchJump");
     this.onAgentBranchSelect = requiredFunction(onAgentBranchSelect, "onAgentBranchSelect");
+    this.onAgentDashboardToggle = requiredFunction(onAgentDashboardToggle, "onAgentDashboardToggle");
     this.onSupportingTimelineToggle = requiredFunction(onSupportingTimelineToggle, "onSupportingTimelineToggle");
     this.onSystemDiff = requiredFunction(onSystemDiff, "onSystemDiff");
     this.searchDelay = searchDelay;
@@ -130,6 +132,7 @@ export class TraceTimelineController {
     else if (action.type === "request-jump") this.onRequestJump(action.requestId);
     else if (action.type === "agent-branch-jump") this.onAgentBranchJump(action.branchId);
     else if (action.type === "agent-branch-select") this.onAgentBranchSelect(action.branchId);
+    else if (action.type === "agent-dashboard-toggle") this.onAgentDashboardToggle(action.turnId);
     else if (action.type === "supporting-timeline-toggle") this.onSupportingTimelineToggle(action.turnId);
     else if (action.type === "system-diff") this.onSystemDiff(action.requestId);
   }
@@ -201,6 +204,7 @@ export function timelineAction(target, root) {
     ["[data-agent-jump]", (element) => ({ type: "request-jump", requestId: element.dataset.agentJump })],
     ["[data-agent-branch-jump]", (element) => ({ type: "agent-branch-jump", branchId: element.dataset.agentBranchJump })],
     ["[data-agent-branch-select]", (element) => ({ type: "agent-branch-select", branchId: element.dataset.agentBranchSelect })],
+    ["[data-agent-dashboard-toggle]", (element) => ({ type: "agent-dashboard-toggle", turnId: element.dataset.agentDashboardToggle })],
     [
       "[data-supporting-timeline-toggle]",
       (element) => ({ type: "supporting-timeline-toggle", turnId: element.dataset.supportingTimelineToggle }),

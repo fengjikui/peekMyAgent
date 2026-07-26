@@ -62,37 +62,17 @@ const view = buildAgentGraphView({
 });
 
 assert.equal(view.branchCount, 2);
+assert.equal(view.dashboardOpen, false, "the multi-Agent console is folded by default");
 assert.deepEqual(view.branches.map((item) => item.id), ["branch-ptolemy", "branch-euclid"]);
 assert.deepEqual(view.branchEntries.map((entry) => [entry.branch.id, entry.index, entry.displayName]), [
   ["branch-ptolemy", 0, "Ptolemy <unsafe>"],
   ["branch-euclid", 1, "Euclid"],
 ]);
 assert.equal(view.selectedBranch.branch.id, "branch-euclid");
-assert.deepEqual(view.statusCounts, { returned: 1, completed: 0, running: 1 });
 assert.deepEqual(view.spawnIndexes, [6, 13]);
 assert.deepEqual(view.launchIndexes, [7, 14]);
 assert.deepEqual(view.returnIndexes, [16]);
-assert.deepEqual(view.summary, {
-  branches: 2,
-  requests: 4,
-  returned: 1,
-  calls: 1,
-  results: 1,
-  signal: "client_metadata.thread_id",
-});
-assert.deepEqual(
-  view.events.map((event) => [event.requestIndex, event.branchIndex, event.type]),
-  [
-    [6, 0, "spawn"],
-    [7, 0, "launch"],
-    [13, 1, "spawn"],
-    [14, 1, "launch"],
-    [15, 0, "done"],
-    [16, 0, "return"],
-    [23, 1, "tool_result"],
-  ],
-  "the evidence model still preserves observed cross-branch chronology",
-);
+assert.equal(view.signal, "client_metadata.thread_id");
 
 const defaultSelection = buildAgentGraphView({ turn, trace });
 assert.equal(defaultSelection.selectedBranch.branch.id, "branch-ptolemy", "the first stable branch is selected by default");
@@ -120,19 +100,32 @@ const escapeHtml = (value) =>
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
-const html = renderAgentGraph(view, {
+const rendererDependencies = {
   translate,
   escapeHtml,
   shortPreview: (value, limit) => String(value || "").slice(0, limit),
   selectedTimelineHtml: '<article data-card="request-14">trusted child timeline</article>',
-});
+};
+const foldedHtml = renderAgentGraph(view, rendererDependencies);
+assert.match(foldedHtml, /<details class="agent-branch-map"[^>]*data-agent-dashboard="turn-7"/);
+assert.match(foldedHtml, /data-agent-dashboard-toggle="turn-7"/);
+assert.doesNotMatch(foldedHtml, /role="tablist"/, "folded dashboards should not render their tab content");
+assert.doesNotMatch(foldedHtml, /trusted child timeline/, "folded dashboards should not build hidden request-card DOM");
 
-assert.match(html, /<section class="agent-branch-map"[^>]*data-agent-dashboard="turn-7"/);
-assert.match(html, /class="agent-dashboard-header"/);
+const openView = buildAgentGraphView({
+  turn,
+  trace,
+  selectedBranchId: "branch-euclid",
+  dashboardOpen: true,
+});
+const html = renderAgentGraph(openView, rendererDependencies);
+
+assert.match(html, /<details class="agent-branch-map"[^>]*data-agent-dashboard="turn-7"[^>]*open/);
 assert.match(html, /role="tablist"/);
 assert.equal((html.match(/data-agent-branch-select=/g) || []).length, 2, "every child Agent receives one tab");
 assert.match(html, /data-agent-branch-select="branch-euclid"[^>]*style=/);
-assert.match(html, /data-agent-branch-select="branch-euclid"[\s\S]*?Euclid[\s\S]*?childSeq:index=2/);
+assert.match(html, /data-agent-branch-select="branch-euclid"[\s\S]*?class="agent-tab-name">Euclid<\/strong>/);
+assert.doesNotMatch(html, /childSeq:index=/, "Agent tabs should contain only their identity glyph and name");
 assert.match(html, /data-agent-selected-branch="branch-euclid"/);
 assert.match(html, /data-card="request-14">trusted child timeline/);
 assert.match(html, /agentSelectedTimelineAria:name=Euclid/);
@@ -148,7 +141,7 @@ assert.doesNotMatch(html, /Ptolemy <unsafe>/);
 assert.doesNotMatch(html, /data-agent-branch-toggle=/);
 assert.doesNotMatch(html, /data-agent-status-filter=/);
 assert.doesNotMatch(html, /agentInterleavedTimeline/);
-assert.doesNotMatch(html, /data-agent-dashboard-toggle=/);
+assert.match(html, /data-agent-dashboard-toggle="turn-7"/);
 
 const modelSource = fs.readFileSync(new URL("../src/viewer/agent-graph-model.js", import.meta.url), "utf8");
 const rendererSource = fs.readFileSync(new URL("../src/viewer/agent-graph-renderer.js", import.meta.url), "utf8");

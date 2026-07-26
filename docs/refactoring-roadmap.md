@@ -194,7 +194,7 @@ src/
 - 已迁移 Trace Timeline View Model：查询分类、命中 Turn、结果上限、latest-only、lead request 与窗口策略成为无 DOM 纯模块；Header、Timeline、Composer 已形成局部渲染表面，Timeline 内部交互和 Thinking 块翻译不再默认触发整页 `renderAll()`，活动选择由 Store 通知统一同步 DOM。
 - 已迁移 Trace Timeline Renderer/Controller：查询、空状态和窗口 HTML 使用显式 DTO；IME、筛选、Raw/Agent 动作和活动态通过长生命周期控制器做单次事件委派，不再在每次 Timeline 重绘后逐按钮重新绑定。
 - 已迁移 Request Card Renderer：请求卡外壳、上行标题与快捷动作、当前工具交换、历史调用来源、Thinking 和 Assistant 回复 HTML 只消费显式 View DTO；冗余工具活动标题已移除，来源跳转/返回、详情读取、翻译动作注册和响应折叠状态继续由应用层所有。
-- 已迁移 Agent Graph View：Turn 内分支选择、真实昵称、稳定身份颜色/glyph 和关联证据成为纯 View Model；看板以常驻 child tabs + 单一选中完整 timeline 呈现，选中 timeline 复用普通 Request Card Renderer，tab 切换只原位替换分支区域，child request 不再重复进入主/幕后时间线；Trace Domain 同时用精确 nested tool dispatch/result JSON 闭合经 `exec` 派发的 Codex child 生命周期。
+- 已迁移 Agent Graph View：Turn 内分支选择、真实昵称、稳定身份颜色/glyph、折叠状态和关联证据成为纯 View Model；看板紧跟发起请求并默认折叠，收起时不构建 child request-card DOM，展开后以“glyph + 名称”的 child tabs 和单一选中完整 timeline 呈现，状态进入选中分支详情行；选中 timeline 复用普通 Request Card Renderer，tab/折叠切换只原位替换分支区域，child request 不再重复进入主/幕后时间线；Trace Domain 同时用精确 nested tool dispatch/result JSON 闭合经 `exec` 派发的 Codex child 生命周期。
 - 已迁移 Upstream Detail View：System/Tools、历史消息、当前新增消息/子 Agent 回流和 provider token 口径成为纯 View Model；上行详情 HTML 成为纯 Renderer，compact detail 懒加载、缓存与展开状态仍由应用层所有；同时删除已无调用方的旧 context/badge/structure 渲染分支。
 - 已迁移 Agent Composer View：source 能力、发送目标/警示与结果文案成为纯 View Model，表单成为纯 Renderer；长生命周期 Controller 按 source 隔离草稿和发送状态，并管理 Enter/IME、detached resume 与 source 刷新，不再依赖全局 client state 或逐次事件绑定。
 - 已迁移 Session Navigator View：Source 的 Agent/项目分组、跨平台项目名、活动/可用状态成为纯 View Model，项目组和会话菜单成为纯 Renderer；长生命周期 Controller 管理根事件委派、菜单互斥和折叠持久化，归档/删除等副作用继续由应用层编排。

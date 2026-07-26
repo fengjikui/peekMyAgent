@@ -9,8 +9,7 @@ export class TurnRailController {
     getTurns,
     getActiveId,
     hasData,
-    titleFor,
-    excerptFor,
+    promptFor,
     translate,
     escapeHtml,
     onJump,
@@ -23,8 +22,7 @@ export class TurnRailController {
     this.getTurns = requiredFunction(getTurns, "getTurns");
     this.getActiveId = requiredFunction(getActiveId, "getActiveId");
     this.hasData = requiredFunction(hasData, "hasData");
-    this.titleFor = requiredFunction(titleFor, "titleFor");
-    this.excerptFor = requiredFunction(excerptFor, "excerptFor");
+    this.promptFor = requiredFunction(promptFor, "promptFor");
     this.translate = requiredFunction(translate, "translate");
     this.escapeHtml = requiredFunction(escapeHtml, "escapeHtml");
     this.onJump = requiredFunction(onJump, "onJump");
@@ -84,8 +82,8 @@ export class TurnRailController {
       <button class="turn-mark ${subagent} ${active ? "active" : ""}" type="button" data-turn="${this.escapeHtml(turn.id)}" aria-label="${this.escapeHtml(this.translate("jumpToTurnAria", { index: turn.index }))}">
         <span class="turn-line"></span>
         <span class="turn-tooltip">
-          <strong>Turn ${this.escapeHtml(turn.index)} · ${this.escapeHtml(this.titleFor(turn))}</strong>
-          <span>${this.escapeHtml(this.excerptFor(turn))}</span>
+          <strong>Turn ${this.escapeHtml(turn.index)}</strong>
+          <span>${this.escapeHtml(truncateRailPrompt(this.promptFor(turn)))}</span>
         </span>
       </button>
     `;
@@ -173,6 +171,11 @@ export function hoverClassForDistance(distance, active = true) {
   const absolute = Math.abs(Number(distance));
   if (absolute === 0) return "hover-center";
   return absolute <= 3 ? `hover-near-${absolute}` : "";
+}
+
+export function truncateRailPrompt(value, limit = 96) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > limit ? `${text.slice(0, limit).trimEnd()}...` : text;
 }
 
 function requiredFunction(value, name) {

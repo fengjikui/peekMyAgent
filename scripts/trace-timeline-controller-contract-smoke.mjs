@@ -71,6 +71,7 @@ const callbacks = Object.fromEntries(
     "onAgentJump",
     "onAgentBranchJump",
     "onAgentBranchSelect",
+    "onAgentDashboardToggle",
     "onSupportingTimelineToggle",
     "onSystemDiff",
   ].map((name) => [name, (...args) => calls.push([name, ...args])]),
@@ -186,6 +187,9 @@ assert.deepEqual(
 const branchTab = fakeElement("[data-agent-branch-select]", { agentBranchSelect: "branch-euclid" }, timelineRoot);
 timelineRoot.emit("click", eventFor(branchTab));
 assert.deepEqual(calls.find(([name]) => name === "onAgentBranchSelect"), ["onAgentBranchSelect", "branch-euclid"]);
+const dashboardToggle = fakeElement("[data-agent-dashboard-toggle]", { agentDashboardToggle: "turn-7" }, timelineRoot);
+timelineRoot.emit("click", eventFor(dashboardToggle));
+assert.deepEqual(calls.find(([name]) => name === "onAgentDashboardToggle"), ["onAgentDashboardToggle", "turn-7"]);
 assert.equal(timelineAction(fakeElement("[data-raw]", { raw: "outside" }, queryRoot), timelineRoot), null, "actions outside the Timeline root must be ignored");
 
 console.log("trace timeline controller contract smoke passed");
