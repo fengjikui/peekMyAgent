@@ -70,7 +70,10 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
     return createRequestAttribution({
       type: "metadata",
       label: "生成会话标题",
+      label_key: "sessionTitleGenerationRequest",
+      note_key: "sessionTitleGenerationNote",
       operation: "session_title_generation",
+      turn_placement: titleGenerationTurnPlacement(capture),
       confidence: "high",
       evidence: [requestAttributionEvidence("request_body", "semantic_shape", "title_generation")],
     });
@@ -115,7 +118,10 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
     return createRequestAttribution({
       type: "metadata",
       label: "生成会话标题",
+      label_key: "sessionTitleGenerationRequest",
+      note_key: "sessionTitleGenerationNote",
       operation: "session_title_generation",
+      turn_placement: titleGenerationTurnPlacement(capture),
       confidence: "high",
       evidence: [requestAttributionEvidence("debug", "source", "generate_session_title")],
     });
@@ -155,12 +161,31 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
   });
 }
 
+function titleGenerationTurnPlacement(capture = {}) {
+  const agentProfile = String(capture?.agent_profile || capture?.agentProfile || "").trim();
+  return /^claude\s*code$/i.test(agentProfile) ? "next_turn" : "trigger_turn";
+}
+
 export function classifyCodexRequestOperation(capture = {}, body = capture.body || {}) {
   const observation = codexTurnMetadataObservation(body, capture);
   const metadata = observation?.metadata;
   const requestKind = cleanIdentity(metadata?.request_kind)?.toLowerCase();
   if (!requestKind || requestKind === "turn") return null;
   const evidence = [codexMetadataEvidence(observation, "request_kind")].filter(Boolean);
+  if (requestKind === "prewarm") {
+    return createRequestAttribution({
+      type: "metadata",
+      label: "Codex 对话预热请求",
+      label_key: "codexPrewarmRequest",
+      note_key: "codexPrewarmNote",
+      operation: "responses_prewarm",
+      request_kind: requestKind,
+      turn_placement: "next_turn",
+      relation: "current_dialogue",
+      confidence: "high",
+      evidence,
+    });
+  }
   if (requestKind === "compaction") {
     return createRequestAttribution({
       type: "metadata",

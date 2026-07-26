@@ -22,7 +22,7 @@ export function buildTimelineRequestIdentity(
   }
   const summary = request.summary || {};
   const excerpt =
-    request.source_hint?.type === "background" && request.source_hint?.note_key
+    request.source_hint?.note_key
       ? translate(request.source_hint.note_key)
       : request.source_hint?.type === "metadata" || request.source_hint?.type === "background"
         ? summary.internal_request_preview || summary.current_user || summary.assistant_preview || translate("noTextSummary")
@@ -225,13 +225,13 @@ export function shouldShowTimelineRequestContent(request = {}, { cleanText = def
 }
 
 export function shouldShowTimelineAssistantResponse(request = {}) {
-  if (request.source_hint?.type === "metadata") return false;
   const response = request.summary?.response;
   if (!response?.captured) return false;
   return Boolean(response.text || response.preview || response.thinking || (response.tool_calls || []).length);
 }
 
 export function isPrimaryTimelineRequest(request = {}, options = {}) {
+  if (isProminentTimelineMechanism(request)) return true;
   if (request.source_hint?.type === "metadata" || request.source_hint?.type === "background") return false;
   if (request.summary?.entry?.semantic_event) return true;
   if (request.is_subagent) return false;
@@ -240,9 +240,15 @@ export function isPrimaryTimelineRequest(request = {}, options = {}) {
 }
 
 export function isTimelineResponseRequest(request = {}) {
-  if (request.source_hint?.type === "metadata") return false;
+  // Supporting mechanism requests keep their response inside the expandable
+  // supporting timeline. Prominent mechanisms render as primary cards.
+  if (request.source_hint?.type === "metadata") return isProminentTimelineMechanism(request);
   if (request.is_subagent) return false;
   return shouldShowTimelineAssistantResponse(request);
+}
+
+export function isProminentTimelineMechanism(request = {}) {
+  return request.source_hint?.operation === "context_compaction";
 }
 
 export function isTimelineUserTurnEntry(request = {}) {
@@ -316,7 +322,7 @@ export function timelineUpstreamEntryPreview(
     const frameworkReminder = [...(request.summary?.history_stack || [])]
       .reverse()
       .find((item) => item.kind === "framework_reminder");
-    return preview(request.summary?.internal_request_preview || frameworkReminder?.text || identity().title, 260);
+    return preview(request.summary?.internal_request_preview || frameworkReminder?.text || identity().excerpt || identity().title, 260);
   }
   if (request.summary?.command_message) {
     return commandMessagePreview(request.summary.command_message, { cleanText, preview });

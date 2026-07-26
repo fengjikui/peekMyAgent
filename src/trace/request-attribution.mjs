@@ -35,6 +35,7 @@ export function createRequestAttribution({
   relation,
   operation,
   request_kind,
+  turn_placement,
   confidence = "medium",
   evidence = [],
 } = {}) {
@@ -49,6 +50,7 @@ export function createRequestAttribution({
     relation: relation || defaults.relation,
     operation: operation || defaults.operation,
     request_kind,
+    turn_placement,
     confidence,
     evidence: normalizeEvidence(evidence),
   });

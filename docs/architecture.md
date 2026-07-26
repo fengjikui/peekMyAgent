@@ -332,6 +332,10 @@ Trace Timeline 的搜索分类、命中计数、结果上限、latest-only 和 T
 
 Trace Domain 根据统一 `source_hint.relation` 把 `independent` 请求从用户 Turn 旁路出来。Viewer 以紧凑“后台机制”节点展示其具体 operation、关系说明、请求/回复摘要和详情入口；该节点不占用 Turn 编号，不进入 Turn Rail、主对话统计或 latest-only 候选。`current_dialogue` 的 Harness 压缩仍留在对应 Turn 内，`child_dialogue` 仍归入父 Turn 的多 Agent 视图，从而同时保留因果关系和后台机制的可观察性。
 
+发生在首条用户消息之前的 `current_dialogue` 内部请求会先暂存，并在首个真实模型 Turn 出现后归入该 Turn，避免连接预热、握手等 Harness 机制凭空占用 Turn 编号。显式 `turn_placement=next_turn` 的预热请求遵循这一规则；`turn_placement=trigger_turn` 的标题生成请求无论出现在主请求之前还是之后，都会归入触发它的用户 Turn。若捕获截止时仍没有真实 Turn，内部请求仍以独立的机制 Turn 暂时可见，后续重投影会自动归并。
+
+内部请求的归因不会删减捕获证据。上下文压缩作为当前对话的重要机制直接进入主时间线，并保留模型下行；独立后台任务显示为旁路机制组；会话命名和预热等低干扰辅助请求收在可展开的幕后请求时间线中，但其已捕获回复仍可查看。
+
 用户输入的请求编号进入与其他上行请求共用的固定编号轨道，一条极淡的 1px 连续线在气泡上缘高度连接编号与右对齐自适应气泡，气泡本身不再为编号预留一列。该轨道属于请求卡 renderer 的视觉语义，不改变 request index 或 Turn 归属。
 
 工具事件与子 Agent 事件筛选会保留所属 Turn 的“机制流程”，避免过滤后只剩离散证据而失去链路语义；异常和慢请求筛选继续保持紧凑。筛选计数统一表示匹配的请求/事件数量，顶部统计则保留子 Agent 实例数、工具调用数与工具结果数，两种口径不混用。纯数字或 `#数字` 查询按精确 request index 解释，避免正文、token 或工具结果里的相同数字造成伪命中；其他查询继续搜索可见语义文本。

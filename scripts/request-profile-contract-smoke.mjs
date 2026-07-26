@@ -110,6 +110,35 @@ assert.deepEqual(classifyCodexRequestOperation({}, codexMemoryBody), {
     },
   ],
 });
+const codexPrewarmBody = {
+  client_metadata: {
+    "x-codex-turn-metadata": JSON.stringify({
+      request_kind: "prewarm",
+      thread_source: "user",
+      thread_id: "thread-main",
+      turn_id: "turn-prewarm",
+    }),
+  },
+};
+assert.deepEqual(classifyCodexRequestOperation({}, codexPrewarmBody), {
+  type: "metadata",
+  label: "Codex 对话预热请求",
+  label_key: "codexPrewarmRequest",
+  note_key: "codexPrewarmNote",
+  actor: "harness",
+  operation: "responses_prewarm",
+  request_kind: "prewarm",
+  turn_placement: "next_turn",
+  relation: "current_dialogue",
+  confidence: "high",
+  evidence: [
+    {
+      origin: "request_body",
+      field: "client_metadata.x-codex-turn-metadata.request_kind",
+      value: "prewarm",
+    },
+  ],
+});
 assert.deepEqual(codexTurnMetadataObservation(codexMemoryBody), {
   metadata: {
     request_kind: "memory",
@@ -323,7 +352,29 @@ assert.deepEqual(
 );
 assert.equal(infer({ lastUser: user("[SUGGESTION MODE: suggest the next input]") }).type, "metadata");
 assert.equal(infer({ lastUser: user("<system-reminder>framework note</system-reminder>") }).type, "metadata");
-assert.equal(infer({ body: { system: "Generate a concise, sentence-case title", messages: [] } }).label, "生成会话标题");
+assert.deepEqual(
+  infer({ body: { system: "Generate a concise, sentence-case title", messages: [] } }),
+  {
+    type: "metadata",
+    label: "生成会话标题",
+    label_key: "sessionTitleGenerationRequest",
+    note_key: "sessionTitleGenerationNote",
+    actor: "harness",
+    relation: "current_dialogue",
+    operation: "session_title_generation",
+    turn_placement: "trigger_turn",
+    confidence: "high",
+    evidence: [{ origin: "request_body", field: "semantic_shape", value: "title_generation" }],
+  },
+);
+assert.equal(
+  infer({
+    capture: { agent_profile: "Claude Code" },
+    body: { system: "Generate a concise, sentence-case title", messages: [] },
+  }).turn_placement,
+  "next_turn",
+  "Claude Code emits title generation between the previous and next visible turns",
+);
 assert.equal(infer({ body: { tool_choice: { name: "web_search" }, messages: [] } }).label, "WebSearch 内部请求");
 assert.deepEqual(
   infer({ capture: { headers: { "X-Claude-Code-Agent-Id": "agent-1" } }, debugSource: { source: "agent:Explore" } }),
