@@ -309,7 +309,7 @@ Raw Inspector 的一次导航由 `RawInspectorController` 串联：更新 Store 
 
 System diff 只在用户按需打开时计算。小输入由 `system-diff-model.js` 使用有总行数、矩阵单元、字符数和单行长度上限的精确行级 LCS；任一上限被触发后，模型线性确认共同前后缀，并在至多 256 个动态内容块上计算指纹摘要，避免大 System 提示词在浏览器创建无界 `行数 × 行数` 矩阵或数千个 DOM 行。Renderer 只消费显式 DTO，并明确区分“行变化”和“内容块变化”；原始结构仍以 System 原文为证据。完整门限和退化语义见 [System Diff View 契约](system-diff-view-contract.md)。
 
-顶部 Trace 搜索和 Raw 区块搜索均遵守浏览器 IME composition 生命周期：中文、日文、韩文等输入法组词期间不替换输入框 DOM，只有选词完成后才触发过滤和重绘。Trace 搜索与事件筛选是顶部主操作；会话请求数、回复数、子 Agent、工具事件和 Raw 体积收进按需展开的统计面板，避免高频操作被低频数字挤出首屏。
+顶部 Trace 搜索和 Raw 区块搜索均遵守浏览器 IME composition 生命周期：中文、日文、韩文等输入法组词期间不替换输入框 DOM，只有选词完成后才触发过滤和重绘。Trace 搜索与事件筛选是顶部主操作；界面语言、翻译语言和独立的 latest-only 图标保留在外层，会话请求数、回复数、子 Agent、工具事件、Raw 体积与捕获方式收进按需展开的会话概览，避免高频操作被低频数字挤出首屏。主题是跨会话外观偏好，以左栏紧凑图标选择器呈现，不占用 Trace 工作区。
 
 Turn Rail 已作为首个 Viewer Client feature 从全局脚本迁出。`client.js` 只注入当前 Turn 集合、active id、文案和状态回调；窗口密度、边缘提示、悬停层级、点击跳转与滚动激活由 `TurnRailController` 所有。纯窗口策略和滚动选择规则有独立契约测试，后续 feature 也应遵循“依赖注入、纯策略可测、应用层只装配”的边界。
 

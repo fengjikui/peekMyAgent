@@ -162,6 +162,8 @@ const els = {
   pageTitle: document.querySelector("#pageTitle"),
   stats: document.querySelector("#stats"),
   viewControls: document.querySelector("#viewControls"),
+  sessionOverviewActions: document.querySelector("#sessionOverviewActions"),
+  sessionOverviewDisclosure: document.querySelector("#sessionOverviewDisclosure"),
   mainPanel: document.querySelector(".main-panel"),
   sidebarResizer: document.querySelector("#sidebarResizer"),
   watchSummary: document.querySelector("#watchSummary"),
@@ -602,6 +604,14 @@ async function init() {
     event.stopPropagation();
     translationActionController.retranslate(retranslateButton.dataset.translationRetranslate);
   });
+  document.addEventListener("click", (event) => {
+    if (els.sessionOverviewDisclosure?.open && !els.sessionOverviewDisclosure.contains(event.target)) {
+      els.sessionOverviewDisclosure.removeAttribute("open");
+    }
+    document.querySelectorAll(".trace-filter-disclosure[open]").forEach((disclosure) => {
+      if (!disclosure.contains(event.target)) disclosure.removeAttribute("open");
+    });
+  });
   turnRailController.bind();
   paneLayoutController.bind();
   document.addEventListener("visibilitychange", () => {
@@ -971,9 +981,20 @@ function renderViewControls() {
   const captureMode = state.data?.source?.workbench?.capture_label || "";
   const captureModeLabel = captureMode ? captureLabelText(captureMode) : t("sessionInfo");
   const captureModeHelp = captureMode ? captureLabelHelp(captureMode) : t("sessionInfo");
-  els.viewControls.innerHTML =
-    `<button class="stat stat-button ${state.latestOnly && !traceQueryActive() ? "active" : ""}" type="button" data-latest-only ${traceQueryActive() ? `disabled title="${escapeHtml(t("latestDisabledBySearch"))}"` : ""}>${state.latestOnly && !traceQueryActive() ? t("showAllTurns") : t("latestOnly")}</button>` +
-    `<button class="stat stat-button session-info-trigger" type="button" data-session-info title="${escapeHtml(captureModeHelp)}">${escapeHtml(captureModeLabel)}</button>`;
+  const latestOnlyActive = state.latestOnly && !traceQueryActive();
+  const latestOnlyHelp = traceQueryActive()
+    ? t("latestDisabledBySearch")
+    : latestOnlyActive
+      ? t("latestOnlyEnabledHelp")
+      : t("latestOnly");
+  els.viewControls.innerHTML = `<button class="latest-only-control ${latestOnlyActive ? "active" : ""}" type="button" data-latest-only aria-pressed="${escapeHtml(String(latestOnlyActive))}" aria-label="${escapeHtml(latestOnlyHelp)}" title="${escapeHtml(latestOnlyHelp)}" ${traceQueryActive() ? "disabled" : ""}>
+    <span class="latest-only-glyph" aria-hidden="true"></span>
+  </button>`;
+  els.sessionOverviewActions.innerHTML =
+    `<button class="session-overview-action session-info-trigger" type="button" data-session-info title="${escapeHtml(captureModeHelp)}">
+      <span>${escapeHtml(t("captureMode"))}</span>
+      <strong>${escapeHtml(captureModeLabel)}</strong>
+    </button>`;
   bindViewControlEvents();
   bindSessionInfoControls();
 }
@@ -1148,6 +1169,7 @@ function bindSessionInfoControls() {
 }
 
 function showSessionInfoModal() {
+  els.sessionOverviewDisclosure?.removeAttribute("open");
   els.sessionInfoModal.classList.remove("hidden");
   els.sessionInfoModal.setAttribute("aria-hidden", "false");
 }
@@ -1159,6 +1181,7 @@ function hideSessionInfoModal() {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !els.sessionInfoModal.classList.contains("hidden")) hideSessionInfoModal();
+  if (event.key === "Escape") els.sessionOverviewDisclosure?.removeAttribute("open");
 });
 
 async function stopActiveWatch(clear) {
