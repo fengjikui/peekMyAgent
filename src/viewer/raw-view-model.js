@@ -146,6 +146,7 @@ export function rawUpstreamRequestMetadata(request) {
     body_source: raw.body_source,
     headers: raw.headers,
     header_redactions: raw.header_redactions,
+    request_attribution: request?.source_hint || null,
     upstream_evidence: rawUpstreamEvidenceMetadata(request),
     context_delta: request?.context_delta,
     composition: rawUpstreamComposition(request),

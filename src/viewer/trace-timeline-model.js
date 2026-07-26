@@ -39,7 +39,8 @@ export function buildTraceTimelineView({
         resultLimit,
       })
     : normalizedTurns;
-  const railTurns = queryActive || !latestOnly || filteredTurns.length <= 1 ? filteredTurns : [filteredTurns.at(-1)];
+  const latestTurn = [...filteredTurns].reverse().find((turn) => turn.kind !== "independent_background") || filteredTurns.at(-1);
+  const railTurns = queryActive || !latestOnly || filteredTurns.length <= 1 ? filteredTurns : latestTurn ? [latestTurn] : [];
 
   return {
     query: normalizedQuery,
@@ -67,8 +68,9 @@ export function normalizeTimelineTurns(turns, requests, requestExcerpt = default
 
 export function fallbackTimelineTurns(requests, { requestExcerpt = defaultRequestExcerpt } = {}) {
   return (Array.isArray(requests) ? requests : []).map((request, index) => ({
-    id: `turn-${index + 1}`,
-    index: index + 1,
+    id: request.source_hint?.relation === "independent" ? `background-request-${request.request_index || request.id}` : `turn-${index + 1}`,
+    kind: request.source_hint?.relation === "independent" ? "independent_background" : "conversation_turn",
+    index: request.source_hint?.relation === "independent" ? null : index + 1,
     title: requestExcerpt(request),
     user_input: requestExcerpt(request),
     request_ids: [request.id],

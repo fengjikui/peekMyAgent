@@ -5,6 +5,7 @@ import {
   isSuggestionModeMessage,
   userVisibleText,
 } from "./message-semantics.mjs";
+import { createRequestAttribution, requestAttributionEvidence } from "./request-attribution.mjs";
 
 export { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
 
@@ -27,66 +28,141 @@ export function extractSystemParts(body = {}, messages = extractRequestMessages(
 export function inferRequestSource({ capture = {}, body = {}, currentUser = null, debugSource = null, lastUser = currentUser } = {}) {
   const transportOperation = classifyTransportOperation(capture);
   if (transportOperation) {
-    return {
+    return createRequestAttribution({
       type: "metadata",
       label: transportOperation.label,
       label_key: transportOperation.label_key,
       operation: transportOperation.operation,
       confidence: "high",
-    };
+      evidence: transportOperation.evidence,
+    });
   }
   const codexOperation = classifyCodexRequestOperation(capture, body);
   if (codexOperation) return codexOperation;
   if (isContextTokenCountingRequest(capture)) {
-    return { type: "metadata", label: "上下文统计 (/context)", confidence: "high" };
+    return createRequestAttribution({
+      type: "metadata",
+      label: "上下文统计 (/context)",
+      operation: "context_token_count",
+      confidence: "high",
+      evidence: [requestAttributionEvidence("transport", "path", "/v1/messages/count_tokens")],
+    });
   }
   if (isSuggestionModeMessage(lastUser)) {
-    return { type: "metadata", label: "Agent 输入建议请求", confidence: "high" };
+    return createRequestAttribution({
+      type: "metadata",
+      label: "Agent 输入建议请求",
+      operation: "input_suggestion",
+      confidence: "high",
+      evidence: [requestAttributionEvidence("message", "semantic_marker", "suggestion_mode")],
+    });
   }
   if (isFrameworkReminderMessage(lastUser)) {
-    return { type: "metadata", label: "Claude Code 框架提醒", confidence: "high" };
+    return createRequestAttribution({
+      type: "metadata",
+      label: "Claude Code 框架提醒",
+      operation: "framework_reminder",
+      confidence: "high",
+      evidence: [requestAttributionEvidence("message", "semantic_marker", "system_reminder")],
+    });
   }
   if (isTitleGenerationRequest(body, capture)) {
-    return { type: "metadata", label: "生成会话标题", confidence: "high" };
+    return createRequestAttribution({
+      type: "metadata",
+      label: "生成会话标题",
+      operation: "session_title_generation",
+      confidence: "high",
+      evidence: [requestAttributionEvidence("request_body", "semantic_shape", "title_generation")],
+    });
   }
   if (isWebSearchInternalRequest(body)) {
-    return { type: "metadata", label: "WebSearch 内部请求", confidence: "high" };
+    return createRequestAttribution({
+      type: "metadata",
+      label: "WebSearch 内部请求",
+      operation: "internal_web_search",
+      confidence: "high",
+      evidence: [requestAttributionEvidence("request_body", "semantic_shape", "web_search")],
+    });
   }
 
   const userText = userVisibleText(currentUser);
   const claudeAgentId = headerValue(capture.headers, "x-claude-code-agent-id");
   if (claudeAgentId) {
-    return { type: "subagent", label: debugSource?.source || "Claude Code 子 Agent", confidence: "high" };
+    return createRequestAttribution({
+      type: "subagent",
+      label: debugSource?.source || "Claude Code 子 Agent",
+      confidence: "high",
+      evidence: [requestAttributionEvidence("request_header", "x-claude-code-agent-id", "present")],
+    });
   }
   if (isCodexSubagentRequest(capture, body)) {
-    return { type: "subagent", label: "Codex 子 Agent", confidence: "high" };
+    return createRequestAttribution({
+      type: "subagent",
+      label: "Codex 子 Agent",
+      confidence: "high",
+      evidence: codexSubagentEvidence(capture, body),
+    });
   }
   if (debugSource?.source?.startsWith("agent:")) {
-    return { type: "subagent", label: debugSource.source, confidence: "high" };
+    return createRequestAttribution({
+      type: "subagent",
+      label: debugSource.source,
+      confidence: "high",
+      evidence: [requestAttributionEvidence("debug", "source_prefix", "agent")],
+    });
   }
   if (debugSource?.source === "generate_session_title") {
-    return { type: "metadata", label: "生成会话标题", confidence: "high" };
+    return createRequestAttribution({
+      type: "metadata",
+      label: "生成会话标题",
+      operation: "session_title_generation",
+      confidence: "high",
+      evidence: [requestAttributionEvidence("debug", "source", "generate_session_title")],
+    });
   }
   if (/\[Subagent Context\]|\[Subagent Task\]/i.test(userText)) {
-    return { type: "subagent", label: "子代理请求", confidence: "high" };
+    return createRequestAttribution({
+      type: "subagent",
+      label: "子代理请求",
+      confidence: "high",
+      evidence: [requestAttributionEvidence("message", "semantic_marker", "subagent_context")],
+    });
   }
   const apiSource = capture.api_source || body.api_source || body.metadata?.api_source;
   if (typeof apiSource === "string" && apiSource.startsWith("agent:")) {
-    return { type: "subagent", label: apiSource, confidence: "high" };
+    return createRequestAttribution({
+      type: "subagent",
+      label: apiSource,
+      confidence: "high",
+      evidence: [requestAttributionEvidence("request_body", "api_source_prefix", "agent")],
+    });
   }
   const calls = extractToolCalls(extractRequestMessages(body));
-  if (calls.some((call) => /^(Agent|sessions_spawn|subagents)$/.test(call.name))) {
-    return { type: "parent_spawn", label: "启动子代理", confidence: "high" };
+  const spawnCall = calls.find((call) => /^(Agent|sessions_spawn|subagents)$/.test(call.name));
+  if (spawnCall) {
+    return createRequestAttribution({
+      type: "parent_spawn",
+      label: "启动子代理",
+      confidence: "high",
+      evidence: [requestAttributionEvidence("message", "tool_call.name", spawnCall.name)],
+    });
   }
-  return { type: "main", label: "主代理请求", confidence: "medium" };
+  return createRequestAttribution({
+    type: "main",
+    label: "主代理请求",
+    confidence: "medium",
+    evidence: [requestAttributionEvidence("fallback", "classification", "main_agent")],
+  });
 }
 
 export function classifyCodexRequestOperation(capture = {}, body = capture.body || {}) {
-  const metadata = codexTurnMetadata(body, capture);
+  const observation = codexTurnMetadataObservation(body, capture);
+  const metadata = observation?.metadata;
   const requestKind = cleanIdentity(metadata?.request_kind)?.toLowerCase();
   if (!requestKind || requestKind === "turn") return null;
+  const evidence = [codexMetadataEvidence(observation, "request_kind")].filter(Boolean);
   if (requestKind === "compaction") {
-    return {
+    return createRequestAttribution({
       type: "metadata",
       label: "Harness 上下文压缩请求",
       label_key: "contextCompactionRequest",
@@ -94,10 +170,11 @@ export function classifyCodexRequestOperation(capture = {}, body = capture.body 
       request_kind: requestKind,
       relation: "current_dialogue",
       confidence: "high",
-    };
+      evidence,
+    });
   }
   if (requestKind === "memory") {
-    return {
+    return createRequestAttribution({
       type: "background",
       label: "Codex 后台任务 · 记忆提取",
       label_key: "codexMemoryBackgroundTask",
@@ -106,35 +183,50 @@ export function classifyCodexRequestOperation(capture = {}, body = capture.body 
       request_kind: requestKind,
       relation: "independent",
       confidence: "high",
-    };
+      evidence,
+    });
   }
-  return {
+  const operationKind = safeOperationToken(requestKind);
+  return createRequestAttribution({
     type: "background",
     label: "Codex 后台任务",
     label_key: "codexBackgroundTask",
     note_key: "codexBackgroundTaskNote",
-    operation: `codex_${requestKind}`,
+    operation: `codex_${operationKind}`,
     request_kind: requestKind,
     relation: "independent",
     confidence: "high",
-  };
+    evidence,
+  });
 }
 
 export function codexTurnMetadata(body = {}, capture = {}) {
+  return codexTurnMetadataObservation(body, capture)?.metadata || null;
+}
+
+export function codexTurnMetadataObservation(body = {}, capture = {}) {
   const clientMetadata = body?.client_metadata;
   const direct = clientMetadata && typeof clientMetadata === "object" && !Array.isArray(clientMetadata)
     ? pickCodexTurnMetadata(clientMetadata)
     : {};
+  const sources = Object.fromEntries(Object.keys(direct).map((key) => [key, `client_metadata.${key}`]));
   const candidates = [
-    clientMetadata?.["x-codex-turn-metadata"],
-    clientMetadata?.turn_metadata,
-    headerValue(capture.headers, "x-codex-turn-metadata"),
+    {
+      value: clientMetadata?.["x-codex-turn-metadata"],
+      source: "client_metadata.x-codex-turn-metadata",
+    },
+    { value: clientMetadata?.turn_metadata, source: "client_metadata.turn_metadata" },
+    { value: capture.header_semantics?.codex_turn_metadata, source: "header_semantics.codex_turn_metadata" },
+    { value: headerValue(capture.headers, "x-codex-turn-metadata"), source: "headers.x-codex-turn-metadata" },
   ];
   for (const candidate of candidates) {
-    const parsed = parseMetadataObject(candidate);
-    if (parsed) return { ...direct, ...parsed };
+    const parsed = parseMetadataObject(candidate.value);
+    if (parsed) {
+      for (const key of Object.keys(parsed)) sources[key] = `${candidate.source}.${key}`;
+      return { metadata: { ...direct, ...parsed }, sources };
+    }
   }
-  return Object.keys(direct).length ? direct : null;
+  return Object.keys(direct).length ? { metadata: direct, sources } : null;
 }
 
 export function classifyTransportOperation(capture = {}) {
@@ -144,6 +236,7 @@ export function classifyTransportOperation(capture = {}) {
       kind: "compact",
       label: "Harness 上下文压缩请求",
       label_key: "contextCompactionRequest",
+      evidence: [requestAttributionEvidence("transport", "path", "/v1/responses/compact")],
     };
   }
   if (isCodexSearchServiceRequest(capture)) {
@@ -152,6 +245,7 @@ export function classifyTransportOperation(capture = {}) {
       kind: "agent_internal",
       label: "Codex 内置搜索请求",
       label_key: "codexSearchServiceRequest",
+      evidence: [requestAttributionEvidence("transport", "path", "/v1/alpha/search")],
     };
   }
   return null;
@@ -169,17 +263,47 @@ export function isCodexSearchServiceRequest(capture = {}) {
   );
 }
 
-export function isCodexSubagentRequest(capture = {}, body = capture.body || {}) {
-  const metadata = codexTurnMetadata(body, capture);
-  if (String(metadata?.thread_source || "").trim().toLowerCase() === "subagent") return true;
-  if (cleanIdentity(metadata?.parent_thread_id || metadata?.["x-codex-parent-thread-id"])) return true;
+function codexMetadataEvidence(observation, key, { presenceOnly = false } = {}) {
+  const value = observation?.metadata?.[key];
+  const field = observation?.sources?.[key];
+  if (value == null || !field) return null;
+  const origin = field.startsWith("headers.") || field.startsWith("header_semantics.")
+    ? "request_header"
+    : "request_body";
+  return requestAttributionEvidence(origin, field, presenceOnly ? "present" : safeEvidenceValue(value));
+}
+
+function codexSubagentEvidence(capture = {}, body = capture.body || {}) {
+  const observation = codexTurnMetadataObservation(body, capture);
+  const metadata = observation?.metadata || {};
+  const evidence = [];
+  if (String(metadata.thread_source || "").trim().toLowerCase() === "subagent") {
+    evidence.push(codexMetadataEvidence(observation, "thread_source"));
+  }
+  for (const key of ["parent_thread_id", "x-codex-parent-thread-id"]) {
+    if (cleanIdentity(metadata[key])) evidence.push(codexMetadataEvidence(observation, key, { presenceOnly: true }));
+  }
   const marker = headerValue(capture.headers, "x-openai-subagent").trim().toLowerCase();
-  if (marker && !["0", "false", "no", "off"].includes(marker)) return true;
-  return (capture.header_redactions || []).some(
-    (entry) => ["headers.x-codex-parent-thread-id", "headers.x-openai-subagent"].includes(
-      String(entry?.field_path || "").toLowerCase(),
-    ),
-  );
+  if (marker && !["0", "false", "no", "off"].includes(marker)) {
+    evidence.push(requestAttributionEvidence("request_header", "x-openai-subagent", "present"));
+  }
+  if (capture.header_semantics?.codex_parent_thread) {
+    evidence.push(requestAttributionEvidence("request_header", "x-codex-parent-thread-id", "present"));
+  }
+  if (capture.header_semantics?.codex_subagent) {
+    evidence.push(requestAttributionEvidence("request_header", "x-openai-subagent", "present"));
+  }
+  for (const entry of capture.header_redactions || []) {
+    const field = String(entry?.field_path || "").toLowerCase();
+    if (["headers.x-codex-parent-thread-id", "headers.x-openai-subagent"].includes(field)) {
+      evidence.push(requestAttributionEvidence("redaction_manifest", field, "present"));
+    }
+  }
+  return dedupeEvidence(evidence.filter(Boolean));
+}
+
+export function isCodexSubagentRequest(capture = {}, body = capture.body || {}) {
+  return codexSubagentEvidence(capture, body).length > 0;
 }
 
 export function codexSubagentIdentity(capture = {}, body = capture.body || {}) {
@@ -366,4 +490,26 @@ function headerValue(headers, name) {
 function cleanIdentity(value) {
   const text = String(value || "").trim();
   return text || null;
+}
+
+function safeEvidenceValue(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return /^[a-z][a-z0-9_-]{0,63}$/.test(text) ? text : "present";
+}
+
+function safeOperationToken(value) {
+  const text = String(value || "").trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+  return text.slice(0, 48) || "background";
+}
+
+function dedupeEvidence(items) {
+  const output = [];
+  const seen = new Set();
+  for (const item of items) {
+    const key = JSON.stringify(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(item);
+  }
+  return output;
 }

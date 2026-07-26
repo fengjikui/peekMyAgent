@@ -28,7 +28,11 @@ assert.match(
   /renderTurnTimelineView\(\{[\s\S]*?turnWindowOrTurns: timelineView\.turnWindow,[\s\S]*?requests,/,
   "main timeline should render the computed filtered window",
 );
-assert.match(clientSource, /return currentTimelineView\(data\)\.railTurns;/, "turn rail universe should follow the Timeline View Model");
+assert.match(
+  clientSource,
+  /return currentTimelineView\(data\)\.railTurns\.filter\(\(turn\) => turn\.kind !== "independent_background"\);/,
+  "turn rail universe should follow the Timeline View Model while excluding independent background side channels",
+);
 assert.match(clientSource, /import \{ TurnRailController \} from "\.\/turn-rail\.js";/, "the timeline should delegate rail interaction to its feature controller");
 assert.match(clientSource, /turnRailController\.bind\(\)/, "the turn rail controller should own its browser event lifecycle");
 assert.match(turnRailSource, /export function visibleTurnWindow\(/, "the turn rail window policy should be directly testable");

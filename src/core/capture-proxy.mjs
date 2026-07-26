@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import http from "node:http";
 import { proxyCaptureProvenance } from "./provenance.mjs";
-import { redactHeaders } from "./redaction.mjs";
+import { extractSafeHeaderSemantics, redactHeaders } from "./redaction.mjs";
 import { createUpstreamHttpTransport } from "./upstream-http-transport.mjs";
 
 export const DEFAULT_WATCH_ID = "default";
@@ -112,6 +112,7 @@ export function buildCaptureRecord({
   receivedAt = new Date().toISOString(),
 }) {
   const { headers, redactions } = redactHeaders(req.headers || {});
+  const headerSemantics = extractSafeHeaderSemantics(req.headers || {});
   const capture = {
     capture_id: captureId,
     watch_id: attribution.watchId,
@@ -128,6 +129,7 @@ export function buildCaptureRecord({
     body: bodyJson === undefined ? parseJson(bodyText) : bodyJson,
     raw_body_length: rawBodyLength ?? Buffer.byteLength(bodyText || ""),
   };
+  if (headerSemantics) capture.header_semantics = headerSemantics;
   if (decodedBodyLength != null) capture.decoded_body_length = decodedBodyLength;
   if (contentEncoding && contentEncoding !== "identity") capture.request_content_encoding = contentEncoding;
   if (captureAdapter) capture.capture_adapter = captureAdapter;

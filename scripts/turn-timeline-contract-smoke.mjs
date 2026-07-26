@@ -5,12 +5,14 @@ import { buildTurnTimeline } from "../src/trace/turn-timeline.mjs";
 const requests = [
   request(1, "first question", "main", { new_messages: 1 }, { responseToolCalls: [{ id: "call-1" }] }),
   request(2, "child task", "subagent", { new_messages: 2, new_tool_calls: 1 }, { currentToolCalls: [{ id: "call-1" }] }),
+  request(20, "first question", "background", { new_messages: 1 }),
   request(3, "first question", "main", { new_messages: 1, new_tool_results: 1 }),
   request(4, "second question", "main", { new_messages: 1 }),
 ];
 const semantics = {
   normalizeUserKey: (text) => String(text || "").trim(),
   isInternalRequest: (requestItem) => requestItem.source_hint.type === "subagent",
+  isIndependentRequest: (requestItem) => requestItem.source_hint.relation === "independent",
   titleFor: (text) => text || "untitled",
   cleanUserText: (text) => String(text || "").trim(),
   previewText: (text, limit) => String(text || "").slice(0, limit),
@@ -18,7 +20,7 @@ const semantics = {
 };
 
 const turns = buildTurnTimeline(requests, semantics);
-assert.equal(turns.length, 2);
+assert.equal(turns.length, 3);
 assert.deepEqual(turns[0].request_indexes, [1, 2, 3]);
 assert.equal(turns[0].main_request_count, 2);
 assert.equal(turns[0].internal_request_count, 1);
@@ -28,9 +30,13 @@ assert.equal(turns[0].tool_result_count, 1);
 assert.equal(turns[0].context_delta.new_messages, 4);
 assert.equal(turns[0].has_internal_requests, true);
 assert.equal(turns[0].has_tool_exchange, true);
-assert.deepEqual(turns[1].request_indexes, [4]);
+assert.equal(turns[1].kind, "independent_background");
+assert.deepEqual(turns[1].request_indexes, [20]);
+assert.equal(turns[1].index, null);
+assert.deepEqual(turns[2].request_indexes, [4]);
 assert.equal(requests[1].turn_id, "turn-1");
-assert.equal(requests[3].turn_id, "turn-2");
+assert.equal(requests[2].turn_id, "background-request-20");
+assert.equal(requests[4].turn_id, "turn-2");
 
 console.log("turn timeline contract smoke passed");
 
@@ -39,7 +45,7 @@ function request(index, currentUser, type, delta, { currentToolCalls = null, res
     id: `request-${index}`,
     request_index: index,
     captured_at: `2026-07-12T00:00:0${index}.000Z`,
-    source_hint: { type },
+    source_hint: { type, ...(type === "background" ? { relation: "independent" } : {}) },
     is_subagent: type === "subagent",
     counts: { raw_body_bytes: 100 },
     context_delta: { new_roles: {}, new_tool_calls: 0, new_tool_results: 0, ...delta },

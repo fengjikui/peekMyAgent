@@ -1,10 +1,17 @@
 export function buildTurnTimeline(requests, semantics = {}) {
   assertSemantics(semantics);
   const turns = [];
+  let nextTurnIndex = 1;
   let currentTurn = null;
   let currentUserKey = "";
   let pendingInternalRequests = [];
   for (const request of requests || []) {
+    if (semantics.isIndependentRequest?.(request)) {
+      const backgroundGroup = createIndependentGroup(request, semantics);
+      addRequestToTurn(backgroundGroup, request, semantics);
+      turns.push(backgroundGroup);
+      continue;
+    }
     const userText = request.summary?.current_user || "";
     const commandMessage = request.summary?.command_message || null;
     const userKey = semantics.normalizeUserKey(userText);
@@ -17,7 +24,7 @@ export function buildTurnTimeline(requests, semantics = {}) {
       (!semantics.isInternalRequest(request) && userKey && userKey !== currentUserKey) ||
       (!currentUserKey && userKey && currentTurn.request_count > 0 && !semantics.isInternalRequest(request));
     if (shouldStartTurn) {
-      currentTurn = createTurn(turns.length + 1, userText, commandMessage, semantics);
+      currentTurn = createTurn(nextTurnIndex++, userText, commandMessage, semantics);
       turns.push(currentTurn);
       currentUserKey = userKey;
     } else if (currentTurn && !currentUserKey && userKey) {
@@ -27,7 +34,7 @@ export function buildTurnTimeline(requests, semantics = {}) {
       currentUserKey = userKey;
     }
     if (!currentTurn) {
-      currentTurn = createTurn(turns.length + 1, userText, commandMessage, semantics);
+      currentTurn = createTurn(nextTurnIndex++, userText, commandMessage, semantics);
       turns.push(currentTurn);
       currentUserKey = userKey;
     }
@@ -46,6 +53,7 @@ export function buildTurnTimeline(requests, semantics = {}) {
 function createTurn(index, userText, commandMessage, semantics) {
   return {
     id: `turn-${index}`,
+    kind: "conversation_turn",
     index,
     title: semantics.titleFor(userText, commandMessage),
     user_input: semantics.previewText(semantics.cleanUserText(userText), 1200),
@@ -67,6 +75,18 @@ function createTurn(index, userText, commandMessage, semantics) {
     tool_result_keys: new Set(),
     raw_body_bytes: 0,
     context_delta: { new_messages: 0, new_tool_calls: 0, new_tool_results: 0, new_roles: {} },
+  };
+}
+
+function createIndependentGroup(request, semantics) {
+  const attribution = request.source_hint || {};
+  return {
+    ...createTurn(null, "", null, semantics),
+    id: `background-request-${request.request_index || request.id}`,
+    kind: "independent_background",
+    index: null,
+    title: attribution.label || "Background task",
+    source_hint: attribution,
   };
 }
 

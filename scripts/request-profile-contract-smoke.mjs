@@ -5,6 +5,7 @@ import {
   classifyTransportOperation,
   codexSubagentIdentity,
   codexTurnMetadata,
+  codexTurnMetadataObservation,
   extractSystemParts,
   extractRequestMessages,
   extractRequestTools,
@@ -72,6 +73,7 @@ assert.deepEqual(classifyTransportOperation({ path: "/v1/responses/compact" }), 
   kind: "compact",
   label: "Harness 上下文压缩请求",
   label_key: "contextCompactionRequest",
+  evidence: [{ origin: "transport", field: "path", value: "/v1/responses/compact" }],
 });
 
 const codexMemoryBody = {
@@ -95,15 +97,62 @@ assert.deepEqual(classifyCodexRequestOperation({}, codexMemoryBody), {
   label: "Codex 后台任务 · 记忆提取",
   label_key: "codexMemoryBackgroundTask",
   note_key: "codexMemoryBackgroundNote",
+  actor: "background_service",
   operation: "codex_memory_extraction",
   request_kind: "memory",
   relation: "independent",
   confidence: "high",
+  evidence: [
+    {
+      origin: "request_body",
+      field: "client_metadata.x-codex-turn-metadata.request_kind",
+      value: "memory",
+    },
+  ],
+});
+assert.deepEqual(codexTurnMetadataObservation(codexMemoryBody), {
+  metadata: {
+    request_kind: "memory",
+    thread_source: "user",
+    thread_id: "thread-main",
+    turn_id: "turn-memory",
+  },
+  sources: {
+    request_kind: "client_metadata.x-codex-turn-metadata.request_kind",
+    thread_source: "client_metadata.x-codex-turn-metadata.thread_source",
+    thread_id: "client_metadata.x-codex-turn-metadata.thread_id",
+    turn_id: "client_metadata.x-codex-turn-metadata.turn_id",
+  },
 });
 assert.equal(
   codexTurnMetadata({}, { headers: { "x-codex-turn-metadata": JSON.stringify({ request_kind: "compaction" }) } }).request_kind,
   "compaction",
   "an unredacted protocol header remains a supported fallback",
+);
+assert.deepEqual(
+  classifyCodexRequestOperation(
+    { header_semantics: { codex_turn_metadata: { request_kind: "memory", thread_source: "user" } } },
+    {},
+  ),
+  {
+    type: "background",
+    label: "Codex 后台任务 · 记忆提取",
+    label_key: "codexMemoryBackgroundTask",
+    note_key: "codexMemoryBackgroundNote",
+    actor: "background_service",
+    relation: "independent",
+    operation: "codex_memory_extraction",
+    request_kind: "memory",
+    confidence: "high",
+    evidence: [
+      {
+        origin: "request_header",
+        field: "header_semantics.codex_turn_metadata.request_kind",
+        value: "memory",
+      },
+    ],
+  },
+  "safe pre-redaction header semantics classify background work when the body omits duplicated metadata",
 );
 assert.equal(codexTurnMetadata({}, { headers: { "x-codex-turn-metadata": "[REDACTED:header]" } }), null);
 assert.equal(classifyCodexRequestOperation({}, { client_metadata: { "x-codex-turn-metadata": "not-json" } }), null);
@@ -114,10 +163,14 @@ assert.deepEqual(
     label: "Codex 后台任务",
     label_key: "codexBackgroundTask",
     note_key: "codexBackgroundTaskNote",
+    actor: "background_service",
     operation: "codex_maintenance",
     request_kind: "maintenance",
     relation: "independent",
     confidence: "high",
+    evidence: [
+      { origin: "request_body", field: "client_metadata.request_kind", value: "maintenance" },
+    ],
   },
   "unknown explicit non-turn kinds default to an isolated background chain",
 );
@@ -235,8 +288,11 @@ assert.deepEqual(
     type: "metadata",
     label: "Harness 上下文压缩请求",
     label_key: "contextCompactionRequest",
+    actor: "harness",
+    relation: "current_dialogue",
     operation: "context_compaction",
     confidence: "high",
+    evidence: [{ origin: "transport", field: "path", value: "/v1/responses/compact" }],
   },
   "transport operation wins over subagent evidence so compaction is not presented as a model turn",
 );
@@ -254,7 +310,15 @@ assert.equal(
 
 assert.deepEqual(
   infer({ capture: { path: "/v1/messages/count_tokens", headers: { "x-claude-code-agent-id": "child" } } }),
-  { type: "metadata", label: "上下文统计 (/context)", confidence: "high" },
+  {
+    type: "metadata",
+    label: "上下文统计 (/context)",
+    actor: "harness",
+    relation: "current_dialogue",
+    operation: "context_token_count",
+    confidence: "high",
+    evidence: [{ origin: "transport", field: "path", value: "/v1/messages/count_tokens" }],
+  },
   "metadata classification wins over child-agent evidence",
 );
 assert.equal(infer({ lastUser: user("[SUGGESTION MODE: suggest the next input]") }).type, "metadata");
@@ -263,11 +327,27 @@ assert.equal(infer({ body: { system: "Generate a concise, sentence-case title", 
 assert.equal(infer({ body: { tool_choice: { name: "web_search" }, messages: [] } }).label, "WebSearch 内部请求");
 assert.deepEqual(
   infer({ capture: { headers: { "X-Claude-Code-Agent-Id": "agent-1" } }, debugSource: { source: "agent:Explore" } }),
-  { type: "subagent", label: "agent:Explore", confidence: "high" },
+  {
+    type: "subagent",
+    label: "agent:Explore",
+    actor: "subagent",
+    relation: "child_dialogue",
+    operation: "subagent_turn",
+    confidence: "high",
+    evidence: [{ origin: "request_header", field: "x-claude-code-agent-id", value: "present" }],
+  },
 );
 assert.deepEqual(
   infer({ capture: { headers: { "X-OpenAI-Subagent": "reviewer" } } }),
-  { type: "subagent", label: "Codex 子 Agent", confidence: "high" },
+  {
+    type: "subagent",
+    label: "Codex 子 Agent",
+    actor: "subagent",
+    relation: "child_dialogue",
+    operation: "subagent_turn",
+    confidence: "high",
+    evidence: [{ origin: "request_header", field: "x-openai-subagent", value: "present" }],
+  },
 );
 assert.equal(infer({ debugSource: { source: "agent:Plan" } }).type, "subagent");
 assert.equal(infer({ debugSource: { source: "generate_session_title" } }).type, "metadata");
@@ -280,9 +360,25 @@ for (const toolName of ["Agent", "sessions_spawn", "subagents"]) {
       messages: [{ role: "assistant", content: [{ type: "tool_use", id: `call-${toolName}`, name: toolName, input: {} }] }],
     },
   });
-  assert.deepEqual(source, { type: "parent_spawn", label: "启动子代理", confidence: "high" });
+  assert.deepEqual(source, {
+    type: "parent_spawn",
+    label: "启动子代理",
+    actor: "main_agent",
+    relation: "current_dialogue",
+    operation: "subagent_spawn",
+    confidence: "high",
+    evidence: [{ origin: "message", field: "tool_call.name", value: toolName }],
+  });
 }
-assert.deepEqual(infer(), { type: "main", label: "主代理请求", confidence: "medium" });
+assert.deepEqual(infer(), {
+  type: "main",
+  label: "主代理请求",
+  actor: "main_agent",
+  relation: "current_dialogue",
+  operation: "model_turn",
+  confidence: "medium",
+  evidence: [{ origin: "fallback", field: "classification", value: "main_agent" }],
+});
 
 const moduleSource = fs.readFileSync(new URL("../src/trace/request-profile.mjs", import.meta.url), "utf8");
 assert.doesNotMatch(moduleSource, /from ["']\.\.\/(?:viewer|server|core|adapters)\//, "request profile stays inside the Trace Domain");

@@ -1252,7 +1252,7 @@ function renderTurnRail() {
 }
 
 function railTurnUniverse(data = state.data) {
-  return currentTimelineView(data).railTurns;
+  return currentTimelineView(data).railTurns.filter((turn) => turn.kind !== "independent_background");
 }
 
 function activeTurnIds(data = state.data) {
@@ -1293,6 +1293,7 @@ function renderNavItem(request) {
 
 function renderTurnGroup(turn, requestMap) {
   const requests = turn.request_ids.map((id) => requestMap.get(id)).filter(Boolean);
+  if (turn.kind === "independent_background") return renderIndependentBackgroundGroup(turn, requests);
   if (turn.trace_filter_active) {
     return `
       <section class="turn-group trace-match-turn" id="${escapeHtml(turn.id)}" data-turn-group="${escapeHtml(turn.id)}">
@@ -1333,6 +1334,23 @@ function renderTurnGroup(turn, requestMap) {
       ${renderAgentBranchesForTurn(turn)}
       ${responseRequests.length ? `<div class="turn-request-list response-requests">${responseRequests.map(renderTurnRequest).join("")}</div>` : ""}
       ${renderSupportingRequests(supportingRequests, turn.id)}
+    </section>
+  `;
+}
+
+function renderIndependentBackgroundGroup(turn, requests) {
+  const hint = turn.source_hint || requests[0]?.source_hint || {};
+  const label = hint.label_key ? t(hint.label_key) : hint.label || t("independentBackgroundTimeline");
+  const note = hint.note_key ? t(hint.note_key) : t("independentBackgroundNote");
+  return `
+    <section class="turn-group independent-background-group" id="${escapeHtml(turn.id)}" data-turn-group="${escapeHtml(turn.id)}">
+      <header class="independent-background-header">
+        <span class="independent-background-kicker">${escapeHtml(t("independentBackgroundTimeline"))}</span>
+        <strong>${escapeHtml(label)}</strong>
+        <span>${escapeHtml(t("independentBackgroundRelation"))}</span>
+      </header>
+      <p class="independent-background-note">${escapeHtml(note)}</p>
+      <div class="turn-request-list background-requests">${requests.map(renderTurnRequest).join("")}</div>
     </section>
   `;
 }

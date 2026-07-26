@@ -2404,6 +2404,39 @@ textarea:focus-visible,
   padding: 0 2px 4px;
 }
 
+.independent-background-group {
+  gap: 7px;
+  border-top-color: color-mix(in oklch, var(--amber) 30%, var(--line));
+}
+
+.independent-background-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.independent-background-header strong {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.independent-background-kicker {
+  color: var(--amber);
+  font-weight: 750;
+}
+
+.independent-background-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .turn-heading {
   display: flex;
   align-items: center;

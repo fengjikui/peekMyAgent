@@ -137,6 +137,7 @@ for (const required of [
   "src/trace/evidence-profile.mjs",
   "src/trace/message-semantics.mjs",
   "src/trace/request-profile.mjs",
+  "src/trace/request-attribution.mjs",
   "src/trace/request-composition.mjs",
   "src/trace/model-response-normalizer.mjs",
   "src/trace/turn-timeline.mjs",
@@ -198,12 +199,12 @@ const allowedPatterns = [
 const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);
 
-const MAX_PACKAGE_ENTRIES = 147;
+const MAX_PACKAGE_ENTRIES = 148;
 // These limits include the shipped request-attribution runtime and leave less
 // than 0.5% headroom. The entry cap and allowlist remain the primary guards
 // against captures, fixtures, or design documents leaking into the package.
-const MAX_PACKED_BYTES = 353_000;
-const MAX_UNPACKED_BYTES = 1_545_000;
+const MAX_PACKED_BYTES = 357_900;
+const MAX_UNPACKED_BYTES = 1_566_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);
 assert.ok(

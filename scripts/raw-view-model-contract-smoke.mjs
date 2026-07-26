@@ -26,6 +26,21 @@ import { buildMetadataView } from "../src/viewer/metadata-view-model.js";
 const request = {
   id: "request-1",
   context_delta: { status: "changed" },
+  source_hint: {
+    type: "background",
+    actor: "background_service",
+    relation: "independent",
+    operation: "codex_memory_extraction",
+    request_kind: "memory",
+    confidence: "high",
+    evidence: [
+      {
+        origin: "request_body",
+        field: "client_metadata.x-codex-turn-metadata.request_kind",
+        value: "memory",
+      },
+    ],
+  },
   raw: {
     capture_id: "capture-1",
     watch_id: "watch-1",
@@ -93,6 +108,7 @@ assert.equal(request.summary.composition.response_text_chars, 20, "view-model fi
 const metadata = rawUpstreamRequestMetadata(request);
 assert.equal(metadata.capture_id, "capture-1");
 assert.deepEqual(metadata.context_delta, { status: "changed" });
+assert.equal(metadata.request_attribution.relation, "independent");
 assert.equal("response" in metadata, false);
 assert.equal("status" in metadata, false);
 
@@ -132,6 +148,17 @@ assert.equal(metadataView.identity.find((fact) => fact.key === "capture_id").val
 assert.equal(metadataView.providerUsage.cache, 80);
 assert.equal(metadataView.providerUsage.actualInput, 100);
 assert.equal(metadataView.composition.total, 1000);
+assert.deepEqual(
+  metadataView.attribution.facts.map((fact) => [fact.key, fact.value]),
+  [
+    ["actor", "background_service"],
+    ["relation", "independent"],
+    ["operation", "codex_memory_extraction"],
+    ["request_kind", "memory"],
+    ["confidence", "high"],
+  ],
+);
+assert.equal(metadataView.attribution.evidence[0].field, "client_metadata.x-codex-turn-metadata.request_kind");
 assert.deepEqual(
   metadataView.composition.sections.map((section) => section.key),
   ["system", "tools", "history_context", "current_user"],

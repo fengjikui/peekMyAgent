@@ -15,6 +15,7 @@ export function buildMetadataView(request = {}) {
   const usage = providerUsageForRequest(request);
   const composition = rawUpstreamComposition(request) || {};
   const responseUsage = request?.summary?.response?.usage || request?.response?.usage || null;
+  const attribution = metadata.request_attribution;
 
   return {
     identity: compactFacts({
@@ -53,6 +54,18 @@ export function buildMetadataView(request = {}) {
         ratio: Number(composition.sections?.[key]?.ratio || 0),
       })).filter((item) => item.chars > 0),
     },
+    attribution: attribution
+      ? {
+          facts: compactFacts({
+            actor: attribution.actor,
+            relation: attribution.relation,
+            operation: attribution.operation,
+            request_kind: attribution.request_kind,
+            confidence: attribution.confidence,
+          }),
+          evidence: Array.isArray(attribution.evidence) ? attribution.evidence : [],
+        }
+      : null,
     evidence: {
       transport: metadata.upstream_evidence?.transport || null,
       request: metadata.upstream_evidence?.request || null,

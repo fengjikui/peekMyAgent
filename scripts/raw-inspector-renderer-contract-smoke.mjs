@@ -189,6 +189,19 @@ const metadataSummary = renderOrganizedMetadata({
         { key: "tools", chars: 500, ratio: 0.5 },
       ],
     },
+    attribution: {
+      facts: [
+        { key: "actor", value: "background_service" },
+        { key: "relation", value: "independent" },
+      ],
+      evidence: [
+        {
+          origin: "request_body",
+          field: "client_metadata.x-codex-turn-metadata.request_kind",
+          value: "memory",
+        },
+      ],
+    },
     evidence: {
       transport: "capture_proxy",
       request: { exact: true, available: true },
@@ -204,6 +217,9 @@ assert.match(metadataSummary, /metadata-summary/);
 assert.match(metadataSummary, /metadataCapturedFact/);
 assert.match(metadataSummary, /metadataProviderFact/);
 assert.match(metadataSummary, /metadataCalculated/);
+assert.match(metadataSummary, /metadataAttribution/);
+assert.match(metadataSummary, /metadataAttributionEvidence/);
+assert.match(metadataSummary, /client_metadata\.x-codex-turn-metadata\.request_kind/);
 assert.match(metadataSummary, /66\.7%/);
 assert.match(metadataSummary, /30\.0%/);
 assert.doesNotMatch(metadataSummary, /<unsafe>/);
