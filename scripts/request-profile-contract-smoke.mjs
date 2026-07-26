@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  classifyCodexRequestOperation,
   classifyTransportOperation,
   codexSubagentIdentity,
+  codexTurnMetadata,
   extractSystemParts,
   extractRequestMessages,
   extractRequestTools,
@@ -71,6 +73,54 @@ assert.deepEqual(classifyTransportOperation({ path: "/v1/responses/compact" }), 
   label: "Harness 上下文压缩请求",
   label_key: "contextCompactionRequest",
 });
+
+const codexMemoryBody = {
+  client_metadata: {
+    "x-codex-turn-metadata": JSON.stringify({
+      request_kind: "memory",
+      thread_source: "user",
+      thread_id: "thread-main",
+      turn_id: "turn-memory",
+    }),
+  },
+};
+assert.deepEqual(codexTurnMetadata(codexMemoryBody), {
+  request_kind: "memory",
+  thread_source: "user",
+  thread_id: "thread-main",
+  turn_id: "turn-memory",
+});
+assert.deepEqual(classifyCodexRequestOperation({}, codexMemoryBody), {
+  type: "background",
+  label: "Codex 后台任务 · 记忆提取",
+  label_key: "codexMemoryBackgroundTask",
+  note_key: "codexMemoryBackgroundNote",
+  operation: "codex_memory_extraction",
+  request_kind: "memory",
+  relation: "independent",
+  confidence: "high",
+});
+assert.equal(
+  codexTurnMetadata({}, { headers: { "x-codex-turn-metadata": JSON.stringify({ request_kind: "compaction" }) } }).request_kind,
+  "compaction",
+  "an unredacted protocol header remains a supported fallback",
+);
+assert.equal(codexTurnMetadata({}, { headers: { "x-codex-turn-metadata": "[REDACTED:header]" } }), null);
+assert.equal(classifyCodexRequestOperation({}, { client_metadata: { "x-codex-turn-metadata": "not-json" } }), null);
+assert.deepEqual(
+  classifyCodexRequestOperation({}, { client_metadata: { request_kind: "maintenance" } }),
+  {
+    type: "background",
+    label: "Codex 后台任务",
+    label_key: "codexBackgroundTask",
+    note_key: "codexBackgroundTaskNote",
+    operation: "codex_maintenance",
+    request_kind: "maintenance",
+    relation: "independent",
+    confidence: "high",
+  },
+  "unknown explicit non-turn kinds default to an isolated background chain",
+);
 assert.equal(isCodexSubagentRequest({ headers: { "x-openai-subagent": "true" } }), true);
 assert.equal(isCodexSubagentRequest({ headers: { "x-openai-subagent": "false" } }), false);
 assert.equal(
@@ -78,6 +128,23 @@ assert.equal(
   true,
   "redaction evidence retains safe parent-thread presence without persisting the private identifier",
 );
+const codexChildBody = {
+  client_metadata: {
+    "x-codex-turn-metadata": JSON.stringify({
+      request_kind: "turn",
+      thread_source: "subagent",
+      thread_id: "child-from-turn-metadata",
+      parent_thread_id: "parent-from-turn-metadata",
+      subagent_kind: "thread_spawn",
+    }),
+  },
+};
+assert.equal(isCodexSubagentRequest({}, codexChildBody), true);
+assert.deepEqual(codexSubagentIdentity({}, codexChildBody), {
+  agent_id: "child-from-turn-metadata",
+  parent_agent_id: "parent-from-turn-metadata",
+  source: "client_metadata",
+});
 assert.equal(
   isCodexSubagentRequest({ header_redactions: [{ field_path: "headers.x-openai-subagent" }] }),
   true,
@@ -172,6 +239,17 @@ assert.deepEqual(
     confidence: "high",
   },
   "transport operation wins over subagent evidence so compaction is not presented as a model turn",
+);
+assert.equal(infer({ body: codexMemoryBody }).type, "background");
+assert.equal(
+  infer({
+    body: {
+      client_metadata: { "x-codex-turn-metadata": JSON.stringify({ request_kind: "compaction" }) },
+      messages: [],
+    },
+  }).operation,
+  "context_compaction",
+  "body protocol metadata recognizes compaction even on the generic Responses route",
 );
 
 assert.deepEqual(

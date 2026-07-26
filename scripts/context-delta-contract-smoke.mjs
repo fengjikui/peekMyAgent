@@ -29,7 +29,7 @@ const semantics = {
   },
   previewMessage: (message) => ({ role: message.role, kind: "message", text: String(message.content) }),
   previewText: (value, limit) => String(value || "").slice(0, limit),
-  isInternalRequest: () => false,
+  isInternalRequest: (item) => ["metadata", "background"].includes(item.source_hint?.type),
   responseToolCalls: (item) => item.summary.response?.tool_calls || [],
   isRealUserMessage: (message) => message.role === "user" && !Array.isArray(message.content),
 };
@@ -96,16 +96,33 @@ assert.throws(
   /previousByContextKey must be a Map/,
 );
 
+const backgroundInterleaving = [
+  request(37, [user("main prompt"), toolUse, toolResult, user("continue")]),
+  request(38, [user("Analyze this rollout"), toolUse, toolResult], {
+    sourceType: "background",
+    operation: "codex_memory_extraction",
+  }),
+  request(39, [user("main prompt"), toolUse, toolResult, user("continue"), { role: "assistant", content: "done" }, user("next")]),
+];
+annotateRequestContextChanges(backgroundInterleaving, semantics);
+assert.equal(backgroundInterleaving[1].context_delta.baseline, true, "background memory extraction owns an independent baseline");
+assert.equal(backgroundInterleaving[2].context_delta.previous_request_index, 37, "the next main request skips an interleaved background task");
+assert.equal(backgroundInterleaving[2].trace.previous_context_request_index, 37);
+assert.equal(backgroundInterleaving[2].context_delta.new_tool_calls, 0, "historical tool calls do not become current activity after a background task");
+assert.equal(backgroundInterleaving[2].context_delta.new_tool_results, 0, "historical tool results do not become current activity after a background task");
+assert.equal(requestContextChainKey(backgroundInterleaving[1]), "side:conversation-1:codex_memory_extraction");
+
 console.log("context delta contract smoke passed");
 
-function request(index, messages, { agentId = "", responseToolCalls = [] } = {}) {
+function request(index, messages, { agentId = "", responseToolCalls = [], sourceType = "", operation = "" } = {}) {
+  const type = sourceType || (agentId ? "subagent" : "main");
   return {
     id: `request-${index}`,
     request_index: index,
     watch_id: "watch-1",
     conversation_id: "conversation-1",
-    source_hint: { type: agentId ? "subagent" : "main" },
-    trace: { actor_type: agentId ? "child" : "main", claude_agent_id: agentId },
+    source_hint: { type, ...(operation ? { operation } : {}) },
+    trace: { actor_type: agentId ? "child" : type === "background" ? "side" : "main", claude_agent_id: agentId },
     raw: { body: { messages } },
     fingerprints: { system: "system", tools: "tools", params: "params" },
     counts: { messages: messages.length, tools: 1, raw_body_bytes: index * 100 },

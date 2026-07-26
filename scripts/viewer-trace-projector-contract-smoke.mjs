@@ -138,8 +138,8 @@ const codexSpecialOperations = projector.buildData({
     id: "codex-exact-operations",
     agent: "Codex",
     kind: "codex_proxy_exact",
-    request_count: 3,
-    response_count: 3,
+    request_count: 4,
+    response_count: 4,
   },
   captures: [
     {
@@ -168,8 +168,32 @@ const codexSpecialOperations = projector.buildData({
       },
     },
     {
-      capture_id: "codex-compact",
+      capture_id: "codex-memory",
       request_index: 3,
+      method: "POST",
+      path: "/v1/responses",
+      capture_adapter: "codex_responses_v1",
+      headers: {},
+      body: {
+        client_metadata: {
+          "x-codex-turn-metadata": JSON.stringify({ request_kind: "memory", thread_source: "user" }),
+        },
+        input: [{ role: "user", content: [{ type: "input_text", text: "Analyze this rollout and extract memory." }] }],
+      },
+      response: {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body_json: {
+          id: "response-memory",
+          object: "response",
+          status: "completed",
+          output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Memory extraction finished." }] }],
+        },
+      },
+    },
+    {
+      capture_id: "codex-compact",
+      request_index: 4,
       method: "POST",
       path: "/v1/responses/compact",
       upstream_path: "/backend-api/codex/responses/compact",
@@ -189,15 +213,23 @@ assert.equal(codexSpecialOperations.requests[1].source_hint.label, "Codex 子 Ag
 assert.equal(codexSpecialOperations.requests[1].trace.agent_instance_id, "codex-child-thread");
 assert.equal(codexSpecialOperations.requests[1].trace.parent_agent_instance_id, "codex-parent-thread");
 assert.equal(codexSpecialOperations.requests[1].trace.context_chain_key, "agent:Codex:codex-child-thread");
-assert.deepEqual(codexSpecialOperations.requests[2].summary.entry, {
+assert.equal(codexSpecialOperations.requests[2].source_hint.type, "background");
+assert.equal(codexSpecialOperations.requests[2].source_hint.operation, "codex_memory_extraction");
+assert.equal(codexSpecialOperations.requests[2].trace.actor_type, "side");
+assert.equal(codexSpecialOperations.requests[2].trace.context_chain_key, "side:Codex:codex_memory_extraction");
+assert.equal(codexSpecialOperations.requests[2].summary.current_user, "", "background prompts do not become user-turn identities");
+assert.equal(codexSpecialOperations.requests[2].summary.entry.kind, "agent_internal");
+assert.equal(codexSpecialOperations.requests[2].summary.response.text, "Memory extraction finished.");
+assert.deepEqual(codexSpecialOperations.requests[3].summary.entry, {
   operation: "context_compaction",
   kind: "compact",
   label: "Harness 上下文压缩请求",
   label_key: "contextCompactionRequest",
 });
-assert.equal(codexSpecialOperations.requests[2].source_hint.type, "metadata");
-assert.equal(codexSpecialOperations.requests[2].source_hint.operation, "context_compaction");
-assert.equal(codexSpecialOperations.turns.length, 1, "exact compaction stays inside the active Turn rather than becoming a user Turn");
+assert.equal(codexSpecialOperations.requests[3].source_hint.type, "metadata");
+assert.equal(codexSpecialOperations.requests[3].source_hint.operation, "context_compaction");
+assert.equal(codexSpecialOperations.turns.length, 1, "background and compaction requests stay inside the active Turn rather than becoming user Turns");
+assert.equal(codexSpecialOperations.turns[0].internal_request_count, 3);
 
 const detail = projector.projectRequestDetailWindow(captures, source, "capture-2", { startIndex: 0 });
 assert.equal(detail.id, "capture-2");
