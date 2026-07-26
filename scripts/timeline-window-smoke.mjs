@@ -56,6 +56,9 @@ assert.match(clientSource, /getActiveId: \(\) => state\.activeTimelineRequestId/
 assert.match(clientSource, /onActiveChange: markActiveTimelineRequest/, "request rail scrolling should never replace the Raw inspector context");
 assert.match(clientSource, /onLoaded: \(fullRequest\) => \{[\s\S]*?scheduleTranslationLookupRefresh\(\)/, "detail hydration should schedule translation indexing after first paint");
 assert.doesNotMatch(clientSource, /onLoaded: async \(fullRequest\)/, "detail hydration must not wait for a whole-source translation rebuild");
+assert.match(clientSource, /setData\(data\) \{[\s\S]*?rebuildTimelineToolOriginIndex\(data\)/, "live snapshots should prebuild tool origins when data enters the Viewer");
+assert.match(clientSource, /function applyLoadedSourceData\([\s\S]*?rebuildTimelineToolOriginIndex\(data\)/, "loaded and paged snapshots should prebuild tool origins before rendering");
+assert.match(clientSource, /function priorTimelineToolCalls\(request\) \{\s*return toolOriginIndex\.get\(request\?\.id\) \|\| \[\];\s*\}/, "request rendering should reuse the prebuilt origin index without rescanning");
 assert.match(timelineRendererSource, /data-turn-window-jump/, "window edge jump controls should be rendered by the Timeline renderer");
 assert.match(timelineControllerSource, /onTurnWindowJump/, "window edge jump controls should be wired by the Timeline controller");
 assert.match(clientSource, /function jumpToTurn\(turnId, scroll = true\)/, "turn rail jumps should re-render the active window");

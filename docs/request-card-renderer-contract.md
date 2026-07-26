@@ -8,7 +8,7 @@
 - 用户输入、Harness 注入、`tool_use`、`tool_result` 和子 Agent 回流的样式类别、标签与预览；
 - Harness 生命周期 semantic event 的紧凑机制摘要和证据限制；上下文压缩卡区分 replacement history 结构、本地粗略 token 估算与下一次真实 API input；
 - 上行快捷 section 列表；
-- 当前 `tool_use` / `tool_result` 按 id 配对及孤立事件状态；历史调用证据保留 `{ call, requestId, requestIndex }`，并通过 `buildTimelineToolOriginIndex()` 对整个已加载 Trace 单次线性建索引，裸 `call` 输入仍兼容；
+- 当前 `tool_use` / `tool_result` 按 id 配对及孤立事件状态；历史调用证据保留 `{ call, requestId, requestIndex }`，并在每个新的 Source/cursor 数据快照进入 Viewer 时通过 `buildTimelineToolOriginIndex()` 单次线性建索引，卡片渲染和点击只复用索引，裸 `call` 输入仍兼容；
 - Assistant response 的 usage、finish reason、Thinking 摘要、长文本折叠和工具调用 DTO。
 
 `src/viewer/request-card-renderer.js` 负责中栏单条请求卡的稳定 HTML 结构，覆盖：

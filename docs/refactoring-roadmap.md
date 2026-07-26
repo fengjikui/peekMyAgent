@@ -223,7 +223,7 @@ src/
 - 已抽出翻译语言目录与 `LanguagePreferencesController`：完整目标语言 catalog、alias/系统语言推荐、偏好水合与持久化、选择器绑定、静态 i18n 和切换副作用顺序不再散落在 `client.js`；Cache/Action/Renderer/Raw 搜索仍保持各自边界。
 - 已抽出 `ActiveSourceController`：Source catalog、首屏与后台 page、live polling、snapshot 翻译、catalog version 和 token-gated UI continuation 形成应用级生命周期；`SourceTimelineController` 仍独占 generation/cursor/normalized store，DOM/selection/URL/滚动仍由装配端口所有。
 - 已抽出 `request-card-model.js`：请求身份、上行类别/标签/预览、快捷 section、工具事件配对、历史 tool origin 和 Assistant response metadata/折叠成为可直接验证的纯 View Model；`client.js` 只注入当前展开状态、格式化依赖、来源返回上下文和 Thinking 翻译动作，`request-card-renderer.js` 只生成安全 HTML。
-- 历史 tool origin 从“每张 request 卡扫描全部前序请求”的二次复杂度改为一次线性索引，并按当前 requests 数组身份复用；5,000-request 契约 fixture 锁定大 Trace 退化。
+- 历史 tool origin 从“每张 request 卡扫描全部前序请求”改为 Source/cursor 数据快照进入 Viewer 时建立一次线性索引；后续卡片渲染和详情点击只按 request id 读取，5,000-request 契约 fixture 锁定大 Trace 退化。
 
 验收：
 

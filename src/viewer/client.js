@@ -149,7 +149,6 @@ const RAW_METADATA_MODE_KEY = "peekmyagent.rawMetadataMode";
 const INITIAL_SOURCE_REQUEST_LIMIT = 32;
 const CURSOR_PAGE_REQUEST_LIMIT = 100;
 const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
-let toolOriginIndexRequests = null;
 let toolOriginIndex = new Map();
 let translationLookupRefreshTimer = 0;
 const els = {
@@ -485,6 +484,7 @@ const activeSourceController = new ActiveSourceController({
   captureScroll: captureMainPanelScroll,
   setData(data) {
     state.data = data;
+    rebuildTimelineToolOriginIndex(data);
   },
   presentLoadedData: applyLoadedSourceData,
   presentRefreshedData: applyRefreshedSourceData,
@@ -647,7 +647,6 @@ function resetActiveSourceContext() {
   requestDetailCache.clear();
   if (translationLookupRefreshTimer) window.clearTimeout(translationLookupRefreshTimer);
   translationLookupRefreshTimer = 0;
-  toolOriginIndexRequests = null;
   toolOriginIndex = new Map();
   translationActionController.invalidate();
   translationCacheController.invalidate();
@@ -692,6 +691,7 @@ function applyRefreshedSourceData(data, { wasNearBottom = false, scrollTop = 0 }
 
 function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } = {}) {
   state.data = data;
+  rebuildTimelineToolOriginIndex(data);
   const turnIds = activeTurnIds(data);
   const activeId = preserveScroll && turnIds.includes(state.activeId) ? state.activeId : turnIds[0] || null;
   const activeRequestId =
@@ -1683,12 +1683,11 @@ function renderToolExchange(request) {
 }
 
 function priorTimelineToolCalls(request) {
-  const requests = state.data?.requests || [];
-  if (toolOriginIndexRequests !== requests) {
-    toolOriginIndexRequests = requests;
-    toolOriginIndex = buildTimelineToolOriginIndex(requests);
-  }
   return toolOriginIndex.get(request?.id) || [];
+}
+
+function rebuildTimelineToolOriginIndex(data = state.data) {
+  toolOriginIndex = buildTimelineToolOriginIndex(data?.requests || []);
 }
 
 function renderAssistantResponse(request) {
