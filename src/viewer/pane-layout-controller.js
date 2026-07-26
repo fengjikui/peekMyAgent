@@ -305,7 +305,7 @@ export class PaneLayoutController {
   }
 
   currentRawWidth() {
-    return this.rawPanel?.getBoundingClientRect().width || Math.min(Math.max(this.windowTarget.innerWidth * 0.34, 380), 560);
+    return this.rawPanel?.getBoundingClientRect().width || Math.min(Math.max(this.windowTarget.innerWidth * 0.3, 360), 480);
   }
 
   currentSidebarWidth() {

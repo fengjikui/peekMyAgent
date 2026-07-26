@@ -143,6 +143,52 @@ const codexProjected = translationMaterialsForRequest({
 assert.deepEqual(codexProjected.map((item) => item.kind), ["harness_codex_skills", "harness_codex_internal"]);
 assert.equal(codexProjected[0].metadata.label_key, "harnessCodexSkills");
 
+const openCodeCommandRequest = {
+  raw: {
+    headers: { "x-peek-opencode-command": "project/check" },
+    body: {
+      messages: [
+        { role: "system", content: "You are OpenCode." },
+        { role: "user", content: "Inspect this project and report the test commands." },
+      ],
+    },
+  },
+};
+const openCodeCommandParts = translationMaterialsForRequest(openCodeCommandRequest, {
+  section: "harness",
+  extractHarnessParts: extractHarnessTranslationParts,
+});
+assert.equal(openCodeCommandParts.length, 1);
+assert.equal(openCodeCommandParts[0].kind, "harness_command");
+assert.equal(openCodeCommandParts[0].source_text, "Inspect this project and report the test commands.");
+assert.equal(openCodeCommandParts[0].metadata.tag, "opencode-command");
+assert.equal(openCodeCommandParts[0].metadata.category, "command");
+
+const commandLikeUserText = translationMaterialsForRequest({
+  raw: {
+    body: {
+      messages: [{ role: "user", content: "/project/check Inspect this project." }],
+    },
+  },
+}, {
+  section: "harness",
+  extractHarnessParts: extractHarnessTranslationParts,
+});
+assert.deepEqual(commandLikeUserText, [], "slash-looking user text is not Harness evidence");
+
+const malformedCommandEvidence = translationMaterialsForRequest({
+  raw: {
+    headers: { "x-peek-opencode-command": "bad\nheader" },
+    body: {
+      messages: [{ role: "user", content: "Inspect this project." }],
+    },
+  },
+}, {
+  section: "harness",
+  extractHarnessParts: extractHarnessTranslationParts,
+});
+assert.deepEqual(malformedCommandEvidence, [], "malformed wrapper evidence is ignored");
+
 const toolOnly = createCollector();
 toolOnly.collectRequest(first, source, { section: "tools" });
 assert.deepEqual([...new Set(toolOnly.materials().map((item) => item.kind))].sort(), ["tool_description", "tool_parameter_description"]);

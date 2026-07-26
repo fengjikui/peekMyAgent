@@ -71,7 +71,9 @@ export function requestContextChainKey(request) {
 export function analyzeContextDelta(request, previous, contextKey, semantics) {
   const messages = requestMessages(request);
   const previousMessages = requestMessages(previous);
-  const commonPrefixMessages = previous ? commonMessagePrefixLength(previousMessages, messages) : 0;
+  const commonPrefixMessages = previous
+    ? commonMessagePrefixLength(previousMessages, messages, { ignoreLeadingContextContent: true })
+    : 0;
   const newMessages = messages.slice(commonPrefixMessages);
   const fixedContext = {
     system: previous ? (request.changes.system_changed ? "changed" : "reused") : "baseline",
@@ -110,7 +112,9 @@ function annotateHistoryStackDelta(request, previous) {
   const stack = request.summary?.history_stack || [];
   const messages = requestMessages(request);
   const previousMessages = requestMessages(previous);
-  const reusedCount = previous ? commonMessagePrefixLength(previousMessages, messages) : 0;
+  const reusedCount = previous
+    ? commonMessagePrefixLength(previousMessages, messages, { ignoreLeadingContextContent: true })
+    : 0;
   for (const item of stack) {
     const index = Math.max(0, Number(item.index || 0) - 1);
     item.context_status = previous ? (index < reusedCount ? "reused" : "new") : "baseline";
@@ -134,7 +138,9 @@ function currentToolEventMessages(request, previous, semantics) {
   const latestTurnMessages = messagesAfterLatestRealUserInput(messages, semantics);
   const previousMessages = extractRequestMessages(previous?.raw?.body || {});
   if (!previousMessages.length) return latestTurnMessages;
-  const prefixLength = commonMessagePrefixLength(previousMessages, messages);
+  const prefixLength = commonMessagePrefixLength(previousMessages, messages, {
+    ignoreLeadingContextContent: true,
+  });
   const suffix = messages.slice(prefixLength);
   return suffix.length ? suffix : latestTurnMessages;
 }

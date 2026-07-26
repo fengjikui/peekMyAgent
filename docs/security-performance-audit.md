@@ -86,7 +86,7 @@
 
 - 左侧 live watch 列表直接使用 capture 轻量字段，不再为了列表构建完整 request timeline。
 - 导入 Trace 列表优先读 manifest 统计，不在 `/api/sources` 解析完整 `proxy-captures.json`。
-- Response Raw 默认展示最终解析结构和捕获元数据，不把 SSE/stream 原文整段下发到 viewer；大流式响应通过 `body_text_omitted` 标记保留可解释性。
+- Response Raw 默认展示协议终态对象和必要捕获元数据，不把 SSE/stream 原文整段下发到 Viewer。紧凑投影器内部仍用 `body_text_omitted` 说明为何没有携带线级正文，但 Raw Inspector 不渲染该标记或流事件序列。
 - Compact 时间线不再携带完整 `complete_response` 或长 tool_use 参数；首页只保留响应/参数预览，点击 Raw/详情时再通过 `/api/request` 恢复完整内容。
 - Compact 视图的上下文构成统计改用轻量字符估算，并缓存消息前缀比较 key，避免大 Trace 首页构建反复执行稳定 JSON 序列化。
 - Compact 首屏进一步截短 system/assistant/internal preview、entry 文本和 response 重复预览，只保留时间线直接展示所需的 composition 分区；完整内容由 `/api/request` 单请求详情恢复。

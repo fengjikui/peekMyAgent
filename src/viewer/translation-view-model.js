@@ -2,13 +2,17 @@ export function buildTranslationSectionView({
   section,
   materials,
   query = "",
+  toolNames = null,
+  displaySource = false,
   translatedTextFor = () => "",
   labelForKind = (kind) => kind || "description",
 }) {
   const sourceMaterials = Array.isArray(materials) ? materials : [];
   const normalizedQuery = String(query || "").trim();
   if (section === "tools") {
-    const groups = filterToolTranslationGroups(groupToolTranslationMaterials(sourceMaterials), {
+    const allGroups = groupToolTranslationMaterials(sourceMaterials);
+    const scopedGroups = filterToolTranslationGroupsByName(allGroups, toolNames);
+    const groups = filterToolTranslationGroups(scopedGroups, {
       query: normalizedQuery,
       translatedTextFor,
     });
@@ -18,7 +22,11 @@ export function buildTranslationSectionView({
       query: normalizedQuery,
       totalMaterials: sourceMaterials.length,
       searchMatchCount: groups.length,
-      groups: groups.map((group) => toolTranslationGroupView(group, { translatedTextFor, labelForKind })),
+      totalGroups: allGroups.length,
+      scopedGroups: scopedGroups.length,
+      groups: groups.map((group) =>
+        toolTranslationGroupView(group, { translatedTextFor, labelForKind, displaySource }),
+      ),
     };
   }
 
@@ -129,6 +137,29 @@ export function filterToolTranslationGroups(groups, { query = "", translatedText
     .map((entry) => entry.group);
 }
 
+export function filterToolTranslationGroupsByName(groups, toolNames = null) {
+  const sourceGroups = Array.isArray(groups) ? groups : [];
+  if (!toolNames) return sourceGroups;
+  const names = new Set(
+    [...toolNames]
+      .map((name) => String(name || "").trim())
+      .filter(Boolean),
+  );
+  if (!names.size) return sourceGroups;
+  return sourceGroups.filter((group) => names.has(String(group?.toolName || "")));
+}
+
+export function responseInvokedToolNames(response) {
+  return [
+    ...new Set(
+      (Array.isArray(response?.tool_calls) ? response.tool_calls : [])
+        .map((call) => call?.name || call?.tool_name || call?.function?.name || "")
+        .map((name) => String(name).trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
 export function translationKindClass(kind) {
   if (kind === "tool_description") return "tool-description";
   if (kind === "tool_parameter_description") return "tool-parameter";
@@ -139,34 +170,42 @@ export function translationKindClass(kind) {
   return "other-kind";
 }
 
-function toolTranslationGroupView(group, { translatedTextFor, labelForKind }) {
+function toolTranslationGroupView(group, { translatedTextFor, labelForKind, displaySource }) {
   const parameters = (group.parameters || []).map((material) => {
     const label = material?.metadata?.field_name || material?.metadata?.path || "parameter";
-    return translationBlockView({ material, label, translatedTextFor, labelForKind });
+    const block = translationBlockView({ material, label, translatedTextFor, labelForKind });
+    return { ...block, displayText: displaySource ? block.sourceText : block.displayText };
   });
+  const description = group.description
+    ? translationBlockView({
+        material: group.description,
+        label: "",
+        translatedTextFor,
+        labelForKind,
+      })
+    : null;
+  const materials = [group.description, ...(group.parameters || [])]
+    .filter(Boolean)
+    .map((item) => ({
+      kind: item.kind,
+      source_text: item.source_text,
+      metadata: item.metadata || {},
+    }));
+  const hit = [description, ...parameters].filter((item) => item?.hit).length;
   return {
     toolName: group.toolName,
-    description: group.description
-      ? {
-          ...translationBlockView({
-            material: group.description,
-            label: "",
-            translatedTextFor,
-            labelForKind,
-          }),
-          actionLabel: group.toolName,
-        }
+    description: description
+      ? { ...description, displayText: displaySource ? description.sourceText : description.displayText }
       : null,
     parameters: {
       items: parameters,
-      materials: (group.parameters || []).map((item) => ({
-        kind: item.kind,
-        source_text: item.source_text,
-        metadata: item.metadata || {},
-      })),
       hit: parameters.filter((item) => item.hit).length,
       total: parameters.length,
     },
+    materials,
+    hit,
+    total: materials.length,
+    displaySource: Boolean(displaySource),
   };
 }
 

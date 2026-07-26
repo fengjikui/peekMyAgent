@@ -83,6 +83,7 @@ const viewerCommands = [
   ["npm", "run", "smoke:viewer-api-client-contract"],
   ["npm", "run", "smoke:timeline-entity-store-contract"],
   ["npm", "run", "smoke:viewer-client-store-contract"],
+  ["npm", "run", "smoke:theme-controller-contract"],
   ["npm", "run", "smoke:language-preferences-controller-contract"],
   ["npm", "run", "smoke:pane-layout-controller-contract"],
   ["npm", "run", "smoke:request-detail-cache-contract"],
@@ -99,6 +100,7 @@ const viewerCommands = [
   ["npm", "run", "smoke:system-diff-view-contract"],
   ["npm", "run", "smoke:raw-inspector-renderer-contract"],
   ["npm", "run", "smoke:message-view-renderer-contract"],
+  ["npm", "run", "smoke:tool-call-detail-contract"],
   ["npm", "run", "smoke:translation-view-renderer-contract"],
   ["npm", "run", "smoke:viewer-static-assets-contract"],
   ["npm", "run", "smoke:response-capture"],
@@ -132,6 +134,7 @@ const viewerCommands = [
   ["npm", "run", "smoke:translation-tolerance"],
   ["npm", "run", "smoke:translation-claude-cli"],
   ["npm", "run", "smoke:translation-codex-cli"],
+  ["npm", "run", "smoke:translation-opencode-cli"],
 ];
 const protocolCommands = [
   ["npm", "run", "smoke:provenance-contract"],

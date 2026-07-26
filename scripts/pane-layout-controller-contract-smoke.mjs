@@ -11,17 +11,17 @@ import {
   panelContentShare,
 } from "../src/viewer/pane-layout-model.js";
 
-assert.equal(maximumRawPanelWidth({ shellWidth: 1400, sidebarOpen: true, sidebarWidth: 300 }), 568);
+assert.equal(maximumRawPanelWidth({ shellWidth: 1400, sidebarOpen: true, sidebarWidth: 300 }), 572);
 assert.equal(maximumRawPanelWidth({ shellWidth: 1400, sidebarOpen: false, sidebarWidth: 300 }), 760);
 assert.equal(maximumSidebarWidth({ shellWidth: 1400, rawOpen: true, rawWidth: 400 }), 420);
 assert.equal(maximumSidebarWidth({ shellWidth: 1000, rawOpen: true, rawWidth: 320 }), 220);
-assert.equal(clampRawPanelWidth(900, { shellWidth: 1400, sidebarOpen: true, sidebarWidth: 300 }), 568);
+assert.equal(clampRawPanelWidth(900, { shellWidth: 1400, sidebarOpen: true, sidebarWidth: 300 }), 572);
 assert.equal(clampSidebarWidth(100, { shellWidth: 1400, rawOpen: true, rawWidth: 400 }), 220);
-assert.equal(contentPanelWidth({ shellWidth: 1400, sidebarOpen: true, sidebarWidth: 300, rawOpen: true }), 1088);
+assert.equal(contentPanelWidth({ shellWidth: 1400, sidebarOpen: true, sidebarWidth: 300, rawOpen: true }), 1092);
 assert.equal(panelContentShare(400, 1000), 0.4);
 assert.equal(panelContentShare(400, 0), 0);
 
-const appShell = fakeElement({ left: 0, right: 1400, width: 1400 });
+const appShell = fakeElement({ left: 0, right: 1600, width: 1600 });
 const rawPanel = fakeElement({ width: 400 });
 rawPanel.getBoundingClientRect = () => ({
   left: 0,
@@ -34,7 +34,7 @@ const sidebarResizer = fakeElement();
 const sidebarToggle = fakeElement();
 const documentTarget = fakeEventTarget();
 const windowTarget = fakeEventTarget({
-  innerWidth: 1400,
+  innerWidth: 1600,
   matchMedia: () => ({ matches: false }),
   getComputedStyle: () => ({ getPropertyValue: () => "300px" }),
 });
@@ -123,8 +123,14 @@ assert.ok(changes.some((change) => change.options.reason === "set-sidebar-width"
 
 const controllerSource = fs.readFileSync(new URL("../src/viewer/pane-layout-controller.js", import.meta.url), "utf8");
 const modelSource = fs.readFileSync(new URL("../src/viewer/pane-layout-model.js", import.meta.url), "utf8");
+const stylesSource = fs.readFileSync(new URL("../src/viewer/styles.css", import.meta.url), "utf8");
 assert.doesNotMatch(modelSource, /\bdocument\b|\bwindow\b|\blocalStorage\b|\bfetch\s*\(|\bstate\./);
 assert.doesNotMatch(controllerSource, /\blocalStorage\b|\bfetch\s*\(|\bstate\./);
+assert.match(
+  stylesSource,
+  /grid-template-columns:\s*var\(--sidebar-width\)[\s\S]*?minmax\(520px, 1fr\)[\s\S]*?var\(--raw-width\);/,
+  "CSS and pane geometry must agree on the 520px timeline minimum",
+);
 
 controller.destroy();
 assert.equal(rawToggle.listenerCount("click"), 0);

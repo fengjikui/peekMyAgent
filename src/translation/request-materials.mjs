@@ -21,7 +21,12 @@ import {
 
 export function projectTranslationBodyMaterials(
   body,
-  { section = "", contentText = extractContentText, extractHarnessParts = () => [] } = {},
+  {
+    section = "",
+    contentText = extractContentText,
+    extractHarnessParts = () => [],
+    harnessContext = {},
+  } = {},
 ) {
   const source = body && typeof body === "object" ? body : {};
   const messages = extractRequestMessages(source);
@@ -39,7 +44,7 @@ export function projectTranslationBodyMaterials(
   }
 
   if (!section || section === "harness") {
-    for (const part of extractHarnessParts(messages) || []) {
+    for (const part of extractHarnessParts(messages, harnessContext) || []) {
       materials.push({
         kind: part.kind,
         source_text: part.text,
@@ -90,6 +95,7 @@ export function translationMaterialsForRequest(
   { section = "", contentText = extractContentText, extractHarnessParts = () => [] } = {},
 ) {
   const body = request?.raw?.body || request?.body || {};
+  const harnessContext = harnessContextForRequest(request);
   if (!section) {
     return [
       ...translationMaterialsForRequest(request, { section: "system", contentText, extractHarnessParts }),
@@ -97,7 +103,12 @@ export function translationMaterialsForRequest(
       ...translationMaterialsForRequest(request, { section: "harness", contentText, extractHarnessParts }),
     ];
   }
-  const materials = projectTranslationBodyMaterials(body, { section, contentText, extractHarnessParts });
+  const materials = projectTranslationBodyMaterials(body, {
+    section,
+    contentText,
+    extractHarnessParts,
+    harnessContext,
+  });
   return section === "tools"
     ? dedupeToolTranslationMaterials(materials)
     : dedupeTranslationMaterials(materials);
@@ -122,7 +133,11 @@ export function extractTranslationSystemParts(body, messages, contentText = extr
 
 export function extractHarnessTranslationParts(
   messages,
-  { contentText = extractContentText, labelForPart = defaultHarnessLabel } = {},
+  {
+    contentText = extractContentText,
+    labelForPart = defaultHarnessLabel,
+    openCodeCommand = null,
+  } = {},
 ) {
   const extract = requiredFunction(contentText, "contentText");
   const label = requiredFunction(labelForPart, "labelForPart");
@@ -189,6 +204,20 @@ export function extractHarnessTranslationParts(
     }
   });
 
+  const command = normalizeOpenCodeCommandEvidence(openCodeCommand);
+  if (command) {
+    const messageIndex = findLastCommandPromptIndex(messages, extract);
+    if (messageIndex >= 0) {
+      const text = extract(messages[messageIndex]?.content);
+      output.push(harnessPart("harness_command", text, messageIndex, label, {
+        command: `/${command}`,
+        tag: "opencode-command",
+        category: "command",
+        evidence: "wrapper_cli_argument",
+      }));
+    }
+  }
+
   return output.filter((part) => part.text);
 }
 
@@ -249,6 +278,38 @@ function defaultHarnessLabel(kind, { command = "", reminderIndex = 0, defaultLab
   if (kind === "harness_codex_context") return "Codex 上下文注入";
   if (kind.startsWith("harness_codex_") && defaultLabel) return defaultLabel;
   return kind;
+}
+
+function harnessContextForRequest(request) {
+  const headers = request?.raw?.headers || request?.headers || {};
+  return {
+    openCodeCommand: caseInsensitiveHeader(headers, "x-peek-opencode-command"),
+  };
+}
+
+function caseInsensitiveHeader(headers, name) {
+  const target = String(name || "").toLowerCase();
+  for (const [key, value] of Object.entries(headers || {})) {
+    if (String(key).toLowerCase() !== target) continue;
+    return Array.isArray(value) ? value[0] : value;
+  }
+  return null;
+}
+
+function normalizeOpenCodeCommandEvidence(value) {
+  const command = String(value || "").trim().replace(/^\/+/, "");
+  if (!command || command.length > 128 || !/^[A-Za-z0-9._:/-]+$/.test(command)) return null;
+  return command;
+}
+
+function findLastCommandPromptIndex(messages, contentText) {
+  const list = Array.isArray(messages) ? messages : [];
+  for (let index = list.length - 1; index >= 0; index -= 1) {
+    const message = list[index];
+    if (message?.role !== "user") continue;
+    if (contentText(message.content).trim()) return index;
+  }
+  return -1;
 }
 
 function requiredFunction(value, name) {

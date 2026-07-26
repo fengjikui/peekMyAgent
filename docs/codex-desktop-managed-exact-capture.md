@@ -94,8 +94,10 @@ npm run smoke:run-codex-desktop
 `smoke:run-codex-desktop-exact` 覆盖受管 Desktop 的启动、退出与故障恢复边界，因此只允许作为显式手工生命周期测试运行，不得加入 `release:check:*` 自动全量 profile。执行前必须先退出承载当前开发任务的 Codex Desktop，并确认不会打断其他任务：
 
 ```bash
-npm run smoke:run-codex-desktop-exact
+PEEKMYAGENT_ALLOW_CODEX_DESKTOP_RESTART_SMOKE=1 npm run smoke:run-codex-desktop-exact
 ```
+
+未设置该环境变量时命令只输出跳过说明并成功退出，不会触碰 Codex Desktop 进程。
 
 额外的 `npm run experiment:codex-app-server-thread-routing-real` 使用临时 `CODEX_HOME` 和真实 Desktop 内嵌 App Server 验证 provider 注入结果，并断言 App Server 启动参数不含 PMA provider；它不读取真实会话、不发模型请求，也不重启 Desktop。
 

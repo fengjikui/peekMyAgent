@@ -96,6 +96,7 @@ export function isCompactInjectionText(text) {
   const value = String(text || "");
   return (
     /create a detailed summary of the conversation so far/i.test(value) ||
+    /^Create a new anchored summary from the conversation history\./i.test(value.trimStart()) ||
     (/Respond with TEXT ONLY/i.test(value) && /<analysis>[\s\S]*<summary>/i.test(value))
   );
 }

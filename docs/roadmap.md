@@ -36,7 +36,8 @@
 ## 体验与边界增强
 
 - **复杂多 Agent 边界加固**：继续验证嵌套子 Agent、长工具链、异步回流、OTel request/response 文件顺序错位等边界 case。
-- **Response 证据面板继续打磨**：保持最终解析结果优先展示，同时保留流式原始事件，方便用户同时看“结果”和“原始证据”。
+- **Response 证据面板继续打磨**：优先展示厂商协议的最终响应对象；流事件只用于协议终态重建，不进入 Viewer。证据不足时明确不可用，不以统一语义对象冒充 Raw。
+- **动态工具描述溯源**：Codex 等 Harness 通过 `tool_search` 动态披露工具时，不把搜索结果伪装成当前请求的静态 Tools schema。工具调用详情应标明“描述来源”，可跳转到对应 `tool_search_output` 的完整上行证据，并提供返回上一证据的导航；若当前 Trace 没有捕获该结果，则明确显示证据缺失。
 - **Trace 脱敏导出**：导出前支持对 secrets、路径、headers 和选定消息内容做脱敏，便于安全分享。
 - **Issue 附件工作流**：用户报告 bug 时，可以方便地附上一份脱敏 Trace 包。
 - **回归样例沉淀**：把有代表性的 Trace 转成 replay/eval fixtures，用于覆盖工具失败、上下文压缩、子 Agent 路由和 response 解析回归。
@@ -45,7 +46,7 @@
 
 - **Setup / Profile UI**：提供可视化界面，让用户按 Agent 启用或关闭捕获，并支持 dry-run、备份、恢复和 drift 检测。
 - **更安全的全局代理模式**：探索一个显式 opt-in 的模式，临时把某个 Agent 的 provider 配置改到 peekMyAgent 代理上，同时提供隐私提示和恢复控制。
-- **更多 Agent 适配器**：在 Claude Code 和 OpenClaw 打磨稳定后，再继续接入 OpenCode、Hermes、Cursor、Gemini CLI、Aider 等 coding agent。
+- **更多 Agent 适配器**：按[新 Harness 适配工作手册](new-harness-adaptation-playbook.md)逐个建立真实协议证据、可逆配置、共享 Trace 语义与回归门禁；OpenCode CLI 是当前首个验证目标，见[专项计划](opencode-cli-adaptation-plan.md)，Hermes、Pi 等在该流程被真实实现验证后继续接入。
 - **Provider 兼容性提示**：区分 model-not-found、thinking/reasoning 参数冲突、upstream auth 失败、本地代理失败等错误类型。
 - **终端代理模式**：调研 `pma claude` 是否应持有 Claude Code 的 PTY，让 dashboard 发送的消息也能出现在原终端中。
 

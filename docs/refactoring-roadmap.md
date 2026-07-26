@@ -283,7 +283,9 @@ Codex Desktop 已完成第一轮真实环境研究，结论见 [Codex Desktop �
 - 显式 `openai_base_url` 深度代理可观察 zstd request、模型可见输入和 `additional_tools` schema，但会经过认证与完整上下文，必须作为高风险 opt-in。
 - 受管 app-server 已在 macOS 产品化，但仍不能原地附着用户已经打开的 Desktop；已有进程需要用户同意后优雅重启，Windows/Linux 仍待对应平台真实研究。
 
-Codex Desktop 本地观察、CLI 精确代理、macOS 受管 Desktop 精确捕获和 thread 选择性路由均已落地；旧的 `capture --` 形式只作兼容。下一步优先完成真实账号验收、重连/取消与协议漂移回归、Windows/Linux 平台能力调查，以及 exact wire 与本地 rollout 生命周期证据的同 thread 合并；OpenCode、Hermes 等继续等待适配器契约稳定。
+Codex Desktop 本地观察、CLI 精确代理、macOS 受管 Desktop 精确捕获和 thread 选择性路由均已落地；旧的 `capture --` 形式只作兼容。下一步继续完成真实账号验收、重连/取消与协议漂移回归、Windows/Linux 平台能力调查，以及 exact wire 与本地 rollout 生命周期证据的同 thread 合并。
+
+新增 Harness 的适配流程、证据门槛和回归保护已经整理为[新 Harness 适配工作手册](new-harness-adaptation-playbook.md)。OpenCode CLI 已完成首轮候选实现：进程级可逆配置覆盖、exact proxy、原生 session 归属、共享 Trace/Viewer/翻译、command 与 compact Harness 分类，以及普通多轮、Read、Skill、Task 子 Agent 和 summarize 压缩证据均已落地；当前状态和未关闭项见 [OpenCode CLI 适配计划](opencode-cli-adaptation-plan.md)。发布前仍需 Level 2、hosted CI 和 Windows/Linux 实机验证；之后再用 Hermes 或 Pi 检查边界是否足够稳定，届时才决定是否固化为 Adapter SDK 或 Coding Agent Skill。
 
 ## 阶段 6：公开发布成熟度
 

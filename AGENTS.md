@@ -59,7 +59,7 @@ git rev-parse origin/main
 
 ### Continuous automated validation
 
-- Every pull request and every push to `main` or `codex/**` MUST run the GitHub Actions macOS, Windows, and Linux matrix.
+- Every pull request and every push to `main` MUST run the GitHub Actions macOS, Windows, and Linux matrix. Same-repository feature-branch pushes rely on the pull-request run so the same commit is not validated twice; fork contributions remain covered by the pull-request trigger.
 - Low-risk local commits MAY be grouped into one push, but a batch MUST NOT exceed three consecutive low-risk code commits since the last successful full host-platform profile.
 - High-risk changes, unexplained failures, handoffs, and release checkpoints MUST NOT wait for a later batch.
 - Documentation-only commits MAY share a later push with the next code batch. Every pushed batch still runs hosted CI.

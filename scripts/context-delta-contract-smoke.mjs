@@ -52,6 +52,30 @@ assert.equal(requestContextChainKey(requests[2]), "agent:conversation-1:agent-a"
 assert.equal(requests[1].summary.history_stack[0].context_status, "reused");
 assert.equal(requests[1].summary.history_stack[1].context_status, "new");
 
+const changingLeadingContext = [
+  request(1, [
+    { role: "system", content: "stable instructions with skill path ~/.agents/skills/example" },
+    user("first question"),
+  ]),
+  request(2, [
+    { role: "system", content: "stable instructions with skill path ~/.claude/skills/example" },
+    user("first question"),
+    { role: "assistant", content: "first answer" },
+    user("second question"),
+  ]),
+];
+changingLeadingContext[0].fingerprints.system = "system-agents";
+changingLeadingContext[1].fingerprints.system = "system-claude";
+annotateRequestContextChanges(changingLeadingContext, semantics);
+assert.equal(changingLeadingContext[1].context_delta.reused_messages, 2);
+assert.equal(changingLeadingContext[1].context_delta.new_messages, 2);
+assert.deepEqual(changingLeadingContext[1].context_delta.new_roles, { assistant: 1, user: 1 });
+assert.equal(changingLeadingContext[1].context_delta.new_tool_calls, 0);
+assert.equal(changingLeadingContext[1].context_delta.new_tool_results, 0);
+assert.equal(changingLeadingContext[1].context_delta.fixed_context.system, "changed");
+assert.equal(changingLeadingContext[1].summary.current_tool_calls.length, 0);
+assert.equal(changingLeadingContext[1].summary.current_tool_results.length, 0);
+
 const pagedRequests = [
   request(1, [user("hello")], { responseToolCalls: [{ id: "call-1", name: "Bash", arguments: { command: "pwd" } }] }),
   request(2, [user("hello"), toolUse, toolResult]),

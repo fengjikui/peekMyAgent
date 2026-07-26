@@ -63,6 +63,7 @@ const callbacks = Object.fromEntries(
     "onResponseToggle",
     "onUpstreamToggle",
     "onUpstreamPanelToggle",
+    "onThinkingToggle",
     "onTurnWindowJump",
     "onRaw",
     "onRequestJump",
@@ -152,6 +153,13 @@ assert.deepEqual(calls.find(([name]) => name === "onAgentStatusFilter"), [
 const panel = fakeElement("[data-upstream-panel]", { upstreamPanel: "request-9" }, timelineRoot);
 timelineRoot.emit("toggle", eventFor(panel));
 assert.deepEqual(calls.find(([name]) => name === "onUpstreamPanelToggle"), ["onUpstreamPanelToggle", panel]);
+const thinking = fakeElement("[data-thinking-request]", { thinkingRequest: "request-10" }, timelineRoot);
+thinking.open = true;
+timelineRoot.emit("toggle", eventFor(thinking));
+assert.deepEqual(calls.find(([name]) => name === "onThinkingToggle"), [
+  "onThinkingToggle",
+  { requestId: "request-10", open: true },
+]);
 
 const requestJump = fakeElement("[data-request-jump]", { requestJump: "request-12" }, timelineRoot);
 timelineRoot.emit("click", eventFor(requestJump));

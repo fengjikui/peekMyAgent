@@ -125,12 +125,12 @@ export function buildTimelineTurnInputView(
   };
 }
 
-export function buildTimelineToolExchangeView(request = {}) {
+export function buildTimelineToolExchangeView(request = {}, { priorToolCalls = [] } = {}) {
   const calls = request.summary?.current_tool_calls || [];
   const results = request.summary?.current_tool_results || [];
   if (!calls.length && !results.length) return null;
   return {
-    pairs: pairTimelineToolEvents(calls, results),
+    pairs: pairTimelineToolEvents(calls, results, { priorToolCalls }),
     counts: { calls: calls.length, results: results.length },
   };
 }
@@ -143,7 +143,6 @@ export function buildTimelineAssistantResponseView(
     cleanText = defaultCleanText,
     preview = defaultPreview,
     markdownPreview = defaultMarkdownPreview,
-    formatCompactNumber = defaultNumberFormat,
     formatCharCount = defaultCharCount,
   } = {},
 ) {
@@ -163,12 +162,6 @@ export function buildTimelineAssistantResponseView(
     expanded,
     longResponse,
     visibleText: longResponse && !expanded ? markdownPreview(responseText, 200) : responseText,
-    meta: [
-      response.latency_ms != null ? `${response.latency_ms}ms` : "",
-      response.finish_reason ? `finish: ${response.finish_reason}` : "",
-      response.truncated ? translate("truncated") : "",
-      ...formatTimelineResponseUsageMeta(response.usage, { formatCompactNumber }),
-    ].filter(Boolean),
     toolCalls: buildTimelineResponseToolCalls(request, response.tool_calls || [], translate),
     thinking,
   };
@@ -380,7 +373,10 @@ export function formatTimelineResponseUsageMeta(usage, { formatCompactNumber = d
   if (!usage || typeof usage !== "object") return [];
   const input = usage.input_tokens ?? usage.prompt_tokens;
   const output = usage.output_tokens ?? usage.completion_tokens;
-  const cache = usage.cache_read_input_tokens ?? usage.prompt_tokens_details?.cached_tokens;
+  const cache =
+    usage.cache_read_input_tokens ??
+    usage.input_tokens_details?.cached_tokens ??
+    usage.prompt_tokens_details?.cached_tokens;
   const total = usage.total_tokens;
   const items = [
     input != null ? `input ${formatCompactNumber(Number(input))}` : "",
@@ -395,14 +391,17 @@ export function formatTimelineResponseUsageMeta(usage, { formatCompactNumber = d
     .map(([key, value]) => `${key} ${String(value)}`);
 }
 
-export function pairTimelineToolEvents(calls = [], results = []) {
+export function pairTimelineToolEvents(calls = [], results = [], { priorToolCalls = [] } = {}) {
   const remainingResults = [...results];
   const pairs = calls.map((call) => {
     const matchIndex = remainingResults.findIndex((result) => result.id && call.id && result.id === call.id);
     const result = matchIndex >= 0 ? remainingResults.splice(matchIndex, 1)[0] : null;
     return { call, result, confidence: result ? "id" : "call_only" };
   });
-  for (const result of remainingResults) pairs.push({ call: null, result, confidence: "result_only" });
+  for (const result of remainingResults) {
+    const historicalCall = priorToolCalls.find((call) => result.id && call?.id && result.id === call.id) || null;
+    pairs.push({ call: historicalCall, result, confidence: historicalCall ? "historical_id" : "result_only" });
+  }
   return pairs;
 }
 

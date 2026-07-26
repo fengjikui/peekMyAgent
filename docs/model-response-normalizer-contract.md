@@ -1,6 +1,6 @@
 # 模型回复归一化契约
 
-更新时间：2026-07-21
+更新时间：2026-07-25
 
 `src/trace/model-response-normalizer.mjs` 把捕获层保存的 JSON 或 SSE 模型回复转换成 Viewer 与 Trace Domain 共用的下行 DTO。它属于协议归一化边界，不属于 HTTP Server，也不负责页面渲染；content/tool block 基础解析复用 [Trace Content Parts 契约](content-parts-contract.md)。
 
@@ -12,7 +12,7 @@
 - 解析非流式 Anthropic message、OpenAI Chat Completions 风格 `choices` 和兼容 `output`；
 - 重组 Anthropic SSE 的 text/thinking/input JSON delta；
 - 重组 OpenAI-compatible SSE 中按 index 分片的 function tool call，以及 `tool_search_call` 等 Responses API 动态 `*_call` 下行条目；
-- 输出稳定的 response summary 和 `complete_response`。
+- 输出稳定的语义 summary，以及保留协议字段名和层级的 `complete_response`。
 
 该模块不负责：
 
@@ -50,23 +50,48 @@ captured
 message_id
 text / preview
 thinking / thinking_preview
+opaque_reasoning[]
 tool_calls[]
 usage
 finish_reason
+response_protocol
+complete_response_source
 complete_response
 latency_ms / status
 stream / event_count / truncated
 raw_body_bytes / captured_body_bytes / received_at
 ```
 
-`complete_response.content` 始终按 thinking、text、tool_use 的顺序组装；`tool_calls[].arguments` 与 `complete_response.content[].input` 使用解析后的同一值。流式 function arguments 无法形成 JSON 时保留原字符串，不伪造结构。
+`complete_response` 不是统一 DTO，而是 Raw Inspector 使用的协议终态对象：
+
+- Anthropic Messages 保留 `content[]` 的原始块顺序，工具调用仍是 `type: "tool_use"`，参数位于 `input`；
+- OpenAI Responses 直接保留终止事件中的 `response`，工具调用继续是 `output[]` 中独立的 `function_call`、`custom_tool_call`、`tool_search_call` 等条目；
+- OpenAI-compatible Chat Completions 把 SSE delta 还原成 `choices[].message`，工具调用保留在 `message.tool_calls[]`，`function.arguments` 仍为协议规定的 JSON 字符串。
+
+非流式 JSON 的来源为 `captured_body_json`；Responses API 的完整终止事件来源为 `protocol_terminal_event`；只有能够保持协议结构时，SSE 才产生来源为 `stream_reconstruction` 的终态对象。证据不足时 `complete_response` 为 `null`，不得退化成通用 Anthropic 形状。`text`、`thinking`、解析后的 `tool_calls` 只服务语义整理视图，不得再拼入 Raw。
+
+Responses API 的下行 `response.created` / `response.completed` 对象可能回显 `instructions`、`tools`、`model` 等请求配置；这些字段来自模型服务的真实下行，不等于 PMA 把上行请求拼进 Response。Viewer 必须保留该原文，同时提示模型真正生成的条目位于 `output[]`，且上行 `input` 不属于该下行对象。
+
+流事件仍可由捕获层保存并由 normalizer 消费，但 Viewer 不展示 SSE 事件序列。Raw 面板只展示最终协议对象和必要的捕获事实。
+
+## 证据边界
+
+PMA 将下行数据区分为三个层次，避免把产品整理结果误称为原始响应：
+
+1. **线级捕获**：`response_blobs` 引用 `content_blobs.payload_json`，保存 Capture Proxy 实际收到的完整 HTTP body。非流式响应是 JSON body；流式响应是完整 SSE 文本。这是最高保真的本地证据。
+2. **协议终态对象**：normalizer 按厂商协议消费线级捕获。协议本身提供完整终态对象时直接保留；协议只提供增量事件时，按事件索引和顺序重建对应协议的终态对象，并标记 `complete_response_source: "stream_reconstruction"`。
+3. **语义摘要**：`capture_json` 与 summary 中的 `text`、`thinking`、`tool_calls` 用于时间线和整理视图。它们是 PMA 的派生数据，不是 Raw，也不能反向充当协议证据。
+
+协议实现必须同时由实际线级捕获与厂商官方协议文档校验。数据库中的聚合 summary 只能用于交互展示和兼容回退，不能用来推断厂商原始字段结构。
+
+Anthropic/OpenAI-compatible provider 返回可读 `thinking`、`reasoning_content` 或 reasoning summary 时，原文进入 `thinking` 并由整理视图按 Markdown 展示。Responses API 只返回 `encrypted_content` 而没有可读 summary/content 时，归一化结果保留一个 `type: reasoning` 的存在性标记，并在 `opaque_reasoning[]` 与 `encrypted_content_omitted` 中记录原因和字符数；密文本身只保留在本地原始捕获，不复制进聚合 DTO，也不会伪造成可读思考过程。
 
 Responses API 中所有已捕获的 `*_call` output item 都按模型下行工具调用归一化；有显式 `name` 时保留原名，否则从协议类型派生可读名称，例如 `tool_search_call` 映射为 `tool_search`。对应的 `tool_search_output` 属于下一次请求的上行工具结果，由共享 request payload 语义处理，不混入当前 response。
 
 ## 兼容事实
 
 - `extractContentText()` 会排除 thinking/reasoning 块。
-- 其他结构化 content 块沿用既有兼容行为，以 JSON 文本进入可见 text；因此 Anthropic `tool_use` 既能出现在结构化 `tool_calls`，也可能出现在 response text。调整这一点属于单独的产品行为变更，不能在重构中静默修改。
+- response normalizer 使用更严格的可见文本提取，只接受 `text`、`output_text` 和 `input_text`；工具调用不会再被 JSON 字符串化后混入模型正文。
 - 重复 tool call 以 `id + name + stable arguments` 去重。
 - 没有 response 时返回 `captured: false` 的固定空 DTO，不生成 `complete_response`。
 
@@ -82,4 +107,4 @@ Responses API 中所有已捕获的 `*_call` output item 都按模型下行工�
 npm run smoke:model-response-normalizer-contract
 ```
 
-它覆盖 Anthropic JSON、Anthropic SSE、OpenAI-compatible JSON/SSE、thinking、分片工具参数、损坏 SSE、空 response 和依赖方向。`npm run smoke:response-capture` 继续用真实本地 HTTP 流程验证 Capture Proxy、SQLite 重启与 Viewer DTO 的端到端兼容。
+它覆盖 Anthropic JSON、Anthropic SSE、OpenAI-compatible JSON/SSE、可读 thinking、仅含加密内容的 Responses reasoning、分片工具参数、损坏 SSE、空 response 和依赖方向。`npm run smoke:response-capture` 继续用真实本地 HTTP 流程验证 Capture Proxy、SQLite 重启与 Viewer DTO 的端到端兼容。

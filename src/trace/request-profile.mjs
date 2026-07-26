@@ -44,7 +44,7 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
   if (isFrameworkReminderMessage(lastUser)) {
     return { type: "metadata", label: "Claude Code 框架提醒", confidence: "high" };
   }
-  if (isTitleGenerationRequest(body)) {
+  if (isTitleGenerationRequest(body, capture)) {
     return { type: "metadata", label: "生成会话标题", confidence: "high" };
   }
   if (isWebSearchInternalRequest(body)) {
@@ -141,14 +141,32 @@ export function isContextTokenCountingRequest(capture) {
   return /\/v1\/messages\/count_tokens(?:$|[?#/])/.test(requestPath);
 }
 
-export function isTitleGenerationRequest(body) {
+export function isTitleGenerationRequest(body, capture = {}) {
   const systemText = extractSystemParts(body)
     .map((part) => part.text)
     .join("\n");
   const format = body?.output_config?.format;
   return (
     /Generate a concise, sentence-case title/i.test(systemText) ||
+    isOpenCodeTitleGenerationRequest(body, systemText, capture) ||
     (format?.type === "json_schema" && format?.schema?.properties?.title && Array.isArray(body?.tools) && body.tools.length === 0)
+  );
+}
+
+function isOpenCodeTitleGenerationRequest(body, systemText, capture = {}) {
+  const agentProfile = String(capture?.agent_profile || capture?.agentProfile || "").trim();
+  if (agentProfile && !/^open\s*code$/i.test(agentProfile)) return false;
+  const messages = extractRequestMessages(body);
+  const promptText = messages
+    .filter((message) => message?.role === "user")
+    .map((message) => extractContentText(message.content))
+    .join("\n");
+  const tools = Array.isArray(body?.tools) ? body.tools : [];
+  return (
+    /^You are a title generator\. You output ONLY a thread title\. Nothing else\./i.test(systemText.trim()) &&
+    /<task>\s*Generate a brief title that would help the user find this conversation later\./i.test(systemText) &&
+    /Generate a title for this conversation:/i.test(promptText) &&
+    tools.length === 0
   );
 }
 

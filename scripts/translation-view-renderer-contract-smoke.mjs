@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   buildTranslationSectionView,
   filterToolTranslationGroups,
+  filterToolTranslationGroupsByName,
   groupToolTranslationMaterials,
+  responseInvokedToolNames,
   translationBlockView,
   translationKindClass,
   translationMaterialMatchesQuery,
@@ -46,6 +48,17 @@ assert.equal(translationMaterialMatchesQuery(materials[0], { query: "启动", tr
 assert.equal(translationMaterialMatchesQuery(materials[2], { query: "agent", translatedTextFor }), false);
 assert.deepEqual(filterToolTranslationGroups(groups, { query: "Agent", translatedTextFor }).map((group) => group.toolName), ["Agent"]);
 assert.deepEqual(filterToolTranslationGroups(groups, { query: "任务提示", translatedTextFor }).map((group) => group.toolName), ["Agent"]);
+assert.deepEqual(filterToolTranslationGroupsByName(groups, new Set(["Bash"])).map((group) => group.toolName), ["Bash"]);
+assert.deepEqual(
+  responseInvokedToolNames({
+    tool_calls: [
+      { name: "Bash" },
+      { function: { name: "Read" } },
+      { tool_name: "Bash" },
+    ],
+  }),
+  ["Bash", "Read"],
+);
 assert.deepEqual(translationSectionStats(materials, { translatedTextFor }), { total: 3, hit: 2, missing: 1 });
 assert.equal(translationKindClass("harness_reminder"), "harness-kind");
 
@@ -61,7 +74,31 @@ assert.equal(toolsView.totalMaterials, 3);
 assert.equal(toolsView.searchMatchCount, 1);
 assert.equal(toolsView.groups[0].description.kindLabel, "kind:tool_description");
 assert.equal(toolsView.groups[0].parameters.hit, 1);
-assert.equal(toolsView.groups[0].parameters.materials[0].metadata.field_name, "prompt");
+assert.equal(toolsView.groups[0].materials[1].metadata.field_name, "prompt");
+assert.equal(toolsView.groups[0].hit, 2);
+
+const invokedToolsView = buildTranslationSectionView({
+  section: "tools",
+  materials,
+  toolNames: new Set(["Bash"]),
+  displaySource: true,
+  translatedTextFor,
+  labelForKind: (kind) => `kind:${kind}`,
+});
+assert.deepEqual(invokedToolsView.groups.map((group) => group.toolName), ["Bash"]);
+assert.equal(invokedToolsView.totalGroups, 2);
+assert.equal(invokedToolsView.scopedGroups, 1);
+assert.equal(invokedToolsView.groups[0].description.displayText, "Run a shell command.");
+
+const unavailableInvokedToolsView = buildTranslationSectionView({
+  section: "tools",
+  materials,
+  toolNames: new Set(["spawn_agent"]),
+  translatedTextFor,
+});
+assert.equal(unavailableInvokedToolsView.totalGroups, 2);
+assert.equal(unavailableInvokedToolsView.scopedGroups, 0);
+assert.deepEqual(unavailableInvokedToolsView.groups, []);
 
 const systemView = buildTranslationSectionView({
   section: "system",
@@ -116,23 +153,34 @@ const toolbar = renderTranslationControls({
   languageLabel: "中文",
   translationMode: "zh-CN",
   sectionLabel: "Tools",
+  toolFilter: { available: true, mode: "all", invoked: 1, total: 2 },
   translate,
   escapeHtml,
 });
 assert.match(toolbar, /2\/3 cached zh-CN/);
 assert.match(toolbar, /class="active" data-translation-mode="zh-CN"/);
 assert.match(toolbar, /data-translation-copy-all="tools"/);
+assert.match(toolbar, /data-tools-schema-filter="invoked"/);
 
 const toolsHtml = renderTranslationSection({ view: toolsView, emptyText: "empty", ...dependencies });
 assert.match(toolsHtml, /tool-translation-group/);
 assert.match(toolsHtml, /data-raw-search-target="true"/);
 assert.match(toolsHtml, /启动一个专注的子 Agent。/);
 assert.doesNotMatch(toolsHtml, /Agent · description/);
-assert.match(toolsHtml, /data-translation-retranslate="action-2"/);
-assert.equal(actionDescriptors.length, 2);
+assert.match(toolsHtml, /data-translation-retranslate="action-1"/);
+assert.match(toolsHtml, /tool-translation-description/);
+assert.match(toolsHtml, /tool-translation-parameters/);
+assert.equal((toolsHtml.match(/<details class="tool-translation-source">/g) || []).length, 1);
+assert.doesNotMatch(toolsHtml, /parameter-summary/);
+assert.equal(actionDescriptors.length, 1);
 assert.equal(actionDescriptors[0].metadata.label, "Agent");
-assert.equal(actionDescriptors[1].materials.length, 1);
-assert.equal(actionDescriptors[1].materials[0].metadata.field_name, "prompt");
+assert.equal(actionDescriptors[0].metadata.group, "tool");
+assert.equal(actionDescriptors[0].materials.length, 2);
+assert.equal(actionDescriptors[0].materials[1].metadata.field_name, "prompt");
+
+const sourceToolsHtml = renderTranslationSection({ view: invokedToolsView, emptyText: "empty", ...dependencies });
+assert.match(sourceToolsHtml, /Run a shell command\./);
+assert.doesNotMatch(sourceToolsHtml, /tool-translation-source/);
 
 const unsafeHtml = renderTranslationBlock({ block, ...dependencies });
 assert.doesNotMatch(unsafeHtml, /<script>/);

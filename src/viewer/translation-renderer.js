@@ -10,6 +10,7 @@ export function renderTranslationControls({
   languageLabel,
   translationMode,
   sectionLabel,
+  toolFilter = null,
   translate,
   escapeHtml,
 }) {
@@ -28,6 +29,7 @@ export function renderTranslationControls({
         <button type="button" class="${translationMode === targetLanguage ? "active" : ""}" data-translation-mode="${escapeHtml(targetLanguage)}" data-translation-section="${escapeHtml(section)}">${escapeHtml(languageLabel)}</button>
       </div>
       <div class="translation-toolbar-actions">
+        ${renderToolFilter(toolFilter, translate, escapeHtml)}
         <span class="translation-status ${generateError ? "error" : stats.missing ? "partial" : "ready"}">${escapeHtml(generateError || generateMessage || statusText)}</span>
         <button type="button" class="translation-generate-button" data-translation-copy-all="${escapeHtml(section)}" ${stats.total ? "" : "disabled"} title="${escapeHtml(translate("copyAllTitle", { section: sectionLabel }))}">${escapeHtml(translate("copyAll"))}</button>
         <button type="button" class="translation-generate-button" data-translation-generate="true" data-translation-section="${escapeHtml(section)}" ${generating ? "disabled" : ""} title="${escapeHtml(translate("refreshSectionTitle", { section: sectionLabel }))}">${escapeHtml(generating ? translate("updating") : translate("updateCurrentSection"))}</button>
@@ -128,42 +130,58 @@ export function renderTranslationBlock({
 }
 
 function renderToolTranslationGroup(group, dependencies) {
-  const { searchTarget, translate, escapeHtml } = dependencies;
+  const { searchTarget, generating, targetLanguageLabel, translate, escapeHtml, renderMarkdown, renderPre, registerAction } = dependencies;
+  const actionId = registerAction({
+    kind: "tool_description",
+    sourceText: "",
+    metadata: { label: group.toolName, group: "tool", tool_name: group.toolName },
+    materials: group.materials,
+  });
+  const originalText = toolOriginalText(group, translate);
   return `
     <section class="tool-translation-group" ${searchTarget ? 'data-raw-search-target="true"' : ""}>
       <header class="tool-translation-group-header">
-        <strong>${escapeHtml(group.toolName)}</strong>
-        <span>${escapeHtml(group.description ? translate("toolDescriptionCount") : translate("noToolDescription"))} · ${escapeHtml(translate("parameterCount", { count: group.parameters.total }))}</span>
+        <div class="tool-translation-group-identity">
+          <strong>${escapeHtml(group.toolName)}</strong>
+          <span>${escapeHtml(group.description ? translate("toolDescriptionCount") : translate("noToolDescription"))} · ${escapeHtml(translate("parameterCount", { count: group.parameters.total }))}</span>
+        </div>
+        <div class="tool-translation-group-actions">
+          <span class="translation-cache-state">${escapeHtml(
+            group.hit
+              ? `${translate("cacheState", { language: targetLanguageLabel })} ${group.hit}/${group.total}`
+              : translate("missingTranslation"),
+          )}</span>
+          <button type="button" class="translation-inline-button" data-translation-copy="${escapeHtml(actionId)}" title="${escapeHtml(translate("copyBlockTitle"))}">${escapeHtml(translate("copy"))}</button>
+          <button type="button" class="translation-inline-button" data-translation-retranslate="${escapeHtml(actionId)}" ${generating ? "disabled" : ""}>${escapeHtml(group.hit ? translate("retranslateTool") : translate("translateTool"))}</button>
+        </div>
       </header>
-      ${group.description ? renderTranslationBlock({ block: group.description, ...dependencies }) : ""}
-      ${group.parameters.total ? renderToolParameterSummaryBlock(group.parameters, dependencies) : ""}
+      ${
+        group.description
+          ? `<div class="tool-translation-description">${renderMarkdown(group.description.displayText)}</div>`
+          : ""
+      }
+      ${group.parameters.total ? renderToolParameterList(group.parameters, dependencies) : ""}
+      ${
+        group.displaySource
+          ? ""
+          : `<details class="tool-translation-source">
+              <summary>${escapeHtml(translate("source"))}</summary>
+              <div class="details-body">${renderPre(originalText)}</div>
+            </details>`
+      }
     </section>
   `;
 }
 
-function renderToolParameterSummaryBlock(parameters, { generating, targetLanguageLabel, translate, escapeHtml, renderMarkdown, renderPre, registerAction }) {
-  const actionId = registerAction({
-    kind: "tool_parameter_description",
-    sourceText: "",
-    metadata: { label: translate("parameterDescriptions") },
-    materials: parameters.materials,
-  });
-  const originalText = parameters.items.map((item) => `### ${item.label}\n${item.sourceText}`).join("\n\n");
+function renderToolParameterList(parameters, { translate, escapeHtml, renderMarkdown }) {
   return `
-    <article class="translation-block tool-parameter parameter-summary">
-      <header>
-        <strong>${escapeHtml(translate("parameterDescriptions"))} · ${escapeHtml(String(parameters.total))}</strong>
-        <span class="translation-block-meta">
-          <span class="translation-kind">${escapeHtml(translate("parameterDescriptions"))}</span>
-          <span class="translation-cache-state">${escapeHtml(parameters.hit ? `${translate("cacheState", { language: targetLanguageLabel })} ${parameters.hit}/${parameters.total}` : translate("missingTranslation"))}</span>
-          <button type="button" class="translation-inline-button" data-translation-retranslate="${escapeHtml(actionId)}" ${generating ? "disabled" : ""}>${escapeHtml(parameters.hit ? translate("retranslateParameters") : translate("translateParameters"))}</button>
-        </span>
-      </header>
-      <div class="tool-parameter-summary-list">
+    <section class="tool-translation-parameters">
+      <h4>${escapeHtml(translate("parameterDescriptions"))} · ${escapeHtml(String(parameters.total))}</h4>
+      <div class="tool-parameter-list">
         ${parameters.items
           .map(
             (item) => `
-              <section class="tool-parameter-summary-item">
+              <section class="tool-parameter-item">
                 <strong>${escapeHtml(item.label)}</strong>
                 ${renderMarkdown(item.displayText)}
               </section>
@@ -171,10 +189,31 @@ function renderToolParameterSummaryBlock(parameters, { generating, targetLanguag
           )
           .join("")}
       </div>
-      <details>
-        <summary>${escapeHtml(translate("source"))}</summary>
-        <div class="details-body">${renderPre(originalText)}</div>
-      </details>
-    </article>
+    </section>
   `;
+}
+
+function renderToolFilter(toolFilter, translate, escapeHtml) {
+  if (!toolFilter?.available) return "";
+  const invokedOnly = toolFilter.mode === "invoked";
+  return `<button type="button" class="translation-tool-filter ${invokedOnly ? "active" : ""}" data-tools-schema-filter="${invokedOnly ? "all" : "invoked"}" aria-pressed="${invokedOnly ? "true" : "false"}">${escapeHtml(
+    invokedOnly
+      ? translate("showAllTools", { count: toolFilter.total })
+      : translate("showInvokedTools", { count: toolFilter.invoked }),
+  )}</button>`;
+}
+
+function toolOriginalText(group, translate) {
+  const parts = [];
+  if (group.description) {
+    parts.push(`## ${translate("toolDescription")}`, "", group.description.sourceText);
+  }
+  if (group.parameters.items.length) {
+    parts.push(
+      `## ${translate("parameterDescriptions")}`,
+      "",
+      group.parameters.items.map((item) => `### ${item.label}\n${item.sourceText}`).join("\n\n"),
+    );
+  }
+  return parts.join("\n\n");
 }

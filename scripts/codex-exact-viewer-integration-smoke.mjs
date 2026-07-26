@@ -123,8 +123,10 @@ try {
   assert.equal(detail.request.raw.body.instructions, requestBody.instructions);
   assert.equal(detail.request.raw.body.tools[0].name, "read_file");
   const responseSection = rawResponseSectionValue(detail.request);
-  assert.equal(responseSection.parsed_from_response.text, "I will inspect README.md.");
-  assert.equal(responseSection.parsed_from_response.tool_use[0].name, "read_file");
+  assert.equal(responseSection.response.output[1].content[0].text, "I will inspect README.md.");
+  assert.equal(responseSection.response.output[2].type, "function_call");
+  assert.equal(responseSection.response.output[2].name, "read_file");
+  assert.equal("parsed_from_response" in responseSection, false);
 
   const store = openPersistenceStore(storePath);
   try {

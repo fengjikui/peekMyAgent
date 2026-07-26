@@ -5,6 +5,8 @@ export const VIEWER_CLIENT_STATE_DEFAULTS = Object.freeze({
   activeRawSection: "full",
   activeRawMode: "request",
   rawMessagesMode: "organized",
+  rawMetadataMode: "organized",
+  theme: "system",
   uiLanguage: "zh-CN",
   targetTranslationLanguage: "zh-CN",
   translationMode: "source",
@@ -17,7 +19,8 @@ export const VIEWER_CLIENT_STATE_DEFAULTS = Object.freeze({
 
 const DOMAIN_KEYS = Object.freeze({
   selection: new Set(["activeSourceId", "activeId", "activeRequestId"]),
-  rawView: new Set(["activeRawSection", "activeRawMode", "rawMessagesMode"]),
+  rawView: new Set(["activeRawSection", "activeRawMode", "rawMessagesMode", "rawMetadataMode"]),
+  appearance: new Set(["theme"]),
   language: new Set(["uiLanguage", "targetTranslationLanguage", "translationMode"]),
   layout: new Set(["rawOpen", "rawWidth", "sidebarOpen", "sidebarWidth"]),
   timeline: new Set(["latestOnly"]),
@@ -77,6 +80,10 @@ export class ViewerClientStore {
 
   setLanguage(patch, options = {}) {
     return this.updateDomain("language", patch, options);
+  }
+
+  setAppearance(patch, options = {}) {
+    return this.updateDomain("appearance", patch, options);
   }
 
   setLayout(patch, options = {}) {

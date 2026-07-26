@@ -41,12 +41,31 @@ export function renderTimelineUpstreamEntry({ entry, escapeHtml }) {
     actionsHtml = "",
     semanticEvent = null,
   } = entry;
+  if (userTurn) {
+    return `
+      <section class="upstream-entry ${escapeHtml(kindClass)} user-turn ${compact ? "compact" : ""}">
+        <div class="user-turn-index-anchor">
+          <span class="request-index">#${escapeHtml(requestIndex)}</span>
+        </div>
+        <span class="user-turn-connector" aria-hidden="true"></span>
+        <div class="user-turn-bubble">
+          <div class="user-turn-content">
+          ${preview ? `<div class="upstream-entry-preview">${escapeHtml(preview)}</div>` : ""}
+          <div class="upstream-entry-actions">
+            ${actionsHtml}
+          </div>
+          ${metaHtml ? `<div class="upstream-entry-meta" aria-label="${escapeHtml(ownerAria)}">${metaHtml}</div>` : ""}
+          </div>
+        </div>
+      </section>
+    `;
+  }
   return `
-    <section class="upstream-entry ${escapeHtml(kindClass)} ${userTurn ? "user-turn" : ""} ${compact ? "compact" : ""}">
+    <section class="upstream-entry ${escapeHtml(kindClass)} ${compact ? "compact" : ""}">
       <div class="upstream-entry-row">
         <div class="upstream-entry-title">
           <span class="request-index">#${escapeHtml(requestIndex)}</span>
-          <span class="upstream-label">${escapeHtml(label)}</span>
+          ${label ? `<span class="upstream-label">${escapeHtml(label)}</span>` : ""}
         </div>
         ${metaHtml ? `<div class="upstream-entry-meta" aria-label="${escapeHtml(ownerAria)}">${metaHtml}</div>` : ""}
         <div class="upstream-entry-actions">
@@ -75,6 +94,7 @@ export function renderTimelineUpstreamQuickActions({
   requestId,
   expanded = false,
   expandable = true,
+  summaryOnly = false,
   sections = [],
   expandLabel = "",
   collapseLabel = "",
@@ -82,6 +102,9 @@ export function renderTimelineUpstreamQuickActions({
   translate,
   escapeHtml,
 }) {
+  if (summaryOnly) {
+    return `<button class="raw-button compact" type="button" data-raw="${escapeHtml(requestId)}" title="${escapeHtml(rawTitle || translate("fullCaptureTitle"))}">${escapeHtml(translate("inspectDetails"))}</button>`;
+  }
   return `
     ${
       expandable
@@ -97,31 +120,33 @@ export function renderTimelineUpstreamQuickActions({
         `,
       )
       .join("")}
-    <button class="raw-button compact" type="button" data-raw="${escapeHtml(requestId)}" title="${escapeHtml(rawTitle || translate("fullCaptureTitle"))}">Raw</button>
+    <button class="raw-button compact" type="button" data-raw="${escapeHtml(requestId)}" title="${escapeHtml(rawTitle || translate("fullCaptureTitle"))}">${escapeHtml(translate("inspectDetails"))}</button>
   `;
 }
 
-export function renderTimelineToolExchange({ pairs = [], counts = {}, translate, escapeHtml, renderPre, serializeArguments }) {
+export function renderTimelineToolExchange({ requestId, pairs = [], counts = {}, translate, escapeHtml }) {
   if (!pairs.length) return "";
   return `
-    <section class="summary-block">
-      <p class="block-title">${escapeHtml(translate("currentToolExchange", { calls: counts.calls || 0, results: counts.results || 0 }))}</p>
+    <section class="summary-block tool-exchange-summary">
+      <div class="block-title-row">
+        <p class="block-title">${escapeHtml(translate("currentToolExchange", { calls: counts.calls || 0, results: counts.results || 0 }))}</p>
+        <button class="mini-raw-button" type="button" data-raw="${escapeHtml(requestId)}" data-raw-section="${counts.results ? "tool_results" : "upstream_tool_calls"}">${escapeHtml(translate("inspectDetails"))}</button>
+      </div>
       <div class="tool-exchange-list">
         ${pairs
-          .map((pair) => renderTimelineToolExchangeItem({ pair, translate, escapeHtml, renderPre, serializeArguments }))
+          .map((pair) => renderTimelineToolExchangeItem({ requestId, pair, translate, escapeHtml }))
           .join("")}
       </div>
     </section>
   `;
 }
 
-export function renderTimelineAssistantResponse({ view, translate, escapeHtml, renderMarkdown, renderTranslationMarkdown, renderPre, serialize }) {
+export function renderTimelineAssistantResponse({ view, translate, escapeHtml, renderMarkdown, renderTranslationMarkdown, renderPre }) {
   const {
     requestId,
     expanded = false,
     longResponse = false,
     visibleText = "",
-    meta = [],
     toolCalls = [],
     thinking = null,
   } = view;
@@ -130,24 +155,17 @@ export function renderTimelineAssistantResponse({ view, translate, escapeHtml, r
       <div class="block-title-row">
         <div class="response-heading">
           <p class="block-title">${escapeHtml(translate("assistantReply"))}</p>
-          <div class="response-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
         </div>
         <div class="response-actions">
-          ${
-            toolCalls.length
-              ? `<button class="mini-raw-button" type="button" data-raw="${escapeHtml(requestId)}" data-raw-section="tool_calls" data-raw-mode="response">Tool use · ${escapeHtml(String(toolCalls.length))}</button>`
-              : ""
-          }
           ${
             longResponse
               ? `<button class="mini-raw-button response-toggle-button" type="button" data-response-toggle="${escapeHtml(requestId)}">${escapeHtml(expanded ? translate("collapse") : translate("viewAll"))}</button>`
               : ""
           }
-          <button class="mini-raw-button" type="button" data-raw="${escapeHtml(requestId)}" data-raw-section="response" data-raw-mode="response">Raw</button>
+          <button class="mini-raw-button" type="button" data-raw="${escapeHtml(requestId)}" data-raw-section="response" data-raw-mode="response">${escapeHtml(translate("inspectDetails"))}</button>
         </div>
       </div>
       ${renderTimelineAssistantThinking({ thinking, escapeHtml, renderTranslationMarkdown, renderPre })}
-      ${renderTimelineAssistantToolCalls({ toolCalls, translate, escapeHtml, renderPre, serialize })}
       ${
         visibleText
           ? `<div class="text-box assistant-response-text assistant-response-markdown ${longResponse && !expanded ? "collapsed" : ""}">${renderMarkdown(visibleText)}</div>`
@@ -156,56 +174,48 @@ export function renderTimelineAssistantResponse({ view, translate, escapeHtml, r
             : `<div class="empty-box">${escapeHtml(translate("responseNoText"))}</div>`
       }
       ${longResponse ? `<p class="response-hint">${escapeHtml(expanded ? translate("responseExpandedHint") : translate("responseCollapsedHint"))}</p>` : ""}
+      ${renderTimelineAssistantToolCalls({ requestId, toolCalls, translate, escapeHtml })}
     </section>
   `;
 }
 
-function renderTimelineToolExchangeItem({ pair, translate, escapeHtml, renderPre, serializeArguments }) {
+function renderTimelineToolExchangeItem({ requestId, pair, translate, escapeHtml }) {
   const { call, result, confidence } = pair;
-  const title = call?.name || result?.id || "tool_result";
-  const confidenceLabel = confidence === "id" ? translate("pairedById") : confidence === "call_only" ? translate("waitingToolResult") : translate("unpairedToolResult");
+  const title = call?.displayName || call?.name || result?.name || result?.id || "tool_result";
+  const confidenceLabel = ["id", "historical_id"].includes(confidence)
+    ? translate("pairedById")
+    : confidence === "call_only"
+      ? translate("waitingToolResult")
+      : translate("unpairedToolResult");
+  const kindLabel = result ? translate("toolResultSummary") : translate("toolCallSummary");
+  const section = result ? "tool_results" : "upstream_tool_calls";
   return `
-    <article class="tool-exchange">
-      <header>
-        <span class="tool-exchange-kind">${call ? "Tool use" : "Tool result"}</span>
+    <button class="tool-exchange" type="button" data-raw="${escapeHtml(requestId)}" data-raw-section="${section}">
+      <span class="tool-exchange-kind">${escapeHtml(kindLabel)}</span>
+      <span class="tool-exchange-identity">
         <strong>${escapeHtml(title)}</strong>
-        ${call?.id || result?.id ? `<code>${escapeHtml(call?.id || result?.id)}</code>` : ""}
         <em>${escapeHtml(confidenceLabel)}</em>
-      </header>
-      ${
-        call
-          ? `<div class="tool-event tool-use">
-              <p>${escapeHtml(translate("argumentsLabel"))}</p>
-              ${renderPre(serializeArguments(call.arguments))}
-            </div>`
-          : ""
-      }
-      ${
-        result
-          ? `<div class="tool-event tool-result">
-              <p>${escapeHtml(translate("resultLabel"))}</p>
-              ${renderPre(result.content || "(empty)")}
-            </div>`
-          : `<div class="tool-event empty-tool-result">${escapeHtml(translate("noMatchedToolResult"))}</div>`
-      }
-    </article>
+      </span>
+      <span class="tool-exchange-open" aria-hidden="true">&#8250;</span>
+    </button>
   `;
 }
 
-function renderTimelineAssistantToolCalls({ toolCalls, translate, escapeHtml, renderPre, serialize }) {
+function renderTimelineAssistantToolCalls({ requestId, toolCalls, translate, escapeHtml }) {
   if (!toolCalls.length) return "";
   return `
     <section class="assistant-tool-calls">
       <p class="block-title">${escapeHtml(translate("assistantToolUse", { count: toolCalls.length }))}</p>
       <div class="assistant-tool-list">
         ${toolCalls
-          .map((call) => {
-            const title = `tool_use ${call.displayName || call.name || "unknown"}${call.id ? ` (${call.id})` : ""}`;
-            const semanticLines = (call.displayLines || []).filter(Boolean).join("\n");
-            const argumentText = call.suppressArguments ? "" : serialize(call.arguments ?? null);
-            const body = [semanticLines, argumentText].filter(Boolean).join("\n\n");
-            return renderPre(body ? `${title}\n${body}` : title);
-          })
+          .map(
+            (call) => `<button class="assistant-tool-summary" type="button" data-raw="${escapeHtml(requestId)}" data-raw-section="tool_calls" data-raw-mode="response">
+              <span>${escapeHtml(translate("toolCallSummary"))}</span>
+              <strong>${escapeHtml(call.displayName || call.name || "unknown")}</strong>
+              <small>${escapeHtml((call.displayLines || []).filter(Boolean)[0] || "")}</small>
+              <span class="tool-exchange-open" aria-hidden="true">&#8250;</span>
+            </button>`,
+          )
           .join("")}
       </div>
     </section>
@@ -215,19 +225,21 @@ function renderTimelineAssistantToolCalls({ toolCalls, translate, escapeHtml, re
 function renderTimelineAssistantThinking({ thinking, escapeHtml, renderTranslationMarkdown, renderPre }) {
   if (!thinking?.text) return "";
   return `
-    <details class="assistant-thinking">
-      <summary>
-        <span>Thinking</span>
-        <em>${escapeHtml(thinking.charCount)}</em>
-        <small>${escapeHtml(thinking.preview)}</small>
-      </summary>
-      <div class="details-body">
-        <div class="thinking-translation-toolbar">
-          <button type="button" class="translation-inline-button" data-translation-retranslate="${escapeHtml(thinking.actionId)}" ${thinking.translationLoading ? "disabled" : ""}>${escapeHtml(thinking.actionLabel)}</button>
+    <div class="assistant-thinking-shell">
+      <details class="assistant-thinking" data-thinking-request="${escapeHtml(thinking.requestId || "")}" ${thinking.expanded ? "open" : ""}>
+        <summary>
+          <span>${escapeHtml(thinking.label)}</span>
+          <em>${escapeHtml(thinking.charCount)}</em>
+          <small>${escapeHtml(thinking.preview)}</small>
+        </summary>
+        <div class="details-body">
+          ${thinking.translation ? `<div class="thinking-translation">${renderTranslationMarkdown(thinking.translation)}</div>` : ""}
+          ${renderPre(thinking.text)}
         </div>
-        ${thinking.translation ? `<div class="thinking-translation">${renderTranslationMarkdown(thinking.translation)}</div>` : ""}
-        ${renderPre(thinking.text)}
+      </details>
+      <div class="thinking-title-action">
+        <button type="button" class="translation-inline-button" data-translation-retranslate="${escapeHtml(thinking.actionId)}" ${thinking.translationLoading ? "disabled" : ""}>${escapeHtml(thinking.actionLabel)}</button>
       </div>
-    </details>
+    </div>
   `;
 }

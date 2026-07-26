@@ -5,7 +5,13 @@ import {
   renderMessagesControls as renderMessagesControlsView,
   renderMessagesSection as renderMessagesSectionView,
 } from "./messages-renderer.js";
+import { buildMetadataView } from "./metadata-view-model.js";
+import {
+  renderMetadataControls as renderMetadataControlsView,
+  renderOrganizedMetadata as renderOrganizedMetadataView,
+} from "./metadata-renderer.js";
 import { messageTimelineRequestIndexes, responseConversationMessages } from "./message-view-model.js";
+import { renderOrganizedToolCalls as renderOrganizedToolCallsView } from "./tool-call-renderer.js";
 import { ViewerApiClient } from "./api-client.js";
 import { ViewerClientStore } from "./client-store.js";
 import { AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView } from "./agent-graph-model.js";
@@ -45,7 +51,9 @@ import {
 import {
   requestHasSemanticEvent,
   requestUsesReconstructedUpstream,
+  responseToolCallSectionLabel,
   responseUsesReconstructedDownstream,
+  rawResponseToolCalls,
   rawResponseSectionValue,
   rawSectionData as buildRawSectionData,
 } from "./raw-view-model.js";
@@ -61,6 +69,7 @@ import { renderSystemDiffView } from "./system-diff-renderer.js";
 import { SessionNavigatorController } from "./session-navigator-controller.js";
 import { PaneLayoutController } from "./pane-layout-controller.js";
 import { LanguagePreferencesController } from "./language-preferences-controller.js";
+import { ThemeController } from "./theme-controller.js";
 import {
   renderRawDetail as renderRawDetailView,
   renderRawSearchControls as renderRawSearchControlsView,
@@ -79,6 +88,7 @@ import {
 } from "./translation-renderer.js";
 import {
   buildTranslationSectionView,
+  responseInvokedToolNames,
   translationSectionStats as summarizeTranslationSection,
 } from "./translation-view-model.js";
 import { TurnRailController } from "./turn-rail.js";
@@ -119,6 +129,7 @@ const state = Object.assign(clientStore.state, {
   sessionInfoControlsBound: false,
   responseExpanded: new Set(),
   upstreamExpanded: new Set(),
+  expandedThinking: new Set(),
   translationGenerate: { loading: false, error: "", message: "" },
   expandedAgentBranches: new Set(),
   openAgentDashboards: new Set(),
@@ -128,11 +139,13 @@ const state = Object.assign(clientStore.state, {
   traceQuery: "",
   traceFilter: "all",
   traceResultLimit: 24,
+  responseToolsSchemaFilter: "all",
 });
 
 const LIVE_REFRESH_MS = 1200;
 const LATEST_ONLY_KEY = "peekmyagent.latestOnly";
 const RAW_MESSAGES_MODE_KEY = "peekmyagent.rawMessagesMode";
+const RAW_METADATA_MODE_KEY = "peekmyagent.rawMetadataMode";
 const INITIAL_SOURCE_REQUEST_LIMIT = 32;
 const CURSOR_PAGE_REQUEST_LIMIT = 100;
 const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
@@ -144,10 +157,13 @@ const els = {
   traceImportInput: document.querySelector("#traceImportInput"),
   uiLanguageSelect: document.querySelector("#uiLanguageSelect"),
   translationLanguageSelect: document.querySelector("#translationLanguageSelect"),
+  themeSelect: document.querySelector("#themeSelect"),
   sessionNav: document.querySelector("#sessionNav"),
   pageTitle: document.querySelector("#pageTitle"),
   stats: document.querySelector("#stats"),
   viewControls: document.querySelector("#viewControls"),
+  sessionOverviewActions: document.querySelector("#sessionOverviewActions"),
+  sessionOverviewDisclosure: document.querySelector("#sessionOverviewDisclosure"),
   mainPanel: document.querySelector(".main-panel"),
   sidebarResizer: document.querySelector("#sidebarResizer"),
   watchSummary: document.querySelector("#watchSummary"),
@@ -173,6 +189,7 @@ const languagePreferencesController = new LanguagePreferencesController({
   escapeHtml,
   async onUiLanguageChanged() {
     paneLayoutController.refreshLabels();
+    themeController.renderSelector();
     if (state.data) renderAll();
     if (state.activeRequestId) rawInspectorController.refresh();
   },
@@ -186,6 +203,15 @@ const languagePreferencesController = new LanguagePreferencesController({
     if (state.activeRequestId) rawInspectorController.refresh();
   },
   onWarning: (message, error) => console.warn(`peekMyAgent ${message}`, error),
+});
+
+const themeController = new ThemeController({
+  store: clientStore,
+  storage: localStorage,
+  documentTarget: document,
+  select: els.themeSelect,
+  translate: t,
+  escapeHtml,
 });
 
 const turnRailController = new TurnRailController({
@@ -227,6 +253,11 @@ const traceTimelineController = new TraceTimelineController({
   onResponseToggle: toggleResponseExpansion,
   onUpstreamToggle: toggleUpstreamDetails,
   onUpstreamPanelToggle: syncUpstreamDetailsState,
+  onThinkingToggle({ requestId, open }) {
+    if (!requestId) return;
+    if (open) state.expandedThinking.add(requestId);
+    else state.expandedThinking.delete(requestId);
+  },
   onTurnWindowJump(turnId) {
     jumpToTurn(turnId, true);
   },
@@ -471,6 +502,10 @@ function normalizeMessagesMode(value) {
   return value === "source" ? "source" : "organized";
 }
 
+function normalizeMetadataMode(value) {
+  return value === "source" ? "source" : "organized";
+}
+
 function currentTargetLanguage() {
   return languagePreferencesController.currentTargetLanguage();
 }
@@ -489,19 +524,24 @@ async function init() {
     {
       ...layoutPreferences,
       ...languagePreferencesController.readPreferences(),
+      ...themeController.readPreference(),
       latestOnly: localStorage.getItem(LATEST_ONLY_KEY) === "true",
       rawMessagesMode: normalizeMessagesMode(localStorage.getItem(RAW_MESSAGES_MODE_KEY)),
+      rawMetadataMode: normalizeMetadataMode(localStorage.getItem(RAW_METADATA_MODE_KEY)),
     },
     { reason: "hydrate-preferences", silent: true },
   );
   languagePreferencesController.applyStaticI18n();
   languagePreferencesController.renderSelectors();
+  themeController.applyCurrentTheme({ persist: false });
+  themeController.renderSelector();
   paneLayoutController.applyCurrentState({ persist: false });
   const requestedSource = new URLSearchParams(window.location.search).get("source");
   await activeSourceController.initialize(requestedSource);
   els.traceImportButton?.addEventListener("click", () => els.traceImportInput?.click());
   els.traceImportInput?.addEventListener("change", importTraceFromFile);
   languagePreferencesController.bind();
+  themeController.bind();
   rawSearchController.bind();
   traceTimelineController.bind();
   els.rawTree.addEventListener("click", (event) => {
@@ -517,9 +557,21 @@ async function init() {
       setTranslationMode(translationButton.dataset.translationMode || "source", translationButton.dataset.translationSection || "system");
       return;
     }
+    const toolsSchemaFilterButton = event.target.closest("[data-tools-schema-filter]");
+    if (toolsSchemaFilterButton && els.rawTree.contains(toolsSchemaFilterButton)) {
+      state.responseToolsSchemaFilter = toolsSchemaFilterButton.dataset.toolsSchemaFilter === "invoked" ? "invoked" : "all";
+      rawSearchController.contextChanged();
+      rawInspectorController.refresh();
+      return;
+    }
     const messagesModeButton = event.target.closest("[data-messages-mode]");
     if (messagesModeButton && els.rawTree.contains(messagesModeButton)) {
       setMessagesMode(messagesModeButton.dataset.messagesMode || "organized");
+      return;
+    }
+    const metadataModeButton = event.target.closest("[data-metadata-mode]");
+    if (metadataModeButton && els.rawTree.contains(metadataModeButton)) {
+      setMetadataMode(metadataModeButton.dataset.metadataMode || "organized");
       return;
     }
     const generateButton = event.target.closest("[data-translation-generate]");
@@ -552,6 +604,14 @@ async function init() {
     event.stopPropagation();
     translationActionController.retranslate(retranslateButton.dataset.translationRetranslate);
   });
+  document.addEventListener("click", (event) => {
+    if (els.sessionOverviewDisclosure?.open && !els.sessionOverviewDisclosure.contains(event.target)) {
+      els.sessionOverviewDisclosure.removeAttribute("open");
+    }
+    document.querySelectorAll(".trace-filter-disclosure[open]").forEach((disclosure) => {
+      if (!disclosure.contains(event.target)) disclosure.removeAttribute("open");
+    });
+  });
   turnRailController.bind();
   paneLayoutController.bind();
   document.addEventListener("visibilitychange", () => {
@@ -571,6 +631,7 @@ function resetActiveSourceContext() {
   translationCacheController.invalidate();
   state.openSupportingTimelines.clear();
   state.openAgentDashboards.clear();
+  state.expandedThinking.clear();
   state.expandedAgentBranches.clear();
   state.agentBranchLimits.clear();
   state.agentBranchFilters.clear();
@@ -716,6 +777,16 @@ function setMessagesMode(mode) {
   localStorage.setItem(RAW_MESSAGES_MODE_KEY, state.rawMessagesMode);
   if (state.activeRequestId) {
     rawInspectorController.show(state.activeRequestId, state.activeRawSection || "history", {
+      mode: state.activeRawMode || "request",
+    });
+  }
+}
+
+function setMetadataMode(mode) {
+  clientStore.setRawView({ rawMetadataMode: normalizeMetadataMode(mode) }, { reason: "set-metadata-mode" });
+  localStorage.setItem(RAW_METADATA_MODE_KEY, state.rawMetadataMode);
+  if (state.activeRequestId) {
+    rawInspectorController.show(state.activeRequestId, "metadata", {
       mode: state.activeRawMode || "request",
     });
   }
@@ -890,7 +961,14 @@ function renderHeaderSurface() {
     [t("statToolResult"), stats.tool_result_count],
     ["Raw", formatBytes(stats.raw_body_bytes)],
   ]
-    .map(([label, value]) => `<span class="stat">${label}: ${escapeHtml(String(value))}</span>`)
+    .map(
+      ([label, value]) => `
+        <div class="stats-item">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(String(value))}</strong>
+        </div>
+      `,
+    )
     .join("");
   renderViewControls();
   els.watchSummary.innerHTML = renderProgressiveLoadNotice(state.data?.partial);
@@ -903,9 +981,21 @@ function renderViewControls() {
   const captureMode = state.data?.source?.workbench?.capture_label || "";
   const captureModeLabel = captureMode ? captureLabelText(captureMode) : t("sessionInfo");
   const captureModeHelp = captureMode ? captureLabelHelp(captureMode) : t("sessionInfo");
-  els.viewControls.innerHTML =
-    `<button class="stat stat-button ${state.latestOnly && !traceQueryActive() ? "active" : ""}" type="button" data-latest-only ${traceQueryActive() ? `disabled title="${escapeHtml(t("latestDisabledBySearch"))}"` : ""}>${state.latestOnly && !traceQueryActive() ? t("showAllTurns") : t("latestOnly")}</button>` +
-    `<button class="stat stat-button session-info-trigger" type="button" data-session-info title="${escapeHtml(captureModeHelp)}">${escapeHtml(captureModeLabel)}</button>`;
+  const latestOnlyActive = state.latestOnly && !traceQueryActive();
+  const latestOnlyHelp = traceQueryActive()
+    ? t("latestDisabledBySearch")
+    : latestOnlyActive
+      ? t("latestOnlyEnabledHelp")
+      : t("latestOnly");
+  els.viewControls.innerHTML = `<button class="latest-only-control ${latestOnlyActive ? "active" : ""}" type="button" data-latest-only aria-pressed="${escapeHtml(String(latestOnlyActive))}" aria-label="${escapeHtml(latestOnlyHelp)}" ${traceQueryActive() ? "disabled" : ""}>
+    <svg class="ui-icon latest-only-glyph" aria-hidden="true"><use href="#icon-list-end"></use></svg>
+    <span class="control-tooltip" aria-hidden="true">${escapeHtml(latestOnlyHelp)}</span>
+  </button>`;
+  els.sessionOverviewActions.innerHTML =
+    `<button class="session-overview-action session-info-trigger" type="button" data-session-info title="${escapeHtml(captureModeHelp)}">
+      <span>${escapeHtml(t("captureMode"))}</span>
+      <strong>${escapeHtml(captureModeLabel)}</strong>
+    </button>`;
   bindViewControlEvents();
   bindSessionInfoControls();
 }
@@ -1080,6 +1170,7 @@ function bindSessionInfoControls() {
 }
 
 function showSessionInfoModal() {
+  els.sessionOverviewDisclosure?.removeAttribute("open");
   els.sessionInfoModal.classList.remove("hidden");
   els.sessionInfoModal.setAttribute("aria-hidden", "false");
 }
@@ -1091,6 +1182,7 @@ function hideSessionInfoModal() {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !els.sessionInfoModal.classList.contains("hidden")) hideSessionInfoModal();
+  if (event.key === "Escape") els.sessionOverviewDisclosure?.removeAttribute("open");
 });
 
 async function stopActiveWatch(clear) {
@@ -1355,6 +1447,7 @@ function renderUpstreamQuickActions(request, expanded, evidenceView = buildReque
     requestId: request.id,
     expanded,
     expandable: !isTimelineSemanticEvent(request),
+    summaryOnly: true,
     sections: timelineUpstreamQuickSections(request),
     expandLabel: evidenceView.upstream.expandLabel,
     collapseLabel: evidenceView.upstream.collapseLabel,
@@ -1375,9 +1468,8 @@ function renderTurnRequest(request, turnInput = null) {
 function renderRequestCard(request, options = {}) {
   const semanticEvent = isTimelineSemanticEvent(request);
   const evidenceView = buildRequestEvidenceView(request, { translate: t });
-  const showInlineContent = shouldShowTimelineRequestContent(request);
   const assistantResponse = shouldShowTimelineAssistantResponse(request) ? renderAssistantResponse(request) : "";
-  const toolExchange = showInlineContent ? renderToolExchange(request) : "";
+  const toolExchange = renderToolExchange(request);
   const upstreamOpen = !semanticEvent && state.upstreamExpanded.has(request.id);
   return renderTimelineRequestCardView({
     requestId: request.id,
@@ -1389,7 +1481,7 @@ function renderRequestCard(request, options = {}) {
     upstreamBodyHtml: upstreamOpen ? renderUpstreamDetailsBody(request) : renderCollapsedUpstreamPlaceholder(request),
     toolExchangeHtml: toolExchange,
     assistantResponseHtml: assistantResponse,
-    showUpstreamDetails: !semanticEvent,
+    showUpstreamDetails: false,
     upstreamDetailsLabel: evidenceView.upstream.detailsLabel,
     translate: t,
     escapeHtml,
@@ -1465,16 +1557,31 @@ function markdownPreview(value, limit) {
 }
 
 function renderToolExchange(request) {
-  const view = buildTimelineToolExchangeView(request);
+  const view = buildTimelineToolExchangeView(request, { priorToolCalls: priorTimelineToolCalls(request) });
   if (!view) return "";
   return renderTimelineToolExchangeView({
+    requestId: request.id,
     pairs: view.pairs,
     counts: view.counts,
     translate: t,
     escapeHtml,
-    renderPre,
-    serializeArguments: (value) => JSON.stringify(value, null, 2),
   });
+}
+
+function priorTimelineToolCalls(request) {
+  const requestIndex = Number(request?.request_index || 0);
+  const callsById = new Map();
+  for (const candidate of state.data?.requests || []) {
+    if (Number(candidate?.request_index || 0) >= requestIndex) continue;
+    const calls = [
+      ...(candidate?.summary?.current_tool_calls || []),
+      ...(candidate?.summary?.response?.tool_calls || []),
+    ];
+    for (const call of calls) {
+      if (call?.id) callsById.set(call.id, call);
+    }
+  }
+  return [...callsById.values()];
 }
 
 function renderAssistantResponse(request) {
@@ -1485,7 +1592,6 @@ function renderAssistantResponse(request) {
     cleanText: cleanDisplayText,
     preview: shortPreview,
     markdownPreview,
-    formatCompactNumber,
     formatCharCount,
   });
   if (!view) return "";
@@ -1499,7 +1605,6 @@ function renderAssistantResponse(request) {
     renderMarkdown: renderSafeMarkdown,
     renderTranslationMarkdown: renderMarkdownPreview,
     renderPre,
-    serialize: stableJson,
   });
 }
 
@@ -1516,10 +1621,17 @@ function buildAssistantThinkingView(thinking, request) {
   });
   return {
     ...thinking,
+    requestId: request.id,
+    label: t("thinkingLabel"),
     translation,
     actionId,
-    actionLabel: translation ? t("retranslateThinking") : t("translateThinking"),
+    actionLabel: state.translationGenerate.loading
+      ? t("translatingThinking")
+      : translation
+        ? t("retranslateThinking")
+        : t("translateThinking"),
     translationLoading: state.translationGenerate.loading,
+    expanded: state.expandedThinking.has(request.id),
   };
 }
 
@@ -1765,18 +1877,33 @@ function renderRequestDetailError(error) {
 
 function renderResponseOnlyRawSection(request, activeSection) {
   const section = ["response", "tool_calls", "tools"].includes(activeSection) ? activeSection : "response";
+  const responseNotice =
+    section === "response" && request?.summary?.response?.response_protocol === "openai_responses"
+      ? renderRawSourceNotice({
+          title: t("rawResponsesDownstreamNoticeTitle"),
+          text: t("rawResponsesDownstreamNotice"),
+          escapeHtml,
+        })
+      : "";
   const detail =
     section === "tools"
       ? renderResponseOnlyToolsSchemaSection(request)
       : normalizedRawSearchQuery()
         ? renderRawSearchResults(request, section, "response")
         : section === "tool_calls"
-        ? renderRawDetail("response tool_use", { [t("currentResponseToolUse")]: request.summary?.response?.tool_calls || [] })
+        ? normalizeMessagesMode(state.rawMessagesMode) === "organized"
+          ? renderOrganizedToolCallsView({
+              calls: rawResponseToolCalls(request),
+              translate: t,
+              escapeHtml,
+            })
+          : renderRawDetail(responseToolCallSectionLabel(request, { translate: t }), rawResponseToolCalls(request))
         : normalizeMessagesMode(state.rawMessagesMode) === "organized"
           ? renderMessagesSection(request, "response", responseConversationMessages(request))
           : renderRawDetail(responseRawSectionLabel("response", request), rawResponseSectionValue(request));
   return `
     ${renderRawStickyControls(request, section, "response")}
+    ${responseNotice}
     ${detail}
   `;
 }
@@ -1789,7 +1916,10 @@ function renderRawStickyControls(request, section, mode = "request") {
   return renderRawStickyControlsView({
     navigation,
     searchControls: renderRawSearchControls(request, section, mode),
-    viewControls: renderTranslationControls(request, section) || renderMessagesControls(section),
+    viewControls:
+      renderTranslationControls(request, section) ||
+      renderMessagesControls(section) ||
+      renderMetadataControls(section),
   });
 }
 
@@ -1844,7 +1974,9 @@ function rawSearchEntriesForSection(request, section, mode = "request") {
 
 function rawSearchCandidateEntries(request, section, mode = "request") {
   if (mode === "response") {
-    if (section === "tool_calls") return rawSearchEntries({ [t("currentResponseToolUse")]: request.summary?.response?.tool_calls || [] }, "response.tool_use");
+    if (section === "tool_calls") {
+      return rawSearchEntries(rawResponseToolCalls(request), responseToolCallSectionLabel(request, { translate: t }));
+    }
     if (section === "tools") return rawSearchEntries(rawSectionData(request, "tools").value, "Tools");
     return rawSearchEntries(rawResponseSectionValue(request), "response");
   }
@@ -1874,7 +2006,9 @@ function normalizedRawSearchQuery() {
 
 function rawSearchScopeLabel(section, mode = "request", request = null) {
   if (mode === "response" && section === "tools") return "Tools schema";
-  if (mode === "response" && section === "tool_calls") return "Response tool_use";
+  if (mode === "response" && section === "tool_calls") {
+    return responseToolCallSectionLabel(request, { translate: t });
+  }
   if (mode === "response") return responseRawSectionLabel(section, request);
   return rawSectionLabel(section, request);
 }
@@ -1886,9 +2020,11 @@ function highlightSearchSnippet(text, query) {
 }
 
 function renderRawSectionContent(request, section, sectionData) {
+  if (section === "metadata") return renderMetadataSection(request, sectionData);
   if (["developer", "history", "message", "messages", "tool_results"].includes(section)) {
     return renderMessagesSection(request, section, sectionData.value);
   }
+  if (section === "tools") return renderTranslatedSection(request, section);
   if (state.translationMode === currentTargetLanguage() && translationCacheController.available) {
     if (["system", "tools", "harness"].includes(section)) return renderTranslatedSection(request, section);
   }
@@ -1896,12 +2032,35 @@ function renderRawSectionContent(request, section, sectionData) {
   return renderRawDetail(sectionData.title, sectionData.value);
 }
 
+function renderMetadataControls(section) {
+  if (section !== "metadata") return "";
+  return renderMetadataControlsView({
+    mode: normalizeMetadataMode(state.rawMetadataMode),
+    translate: t,
+    escapeHtml,
+  });
+}
+
+function renderMetadataSection(request, sectionData) {
+  if (normalizedRawSearchQuery()) {
+    return renderRawSearchResults(request, "metadata", state.activeRawMode || "request");
+  }
+  if (normalizeMetadataMode(state.rawMetadataMode) === "source") {
+    return renderRawDetail(sectionData.title, sectionData.value);
+  }
+  return renderOrganizedMetadataView({
+    view: buildMetadataView(request),
+    translate: t,
+    escapeHtml,
+    formatNumber: formatCompactNumber,
+  });
+}
+
 function usesTranslatedStructuredSearch(section, mode = state.activeRawMode || "request") {
   return (
     (mode === "request" || (mode === "response" && section === "tools")) &&
     ["system", "tools", "harness"].includes(section) &&
-    state.translationMode === currentTargetLanguage() &&
-    translationCacheController.available
+    (section === "tools" || (state.translationMode === currentTargetLanguage() && translationCacheController.available))
   );
 }
 
@@ -1964,6 +2123,7 @@ function renderTranslationControls(request, section) {
     languageLabel,
     translationMode: state.translationMode,
     sectionLabel: rawSectionLabel(section),
+    toolFilter: toolsSchemaFilterView(request, section),
     translate: t,
     escapeHtml,
   });
@@ -1974,17 +2134,56 @@ function translationViewForSection(request, section) {
     section,
     materials: sectionTranslationMaterials(request, section),
     query: normalizedRawSearchQuery(),
+    toolNames: responseToolsSchemaFilterNames(request, section),
+    displaySource: state.translationMode === "source",
     translatedTextFor,
     labelForKind: translationKindLabel,
   });
 }
 
+function toolsSchemaFilterView(request, section) {
+  if ((state.activeRawMode || "request") !== "response" || section !== "tools") return null;
+  const invoked = responseInvokedToolNames(request?.summary?.response);
+  if (!invoked.length) return null;
+  const all = new Set(
+    sectionTranslationMaterials(request, "tools")
+      .map((material) => material?.metadata?.tool_name)
+      .filter(Boolean),
+  );
+  return {
+    available: true,
+    mode: state.responseToolsSchemaFilter === "invoked" ? "invoked" : "all",
+    invoked: invoked.length,
+    total: all.size,
+  };
+}
+
+function responseToolsSchemaFilterNames(request, section) {
+  if (
+    section !== "tools" ||
+    (state.activeRawMode || "request") !== "response" ||
+    state.responseToolsSchemaFilter !== "invoked"
+  ) {
+    return null;
+  }
+  return responseInvokedToolNames(request?.summary?.response);
+}
+
 function renderTranslatedSection(request, section) {
   const view = translationViewForSection(request, section);
   const fallback = section === "system" ? t("noSystemPrompt") : section === "tools" ? t("noToolDescriptions") : t("noHarnessPrompts");
+  const invokedNames = responseInvokedToolNames(request?.summary?.response);
+  const invokedSchemaUnavailable =
+    section === "tools" &&
+    (state.activeRawMode || "request") === "response" &&
+    state.responseToolsSchemaFilter === "invoked" &&
+    invokedNames.length > 0 &&
+    view.scopedGroups === 0;
   const emptyText = view.query && view.totalMaterials
     ? t("rawSearchNoResults", { section: rawSearchScopeLabel(section, state.activeRawMode || "request"), query: view.query })
-    : fallback;
+    : invokedSchemaUnavailable
+      ? t("invokedToolSchemaUnavailable", { tools: invokedNames.join(", ") })
+      : fallback;
   return renderTranslationSectionView({
     view,
     emptyText,
@@ -2068,7 +2267,7 @@ function rawSectionLabel(section, request = null) {
 }
 
 function responseRawSectionLabel(section, request = null) {
-  if (section === "tool_calls") return "Response tool_use";
+  if (section === "tool_calls") return responseToolCallSectionLabel(request, { translate: t });
   if (section === "tools") return "Tools schema";
   return responseUsesReconstructedDownstream(request) ? t("rawReconstructedResponse") : "Response";
 }
@@ -2134,8 +2333,9 @@ function collectResponseTranslationMaterials(request) {
   ];
 }
 
-function extractClientHarnessTranslationParts(messages) {
+function extractClientHarnessTranslationParts(messages, context = {}) {
   return extractHarnessTranslationParts(messages, {
+    ...context,
     labelForPart(kind, { reminderIndex = 0 } = {}) {
       if (kind === "harness_compact") return t("harnessCompact");
       if (kind === "harness_command") return t("harnessCommand");

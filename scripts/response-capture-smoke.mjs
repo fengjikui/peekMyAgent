@@ -125,8 +125,18 @@ try {
     assert.equal(view.requests[1].summary.response.usage.output_tokens, 2);
     assert.equal(view.requests[1].summary.response.stream, true);
     assert.ok(view.requests[1].summary.response.event_count >= 3);
-    assert.equal(view.requests[1].summary.response.complete_response.stop_reason, "stop");
-    assert.equal(view.requests[1].summary.response.complete_response.content.some((part) => part.type === "tool_use" && part.name === "Read"), true);
+    assert.equal(view.requests[1].summary.response.response_protocol, "openai_chat_completions");
+    assert.equal(view.requests[1].summary.response.complete_response_source, "stream_reconstruction");
+    assert.equal(view.requests[1].summary.response.complete_response.choices[0].finish_reason, "stop");
+    assert.equal(
+      view.requests[1].summary.response.complete_response.choices[0].message.tool_calls[0].function.name,
+      "Read",
+    );
+    assert.equal(
+      view.requests[1].summary.response.complete_response.choices[0].message.tool_calls[0].function.arguments,
+      '{"file_path":"README.md"}',
+    );
+    assert.equal("content" in view.requests[1].summary.response.complete_response, false);
     assert.equal(view.requests[1].raw.response.body_text, undefined, "stream response body text is not sent to the viewer");
     assert.equal(view.requests[1].raw.response.body_text_omitted.reason, "stream");
     assert.equal(view.requests[1].raw.response.body_text_omitted.body_json_available, false);
@@ -136,6 +146,8 @@ try {
     assert.equal(view.requests[2].summary.response.text.includes("internal thought"), false);
     assert.equal(view.requests[2].summary.response.thinking, "internal thought should be folded");
     assert.equal(view.requests[2].summary.response.thinking_preview, "internal thought should be folded");
+    assert.equal(view.requests[2].summary.response.response_protocol, "anthropic_messages");
+    assert.equal(view.requests[2].summary.response.complete_response_source, "stream_reconstruction");
     assert.equal(view.requests[2].summary.response.complete_response.stop_reason, "end_turn");
     assert.equal(view.requests[2].summary.response.complete_response.content[0].type, "thinking");
     assert.equal(view.requests[2].summary.response.complete_response.content[1].text, "anthropic stream reply");

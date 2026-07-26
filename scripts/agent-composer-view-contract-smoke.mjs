@@ -8,7 +8,9 @@ import { UI_I18N } from "../src/viewer/ui-i18n.js";
 
 const translations = {
   composerPlaceholder: "Type a message",
+  closeComposer: "Collapse composer",
   currentProject: "Current project",
+  openComposer: "Send message",
   send: "Send",
   sendFailed: "Failed {code}{preview}",
   sendUnavailable: "Unavailable",
@@ -53,11 +55,12 @@ assert.equal(
 
 const view = buildAgentComposerView({
   source,
-  sendState: { draft: "hello </textarea><script>" },
+  sendState: { draft: "hello </textarea><script>", expanded: true },
   translate,
   shortId: (value) => String(value).slice(0, 8),
 });
 assert.equal(view.enabled, true);
+assert.equal(view.expanded, true);
 assert.equal(view.targetText, "demo · 12345678");
 assert.equal(view.showResumeNote, true);
 assert.equal(view.resumeNote, "Detached resume");
@@ -68,6 +71,14 @@ assert.match(html, /data-source-id="stored-watch-1"/);
 assert.match(html, /Detached resume/);
 assert.match(html, /hello &lt;\/textarea&gt;&lt;script&gt;/);
 assert.doesNotMatch(html, /<script>/);
+
+const collapsedHtml = renderAgentComposer(
+  buildAgentComposerView({ source, sendState: {}, translate }),
+  { escapeHtml },
+);
+assert.match(collapsedHtml, /data-agent-compose-toggle/);
+assert.match(collapsedHtml, />\s*Send message\s*</);
+assert.doesNotMatch(collapsedHtml, /data-agent-compose data-source-id/);
 
 const pausedView = buildAgentComposerView({
   source: { ...source, live_status: "paused" },
@@ -114,6 +125,11 @@ controller = new AgentComposerController({
 });
 
 controller.render(source);
+assert.match(fakeElement.innerHTML, /Send message/, "composer should start collapsed");
+fakeElement.dispatch("click", {
+  target: matchingTarget("[data-agent-compose-toggle]"),
+});
+assert.match(fakeElement.innerHTML, /data-agent-compose data-source-id/, "launcher should reveal the composer");
 fakeElement.dispatch("input", {
   target: matchingTarget("textarea[name='message']", { value: "draft <one>" }),
 });
@@ -176,8 +192,11 @@ for (const moduleSource of [controllerSource, modelSource, rendererSource]) {
 assert.match(controllerSource, /event\.key !== "Enter" \|\| event\.shiftKey \|\| event\.isComposing/);
 assert.match(controllerSource, /this\.element\.addEventListener\("submit"/);
 assert.match(controllerSource, /this\.element\.addEventListener\("input"/);
+assert.match(controllerSource, /this\.element\.addEventListener\("click"/);
 assert.equal(
-  Object.values(UI_I18N).filter((dictionary) => typeof dictionary.sentRefreshFailed === "string").length,
+  Object.values(UI_I18N).filter(
+    (dictionary) => typeof dictionary.sentRefreshFailed === "string" && typeof dictionary.openComposer === "string",
+  ).length,
   Object.keys(UI_I18N).length,
   "refresh failure copy must exist in every UI language",
 );

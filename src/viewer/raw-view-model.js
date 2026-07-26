@@ -1,4 +1,8 @@
-import { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
+import {
+  extractRequestMessages,
+  extractRequestTools,
+  isResponsesToolCallItem,
+} from "../shared/request-payload.mjs";
 import {
   requestHasSemanticEvent,
   requestUsesReconstructedUpstream,
@@ -67,8 +71,8 @@ export function rawSectionData(request, section, { translate = (key) => key, har
   }
   if (section === "tool_calls") {
     return {
-      title: "tool_use",
-      value: { [translate("currentResponseToolUse")]: request?.summary?.response?.tool_calls || [] },
+      title: responseToolCallSectionLabel(request, { translate }),
+      value: rawResponseToolCalls(request),
     };
   }
   if (section === "tool_results") {
@@ -180,47 +184,9 @@ export function rawUpstreamComposition(request) {
 export function rawResponseSectionValue(request) {
   const response = request?.summary?.response || {};
   const rawResponse = request?.raw?.response || null;
+  const originalResponse = rawProviderResponse(request);
   return {
-    complete_response: response.captured
-      ? response.complete_response || {
-          id: response.message_id || null,
-          role: "assistant",
-          content: [
-            ...(response.thinking ? [{ type: "thinking", thinking: response.thinking }] : []),
-            ...(response.text ? [{ type: "text", text: response.text }] : []),
-            ...(response.tool_calls || []).map((call) => ({
-              type: "tool_use",
-              id: call.id || null,
-              name: call.name || "unknown",
-              input: call.arguments ?? null,
-            })),
-          ],
-          text: response.text || "",
-          thinking: response.thinking || "",
-          tool_use: response.tool_calls || [],
-          stop_reason: response.finish_reason || null,
-          finish_reason: response.finish_reason || null,
-          status: response.response_status || null,
-          usage: response.usage || null,
-          stream: Boolean(response.stream),
-          event_count: response.event_count || 0,
-          truncated: Boolean(response.truncated),
-        }
-      : null,
-    parsed_from_response: response.captured
-      ? {
-          message_id: response.message_id || null,
-          text: response.text || "",
-          thinking: response.thinking || "",
-          tool_use: response.tool_calls || [],
-          usage: response.usage || null,
-          finish_reason: response.finish_reason || null,
-          response_status: response.response_status || null,
-          stream: Boolean(response.stream),
-          event_count: response.event_count || 0,
-          truncated: Boolean(response.truncated),
-        }
-      : null,
+    response: response.captured ? originalResponse : null,
     response_capture: rawResponse
       ? {
           status: rawResponse.status ?? response.status ?? null,
@@ -229,10 +195,73 @@ export function rawResponseSectionValue(request) {
           captured_body_bytes: rawResponse.captured_body_length ?? response.captured_body_bytes ?? null,
           received_at: rawResponse.received_at || response.received_at || null,
           body_json_available: rawResponse.body_json !== undefined && rawResponse.body_json !== null,
-          body_text_omitted: rawResponse.body_text_omitted || null,
-          stream: Boolean(response.stream),
-          event_count: response.event_count || 0,
+          transport: response.stream ? "stream" : "json",
+          response_protocol: response.response_protocol || null,
+          displayed_response: displayedResponseSource(rawResponse, response),
+          reconstructed: response.complete_response_source === "stream_reconstruction",
         }
       : null,
   };
+}
+
+export function rawResponseToolCalls(request) {
+  const response = rawProviderResponse(request);
+  const calls = [];
+  if (Array.isArray(response?.content)) {
+    calls.push(...response.content.filter((item) => item?.type === "tool_use"));
+  }
+  if (Array.isArray(response?.output)) {
+    calls.push(...response.output.filter(isResponsesToolCallItem));
+  }
+  for (const choice of Array.isArray(response?.choices) ? response.choices : []) {
+    if (Array.isArray(choice?.message?.tool_calls)) calls.push(...choice.message.tool_calls);
+  }
+  return calls;
+}
+
+export function responseToolCallSectionLabel(request, { translate = (key) => key } = {}) {
+  const response = rawProviderResponse(request);
+  const protocolTypes = [];
+  if (Array.isArray(response?.content) && response.content.some((item) => item?.type === "tool_use")) {
+    protocolTypes.push("tool_use");
+  }
+  for (const item of Array.isArray(response?.output) ? response.output : []) {
+    if (isResponsesToolCallItem(item)) protocolTypes.push(item.type);
+  }
+  if (
+    Array.isArray(response?.choices) &&
+    response.choices.some(
+      (choice) => Array.isArray(choice?.message?.tool_calls) || Array.isArray(choice?.delta?.tool_calls),
+    )
+  ) {
+    protocolTypes.push("tool_calls");
+  }
+  const uniqueTypes = [...new Set(protocolTypes.filter(Boolean))];
+  return uniqueTypes.length ? uniqueTypes.join(" / ") : translate("currentResponseToolCalls");
+}
+
+function rawProviderResponse(request) {
+  const rawResponse = request?.raw?.response || null;
+  if (rawResponse?.body_json !== undefined && rawResponse?.body_json !== null) {
+    return rawResponse.body_json;
+  }
+  const response = request?.summary?.response || {};
+  if (!isProtocolResponse(response.complete_response, response.complete_response_source)) return null;
+  return response.complete_response;
+}
+
+function displayedResponseSource(rawResponse, response) {
+  if (rawResponse?.body_json !== undefined && rawResponse?.body_json !== null) return "captured_body_json";
+  if (isProtocolResponse(response?.complete_response, response?.complete_response_source)) {
+    return response.complete_response_source || "protocol_complete_response";
+  }
+  return "unavailable";
+}
+
+function isProtocolResponse(value, source) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (value.stream_assembly) return false;
+  if (["captured_body_json", "protocol_terminal_event", "stream_reconstruction"].includes(source)) return true;
+  if (Array.isArray(value.output) || Array.isArray(value.choices)) return true;
+  return value.type === "message" && Array.isArray(value.content);
 }

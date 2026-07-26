@@ -89,6 +89,21 @@ assert.deepEqual(
   { input: 100, output: 20, cache: 80, actualInput: 20, total: 100 },
 );
 
+assert.deepEqual(
+  providerUsageForRequest({
+    summary: {
+      response: {
+        usage: {
+          input_tokens: 21073,
+          input_tokens_details: { cached_tokens: 4480 },
+          output_tokens: 52,
+        },
+      },
+    },
+  }),
+  { input: 21073, output: 52, cache: 4480, actualInput: 16593, total: 21073 },
+);
+
 const subagentView = buildUpstreamDetailView({
   summary: {
     entry: {

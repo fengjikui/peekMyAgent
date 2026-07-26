@@ -5,9 +5,17 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
+const RESTART_OPT_IN = "PEEKMYAGENT_ALLOW_CODEX_DESKTOP_RESTART_SMOKE";
+if (process.env[RESTART_OPT_IN] !== "1") {
+  console.log(
+    `run Codex Desktop managed exact wrapper smoke skipped; set ${RESTART_OPT_IN}=1 only from an external Terminal when restarting Codex Desktop is safe`,
+  );
+  process.exit(0);
+}
+
+const { DatabaseSync } = await import("node:sqlite");
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliPath = path.join(root, "bin", "peekmyagent.mjs");
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-codex-desktop-exact-"));
@@ -16,6 +24,7 @@ const appExecutable = path.join(bundlePath, "Contents", "MacOS", "ChatGPT");
 const embeddedCodexPath = path.join(bundlePath, "Contents", "Resources", "codex");
 const asarPath = path.join(bundlePath, "Contents", "Resources", "app.asar");
 const launcherPath = path.join(tmpDir, "open");
+const normalLaunchLogPath = path.join(tmpDir, "normal-launch.log");
 const codexHome = path.join(tmpDir, "codex-home");
 const stateDbPath = path.join(codexHome, "state_5.sqlite");
 const existingRolloutPath = path.join(codexHome, "fixture-existing.jsonl");
@@ -25,7 +34,11 @@ const watchRequests = [];
 fs.mkdirSync(path.dirname(appExecutable), { recursive: true });
 fs.mkdirSync(path.dirname(embeddedCodexPath), { recursive: true });
 fs.writeFileSync(asarPath, "fixture CODEX_APP_SERVER_WS_URL fixture");
-fs.writeFileSync(launcherPath, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+fs.writeFileSync(
+  launcherPath,
+  '#!/bin/sh\nif [ -n "$PEEK_FAKE_NORMAL_LAUNCH_LOG" ]; then\n  printf \'%s\\n\' "$*" > "$PEEK_FAKE_NORMAL_LAUNCH_LOG"\nfi\nexit 0\n',
+  { mode: 0o755 },
+);
 fs.writeFileSync(embeddedCodexPath, fakeEmbeddedCodexSource(), { mode: 0o755 });
 fs.writeFileSync(appExecutable, fakeDesktopSource(), { mode: 0o755 });
 fs.chmodSync(launcherPath, 0o755);
@@ -101,6 +114,20 @@ try {
   assert.match(resumed.stderr, /captured Codex thread: fixture-existing/);
   assert.equal(modelRequests.length, 2);
   assert.equal(watchRequests[1].conversation_id, "fixture-existing");
+
+  const failed = await runCli(
+    ["codex", "desktop", "--restart", "--viewer-url", url, "--no-open"],
+    {
+      ...env,
+      PEEK_FAKE_APP_SERVER_CRASH: "1",
+      PEEK_FAKE_NORMAL_LAUNCH_LOG: normalLaunchLogPath,
+    },
+  );
+  assert.notEqual(failed.code, 0, "a managed App Server crash must fail the exact-capture command");
+  assert.match(failed.stderr, /Managed Codex App Server stopped while Desktop was running/);
+  assert.match(failed.stderr, /recovery: reopened Codex Desktop normally without capture overrides/);
+  await waitForFile(normalLaunchLogPath);
+  assert.match(fs.readFileSync(normalLaunchLogPath, "utf8"), /-n -b com\.openai\.codex/);
   console.log("run Codex Desktop managed exact wrapper smoke passed");
 } finally {
   await close(viewer);
@@ -157,6 +184,10 @@ const server = net.createServer((socket) => {
     const provider = request.params.config?.model_providers?.peekmyagent_http;
     if (!provider || provider.wire_api !== "responses" || provider.requires_openai_auth !== true || provider.supports_websockets !== false) {
       socket.write(encodeFrame(JSON.stringify({ id: request.id, error: { message: "thread-scoped capture provider was not defined" } }), false));
+      return;
+    }
+    if (process.env.PEEK_FAKE_APP_SERVER_CRASH === "1") {
+      setTimeout(() => process.exit(17), 10);
       return;
     }
     const baseUrl = provider.base_url;
@@ -263,6 +294,11 @@ socket.on("data", (chunk) => {
   process.exit(0);
 });
 socket.once("error", () => process.exit(3));
+socket.once("close", () => {
+  if (process.env.PEEK_FAKE_APP_SERVER_CRASH !== "1") return;
+  clearTimeout(timer);
+  setTimeout(() => process.exit(0), 250);
+});
 function decodeFrame(buffer, expectMasked) {
   if (buffer.length < 2) return null;
   const masked = Boolean(buffer[1] & 0x80);
@@ -316,6 +352,15 @@ function runCli(args, env) {
       resolve({ code, signal, stdout, stderr });
     });
   });
+}
+
+async function waitForFile(filePath, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(filePath)) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`Timed out waiting for ${filePath}`);
 }
 
 function viewerUrl(server) {

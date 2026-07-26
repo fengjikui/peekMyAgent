@@ -1,0 +1,494 @@
+# OpenCode CLI 适配计划
+
+更新时间：2026-07-24
+
+状态：**候选实现已完成，等待发布门禁**。当前分支已经具备 `pma opencode`、进程级 exact proxy、OpenCode 配置 adapter、原生 session 归属、标题/command/compact 分类、同 Harness 翻译、确定性 wrapper/tool-loop smoke，以及真实普通多轮、工具、Skill、自定义 command、子 Agent 和 summarize 压缩证据。当前已验证的真实 provider driver 是 `@ai-sdk/openai-compatible`；其他 driver、三平台实机和最终发布门禁仍是合入/发布前工作。通用流程和验收门槛见 [新 Harness 适配工作手册](new-harness-adaptation-playbook.md)。
+
+## 1. 产品目标
+
+首版只适配 OpenCode CLI/TUI，不处理 OpenCode Desktop。
+
+期望体验：
+
+```bash
+cd /path/to/project
+pma opencode
+```
+
+PMA 应在当前项目启动 OpenCode TUI，保持 OpenCode 原生 stdin/stdout、权限、模型选择和命令体验，同时打开或打印对应 dashboard URL。用户在 OpenCode 中进行普通对话、多轮、工具、Skill、压缩和子 Agent 操作时，PMA 捕获当前进程的 Trace。
+
+原生参数应直接透传，例如：
+
+```bash
+pma opencode --continue
+pma opencode --session <session-id>
+pma opencode --fork --continue
+pma opencode --model <provider/model>
+pma opencode --agent <agent>
+pma opencode --auto
+```
+
+首版默认捕获当前 wrapper 启动的进程，不接管所有 OpenCode 会话，不扫描或复制用户既有会话。
+
+## 2. 当前证据
+
+### 2.1 官方文档声明
+
+以下内容来自 2026-07-24 的 OpenCode 官方文档。它们是设计输入，不是本机运行时证据；实现提交仍需记录目标版本、真实 help、fixture 和实验输出。
+
+- `opencode` 默认启动 TUI；支持 `--continue`、`--session`、`--fork`、`--model`、`--agent`、`--auto` 和 `--port`。
+- `opencode run` 提供非交互模式和 JSON event 输出，并支持 attach 到现有 server。
+- `opencode serve`/server API 提供 session、message、child session、event、command 和 summarize 等语义接口。
+- 配置按 remote、global、custom、project、`.opencode`、inline、managed 顺序合并；`OPENCODE_CONFIG_CONTENT` 是 runtime override。
+- 项目配置从当前目录向上查找到最近 Git 根。
+- provider 可通过 `options.baseURL` 覆写。
+- OpenCode 使用 AI SDK/Models.dev；OpenAI-compatible provider 可能使用：
+  - `@ai-sdk/openai-compatible` → `/v1/chat/completions`
+  - `@ai-sdk/openai` → `/v1/responses`
+- 认证通常位于 `~/.local/share/opencode/auth.json`；PMA 不应读取或复制其内容。
+- Skills 由原生 `skill` 工具按需加载，模型先在工具说明中看到可用 Skill 的名称和描述。
+- subagent 由 Agent/task 能力和权限控制；server API 可以观察 child sessions。
+- compaction 提供 `auto`、`prune`、`reserved` 等配置，server 有 summarize 操作。
+
+官方参考：
+
+- [CLI](https://opencode.ai/docs/cli/)
+- [Config](https://opencode.ai/docs/config/)
+- [Providers](https://opencode.ai/docs/providers)
+- [Server API](https://dev.opencode.ai/docs/server/)
+- [Agents](https://opencode.ai/docs/agents/)
+- [Permissions](https://opencode.ai/docs/permissions)
+- [Agent Skills](https://opencode.ai/docs/skills/)
+
+### 2.2 本机只读验证快照
+
+2026-07-24 在 macOS arm64 上只读确认：
+
+- OpenCode `1.18.4` 由 Bun 全局安装，入口位于 `~/.bun/bin/opencode`；
+- `opencode` 默认启动 TUI，并在根命令支持 `--continue`、`--session`、`--fork`、`--model`、`--agent`、`--auto` 和 `--port`；
+- `opencode run` 支持 `--format default|json`、`--attach` 以及同类 session/model/agent 参数；
+- `session` 子命令的当前 help 只列出 `list` 和 `delete`；resume/fork 是根命令或 `run` 参数，不应被设计成 `session resume`；
+- `debug paths` 报告 config/data/cache/state/log 和 SQLite DB 均位于标准用户目录；
+- 当前非敏感 provider 配置使用 `@ai-sdk/openai-compatible` driver；provider id、base URL 和认证内容不写入公共证据文档；
+- 当前 shell 未设置 `OPENCODE_*` 或 `XDG_*` runtime override；
+- 本次没有读取认证内容、日志正文，没有发模型请求，也没有创建会话。
+
+### 2.3 已关闭的协议未知项
+
+随后使用隔离 XDG 目录、loopback mock upstream 和真实 OpenCode `1.18.4` 继续确认：
+
+- `OPENCODE_CONFIG_CONTENT` 会与既有 provider/models/options 深合并；进程内只覆盖当前 provider 的 `baseURL` 时，driver、模型目录、header 和认证保持不变；
+- 当前 `@ai-sdk/openai-compatible` driver 发送 `POST /v1/chat/completions`，请求和响应都使用 OpenAI Chat Completions streaming；
+- 新会话先发无 tools 的 title-generation 内部请求，再发包含动态 tools schema 的主 Agent 请求；
+- 两类请求都携带 `x-session-id` 和 `x-session-affinity`，且 `x-session-id` 与 CLI JSONL 事件公开的 `sessionID` 完全相同；
+- 因而第一轮尚无 `--session` 参数时，Capture Proxy 也能在请求到达时精确学习 conversation id；该规则只对 `agent_profile=OpenCode` 生效，不泛化解释其他 Harness 的同名 header。
+
+真实隔离项目和 provider 继续关闭了以下问题：
+
+- 普通两轮、Read、Skill、自定义 command 和 Task 子 Agent 共形成 12 条 exact Chat Completions request，request index 连续；
+- OpenCode 发送累计 message history；模型 tool call 属于当前下行，tool result 只在下一条上行出现；
+- Skill 通过原生 `skill` tool call/result 进入链路；自定义 CLI command 的展开正文在 wire 上仍是普通 user message，因此必须依赖 wrapper 的本地 command 证据做额外 Harness 投影；
+- Task 子 Agent 产生独立模型请求，当前 `x-session-id` 归属与共享子 Agent graph 可形成高置信 spawn/return 分支；
+- server `POST /session/:sessionID/summarize` 会发出独立模型请求，持久化 compaction 边界和 `summary: true` assistant message；下一次请求复用该 summary；
+- `opencode run --command compact` 是 generic command 路径，不等价于 TUI `/compact`/server summarize，不能作为压缩成功证据；
+- 同一会话不同轮次的首段 system 可能因 Skill 搜索路径顺序而变化。Context Delta 现在按 leading system/developer role 对齐历史，同时单独保留 `fixed_context.system=changed`，避免把整段累计历史误判成本轮新增。
+
+仍未关闭的是 OpenCode server event 与 wire request 的通用合并协议、多个并行 child 的完整 lifecycle、非 `@ai-sdk/openai-compatible` driver，以及 TUI 任意内建 slash command 的稳定 lifecycle 证据。它们不能靠当前单一 provider 实验泛化。
+
+## 3. 最重要的架构结论
+
+### 3.1 OpenCode 不是一种固定 wire 协议
+
+OpenCode 的 provider 配置决定模型请求可能是 Anthropic、OpenAI Chat、OpenAI Responses 或其他 AI SDK provider 形态。因此：
+
+- 不创建一个假定固定 request schema 的 `opencode-normalizer`；
+- adapter 负责发现和覆写当前 provider 的 base URL；
+- Capture Proxy 保留真实 path/body/response；
+- 共享 `request-profile` 和 `model-response-normalizer` 再根据真实证据判断和解析协议；adapter 不解释展示语义；
+- 新协议必须先加入脱敏 fixture，再扩展共享 Trace 模块；
+- 未知协议保持 Raw 可见并标为 unsupported，不伪装成完整整理结果。
+
+### 3.2 精确代理是默认来源，本地 server/event 是语义补充
+
+CLI wrapper 的默认目标是 exact proxy。OpenCode server/event API 可以补充：
+
+- session id；
+- parent/child session；
+- permission 和 tool lifecycle；
+- command/summarize 生命周期。
+
+但这些语义事件不自动等价于模型 wire request。二者需要独立 provenance，后续再按稳定 identity 合并。
+
+当前已有 wire request 与 OpenCode 主 session 的精确 `x-session-id` 关联证据，并已在真实 Skill、Task child request 和本地 summarize 实验中验证对应 wire/lifecycle 形态。当前产品仍以 wire capture 为事实源；server event 只在未来存在稳定 identity contract 时作为补充来源，不能覆盖或改写 exact request。
+
+### 3.3 不修改用户主配置
+
+优先方案是：
+
+1. 读取 effective provider/model 的非敏感配置；
+2. 用 `OPENCODE_CONFIG_CONTENT` 注入仅当前子进程生效的 provider baseURL override；
+3. 继续让 OpenCode 自己从原位置读取认证；
+4. 子进程退出即失效，无持久配置恢复负担。
+
+实现前必须通过 mock 和真实 provider 实验证明：
+
+- inline config 的深度合并语义；
+- provider/model 级 `npm` 与 `baseURL` 不会被意外覆盖；
+- project config、managed config 是否可能阻止 runtime override；
+- OpenCode 是否把 baseURL 解释为 API 根还是完整 endpoint；
+- Chat Completions/Responses/Anthropic 三类 path 的转发规则。
+
+若 runtime override 不能可靠工作，才评估临时 custom config；不得直接 patch 全局或项目配置。
+
+## 4. 建议的实现边界
+
+### 4.1 OpenCode adapter
+
+建议新增：
+
+```text
+src/adapters/opencode/
+  discovery.mjs
+  config-overlay.mjs
+  runtime.mjs
+  capabilities.mjs
+```
+
+也可以在首个小提交中使用更少文件，但职责必须保持：
+
+- `discovery`：可执行文件、版本、cwd/project、provider/model、协议候选；
+- `config-overlay`：构造进程级 runtime override，不含 secret；
+- `runtime`：启动、watch、proxy、stdio、信号、退出和幂等清理；
+- `capabilities`：new/resume/fork/proxy/server-events/translation/subagent 等显式能力。
+
+provider-specific path/header/body 规则只有在真实 fixture 证明共享 Proxy 无法处理时才增加；展示语义继续由共享 Trace Domain 所有。
+
+平台差异放在 `src/core/platform.mjs`、`app-paths.mjs` 或 `process-tools.mjs`，不散落在 adapter 和 CLI。
+
+### 4.2 CLI
+
+`bin/peekmyagent.mjs` 当前仍是较大的入口。OpenCode 不应继续复制整段 Claude/OpenClaw lifecycle。
+
+首版应先抽一个最小共享 wrapper runner，至少统一：
+
+- argv/cwd/stdin/stdout；
+- watch start/reuse/stop；
+- dashboard URL；
+- child exit code 与 signal；
+- cleanup stack；
+- 临时环境覆盖；
+- 错误诊断脱敏。
+
+只抽 OpenCode 实现真正需要、且能由现有 Claude/OpenClaw 行为测试证明的部分。不要借机重写整个 CLI。
+
+### 4.3 Trace 与 Viewer
+
+硬性边界：OpenCode adapter 只能产出 Capture/provenance/capability/Trace Domain 可消费的 DTO。Server 负责装配服务，Viewer 只消费共享 DTO。不得为 OpenCode 在 `src/viewer/server.mjs`、SourceRepository、Viewer API route、`client.js` 或 renderer 中新增 Agent/provider 条件分支。
+
+默认复用：
+
+- `CaptureRecord` 与 provenance；
+- Persistence content blobs；
+- SourceRepository；
+- request profile；
+- content parts；
+- tool call/result semantics；
+- model response normalizer；
+- ViewerTraceProjector；
+- Raw/History/Message/Response；
+- 翻译材料、缓存、搜索和 Trace bundle。
+
+只有真实 OpenCode fixture 证明差异时，才修改：
+
+- Harness marker 白名单；
+- compact/summarize 生命周期；
+- subagent identity；
+- OpenCode 特有动态 tool call 类型；
+- Source capability 和 Agent 文案。
+
+## 5. 需要完成的实验
+
+### E0：本机只读发现
+
+输出一份不含 secret 的报告：
+
+- `which/type -a opencode`、真实路径、版本；
+- `opencode --help`、`run --help`、`session --help`、`models --help`；
+- effective config 层级和路径；
+- 当前 provider/model id 与 npm driver；
+- 认证“存在/不存在”，不输出值；
+- session 存储、project id、日志和 server API；
+- 支持的 runtime override 环境变量。
+
+### E1：配置合并与恢复
+
+使用隔离 HOME 和 fake provider：
+
+1. global/project/inline 分别设置不冲突和冲突字段；
+2. 验证 `OPENCODE_CONFIG_CONTENT` 最终合并；
+3. 验证只改 baseURL，不丢 model、permissions、agents、plugins 和 tools；
+4. 正常、非零、SIGINT 后用户文件 hash 不变。
+
+### E2：协议与字节转发
+
+分别验证至少两个 provider driver：
+
+- OpenAI Chat；
+- OpenAI Responses；
+- 若当前真实配置使用 Anthropic，再补 Anthropic。
+
+记录：
+
+- path、method、content encoding、stream format；
+- 保留/移除哪些 hop-by-hop headers；
+- auth 只在内存转发；
+- request/response size limit；
+- upstream error、429、断流和取消传播；
+- captured artifact 与 forwarded bytes 的关系。
+
+### E3：普通多轮
+
+连续两轮回答：
+
+- session id 是否在 request 或本地 API 中可见；
+- History 和 Message 差分是否正确；
+- request index 是否连续；
+- complete response、usage、stop reason 是否完整；
+- resume 后是否复用同一 Source 或建立可解释的新 watch。
+
+### E4：工具闭环
+
+使用只读命令，例如查看当前目录：
+
+```text
+用户上行
+→ 模型下行 tool call
+→ OpenCode 执行
+→ tool result 上行
+→ 模型最终回复
+```
+
+验证主时间线交错、call id 配对、Raw 和整理视图一致。
+
+### E5：Skill 与 command
+
+- 模型最初看到的是 Skill 清单还是完整正文；
+- `skill` 调用的工具参数和结果；
+- Skill 正文随后如何进入上下文；
+- slash command/project instruction/plugin 注入如何标为 Harness；
+- 不把用户正文中的同名 XML/Markdown 误判为注入。
+
+当前已为 CLI `--command <name>` 建立强证据链：wrapper 把规范化 command name 放进进程级 provider header，Capture Proxy 本地保存后在上游转发前移除；共享 Harness 投影使用该证据定位 command 展开的 user message，并继续在 History/Message 保留原文。确定性测试同时覆盖真实投影、普通 slash 文本反例和非法 header 值。TUI 内建 slash（例如 `/compact`）没有该 CLI 参数证据，仍需依靠 OpenCode 原生生命周期或经过真实 fixture 验证的精确模板，不能套用这条规则。
+
+OpenCode 首轮实验按[工作手册中的 Harness 注入识别规则](new-harness-adaptation-playbook.md#34-harness-注入的识别规则)记录每个候选块的：
+
+- 原始 role、content index 和 JSON path；
+- 是否有 command envelope、metadata 或本地 lifecycle event；
+- 标签是否结构完整、是否在不同轮次和版本中稳定；
+- 同一文本是否仍保留在 History/Message；
+- 用户正文包含同名 slash/tag 时是否会被误判。
+
+首版只允许“实验证明的白名单 marker + 明确命令 envelope”。单纯以 `/` 开头、包含 `system`/`skill`/`agent` 关键词、使用 XML/Markdown 或位于 `developer` role，都不足以单独判定 Harness 注入。
+
+E5 当前结论：
+
+- CLI 自定义 command 已进入实现，且本地 `x-peek-opencode-command` 证据在 Capture 保存后会在上游转发前移除；
+- 真实 Skill 场景已经观察到 `skill` tool call/result，无需增加 OpenCode 专用 Viewer；
+- `--command <name>` 的展开正文继续保留在 History/Message，并额外投影到 Harness；
+- TUI `/compact` 的 OpenCode `1.18.4` 精确模板已识别为 `harness_compact`，并有普通用户讨论“summary”不被提升的反例；
+- 其他 TUI 内建 slash 没有稳定 command metadata 时仍保持 Message/Raw，不按 `/` 前缀猜测。
+
+### E6：压缩
+
+- 自动压缩触发点；
+- summarize 是否产生独立模型 request；
+- 被保留/裁剪的 message；
+- prune 与 summary 的区别；
+- 压缩后首条 request 的 History/Message；
+- 本地 lifecycle event 与模型 HTTP 交换分别记录。
+
+当前通过隔离 HOME/XDG、loopback OpenAI-compatible mock 和真实 OpenCode server 验证：
+
+1. 普通消息先产生主模型请求；
+2. `POST /session/:sessionID/summarize` 产生独立 summarizer 模型请求；
+3. summarizer system 以 anchored context summary assistant 自述，user prompt 以 `Create a new anchored summary from the conversation history.` 开始；
+4. OpenCode 持久化 compaction boundary 与 `summary: true` assistant message；
+5. 压缩后的下一条模型请求携带生成的 summary。
+
+该实验不使用真实凭据，命令为 `npm run experiment:opencode-compaction-local`。它验证当前版本的真实压缩机制，但不把尚未捕获的 server event 冒充 wire request。
+
+### E7：子 Agent
+
+- task tool 的 call/result；
+- child session id 和 parent id；
+- 子 Agent 是否独立发模型请求；
+- 多个 child 如何区分；
+- child tool calls/results；
+- return/failure/cancel；
+- server events 与 wire capture 如何用确定 identity 关联。
+
+没有稳定 identity 时，先显示独立请求和“可能关联”证据，不建立高置信分支。
+
+当前真实 Task 场景已验证一个 child：主请求出现 `task` call，child 产生两个独立模型请求，随后 result 回流主会话；共享 graph 形成 `spawn=1`、`return=1`、`confidence=high`。多个并行 child、失败、取消和跨版本 event 仍需后续 fixture，不能从单 child 成功例外推。
+
+### E8：失败与清理
+
+- provider/model 不存在；
+- auth 不存在；
+- 端口占用；
+- proxy 上游失败；
+- OpenCode 非零退出；
+- Ctrl+C/SIGTERM；
+- wrapper 崩溃后的 doctor；
+- 无残留临时配置、进程、端口、watch 和测试 Source。
+
+## 6. 分阶段交付
+
+### M0：证据和设计（已完成）
+
+- 本文及 Evidence Pack；
+- 本机 OpenCode 版本事实；
+- 配置合并、协议和 session 实验结论；
+- 明确 unknowns。
+
+### M1：确定性骨架（已完成）
+
+- `pma opencode` 命令解析与 help；
+- fake OpenCode + mock upstream；
+- 进程级 config overlay；
+- watch/proxy/退出/清理；
+- 不接真实账号。
+
+### M2：真实 exact proxy（当前 driver 已完成）
+
+- 一个真实 provider 的普通多轮与工具闭环；
+- 脱敏 fixture；
+- provenance、Source 和 Raw；
+- 默认不支持的协议显式报错。
+
+### M3：Viewer 完整能力（已复用共享能力）
+
+- System、Tools、Harness、History、Message、Response；
+- 翻译、搜索、复制和缓存；
+- 大 Trace 渐进加载；
+- export/import；
+- OpenCode 独立 Source 分组。
+
+### M4：可选机制扩展（首轮 Skill/compact/subagent 已验证）
+
+- Skill；
+- compaction；
+- subagent；
+- server semantic events 与 wire evidence 合并。
+
+四项彼此独立，分别要求 fixture、provenance 和必要的 identity contract。server event 的存在本身不能证明模型 wire 语义。
+
+### M5：发布（待完成）
+
+- 当前平台 Level 2；
+- 三平台 hosted CI；
+- Windows/Linux 真实机器；
+- Claude/Codex/OpenClaw 最小真实回归；
+- README/help/architecture/manual matrix/i18n；
+- npm candidate 验证。
+
+## 7. 测试设计
+
+当前 OpenCode 聚焦入口：
+
+```text
+smoke:opencode-config
+smoke:opencode-classification
+smoke:run-opencode
+smoke:translation-opencode-cli
+experiment:opencode-local-mock
+experiment:opencode-real-integration
+experiment:opencode-compaction-local
+```
+
+前三项和翻译项是无凭据确定性 smoke；后三项依次验证真实 OpenCode protocol、真实 provider 集成和本地模型压缩。其中真实 provider 集成必须人工确认当前 provider 可用，不进入无凭据 release gate。
+
+聚焦复用：
+
+```text
+smoke:proxy-openai
+smoke:proxy-attribution
+smoke:provenance-contract
+smoke:request-profile-contract
+smoke:message-semantics-contract
+smoke:tool-call-semantics-contract
+smoke:model-response-normalizer-contract
+smoke:viewer-trace-projector-contract
+smoke:viewer-translation-adapter-contract
+smoke:viewer-i18n-contract
+```
+
+既有 Agent 最小回归：
+
+```text
+smoke:run-claude
+smoke:daemon-claude
+smoke:claude-settings-env
+smoke:codex-exact-proxy
+smoke:codex-exact-viewer-integration
+smoke:run-codex-capture
+smoke:run-openclaw
+smoke:openclaw-profile-cleanup
+smoke:normalize
+```
+
+这些命令是候选入口，不是固定套餐。实际回归由改动边界决定：
+
+| 改动 | 至少增加的真实/确定性行为 |
+| --- | --- |
+| wrapper/process | Claude、Codex CLI、OpenClaw 的正常退出、非零退出与清理 |
+| Proxy/provenance | 三类来源普通消息和一轮 exact capture |
+| protocol normalizer | 受影响协议的多轮、tool call/result 和 complete response |
+| semantics/projector | 既有来源 Timeline、History/Message/Response 与 Viewer detail |
+| translation | 已知 Agent 的 provider 选择、材料、缓存和 i18n |
+
+会重启 Codex Desktop 的测试不得加入默认 gate。真实 OpenCode 账号测试进入 `docs/manual-integration-smoke-matrix.md`，不进入无凭据 release gate。
+
+## 8. 翻译策略
+
+OpenCode 翻译已接入共享 provider policy，当前实现满足：
+
+1. Source 明确标记 `agent_profile=OpenCode`；
+2. 优先使用 OpenCode 可用的低成本模型/低 reasoning 配置；
+3. 不得因为 OpenCode 翻译不可用而静默启动 Claude CLI；
+4. 未配置 provider 时显示可行动的诊断，不读取认证文件内容；
+5. System、单工具 description、单 schema field、单 Harness 注入继续复用共享 block hash；
+6. 同一原文跨 Source 可复用全局翻译块，History 只按会话内内容复用。
+
+实现通过进程内 inline config 创建无工具、禁分享的专用翻译 Agent；材料经 stdin 输入，不进入进程参数。模型选择优先同一 provider 中的 `small_model` 或明显更轻量的已配置模型，失败时才回退到用户已配置的默认 OpenCode 模型。每次调用解析 JSONL 中的 session ID 并执行 `opencode session delete`，同时以 deterministic fake CLI smoke 约束密钥不输出、Claude 不回退和清理行为。真实 provider 验证仍属于手工集成门禁。
+
+## 9. 关键未知项
+
+继续推进真实场景适配前仍须关闭以下问题：
+
+- 不同 provider driver 的 baseURL 拼接差异；
+- server event 与 provider request 的稳定关联键；
+- 多个并行 child、失败/取消与子 Agent wire request 的完整关联；
+- TUI 内建 slash command（除已验证 `/compact` 外）的稳定 lifecycle 证据；
+- plugin/custom tool 是否增加新的动态 call 类型；
+- managed config 是否可能禁止 runtime override；
+- OpenCode 更新导致协议漂移时的版本 gate。
+
+未知项应在实验报告中逐条关闭。不能为了尽快显示 UI 而用启发式答案代替。
+
+## 10. 完成定义
+
+OpenCode CLI 适配“可合入”意味着：
+
+- 用户可以从任意项目目录运行 `pma opencode`；
+- 原 OpenCode 交互、权限、模型和退出码不变；
+- 默认只捕获该进程，不接管历史会话；
+- 至少一个真实 provider 的多轮和工具闭环是 exact wire；
+- Viewer 能准确区分原始证据、语义事件和推断；
+- System/Tools/Harness/History/Message/Response 和 Raw 范围正确；
+- 配置、认证、端口、进程、watch 和测试 Source 清理通过；
+- 翻译不可用时不错误回退到别的 Agent；
+- 新适配器和既有 Agent 的聚焦回归、当前平台 release profile、三平台 CI 全绿；
+- 当前事实、限制、用户命令和验证 SHA 已写入文档。
+
+截至本文更新时间，功能与聚焦实验已经满足前八项；当前平台 Level 2、三平台 CI、候选 SHA 实机验证和 npm 发布仍属于 M5，完成前只能称为分支候选，不能称为已发布支持。

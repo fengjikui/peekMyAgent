@@ -97,6 +97,7 @@ export function responseConversationMessages(request) {
     ];
   }
   const content = [];
+  for (const reasoning of response.opaque_reasoning || []) content.push(reasoning);
   if (response.thinking) content.push({ type: "thinking", thinking: response.thinking });
   if (response.text) content.push({ type: "output_text", text: response.text });
   for (const call of response.tool_calls || []) {
@@ -373,6 +374,7 @@ function parseMaybeJson(value) {
 function messageBlockText(block) {
   if (!block || typeof block !== "object") return String(block ?? "");
   if (typeof block.text === "string") return block.text;
+  if (typeof block.thinking === "string") return block.thinking;
   if (typeof block.reasoning === "string") return block.reasoning;
   const reasoningSummary = Array.isArray(block.summary)
     ? block.summary

@@ -176,12 +176,16 @@ export class TranslationActionController {
       loading: true,
       error: "",
       message:
-        materials.length > 1
-          ? this.ui.translate("translatingParameterGroup")
-          : this.ui.translate("retranslatingBlock"),
+        item.metadata?.group === "tool"
+          ? this.ui.translate("translatingTool")
+          : materials.length > 1
+            ? this.ui.translate("translatingParameterGroup")
+            : this.ui.translate("retranslatingBlock"),
     });
     if (item.surface === "raw" && requestId) {
       this.ui.renderRaw(requestId, item.section || context.activeSection || "system", context.rawMode);
+    } else if (item.surface === "timeline") {
+      this.ui.renderTimeline();
     }
 
     const outcome = await runTranslationGenerationOperation({
@@ -203,9 +207,11 @@ export class TranslationActionController {
           loading: false,
           error: "",
           message: translated
-            ? materials.length > 1
-              ? this.ui.translate("retranslatedParametersDone", { count: translated })
-              : this.ui.translate("retranslatedBlockDone")
+            ? item.metadata?.group === "tool"
+              ? this.ui.translate("retranslatedToolDone", { count: translated })
+              : materials.length > 1
+                ? this.ui.translate("retranslatedParametersDone", { count: translated })
+                : this.ui.translate("retranslatedBlockDone")
             : this.ui.translate("translationCacheLatest", { language: context.targetLanguageLabel }),
         });
         this.ui.setTranslationMode(context.targetLanguage, { reason: "translation-block-generated" });
