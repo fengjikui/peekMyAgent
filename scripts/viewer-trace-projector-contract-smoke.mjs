@@ -138,8 +138,8 @@ const codexSpecialOperations = projector.buildData({
     id: "codex-exact-operations",
     agent: "Codex",
     kind: "codex_proxy_exact",
-    request_count: 4,
-    response_count: 4,
+    request_count: 5,
+    response_count: 5,
   },
   captures: [
     {
@@ -192,8 +192,22 @@ const codexSpecialOperations = projector.buildData({
       },
     },
     {
-      capture_id: "codex-compact",
+      capture_id: "codex-prewarm",
       request_index: 4,
+      method: "POST",
+      path: "/v1/responses",
+      capture_adapter: "codex_responses_v1",
+      headers: {},
+      body: {
+        client_metadata: {
+          "x-codex-turn-metadata": JSON.stringify({ request_kind: "prewarm", thread_source: "user" }),
+        },
+        input: [],
+      },
+    },
+    {
+      capture_id: "codex-compact",
+      request_index: 5,
       method: "POST",
       path: "/v1/responses/compact",
       upstream_path: "/backend-api/codex/responses/compact",
@@ -220,17 +234,21 @@ assert.equal(codexSpecialOperations.requests[2].trace.context_chain_key, "side:C
 assert.equal(codexSpecialOperations.requests[2].summary.current_user, "", "background prompts do not become user-turn identities");
 assert.equal(codexSpecialOperations.requests[2].summary.entry.kind, "agent_internal");
 assert.equal(codexSpecialOperations.requests[2].summary.response.text, "Memory extraction finished.");
-assert.deepEqual(codexSpecialOperations.requests[3].summary.entry, {
+assert.equal(codexSpecialOperations.requests[3].source_hint.type, "metadata");
+assert.equal(codexSpecialOperations.requests[3].source_hint.operation, "responses_prewarm");
+assert.equal(codexSpecialOperations.requests[3].source_hint.relation, "current_dialogue");
+assert.equal(codexSpecialOperations.requests[3].source_hint.turn_placement, "next_turn");
+assert.deepEqual(codexSpecialOperations.requests[4].summary.entry, {
   operation: "context_compaction",
   kind: "compact",
   label: "Harness 上下文压缩请求",
   label_key: "contextCompactionRequest",
 });
-assert.equal(codexSpecialOperations.requests[3].source_hint.type, "metadata");
-assert.equal(codexSpecialOperations.requests[3].source_hint.operation, "context_compaction");
+assert.equal(codexSpecialOperations.requests[4].source_hint.type, "metadata");
+assert.equal(codexSpecialOperations.requests[4].source_hint.operation, "context_compaction");
 assert.equal(codexSpecialOperations.turns.length, 2, "independent background requests become standalone side-channel groups");
 assert.equal(codexSpecialOperations.turns[0].kind, "conversation_turn");
-assert.equal(codexSpecialOperations.turns[0].internal_request_count, 2, "subagent and compaction requests remain associated with the active Turn");
+assert.equal(codexSpecialOperations.turns[0].internal_request_count, 3, "subagent, prewarm, and compaction requests remain associated with the active Turn");
 assert.equal(codexSpecialOperations.turns[1].kind, "independent_background");
 assert.equal(codexSpecialOperations.turns[1].index, null, "background side channels never consume a user Turn number");
 assert.deepEqual(codexSpecialOperations.turns[1].request_ids, ["codex-memory"]);

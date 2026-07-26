@@ -12,17 +12,27 @@ export function buildTurnTimeline(requests, semantics = {}) {
       turns.push(backgroundGroup);
       continue;
     }
+    const internalRequest = semantics.isInternalRequest(request);
+    const turnPlacement = request.source_hint?.turn_placement;
+    if (internalRequest && turnPlacement === "trigger_turn" && currentTurn) {
+      addRequestToTurn(currentTurn, request, semantics);
+      continue;
+    }
+    if (internalRequest && (!currentTurn || turnPlacement === "next_turn")) {
+      pendingInternalRequests.push(request);
+      continue;
+    }
     const userText = request.summary?.current_user || "";
     const commandMessage = request.summary?.command_message || null;
     const userKey = semantics.normalizeUserKey(userText);
-    if (semantics.isInternalRequest(request) && currentTurn && currentUserKey && userKey && userKey !== currentUserKey) {
+    if (internalRequest && currentTurn && currentUserKey && userKey && userKey !== currentUserKey) {
       pendingInternalRequests.push(request);
       continue;
     }
     const shouldStartTurn =
       !currentTurn ||
-      (!semantics.isInternalRequest(request) && userKey && userKey !== currentUserKey) ||
-      (!currentUserKey && userKey && currentTurn.request_count > 0 && !semantics.isInternalRequest(request));
+      (!internalRequest && userKey && userKey !== currentUserKey) ||
+      (!currentUserKey && userKey && currentTurn.request_count > 0 && !internalRequest);
     if (shouldStartTurn) {
       currentTurn = createTurn(nextTurnIndex++, userText, commandMessage, semantics);
       turns.push(currentTurn);
@@ -44,7 +54,11 @@ export function buildTurnTimeline(requests, semantics = {}) {
     }
     addRequestToTurn(currentTurn, request, semantics);
   }
-  if (pendingInternalRequests.length && currentTurn) {
+  if (pendingInternalRequests.length) {
+    if (!currentTurn) {
+      currentTurn = createTurn(nextTurnIndex++, "", null, semantics);
+      turns.push(currentTurn);
+    }
     for (const pending of pendingInternalRequests) addRequestToTurn(currentTurn, pending, semantics);
   }
   return turns.map(finalizeTurn);

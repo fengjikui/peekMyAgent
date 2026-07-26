@@ -11,6 +11,7 @@ import {
   commandMessagePreview,
   formatTimelineResponseUsageMeta,
   isPrimaryTimelineRequest,
+  isProminentTimelineMechanism,
   isTimelineSemanticEvent,
   isTimelineResponseRequest,
   pairTimelineToolEvents,
@@ -24,6 +25,8 @@ import {
 
 const labels = {
   metadataRequest: "Metadata request",
+  codexPrewarmRequest: "Codex conversation prewarm request",
+  codexPrewarmNote: "Codex is prewarming the current conversation without generating a model reply.",
   codexMemoryBackgroundTask: "Codex background task · memory extraction",
   codexMemoryBackgroundNote: "Codex is extracting memory outside the current user conversation.",
   subagentRequest: "Subagent request",
@@ -282,7 +285,7 @@ const metadataRequest = {
   summary: {
     internal_request_preview: "Background title request",
     history_stack: [{ kind: "framework_reminder", text: "Fallback reminder" }],
-    response: { captured: true, text: "hidden" },
+    response: { captured: true, text: "Title generated" },
   },
 };
 assert.deepEqual(buildTimelineRequestIdentity(metadataRequest, commonOptions), {
@@ -290,8 +293,44 @@ assert.deepEqual(buildTimelineRequestIdentity(metadataRequest, commonOptions), {
   excerpt: "Background title request",
 });
 assert.equal(timelineUpstreamEntryPreview(metadataRequest, commonOptions), "Background title request");
-assert.equal(shouldShowTimelineAssistantResponse(metadataRequest), false);
+assert.equal(shouldShowTimelineAssistantResponse(metadataRequest), true, "supporting mechanism responses remain inspectable");
 assert.equal(isTimelineResponseRequest(metadataRequest), false);
+
+const compactionRequest = {
+  id: "request-compaction",
+  source_hint: {
+    type: "metadata",
+    operation: "context_compaction",
+    label_key: "contextCompactionRequest",
+  },
+  summary: {
+    entry: { kind: "compact" },
+    response: { captured: true, text: "Compacted context" },
+  },
+};
+assert.equal(isProminentTimelineMechanism(compactionRequest), true);
+assert.equal(isPrimaryTimelineRequest(compactionRequest, { cleanText }), true, "compaction is visible in the main Turn flow");
+assert.equal(shouldShowTimelineAssistantResponse(compactionRequest), true, "compaction response remains visible");
+assert.equal(isTimelineResponseRequest(compactionRequest), true);
+
+const prewarmRequest = {
+  id: "request-prewarm",
+  source_hint: {
+    type: "metadata",
+    label_key: "codexPrewarmRequest",
+    note_key: "codexPrewarmNote",
+    operation: "responses_prewarm",
+  },
+  summary: { response: { captured: false } },
+};
+assert.deepEqual(buildTimelineRequestIdentity(prewarmRequest, commonOptions), {
+  title: "Codex conversation prewarm request",
+  excerpt: "Codex is prewarming the current conversation without generating a model reply.",
+});
+assert.equal(
+  timelineUpstreamEntryPreview(prewarmRequest, commonOptions),
+  "Codex is prewarming the current conversation without generating a model reply.",
+);
 assert.equal(
   timelineUpstreamEntryPreview(
     {

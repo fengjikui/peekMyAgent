@@ -38,6 +38,37 @@ assert.equal(requests[1].turn_id, "turn-1");
 assert.equal(requests[2].turn_id, "background-request-20");
 assert.equal(requests[4].turn_id, "turn-2");
 
+const prewarm = request(30, "", "metadata", { new_messages: 0 });
+prewarm.source_hint.turn_placement = "next_turn";
+const firstUserTurn = request(31, "first visible question", "main", { new_messages: 1 });
+const prewarmedTurns = buildTurnTimeline([prewarm, firstUserTurn], {
+  ...semantics,
+  isInternalRequest: (requestItem) => requestItem.source_hint.type === "metadata",
+});
+assert.equal(prewarmedTurns.length, 1, "a leading current-dialogue mechanism joins the first visible Turn");
+assert.deepEqual(prewarmedTurns[0].request_indexes, [30, 31]);
+assert.equal(prewarmedTurns[0].index, 1);
+assert.equal(prewarmedTurns[0].internal_request_count, 1);
+assert.equal(prewarmedTurns[0].main_request_count, 1);
+assert.equal(prewarm.turn_id, "turn-1");
+assert.equal(firstUserTurn.turn_id, "turn-1");
+
+const initialTitleGeneration = request(39, "Generate the initial title", "metadata", { new_messages: 0 });
+initialTitleGeneration.source_hint.turn_placement = "trigger_turn";
+const titledFirstTurn = request(40, "first titled question", "main", { new_messages: 1 });
+const titleGeneration = request(41, "Generate a title for this conversation", "metadata", { new_messages: 0 });
+titleGeneration.source_hint.turn_placement = "trigger_turn";
+const titledSecondTurn = request(42, "second visible question", "main", { new_messages: 1 });
+const titleTurns = buildTurnTimeline([initialTitleGeneration, titledFirstTurn, titleGeneration, titledSecondTurn], {
+  ...semantics,
+  isInternalRequest: (requestItem) => requestItem.source_hint.type === "metadata",
+});
+assert.equal(titleTurns.length, 2, "title generation never creates or shifts a user Turn");
+assert.deepEqual(titleTurns[0].request_indexes, [39, 40, 41]);
+assert.deepEqual(titleTurns[1].request_indexes, [42]);
+assert.equal(initialTitleGeneration.turn_id, "turn-1");
+assert.equal(titleGeneration.turn_id, "turn-1");
+
 console.log("turn timeline contract smoke passed");
 
 function request(index, currentUser, type, delta, { currentToolCalls = null, responseToolCalls = [] } = {}) {
