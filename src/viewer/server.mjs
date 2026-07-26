@@ -68,6 +68,7 @@ import {
 
 const viewerDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(viewerDir, "../..");
+const REQUEST_DETAIL_ATTRIBUTION_LOOKBACK = 8;
 const MAX_SOURCE_TITLE_CHARS = SOURCE_TEXT_LIMITS.title;
 const MAX_TRACE_TITLE_CHARS = SOURCE_TEXT_LIMITS.traceTitle;
 const MAX_SOURCE_AGENT_CHARS = SOURCE_TEXT_LIMITS.agent;
@@ -385,7 +386,9 @@ function loadViewerRequestDetail(sourceId, requestId, options, { requireSource =
   if (!requestId) throw httpError(400, "Missing request id");
   const repository = viewerSourceRepository(options);
   const source = repository.resolve(sourceId, { requireSource });
-  const { captures, debugSources, startIndex } = sourceCaptureReader(options).readRequestWindow(source, requestId, { previousCount: 1 });
+  const { captures, debugSources, startIndex } = sourceCaptureReader(options).readRequestWindow(source, requestId, {
+    previousCount: REQUEST_DETAIL_ATTRIBUTION_LOOKBACK,
+  });
   const request = viewerTraceProjector.projectRequestDetailWindow(captures, source, requestId, { startIndex, debugSources });
   if (!request) throw httpError(404, `Request not found: ${requestId}`);
   return assertTraceRequestDetailResponse({

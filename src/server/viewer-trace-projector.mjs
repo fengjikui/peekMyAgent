@@ -111,9 +111,26 @@ export function createViewerTraceProjector({
     const currentUserRealText = realUserVisibleText(currentUser);
     const commandMessage = currentUserRealText ? null : parseCommandMessage(currentUser);
     const transportOperation = classifyTransportOperation(capture);
+    const sourceHint = inferRequestSource({ capture, body, currentUser, debugSource, lastUser });
+    const sourceOperationEntry = sourceHint.operation === "context_compaction"
+      ? {
+          kind: "compact",
+          label: sourceHint.label,
+          label_key: sourceHint.label_key,
+          operation: sourceHint.operation,
+        }
+      : sourceHint.type === "background"
+        ? {
+            kind: "agent_internal",
+            label: sourceHint.label,
+            label_key: sourceHint.label_key,
+            operation: sourceHint.operation,
+          }
+        : null;
     const entry =
       captureSemanticEntry(capture.semantic_event) ||
       transportOperation ||
+      sourceOperationEntry ||
       (isContextTokenCountingRequest(capture)
         ? {
             kind: "context_count",
@@ -122,15 +139,18 @@ export function createViewerTraceProjector({
           }
         : classifyCurrentEntry(messages));
     const currentUserText =
-      entry.kind === "compact" || entry.kind === "context_count"
+      entry.kind === "compact" || entry.kind === "context_count" || sourceHint.type === "background"
         ? ""
         : currentUserRealText || (commandMessage ? commandUserVisibleText(commandMessage) : "");
-    const internalRequestText = isSuggestionModeMessage(lastUser) ? extractContentText(lastUser.content) : "";
+    const internalRequestText = sourceHint.type === "background"
+      ? currentUserRealText || extractContentText(lastUser?.content)
+      : isSuggestionModeMessage(lastUser)
+        ? extractContentText(lastUser.content)
+        : "";
     const assistantMessages = messages.filter((message) => message.role === "assistant");
     const toolMessages = messages.filter((message) => message.role === "tool");
     const toolCalls = extractToolCalls(messages);
     const toolResults = extractToolResults(messages);
-    const sourceHint = inferRequestSource({ capture, body, currentUser, debugSource, lastUser });
     const codexSubagent = codexSubagentIdentity(capture, body);
     const protocolProfile = inferProtocolProfile(capture, body);
     const historyCount = Math.max(0, messages.length - (currentUser ? 1 : 0) - systemParts.length);
@@ -156,7 +176,12 @@ export function createViewerTraceProjector({
       debug_source: debugSource?.source || null,
       is_subagent: sourceHint.type === "subagent",
       trace: {
-        actor_type: sourceHint.type === "subagent" ? "child" : sourceHint.type === "metadata" ? "side" : "main",
+        actor_type:
+          sourceHint.type === "subagent"
+            ? "child"
+            : sourceHint.type === "metadata" || sourceHint.type === "background"
+              ? "side"
+              : "main",
         agent_instance_id: sourceHint.type === "subagent" ? codexSubagent?.agent_id || claudeAgentId || null : null,
         parent_agent_instance_id: sourceHint.type === "subagent" ? codexSubagent?.parent_agent_id || null : null,
         agent_identity_source: sourceHint.type === "subagent" ? codexSubagent?.source || (claudeAgentId ? "header" : null) : null,
@@ -350,7 +375,7 @@ export function createViewerTraceProjector({
   }
 
   function isInternalRequest(request) {
-    return request.source_hint?.type === "metadata";
+    return request.source_hint?.type === "metadata" || request.source_hint?.type === "background";
   }
 
   function isTimelineInternalRequest(request) {

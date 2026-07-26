@@ -1,6 +1,6 @@
 # Trace Context Delta 契约
 
-更新时间：2026-07-12
+更新时间：2026-07-26
 
 Trace Context Domain 当前由四个模块组成：
 
@@ -26,9 +26,9 @@ Trace Context Domain 当前由四个模块组成：
 
 1. 有子 Agent ID：`agent:<session>:<agent-id>`；
 2. 主 Agent：`main:<session>`；
-3. metadata/side request：`<actor-type>:<session>:<source>`。
+3. metadata/side request：`<actor-type>:<session>:<operation-or-source>`。
 
-子 Agent 与主 Agent 不互相做差值，多个子 Agent 也按实例 ID 独立比较。
+子 Agent 与主 Agent 不互相做差值，多个子 Agent也按实例 ID 独立比较。Codex `memory` 等独立后台请求使用操作类型建立 side chain；例如 `side:<session>:codex_memory_extraction`。因此后台任务即使复用同一个 thread/session ID，也不会插入主链前驱。
 
 ## 输出
 
@@ -42,7 +42,7 @@ Trace Context Domain 当前由四个模块组成：
 
 ## Turn timeline
 
-Turn 以规范化后的真实用户输入作为边界。metadata、harness 和子 Agent 请求属于内部请求：当它们携带不同输入时先暂存，并在主 Agent 回到当前用户轮次时并入，不产生幽灵 Turn。每个 Turn 累计 request index、时间范围、主/内部/子 Agent 数量、工具调用/结果、Raw 字节和 context delta。
+Turn 以规范化后的真实用户输入作为边界。metadata、background、harness 和子 Agent 请求属于内部请求：当它们携带不同输入时先暂存，并在主 Agent 回到当前用户轮次时并入，不产生幽灵 Turn。独立后台请求可在幕后时间线明确显示机制类型和模型回复，但它的巨大 prompt 不能成为当前用户输入。每个 Turn 累计 request index、时间范围、主/内部/子 Agent 数量、工具调用/结果、Raw 字节和 context delta。
 
 消息的 harness/compact/command/suggestion/task notification 分类仍由 Viewer message semantics policy 注入。Context Domain 不解析 Claude Code 标签，也不依赖 HTTP、SQLite 或浏览器。
 
@@ -63,8 +63,10 @@ Lineage 识别必须先于 Context Delta：这样 OTel synthetic ID 在选择 co
 ## 回归约束
 
 - 单一会话中的主 Agent、每个子 Agent、metadata 请求必须独立维护前驱。
+- 独立后台请求必须按 operation 维护 side chain；其前后主请求仍互相比较。
 - 工具结果消息尾随普通文本时仍属于工具回流。
 - internal metadata 请求不得继承普通工具事件。
+- 后台任务必须保留可检查的原始请求与回复，但不得把历史工具调用计入下一主请求的本轮活动。
 - Context Domain 只注解 request DTO，不修改原始 capture body。
 - 每个 request 只能归属一个 Turn；内部请求不得单独制造新的用户轮次。
 - Header 强关联与 OTel prompt 回配必须能区分交错执行的多个子 Agent，并把同一子 Agent 的连续多轮串成一个 branch。

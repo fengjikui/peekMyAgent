@@ -35,6 +35,8 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
       confidence: "high",
     };
   }
+  const codexOperation = classifyCodexRequestOperation(capture, body);
+  if (codexOperation) return codexOperation;
   if (isContextTokenCountingRequest(capture)) {
     return { type: "metadata", label: "上下文统计 (/context)", confidence: "high" };
   }
@@ -56,7 +58,7 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
   if (claudeAgentId) {
     return { type: "subagent", label: debugSource?.source || "Claude Code 子 Agent", confidence: "high" };
   }
-  if (isCodexSubagentRequest(capture)) {
+  if (isCodexSubagentRequest(capture, body)) {
     return { type: "subagent", label: "Codex 子 Agent", confidence: "high" };
   }
   if (debugSource?.source?.startsWith("agent:")) {
@@ -77,6 +79,62 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
     return { type: "parent_spawn", label: "启动子代理", confidence: "high" };
   }
   return { type: "main", label: "主代理请求", confidence: "medium" };
+}
+
+export function classifyCodexRequestOperation(capture = {}, body = capture.body || {}) {
+  const metadata = codexTurnMetadata(body, capture);
+  const requestKind = cleanIdentity(metadata?.request_kind)?.toLowerCase();
+  if (!requestKind || requestKind === "turn") return null;
+  if (requestKind === "compaction") {
+    return {
+      type: "metadata",
+      label: "Harness 上下文压缩请求",
+      label_key: "contextCompactionRequest",
+      operation: "context_compaction",
+      request_kind: requestKind,
+      relation: "current_dialogue",
+      confidence: "high",
+    };
+  }
+  if (requestKind === "memory") {
+    return {
+      type: "background",
+      label: "Codex 后台任务 · 记忆提取",
+      label_key: "codexMemoryBackgroundTask",
+      note_key: "codexMemoryBackgroundNote",
+      operation: "codex_memory_extraction",
+      request_kind: requestKind,
+      relation: "independent",
+      confidence: "high",
+    };
+  }
+  return {
+    type: "background",
+    label: "Codex 后台任务",
+    label_key: "codexBackgroundTask",
+    note_key: "codexBackgroundTaskNote",
+    operation: `codex_${requestKind}`,
+    request_kind: requestKind,
+    relation: "independent",
+    confidence: "high",
+  };
+}
+
+export function codexTurnMetadata(body = {}, capture = {}) {
+  const clientMetadata = body?.client_metadata;
+  const direct = clientMetadata && typeof clientMetadata === "object" && !Array.isArray(clientMetadata)
+    ? pickCodexTurnMetadata(clientMetadata)
+    : {};
+  const candidates = [
+    clientMetadata?.["x-codex-turn-metadata"],
+    clientMetadata?.turn_metadata,
+    headerValue(capture.headers, "x-codex-turn-metadata"),
+  ];
+  for (const candidate of candidates) {
+    const parsed = parseMetadataObject(candidate);
+    if (parsed) return { ...direct, ...parsed };
+  }
+  return Object.keys(direct).length ? direct : null;
 }
 
 export function classifyTransportOperation(capture = {}) {
@@ -111,7 +169,10 @@ export function isCodexSearchServiceRequest(capture = {}) {
   );
 }
 
-export function isCodexSubagentRequest(capture = {}) {
+export function isCodexSubagentRequest(capture = {}, body = capture.body || {}) {
+  const metadata = codexTurnMetadata(body, capture);
+  if (String(metadata?.thread_source || "").trim().toLowerCase() === "subagent") return true;
+  if (cleanIdentity(metadata?.parent_thread_id || metadata?.["x-codex-parent-thread-id"])) return true;
   const marker = headerValue(capture.headers, "x-openai-subagent").trim().toLowerCase();
   if (marker && !["0", "false", "no", "off"].includes(marker)) return true;
   return (capture.header_redactions || []).some(
@@ -122,12 +183,20 @@ export function isCodexSubagentRequest(capture = {}) {
 }
 
 export function codexSubagentIdentity(capture = {}, body = capture.body || {}) {
-  if (!isCodexSubagentRequest(capture)) return null;
-  const metadata = body?.client_metadata;
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
-  const windowId = typeof metadata["x-codex-window-id"] === "string" ? metadata["x-codex-window-id"] : "";
-  const agentId = cleanIdentity(metadata.thread_id || windowId.split(":")[0]);
-  const parentAgentId = cleanIdentity(metadata["x-codex-parent-thread-id"] || metadata.parent_thread_id || metadata.session_id);
+  if (!isCodexSubagentRequest(capture, body)) return null;
+  const clientMetadata = body?.client_metadata;
+  const turnMetadata = codexTurnMetadata(body, capture) || {};
+  const metadata = clientMetadata && typeof clientMetadata === "object" && !Array.isArray(clientMetadata) ? clientMetadata : {};
+  const windowId = cleanIdentity(turnMetadata.window_id || metadata["x-codex-window-id"]) || "";
+  const agentId = cleanIdentity(turnMetadata.thread_id || metadata.thread_id || windowId.split(":")[0]);
+  const parentAgentId = cleanIdentity(
+    turnMetadata.parent_thread_id ||
+      turnMetadata["x-codex-parent-thread-id"] ||
+      metadata["x-codex-parent-thread-id"] ||
+      metadata.parent_thread_id ||
+      turnMetadata.session_id ||
+      metadata.session_id,
+  );
   if (!agentId && !parentAgentId) return null;
   return {
     agent_id: agentId,
@@ -260,6 +329,32 @@ function capturePaths(capture = {}) {
   return [capture.path, capture.original_url, capture.upstream_path]
     .map((value) => String(value || ""))
     .filter(Boolean);
+}
+
+function pickCodexTurnMetadata(value) {
+  const keys = [
+    "request_kind",
+    "thread_source",
+    "parent_thread_id",
+    "subagent_kind",
+    "thread_id",
+    "session_id",
+    "turn_id",
+    "window_id",
+  ];
+  return Object.fromEntries(keys.filter((key) => value[key] != null).map((key) => [key, value[key]]));
+}
+
+function parseMetadataObject(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  const text = String(value || "").trim();
+  if (!text || /^\[REDACTED(?::[^\]]+)?\]$/i.test(text)) return null;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function headerValue(headers, name) {

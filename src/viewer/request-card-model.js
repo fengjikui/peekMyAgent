@@ -7,7 +7,7 @@ export function buildTimelineRequestIdentity(
     ? translate(request.source_hint.label_key)
     : request.source_hint?.label;
   const title =
-    request.source_hint?.type === "metadata"
+    request.source_hint?.type === "metadata" || request.source_hint?.type === "background"
       ? metadataLabel || translate("metadataRequest")
       : commandMessage
         ? commandMessageLabel(commandMessage)
@@ -22,9 +22,11 @@ export function buildTimelineRequestIdentity(
   }
   const summary = request.summary || {};
   const excerpt =
-    request.source_hint?.type === "metadata"
-      ? summary.internal_request_preview || summary.current_user || summary.assistant_preview || translate("noTextSummary")
-      : summary.current_user || summary.assistant_preview || translate("noTextSummary");
+    request.source_hint?.type === "background" && request.source_hint?.note_key
+      ? translate(request.source_hint.note_key)
+      : request.source_hint?.type === "metadata" || request.source_hint?.type === "background"
+        ? summary.internal_request_preview || summary.current_user || summary.assistant_preview || translate("noTextSummary")
+        : summary.current_user || summary.assistant_preview || translate("noTextSummary");
   return { title, excerpt };
 }
 
@@ -213,7 +215,7 @@ function describeObservedToolSemantics(call = {}, translate = identityTranslate)
 }
 
 export function shouldShowTimelineRequestContent(request = {}, { cleanText = defaultCleanText } = {}) {
-  if (request.source_hint?.type === "metadata") return false;
+  if (request.source_hint?.type === "metadata" || request.source_hint?.type === "background") return false;
   if (request.summary?.command_message) return false;
   if (request.is_subagent) return false;
   if (request.source_hint?.type === "parent_spawn") return false;
@@ -230,7 +232,7 @@ export function shouldShowTimelineAssistantResponse(request = {}) {
 }
 
 export function isPrimaryTimelineRequest(request = {}, options = {}) {
-  if (request.source_hint?.type === "metadata") return false;
+  if (request.source_hint?.type === "metadata" || request.source_hint?.type === "background") return false;
   if (request.summary?.entry?.semantic_event) return true;
   if (request.is_subagent) return false;
   if ((request.summary?.current_tool_results?.length || 0) > 0) return false;
@@ -250,6 +252,7 @@ export function isTimelineUserTurnEntry(request = {}) {
 
 export function timelineUpstreamKindClass(request = {}) {
   if (isTimelineSemanticEvent(request)) return "semantic-event";
+  if (request.source_hint?.type === "background") return "background";
   if (request.source_hint?.type === "metadata") return "metadata";
   if (request.summary?.command_message) return "command-message";
   if (request.summary?.entry?.kind === "subagent_result") return "subagent-result";
@@ -283,7 +286,7 @@ export function timelineUpstreamEntryLabel(
   request = {},
   { translate = identityTranslate, cleanText = defaultCleanText, preview = defaultPreview } = {},
 ) {
-  if (request.source_hint?.type === "metadata") {
+  if (request.source_hint?.type === "metadata" || request.source_hint?.type === "background") {
     return buildTimelineRequestIdentity(request, { translate, cleanText, preview }).title;
   }
   if (request.summary?.command_message) return commandMessageLabel(request.summary.command_message);
@@ -308,6 +311,7 @@ export function timelineUpstreamEntryPreview(
   } = {},
 ) {
   const identity = () => buildTimelineRequestIdentity(request, { translate, cleanText, preview });
+  if (request.source_hint?.type === "background") return preview(identity().excerpt || identity().title, 260);
   if (request.source_hint?.type === "metadata") {
     const frameworkReminder = [...(request.summary?.history_stack || [])]
       .reverse()

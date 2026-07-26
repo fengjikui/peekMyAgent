@@ -64,7 +64,12 @@ export function requestContextChainKey(request) {
   if (agentId) return `agent:${sessionKey}:${agentId}`;
   const actorType = request.trace?.actor_type || request.source_hint?.type || "main";
   if (actorType === "main") return `main:${sessionKey}`;
-  const sideKey = request.trace?.debug_source || request.source_hint?.type || "side";
+  const sideKey =
+    request.source_hint?.operation ||
+    request.source_hint?.request_kind ||
+    request.trace?.debug_source ||
+    request.source_hint?.type ||
+    "side";
   return `${actorType}:${sessionKey}:${sideKey}`;
 }
 

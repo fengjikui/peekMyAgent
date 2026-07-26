@@ -24,6 +24,8 @@ import {
 
 const labels = {
   metadataRequest: "Metadata request",
+  codexMemoryBackgroundTask: "Codex background task · memory extraction",
+  codexMemoryBackgroundNote: "Codex is extracting memory outside the current user conversation.",
   subagentRequest: "Subagent request",
   parentSpawnRequest: "Parent spawn request",
   mainAgentRequest: "Main agent request",
@@ -300,6 +302,35 @@ assert.equal(
   ),
   "Fallback reminder",
 );
+
+const backgroundRequest = {
+  id: "request-background",
+  request_index: 38,
+  source_hint: {
+    type: "background",
+    label_key: "codexMemoryBackgroundTask",
+    note_key: "codexMemoryBackgroundNote",
+    operation: "codex_memory_extraction",
+  },
+  summary: {
+    current_user: "",
+    internal_request_preview: "Analyze a very large rollout",
+    entry: { kind: "agent_internal" },
+    response: { captured: true, text: "Memory extraction completed." },
+    current_tool_calls: [],
+    current_tool_results: [],
+  },
+};
+assert.deepEqual(buildTimelineRequestIdentity(backgroundRequest, commonOptions), {
+  title: "Codex background task · memory extraction",
+  excerpt: "Codex is extracting memory outside the current user conversation.",
+});
+assert.equal(timelineUpstreamEntryPreview(backgroundRequest, commonOptions), "Codex is extracting memory outside the current user conversation.");
+assert.equal(shouldShowTimelineRequestContent(backgroundRequest, { cleanText }), false);
+assert.equal(shouldShowTimelineAssistantResponse(backgroundRequest), true, "the background model response remains inspectable");
+assert.equal(isPrimaryTimelineRequest(backgroundRequest, { cleanText }), false);
+assert.equal(isTimelineResponseRequest(backgroundRequest), true);
+assert.equal(buildTimelineUpstreamView(backgroundRequest, commonOptions).kindClass, "background");
 
 const taskNotification = {
   id: "request-notification",

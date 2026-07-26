@@ -2560,6 +2560,12 @@ button.turn-story-step:focus-visible {
   background: transparent;
 }
 
+.upstream-entry.background {
+  border-bottom-style: dashed;
+  border-bottom-color: color-mix(in oklch, var(--warning) 30%, var(--line));
+  background: transparent;
+}
+
 .upstream-entry.command-message {
   border-bottom-color: color-mix(in oklch, var(--accent) 22%, var(--line));
   background: transparent;
