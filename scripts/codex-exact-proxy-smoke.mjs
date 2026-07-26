@@ -52,6 +52,8 @@ try {
         session_id: "session-smoke-private",
         thread_id: "thread-smoke-private",
         turn_id: "turn-smoke-private",
+        request_kind: "memory",
+        thread_source: "user",
       }),
       "x-codex-window-id": "window-smoke-private",
       "x-openai-subagent": "reviewer-private",
@@ -71,6 +73,8 @@ try {
     session_id: "session-smoke-private",
     thread_id: "thread-smoke-private",
     turn_id: "turn-smoke-private",
+    request_kind: "memory",
+    thread_source: "user",
   }));
   assert.equal(forwarded[0].headers["x-codex-window-id"], "window-smoke-private");
   assert.equal(forwarded[0].headers["x-openai-subagent"], "reviewer-private");
@@ -100,6 +104,10 @@ try {
       `${header} redaction is recorded`,
     );
   }
+  assert.deepEqual(captures[0].header_semantics, {
+    codex_turn_metadata: { request_kind: "memory", thread_source: "user" },
+    codex_subagent: true,
+  }, "safe protocol enums survive header redaction without persisting private thread identifiers");
   const responseSummary = summarizeModelResponse(captures[0].response);
   assert.equal(responseSummary.text, "I will read the file.");
   assert.equal(responseSummary.thinking, "inspect first");

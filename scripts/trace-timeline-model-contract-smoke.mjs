@@ -67,6 +67,28 @@ assert.equal(latestView.shownCount, requests.length, "unfiltered views should re
 assert.deepEqual(latestView.railTurns.map((item) => item.id), ["t3"]);
 assert.deepEqual(latestView.turnWindow.turns.map((item) => item.id), ["t3"]);
 
+const turnsWithTrailingBackground = [
+  ...turns,
+  { ...turn("background-r5", null, ["r5"], "Codex memory extraction"), kind: "independent_background" },
+];
+const requestsWithBackground = [
+  ...requests,
+  {
+    ...request("r5", 5, { user: "memory extraction" }),
+    source_hint: { type: "background", relation: "independent", operation: "codex_memory_extraction" },
+  },
+];
+const latestWithBackground = buildTraceTimelineView({
+  turns: turnsWithTrailingBackground,
+  requests: requestsWithBackground,
+  latestOnly: true,
+});
+assert.deepEqual(
+  latestWithBackground.turnWindow.turns.map((item) => item.id),
+  ["t3"],
+  "an independent background request must not replace the latest user turn",
+);
+
 const queryOverridesLatest = buildTraceTimelineView({ turns, requests, latestOnly: true, query: "hello" });
 assert.deepEqual(queryOverridesLatest.railTurns.map((item) => item.id), ["t1"]);
 

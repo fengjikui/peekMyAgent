@@ -32,6 +32,7 @@ export function projectTimelineRequest(request) {
   const { history_stack, tool_calls, tool_results, roles, tool_names, ...summaryWithoutHeavyFields } = summary;
   return {
     ...request,
+    source_hint: projectSourceHint(request?.source_hint),
     context_delta: projectContextDelta(request?.context_delta),
     summary: {
       ...summaryWithoutHeavyFields,
@@ -56,6 +57,12 @@ export function projectTimelineRequest(request) {
     raw: projectRawCapture(request?.raw),
     detail_omitted: true,
   };
+}
+
+function projectSourceHint(sourceHint) {
+  if (!sourceHint || typeof sourceHint !== "object") return sourceHint || null;
+  const { evidence, ...compact } = sourceHint;
+  return compact;
 }
 
 function compactArray(value, limit) {

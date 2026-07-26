@@ -12,6 +12,13 @@ const roles = Array.from({ length: TIMELINE_VIEW_LIMITS.roleCount + 3 }, (_, ind
 const toolNames = Array.from({ length: TIMELINE_VIEW_LIMITS.toolNameCount + 2 }, (_, index) => `tool-${index}`);
 const request = {
   id: "request-1",
+  source_hint: {
+    type: "background",
+    actor: "background_service",
+    relation: "independent",
+    operation: "codex_memory_extraction",
+    evidence: [{ origin: "request_body", field: "client_metadata.request_kind", value: "memory" }],
+  },
   context_delta: {
     added: 7,
     previews: Array.from({ length: TIMELINE_VIEW_LIMITS.contextPreviewCount + 2 }, (_, index) => ({
@@ -95,6 +102,8 @@ const projected = projectTimelineRequest(request);
 
 assert.deepEqual(request, original, "projection must not mutate the full request DTO");
 assert.equal(projected.detail_omitted, true);
+assert.equal(projected.source_hint.operation, "codex_memory_extraction");
+assert.equal(projected.source_hint.evidence, undefined, "compact timeline omits attribution evidence until detail is requested");
 assert.equal(projected.summary.history_stack.length, 0);
 assert.deepEqual(projected.summary.history_stack_omitted, { count: 2 });
 assert.equal(projected.summary.roles.length, TIMELINE_VIEW_LIMITS.roleCount);

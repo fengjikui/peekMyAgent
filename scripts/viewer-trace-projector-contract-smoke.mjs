@@ -228,8 +228,12 @@ assert.deepEqual(codexSpecialOperations.requests[3].summary.entry, {
 });
 assert.equal(codexSpecialOperations.requests[3].source_hint.type, "metadata");
 assert.equal(codexSpecialOperations.requests[3].source_hint.operation, "context_compaction");
-assert.equal(codexSpecialOperations.turns.length, 1, "background and compaction requests stay inside the active Turn rather than becoming user Turns");
-assert.equal(codexSpecialOperations.turns[0].internal_request_count, 3);
+assert.equal(codexSpecialOperations.turns.length, 2, "independent background requests become standalone side-channel groups");
+assert.equal(codexSpecialOperations.turns[0].kind, "conversation_turn");
+assert.equal(codexSpecialOperations.turns[0].internal_request_count, 2, "subagent and compaction requests remain associated with the active Turn");
+assert.equal(codexSpecialOperations.turns[1].kind, "independent_background");
+assert.equal(codexSpecialOperations.turns[1].index, null, "background side channels never consume a user Turn number");
+assert.deepEqual(codexSpecialOperations.turns[1].request_ids, ["codex-memory"]);
 
 const detail = projector.projectRequestDetailWindow(captures, source, "capture-2", { startIndex: 0 });
 assert.equal(detail.id, "capture-2");

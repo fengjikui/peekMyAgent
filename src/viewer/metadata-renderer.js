@@ -30,7 +30,37 @@ export function renderOrganizedMetadata({ view, translate, escapeHtml, formatNum
       })}
       ${renderProviderUsage(view.providerUsage, { translate, escapeHtml, formatNumber })}
       ${renderComposition(view.composition, { translate, escapeHtml, formatNumber })}
+      ${renderAttribution(view.attribution, { translate, escapeHtml, formatNumber })}
       ${renderEvidence(view.evidence, { translate, escapeHtml, formatNumber })}
+    </section>
+  `;
+}
+
+function renderAttribution(attribution, { translate, escapeHtml, formatNumber }) {
+  if (!attribution?.facts?.length) return "";
+  return `
+    <section class="metadata-summary-section">
+      ${renderSectionHeading(translate("metadataAttribution"), translate("metadataInferredFact"), escapeHtml)}
+      <dl class="metadata-fact-list compact">
+        ${attribution.facts
+          .map(
+            (fact) => `
+              <div>
+                <dt>${escapeHtml(metadataKeyLabel(fact.key, translate))}</dt>
+                <dd>${escapeHtml(formatMetadataValue(metadataTranslatedValue(fact.value, translate), formatNumber))}</dd>
+              </div>
+            `,
+          )
+          .join("")}
+      </dl>
+      ${
+        attribution.evidence?.length
+          ? `<details class="metadata-evidence-details">
+              <summary>${escapeHtml(translate("metadataAttributionEvidence"))}</summary>
+              <pre>${escapeHtml(JSON.stringify(attribution.evidence, null, 2))}</pre>
+            </details>`
+          : ""
+      }
     </section>
   `;
 }
@@ -179,6 +209,12 @@ function formatMetadataValue(value, formatNumber) {
   if (typeof value === "boolean") return value ? "true" : "false";
   if (typeof value === "string") return value;
   return JSON.stringify(value);
+}
+
+function metadataTranslatedValue(value, translate) {
+  if (typeof value !== "string") return value;
+  const translated = translate(`metadataValue_${value}`);
+  return translated === `metadataValue_${value}` ? value : translated;
 }
 
 function formatPercent(value) {

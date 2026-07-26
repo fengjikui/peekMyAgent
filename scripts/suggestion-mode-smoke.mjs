@@ -73,7 +73,7 @@ try {
     assert.equal(view.requests[1].summary.history_stack[2].kind, "agent_internal");
     assert.equal(view.requests[1].summary.history_stack[2].label, "Agent 内部请求");
     assert.equal(view.requests[1].context_delta.baseline, true);
-    assert.equal(view.requests[1].context_delta.comparison_key, "side:suggestion-mode-smoke-session:metadata");
+    assert.equal(view.requests[1].context_delta.comparison_key, "side:suggestion-mode-smoke-session:input_suggestion");
     assert.equal(view.requests[1].context_delta.reused_messages, 0);
     assert.equal(view.requests[1].context_delta.new_messages, 3);
     assert.equal(view.requests[1].context_delta.new_roles.user, 1);
@@ -91,6 +91,7 @@ try {
     assert.equal(view.requests[2].summary.history_stack[2].label, "框架提醒");
     assert.ok(view.requests[2].summary.history_stack[2].full_text.includes("<system-reminder>"));
     assert.ok(!view.requests[2].summary.current_user.includes("system-reminder"));
+    assert.equal(view.requests[2].context_delta.comparison_key, "side:suggestion-mode-smoke-session:framework_reminder");
     assert.equal(view.requests[2].context_delta.new_roles.framework_reminder, 1);
   } finally {
     await viewer.close();

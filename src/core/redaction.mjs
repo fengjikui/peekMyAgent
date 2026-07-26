@@ -30,9 +30,51 @@ export function redactHeaders(headers = {}) {
   return { headers: redacted, redactions };
 }
 
+export function extractSafeHeaderSemantics(headers = {}) {
+  const normalized = Object.fromEntries(
+    Object.entries(headers || {}).map(([key, value]) => [String(key || "").toLowerCase(), value]),
+  );
+  const codexTurnMetadata = parseJsonObject(normalized["x-codex-turn-metadata"]);
+  const safeCodexTurnMetadata = {};
+  for (const key of ["request_kind", "thread_source", "subagent_kind", "sandbox"]) {
+    const value = safeHeaderEnum(codexTurnMetadata?.[key]);
+    if (value) safeCodexTurnMetadata[key] = value;
+  }
+  const semantics = {};
+  if (Object.keys(safeCodexTurnMetadata).length) semantics.codex_turn_metadata = safeCodexTurnMetadata;
+  if (hasMeaningfulHeader(normalized["x-codex-parent-thread-id"])) semantics.codex_parent_thread = true;
+  if (truthyMarker(normalized["x-openai-subagent"])) semantics.codex_subagent = true;
+  return Object.keys(semantics).length ? semantics : undefined;
+}
+
 function isSensitiveHeader(key) {
   const normalized = String(key || "").toLowerCase();
   return SENSITIVE_HEADER.test(normalized) || SENSITIVE_IDENTITY_HEADERS.has(normalized);
+}
+
+function parseJsonObject(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeHeaderEnum(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return /^[a-z][a-z0-9_-]{0,63}$/.test(text) ? text : null;
+}
+
+function hasMeaningfulHeader(value) {
+  return value != null && String(value).trim() !== "";
+}
+
+function truthyMarker(value) {
+  if (!hasMeaningfulHeader(value)) return false;
+  return !["0", "false", "no", "off"].includes(String(value).trim().toLowerCase());
 }
 
 export function redactText(value, fieldPath = "content") {

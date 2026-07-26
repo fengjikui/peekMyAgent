@@ -111,6 +111,14 @@ export function createViewerTraceProjector({
     const currentUserRealText = realUserVisibleText(currentUser);
     const commandMessage = currentUserRealText ? null : parseCommandMessage(currentUser);
     const transportOperation = classifyTransportOperation(capture);
+    const transportOperationEntry = transportOperation
+      ? {
+          operation: transportOperation.operation,
+          kind: transportOperation.kind,
+          label: transportOperation.label,
+          label_key: transportOperation.label_key,
+        }
+      : null;
     const sourceHint = inferRequestSource({ capture, body, currentUser, debugSource, lastUser });
     const sourceOperationEntry = sourceHint.operation === "context_compaction"
       ? {
@@ -129,7 +137,7 @@ export function createViewerTraceProjector({
         : null;
     const entry =
       captureSemanticEntry(capture.semantic_event) ||
-      transportOperation ||
+      transportOperationEntry ||
       sourceOperationEntry ||
       (isContextTokenCountingRequest(capture)
         ? {
@@ -316,6 +324,7 @@ export function createViewerTraceProjector({
     return buildTurnTimeline(requests, {
       normalizeUserKey: normalizeTurnUserKey,
       isInternalRequest: isTimelineInternalRequest,
+      isIndependentRequest: (request) => request.source_hint?.relation === "independent",
       titleFor: turnTitle,
       cleanUserText: cleanTitleText,
       previewText: textPreview,
