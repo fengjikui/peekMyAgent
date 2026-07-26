@@ -8,7 +8,7 @@
 - 用户输入、Harness 注入、`tool_use`、`tool_result` 和子 Agent 回流的样式类别、标签与预览；
 - Harness 生命周期 semantic event 的紧凑机制摘要和证据限制；上下文压缩卡区分 replacement history 结构、本地粗略 token 估算与下一次真实 API input；
 - 上行快捷 section 列表；
-- 当前 `tool_use` / `tool_result` 按 id 配对及孤立事件状态；历史调用证据保留 `{ call, requestId, requestIndex }`，裸 `call` 输入仍兼容；
+- 当前 `tool_use` / `tool_result` 按 id 配对及孤立事件状态；历史调用证据保留 `{ call, requestId, requestIndex }`，并通过 `buildTimelineToolOriginIndex()` 对整个已加载 Trace 单次线性建索引，裸 `call` 输入仍兼容；
 - Assistant response 的 usage、finish reason、Thinking 摘要、长文本折叠和工具调用 DTO。
 
 `src/viewer/request-card-renderer.js` 负责中栏单条请求卡的稳定 HTML 结构，覆盖：
@@ -29,6 +29,8 @@ Model 和 Renderer 都不读取 `state`、不访问 DOM、不发网络请求，�
 - 查找 Thinking 翻译、注册 action id，并提供加载状态；
 - 保存 tool result -> origin 的返回上下文：来源动作打开原 request 的 Response/tool calls，显式返回动作恢复结果 request 的 `tool_results`；
 - 把当前展开状态和格式化依赖交给 Model；
+- 为选中的 child Agent 显式打开完整上行内容，但不改变 child request 在主时间线中的去重规则；
+- compact 详情返回后先提交 Raw 内容，再在后台调度整条 Source 的翻译 lookup 重建，首屏详情不得等待全量 hash/index；
 - 把 Model DTO、动作和预渲染受信任子块交给 Renderer。
 
 请求分类、标签、预览、工具配对和 response metadata 不得在 `client.js` 中恢复第二份实现。Trace Domain 仍是协议和消息语义事实源；本 Model 只决定这些既有语义在请求卡上的呈现方式。
@@ -41,7 +43,8 @@ Model 和 Renderer 都不读取 `state`、不访问 DOM、不发网络请求，�
 
 - 普通用户请求、slash command、metadata、Harness 注入和 subagent 的分类、标题、摘要与可见性；
 - 上行快捷 section、工具调用/结果配对和孤立事件；
-- 历史匹配结果保留来源 request id/index，未知或不匹配 id 不生成来源；
+- 历史匹配结果保留来源 request id/index，未知或不匹配 id 不生成来源；大 Trace 的来源索引保持线性；
+- child request 默认不进入主线，但被选入 Agent panel 时复用完整上行卡片语义；
 - Assistant usage、finish reason、Thinking、长回复与工具调用 View DTO；
 - 未知 usage 字段和缺失 response 的保守退化。
 

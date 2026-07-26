@@ -6,26 +6,19 @@ export function renderAgentGraph(
   const summaryStatus = agentSummaryStatus(view.statusCounts, translate);
   const dependencies = { translate, escapeHtml, shortPreview };
   return `
-    <details class="agent-branch-map" aria-label="${escapeHtml(translate("multiAgentAria"))}" data-agent-dashboard="${escapeHtml(view.turnId)}" ${view.dashboardOpen ? "open" : ""}>
-      <summary class="agent-branch-summary" data-agent-dashboard-toggle="${escapeHtml(view.turnId)}">
-        ${view.summaryDots.map((visual) => renderAgentGlyph(visual, escapeHtml, "agent-summary-glyph")).join("")}
-        ${view.summaryOverflow ? `<span class="agent-summary-more">+${escapeHtml(String(view.summaryOverflow))}</span>` : ""}
-        <strong>${escapeHtml(translate("multiAgentSummary", { count: view.branchCount }))}</strong>
-        <span class="agent-branch-summary-status">${escapeHtml(summaryStatus)}</span>
-      </summary>
-      ${view.dashboardOpen ? renderAgentDashboard(view, { ...dependencies, selectedTimelineHtml }) : ""}
-    </details>
-  `;
-}
-
-function renderAgentDashboard(view, dependencies) {
-  const { translate, escapeHtml, selectedTimelineHtml } = dependencies;
-  return `
-    <div class="agent-tab-list" role="tablist" aria-label="${escapeHtml(translate("agentTabsAria"))}">
-      ${view.branchEntries.map((entry) => renderAgentTab(entry, view.selectedBranch?.branch.id, dependencies)).join("")}
-    </div>
-    ${renderSelectedAgentBranch(view.selectedBranch, selectedTimelineHtml, dependencies)}
-    ${renderAgentEvidence(view, dependencies)}
+    <section class="agent-branch-map" aria-label="${escapeHtml(translate("multiAgentAria"))}" data-agent-dashboard="${escapeHtml(view.turnId)}">
+      <header class="agent-dashboard-header">
+        <div class="agent-dashboard-title">
+          <strong>${escapeHtml(translate("multiAgentSummary", { count: view.branchCount }))}</strong>
+          <span>${escapeHtml(summaryStatus)}</span>
+        </div>
+        <div class="agent-tab-list" role="tablist" aria-label="${escapeHtml(translate("agentTabsAria"))}">
+          ${view.branchEntries.map((entry) => renderAgentTab(entry, view.selectedBranch?.branch.id, dependencies)).join("")}
+        </div>
+      </header>
+      ${renderSelectedAgentBranch(view.selectedBranch, selectedTimelineHtml, dependencies)}
+      ${renderAgentEvidence(view, dependencies)}
+    </section>
   `;
 }
 
@@ -62,11 +55,14 @@ function renderSelectedAgentBranch(entry, selectedTimelineHtml, dependencies) {
         </div>
         <span class="agent-branch-status ${escapeHtml(branch.status || "unknown")}">${escapeHtml(branchStatusLabel(branch.status, translate))}</span>
       </header>
-      ${branch.spawn ? renderAgentTaskEvidence(branch.spawn, dependencies) : ""}
-      ${renderAgentRelations(branch, dependencies)}
       <div class="agent-selected-timeline" aria-label="${escapeHtml(translate("agentSelectedTimelineAria", { name: displayName }))}">
         ${selectedTimelineHtml || `<p class="agent-timeline-empty">${escapeHtml(translate("agentNoTimeline"))}</p>`}
       </div>
+      <details class="agent-branch-lineage">
+        <summary>${escapeHtml(translate("agentRelationsAria"))}</summary>
+        ${branch.spawn ? renderAgentTaskEvidence(branch.spawn, dependencies) : ""}
+        ${renderAgentRelations(branch, dependencies)}
+      </details>
     </section>
   `;
 }

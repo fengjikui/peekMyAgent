@@ -72,7 +72,6 @@ const callbacks = Object.fromEntries(
     "onAgentBranchJump",
     "onAgentBranchSelect",
     "onSupportingTimelineToggle",
-    "onAgentDashboardToggle",
     "onSystemDiff",
   ].map((name) => [name, (...args) => calls.push([name, ...args])]),
 );

@@ -44,7 +44,7 @@ assert.match(clientSource, /turnRailController\.bind\(\)/, "the turn rail contro
 assert.match(turnRailSource, /export function visibleTurnWindow\(/, "the turn rail window policy should be directly testable");
 assert.match(turnRailSource, /syncActiveFromScroll\(\)/, "the turn rail controller should own scroll activation");
 assert.equal(REQUEST_RAIL_THRESHOLD, 5, "short turns should not show a second navigation rail");
-assert.equal(requestRailMaxItems(400), 20, "short viewports retain a usable request rail window");
+assert.equal(requestRailMaxItems(400), REQUEST_RAIL_THRESHOLD, "narrow panes retain a usable horizontal request window");
 assert.equal(requestRailMaxItems(2000), REQUEST_RAIL_MAX_ITEMS, "request rail density stays bounded");
 const railRequests = Array.from({ length: 60 }, (_, index) => ({ id: `request-${index + 1}` }));
 assert.deepEqual(visibleRequestWindow(railRequests, "request-30", 20), railRequests.slice(19, 39));
@@ -52,6 +52,10 @@ assert.match(clientSource, /import \{ RequestRailController \} from "\.\/request
 assert.match(clientSource, /function activeTurnRequestUniverse\(\)/, "request rail scope should be the active Turn");
 assert.match(clientSource, /function childRequestIdsForTurn\(turn\)/, "child requests should be removed from the main request universe");
 assert.match(requestRailSource, /allowedIds\.has\(card\.dataset\.card\)/, "scroll activation should ignore child-Agent cards excluded from the rail");
+assert.match(clientSource, /getActiveId: \(\) => state\.activeTimelineRequestId/, "scroll navigation should own a selection separate from Raw detail");
+assert.match(clientSource, /onActiveChange: markActiveTimelineRequest/, "request rail scrolling should never replace the Raw inspector context");
+assert.match(clientSource, /onLoaded: \(fullRequest\) => \{[\s\S]*?scheduleTranslationLookupRefresh\(\)/, "detail hydration should schedule translation indexing after first paint");
+assert.doesNotMatch(clientSource, /onLoaded: async \(fullRequest\)/, "detail hydration must not wait for a whole-source translation rebuild");
 assert.match(timelineRendererSource, /data-turn-window-jump/, "window edge jump controls should be rendered by the Timeline renderer");
 assert.match(timelineControllerSource, /onTurnWindowJump/, "window edge jump controls should be wired by the Timeline controller");
 assert.match(clientSource, /function jumpToTurn\(turnId, scroll = true\)/, "turn rail jumps should re-render the active window");
@@ -62,7 +66,8 @@ assert.match(messagesRendererSource, /renderMarkdown\(block\.textPreview\.text\)
 assert.match(markdownSource, /export function renderSafeMarkdown\(text\)/, "safe markdown renderer should be testable as a module");
 assert.match(messagesRendererSource, /messageTextTruncated/, "organized Messages truncation should be visible to users");
 assert.match(clientSource, /state\.openSupportingTimelines\.has\(turnId\)/, "supporting timelines should only render after they are opened");
-assert.match(agentGraphRendererSource, /view\.dashboardOpen \? renderAgentDashboard\(view,/, "multi-agent dashboard details should only render after opening");
+assert.match(agentGraphRendererSource, /class="agent-dashboard-header"/, "child Agent tabs should remain visible without an extra disclosure click");
+assert.doesNotMatch(agentGraphRendererSource, /data-agent-dashboard-toggle/, "the child timeline should not require an extra dashboard toggle");
 assert.match(agentGraphRendererSource, /data-agent-branch-select/, "each child Agent should be selectable through a tab");
 assert.match(agentGraphRendererSource, /selectedTimelineHtml/, "the selected branch should accept the shared request-card timeline language");
 assert.match(clientSource, /state\.selectedAgentBranches\.set\(turn\.id, branchId\)/, "selected child Agent state should be stable per Turn");
@@ -76,6 +81,7 @@ assert.match(timelineModelSource, /trace_filter_active:\s*true/, "Trace filters 
 assert.match(stylesSource, /\.timeline-window-edge-card/, "window edge UI should be styled");
 assert.match(stylesSource, /\.agent-tab-list/, "child Agent tabs should use the shared product tab grammar");
 assert.match(stylesSource, /\.agent-selected-timeline/, "the selected child timeline should have a stable reading surface");
+assert.match(stylesSource, /\.request-rail\s*\{[\s\S]*?position:\s*sticky/, "request navigation should live in the main reading flow instead of a second floating side rail");
 assert.match(stylesSource, /\.raw-message-truncation/, "organized Messages truncation notice should be styled");
 assert.match(stylesSource, /container-name:\s*trace-main/, "the main pane should expose its own responsive container");
 assert.match(stylesSource, /@container trace-main \(max-width: 720px\)/, "the topbar should adapt to the actual main-pane width");

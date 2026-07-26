@@ -299,13 +299,13 @@ cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 ses
 
 浏览器中的 Source 数据生命周期由 `SourceTimelineController` 所有。它为每次 Source 加载分配 generation token，在持久的 `TimelineEntityStore` 上合并首屏、cursor page 和详情覆盖，并在临时 Store 中完成 live refresh 或过期 cursor 回建后原子提交。旧 Source/旧 cursor 的迟到结果会被拒绝；progressive cursor 工作期间自动刷新会跳过该周期，避免两个异步写入者竞争同一 Store。DOM、URL、滚动、翻译和活动选择仍由 `client.js` 装配。完整边界见 [Source Timeline Controller 契约](source-timeline-controller-contract.md)。
 
-折叠状态是实际渲染边界，而不只是 CSS 隐藏：幕后请求时间线在展开前不创建 request card；多 Agent 看板在展开前只创建摘要；打开看板后创建一行 child Agent tabs，并只为选中分支生成完整 request card timeline。这个边界避免多个不可见子分支同时阻塞长 Trace 的主线程。
+折叠状态是实际渲染边界，而不只是 CSS 隐藏：幕后请求时间线在展开前不创建 request card；多 Agent 看板的 child tabs 始终可见，并只为一个选中分支生成完整 request card timeline。同一 Turn 内切换 child tab 只原位替换该 Agent 区域，不重建整条 Timeline。这个边界既省去额外一次 disclosure 点击，也避免多个不可见子分支同时阻塞长 Trace 的主线程。
 
-多 Agent 看板第一行是一位 child Agent 一个 tab。真实 spawn nickname/分支 label 是主标签，通用 `子N` 只作辅助；颜色和几何 glyph 由稳定 `agent_id` 派生，不随显示顺序变化。选中 tab 后使用主 Agent 相同的 Request Card/Assistant/Thinking/工具语言展示该 child 的完整有序 request/response timeline，parent spawn、启动确认、结果回流和 linkage confidence 作为紧凑支持证据保留。已进入 child panel 的 request id 从主请求、幕后请求和 request rail 中去除，避免同一请求出现两次；未捕获 child 模型请求时只显示诚实空态，不推断虚构步骤。Trace 顶层搜索索引派生摘要而不是 Raw body，可按异常、慢请求、工具和子 Agent 定位请求。结果以 Turn 为归属、以命中请求为证据，每次最多追加 24 条，避免搜索本身重新制造超大 DOM。主栏使用容器条件适配真实栏宽，三栏拖拽或折叠不会再把标题挤成竖排。
+多 Agent 看板第一行是一位 child Agent 一个 tab。真实 spawn nickname/分支 label 是主标签，通用 `子N` 只作辅助；颜色和几何 glyph 由稳定 `agent_id` 派生，不随显示顺序变化。选中 tab 后使用主 Agent 相同的 Request Card/Assistant/Thinking/工具语言展示该 child 的完整有序上行/下行 timeline，每张 request 保留 child owner 与右侧详情动作；parent spawn、启动确认、结果回流和 linkage confidence 放在 timeline 后的次级证据区。已进入 child panel 的 request id 从主请求、幕后请求和 request rail 中去除，避免同一请求出现两次；未捕获 child 模型请求时只显示诚实空态，不推断虚构步骤。Trace 顶层搜索索引派生摘要而不是 Raw body，可按异常、慢请求、工具和子 Agent 定位请求。结果以 Turn 为归属、以命中请求为证据，每次最多追加 24 条，避免搜索本身重新制造超大 DOM。主栏使用容器条件适配真实栏宽，三栏拖拽或折叠不会再把标题挤成竖排。
 
 Raw Inspector 的分类标签、当前区块搜索和原文/翻译操作组成同一个粘性控制区。原文模式只搜索原始 JSON 路径和值；整理/翻译模式只搜索当前可见的结构化 system、harness 或工具文本，并筛选原有块和工具组。匹配计数以可见关键词的实际出现次数为准，上一个/下一个按钮逐词循环定位并强化当前高亮。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属；单个工具的说明、全部参数、合并原文、复制与重译作为一个视觉及动作单元，底层仍沿用既有块级 hash 缓存。
 
-Raw Inspector 的一次导航由 `RawInspectorController` 串联：更新 Store 中的 request/section/mode、打开右栏、同步提交已有完整详情或按需读取 compact detail，再通知搜索装饰。控制器使用递增 operation id 和 Store context 双重校验；用户快速切换请求或区块时，旧详情或旧错误即使更晚返回也不能覆盖当前面板。后台同上下文刷新还需经过交互 gate，Raw 搜索正在 IME 组词时不会替换输入框；选词完成后的搜索重绘会消费最新状态。翻译缓存、Raw section 语义、HTML 和搜索算法仍由注入端口及各自 Model/Renderer/Controller 所有。完整边界见 [Raw Inspector Controller 契约](raw-inspector-controller-contract.md)。
+Raw Inspector 的一次导航由 `RawInspectorController` 串联：更新 Store 中的 `activeRequestId`/section/mode、打开右栏、同步提交已有完整详情或按需读取 compact detail，再通知搜索装饰。中栏滚动与 Request 导航只更新独立的 `activeTimelineRequestId`，不能让正在读取的 Raw operation 失效。控制器使用递增 operation id 和 Raw context 双重校验；用户快速切换证据请求或区块时，旧详情或旧错误即使更晚返回也不能覆盖当前面板。详情返回先绘制，整条 Source 的翻译 lookup 重建在后台调度，不能阻塞首次内容提交。后台同上下文刷新还需经过交互 gate，Raw 搜索正在 IME 组词时不会替换输入框；选词完成后的搜索重绘会消费最新状态。翻译缓存、Raw section 语义、HTML 和搜索算法仍由注入端口及各自 Model/Renderer/Controller 所有。完整边界见 [Raw Inspector Controller 契约](raw-inspector-controller-contract.md)。
 
 搜索的递归条目、大小写无关过滤、特殊字符转义、摘要窗口、高亮分段和循环索引由 `raw-search-model.js` 统一。过滤始终检查完整路径和值；结果摘要必须围绕完整值中的真实命中生成，不能因为前导预览截断而出现“计数已命中、页面无高亮”。DOM 层把可见关键词渲染为 `mark`，按实际可见出现次数计数并滚动到当前命中。纯模型契约之外，隔离 Viewer/Capture Proxy 和真实 Chromium/Edge 的发布 smoke 覆盖中文 IME、长文本尾部命中、计数、高亮、循环导航、区块切换和粘性控件。完整边界见 [Raw 搜索真实浏览器契约](raw-search-browser-contract.md)。
 
@@ -317,7 +317,7 @@ Turn Rail 已作为首个 Viewer Client feature 从全局脚本迁出。`client.
 
 Viewer 的浏览器请求统一通过 `ViewerApiClient`。它集中定义 source/view/request/translation/import/export/send/watch API 的 URL 编码、method、Content-Type、intent 和错误传播；它不持有界面状态，也不操作 DOM。Server 继续承担最终的 loopback 与请求意图校验。
 
-Viewer 的核心选择和偏好状态已经由最小 `ViewerClientStore` 所有。当前涵盖 source/Turn/request 选择、Raw section/mode、UI 与目标翻译语言、外观主题、三栏开关/宽度和 latest-only。Store 只提供原子 patch、领域写入约束和带 `changedKeys` 的订阅通知，不访问 DOM、网络或 `localStorage`；`client.js` 暂时复用同一 state 引用读取，并继续装配副作用。受管字段禁止再直接赋值；活动 Turn/request 已由 Store 通知统一同步 DOM、Turn Rail 和 Request Rail。详细契约见 [Viewer Client Store 契约](viewer-client-store-contract.md)。
+Viewer 的核心选择和偏好状态已经由最小 `ViewerClientStore` 所有。当前涵盖 source/Turn、Raw request、Timeline request、Raw section/mode、UI 与目标翻译语言、外观主题、三栏开关/宽度和 latest-only。Store 只提供原子 patch、领域写入约束和带 `changedKeys` 的订阅通知，不访问 DOM、网络或 `localStorage`；`client.js` 暂时复用同一 state 引用读取，并继续装配副作用。受管字段禁止再直接赋值；活动 Turn/Timeline request 由 Store 通知统一同步 DOM、Turn Rail 和 Request Rail，Raw request 保持独立证据上下文。详细契约见 [Viewer Client Store 契约](viewer-client-store-contract.md)。
 
 Source 数据层和应用生命周期现在分层：`SourceTimelineController` 独占 generation/cursor/normalized store；`ActiveSourceController` 编排 Source catalog、渐进首屏、后台 page、自动刷新、snapshot 翻译和 token-gated 可见提交。DOM、selection、URL 和滚动仍由 `client.js` 注入，mutation 返回的 catalog 经 version gate 防止旧轮询覆盖。边界见 [Active Source Controller 契约](active-source-controller-contract.md) 与 [Source Timeline Controller 契约](source-timeline-controller-contract.md)。
 

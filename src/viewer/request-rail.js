@@ -1,6 +1,6 @@
 export const REQUEST_RAIL_THRESHOLD = 5;
-export const REQUEST_RAIL_MAX_ITEMS = 48;
-export const REQUEST_RAIL_ITEM_PITCH = 9;
+export const REQUEST_RAIL_MAX_ITEMS = 18;
+export const REQUEST_RAIL_ITEM_PITCH = 52;
 
 export class RequestRailController {
   constructor({
@@ -58,11 +58,24 @@ export class RequestRailController {
       return;
     }
     const activeId = this.getActiveId();
-    const requests = visibleRequestWindow(allRequests, activeId, requestRailMaxItems(this.window.innerHeight));
+    const activePosition = allRequests.findIndex((request) => request.id === activeId);
+    const requests = visibleRequestWindow(
+      allRequests,
+      activeId,
+      requestRailMaxItems(this.mainPanel?.clientWidth || this.window.innerWidth),
+    );
     this.element.hidden = false;
     this.element.removeAttribute("aria-hidden");
-    this.element.innerHTML = requests.map((request) => this.renderItem(request, activeId)).join("");
-    const activePosition = allRequests.findIndex((request) => request.id === activeId);
+    this.element.innerHTML = `
+      <span class="request-rail-context">
+        <strong>${this.escapeHtml(this.translate("requestRailContext"))}</strong>
+        <span>${this.escapeHtml(this.translate("requestRailPosition", {
+          current: activePosition >= 0 ? activePosition + 1 : 1,
+          total: allRequests.length,
+        }))}</span>
+      </span>
+      <span class="request-rail-track">${requests.map((request) => this.renderItem(request, activeId)).join("")}</span>
+    `;
     this.element.setAttribute(
       "aria-label",
       activePosition >= 0
@@ -74,7 +87,7 @@ export class RequestRailController {
   renderItem(request, activeId) {
     return `
       <button class="request-mark ${request.id === activeId ? "active" : ""}" type="button" data-request="${this.escapeHtml(request.id)}" aria-label="${this.escapeHtml(this.translate("jumpToRequestAria", { index: request.request_index }))}">
-        <span class="request-line"></span>
+        <span class="request-number">#${this.escapeHtml(request.request_index)}</span>
         <span class="request-tooltip">
           <strong>#${this.escapeHtml(request.request_index)} · ${this.escapeHtml(this.titleFor(request))}</strong>
           <span>${this.escapeHtml(this.excerptFor(request))}</span>
@@ -140,9 +153,9 @@ export function visibleRequestWindow(requests, activeId, maxItems) {
   return allRequests.slice(start, start + limit);
 }
 
-export function requestRailMaxItems(viewportHeight) {
-  const available = Math.max(180, Number(viewportHeight || 0) - 360);
-  return Math.min(REQUEST_RAIL_MAX_ITEMS, Math.max(20, Math.floor(available / REQUEST_RAIL_ITEM_PITCH)));
+export function requestRailMaxItems(viewportWidth) {
+  const available = Math.max(260, Number(viewportWidth || 0) - 190);
+  return Math.min(REQUEST_RAIL_MAX_ITEMS, Math.max(REQUEST_RAIL_THRESHOLD, Math.floor(available / REQUEST_RAIL_ITEM_PITCH)));
 }
 
 function elementScrollTop(element, scroller) {

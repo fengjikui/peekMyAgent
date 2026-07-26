@@ -35,6 +35,7 @@ import {
 import {
   buildTimelineAssistantResponseView,
   buildTimelineRequestIdentity,
+  buildTimelineToolOriginIndex,
   buildTimelineToolExchangeView,
   buildTimelineTurnInputView,
   buildTimelineUpstreamView,
@@ -133,7 +134,6 @@ const state = Object.assign(clientStore.state, {
   expandedThinking: new Set(),
   translationGenerate: { loading: false, error: "", message: "" },
   selectedAgentBranches: new Map(),
-  openAgentDashboards: new Set(),
   openSupportingTimelines: new Set(),
   toolOriginReturnContext: null,
   traceQuery: "",
@@ -149,6 +149,9 @@ const RAW_METADATA_MODE_KEY = "peekmyagent.rawMetadataMode";
 const INITIAL_SOURCE_REQUEST_LIMIT = 32;
 const CURSOR_PAGE_REQUEST_LIMIT = 100;
 const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
+let toolOriginIndexRequests = null;
+let toolOriginIndex = new Map();
+let translationLookupRefreshTimer = 0;
 const els = {
   appShell: document.querySelector(".app-shell"),
   toggleSidebar: document.querySelector("#toggleSidebar"),
@@ -232,14 +235,14 @@ const requestRailController = new RequestRailController({
   element: els.requestRail,
   mainPanel: els.mainPanel,
   getRequests: () => activeTurnRequestUniverse(),
-  getActiveId: () => state.activeRequestId,
+  getActiveId: () => state.activeTimelineRequestId,
   getActiveTurnId: () => state.activeId,
   titleFor: requestDisplayTitle,
   excerptFor: requestExcerpt,
   translate: t,
   escapeHtml,
   onJump: jumpToRequest,
-  onActiveChange: markActiveRequest,
+  onActiveChange: markActiveTimelineRequest,
 });
 const traceTimelineController = new TraceTimelineController({
   queryElement: els.traceQueryBar,
@@ -277,6 +280,7 @@ const traceTimelineController = new TraceTimelineController({
   },
   onRaw({ requestId, section, mode }) {
     state.toolOriginReturnContext = null;
+    markActiveTimelineRequest(requestId, false);
     rawInspectorController.show(requestId, section, { mode });
   },
   onToolOriginJump: showToolOrigin,
@@ -286,11 +290,6 @@ const traceTimelineController = new TraceTimelineController({
   onSupportingTimelineToggle(turnId) {
     if (state.openSupportingTimelines.has(turnId)) state.openSupportingTimelines.delete(turnId);
     else state.openSupportingTimelines.add(turnId);
-    renderTimelineSurface();
-  },
-  onAgentDashboardToggle(turnId) {
-    if (state.openAgentDashboards.has(turnId)) state.openAgentDashboards.delete(turnId);
-    else state.openAgentDashboards.add(turnId);
     renderTimelineSurface();
   },
   onSystemDiff: showSystemDiff,
@@ -328,10 +327,10 @@ const translationCacheController = new TranslationCacheController({
 });
 requestDetailCache = new RequestDetailCache({
   loadDetail: async (sourceId, requestId) => (await api.requestDetail(sourceId, requestId)).request,
-  onLoaded: async (fullRequest) => {
+  onLoaded: (fullRequest) => {
     const { request, data } = sourceTimelineController.mergeRequestDetail(fullRequest);
     if (data) state.data = data;
-    await rebuildTranslationLookupForCurrentData();
+    scheduleTranslationLookupRefresh();
     return request;
   },
   onCached: (fullRequest) => {
@@ -502,7 +501,9 @@ const activeSourceController = new ActiveSourceController({
 });
 clientStore.subscribe((change) => {
   if (change.changedKeys.includes("activeId")) syncActiveTurnDom(change.state.activeId);
-  if (change.changedKeys.includes("activeRequestId")) syncActiveRequestDom(change.state.activeRequestId);
+  if (change.changedKeys.includes("activeTimelineRequestId")) {
+    syncActiveRequestDom(change.state.activeTimelineRequestId);
+  }
 });
 
 init();
@@ -644,10 +645,13 @@ function loadSource(sourceId, options = {}) {
 function resetActiveSourceContext() {
   rawInspectorController.invalidate();
   requestDetailCache.clear();
+  if (translationLookupRefreshTimer) window.clearTimeout(translationLookupRefreshTimer);
+  translationLookupRefreshTimer = 0;
+  toolOriginIndexRequests = null;
+  toolOriginIndex = new Map();
   translationActionController.invalidate();
   translationCacheController.invalidate();
   state.openSupportingTimelines.clear();
-  state.openAgentDashboards.clear();
   state.expandedThinking.clear();
   state.selectedAgentBranches.clear();
   state.toolOriginReturnContext = null;
@@ -670,8 +674,11 @@ function applyRefreshedSourceData(data, { wasNearBottom = false, scrollTop = 0 }
   const activeRequestId = data.requests.some((request) => request.id === state.activeRequestId)
     ? state.activeRequestId
     : data.requests.at(-1)?.id || data.requests[0]?.id || null;
+  const activeTimelineRequestId = data.requests.some((request) => request.id === state.activeTimelineRequestId)
+    ? state.activeTimelineRequestId
+    : activeRequestId;
   clientStore.setSelection(
-    { activeSourceId: data.source.id, activeId, activeRequestId },
+    { activeSourceId: data.source.id, activeId, activeRequestId, activeTimelineRequestId },
     { reason: "refresh-source" },
   );
   renderAll();
@@ -691,8 +698,12 @@ function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } =
     preserveScroll && data.requests.some((request) => request.id === state.activeRequestId)
       ? state.activeRequestId
       : data.requests[0]?.id || null;
+  const activeTimelineRequestId =
+    preserveScroll && data.requests.some((request) => request.id === state.activeTimelineRequestId)
+      ? state.activeTimelineRequestId
+      : activeRequestId;
   clientStore.setSelection(
-    { activeSourceId: data.source.id, activeId, activeRequestId },
+    { activeSourceId: data.source.id, activeId, activeRequestId, activeTimelineRequestId },
     { reason: "load-source" },
   );
   const url = new URL(window.location.href);
@@ -726,6 +737,21 @@ async function ensureDetailsForRawSection(request, section) {
 
 async function rebuildTranslationLookupForCurrentData() {
   await translationCacheController.refreshLookup(state.data?.requests || []);
+}
+
+function scheduleTranslationLookupRefresh() {
+  if (translationLookupRefreshTimer) return;
+  translationLookupRefreshTimer = window.setTimeout(async () => {
+    translationLookupRefreshTimer = 0;
+    try {
+      await rebuildTranslationLookupForCurrentData();
+      if (state.activeRequestId && !els.rawTree.classList.contains("empty")) {
+        await rawInspectorController.refresh();
+      }
+    } catch (error) {
+      console.warn("peekMyAgent detail translation lookup refresh failed", error);
+    }
+  }, 0);
 }
 
 async function loadTranslationsForActiveSource({ autoRefresh = true, data = state.data } = {}) {
@@ -1044,7 +1070,7 @@ function renderTimelineSurface({ updateViewControls = true } = {}) {
         : renderTraceNoResultsView({ translate: t, escapeHtml })
       : renderEmptyTimelineView({ summary: source.workbench, translate: t, escapeHtml }),
     activeTurnId: state.activeId,
-    activeRequestId: state.activeRequestId,
+    activeRequestId: state.activeTimelineRequestId,
   });
   renderNavigationRails();
 }
@@ -1447,14 +1473,13 @@ function renderAgentBranchesForTurn(turn) {
   const view = buildAgentGraphView({
     turn,
     trace,
-    dashboardOpen: state.openAgentDashboards.has(turn.id),
     selectedBranchId: state.selectedAgentBranches.get(turn.id) || null,
   });
-  const selectedRequestIds = view?.dashboardOpen ? view.selectedBranch?.branch?.request_ids || [] : [];
+  const selectedRequestIds = view?.selectedBranch?.branch?.request_ids || [];
   const selectedTimelineHtml = selectedRequestIds
     .map((requestId) => currentRequestById(requestId))
     .filter(Boolean)
-    .map(renderTurnRequest)
+    .map((request) => renderRequestCard(request, { includeSubagentContent: true }))
     .join("") || "";
   return renderAgentGraphView(view, {
     translate: t,
@@ -1462,6 +1487,14 @@ function renderAgentBranchesForTurn(turn) {
     shortPreview,
     selectedTimelineHtml,
   });
+}
+
+function renderAgentBranchesForTurnInPlace(turn) {
+  const current = els.timeline.querySelector(`[data-agent-dashboard="${cssEscape(turn.id)}"]`);
+  if (!current) return false;
+  current.outerHTML = renderAgentBranchesForTurn(turn);
+  traceTimelineController.syncActiveRequest(state.activeTimelineRequestId);
+  return true;
 }
 
 function requestAgentBranchStatusLabel(status) {
@@ -1495,7 +1528,11 @@ function renderRequestAgentBranchStat(request) {
   return `<span class="stat-chip subagent" title="${title}">${text}</span>`;
 }
 
-function renderUpstreamEntry(request, evidenceView = buildRequestEvidenceView(request, { translate: t })) {
+function renderUpstreamEntry(
+  request,
+  evidenceView = buildRequestEvidenceView(request, { translate: t }),
+  { includeSubagentContent = false } = {},
+) {
   const expanded = !isTimelineSemanticEvent(request) && state.upstreamExpanded.has(request.id);
   const meta = renderProviderUsageStats(request);
   const view = buildTimelineUpstreamView(request, {
@@ -1504,6 +1541,7 @@ function renderUpstreamEntry(request, evidenceView = buildRequestEvidenceView(re
     preview: shortPreview,
     serialize: stableJson,
     formatCompactNumber,
+    includeSubagentContent,
   });
   return renderTimelineUpstreamEntryView({
     entry: {
@@ -1551,7 +1589,9 @@ function renderRequestCard(request, options = {}) {
     upstreamOpen,
     upstreamEntryHtml: options.turnInput
       ? renderTurnInputEntry(request, options.turnInput, evidenceView)
-      : renderUpstreamEntry(request, evidenceView),
+      : renderUpstreamEntry(request, evidenceView, {
+          includeSubagentContent: Boolean(options.includeSubagentContent),
+        }),
     upstreamBodyHtml: upstreamOpen ? renderUpstreamDetailsBody(request) : renderCollapsedUpstreamPlaceholder(request),
     toolExchangeHtml: toolExchange,
     assistantResponseHtml: assistantResponse,
@@ -1643,25 +1683,12 @@ function renderToolExchange(request) {
 }
 
 function priorTimelineToolCalls(request) {
-  const requestIndex = Number(request?.request_index || 0);
-  const callsById = new Map();
-  for (const candidate of state.data?.requests || []) {
-    if (Number(candidate?.request_index || 0) >= requestIndex) continue;
-    const calls = [
-      ...(candidate?.summary?.current_tool_calls || []),
-      ...(candidate?.summary?.response?.tool_calls || []),
-    ];
-    for (const call of calls) {
-      if (call?.id) {
-        callsById.set(call.id, {
-          call,
-          requestId: candidate.id,
-          requestIndex: candidate.request_index,
-        });
-      }
-    }
+  const requests = state.data?.requests || [];
+  if (toolOriginIndexRequests !== requests) {
+    toolOriginIndexRequests = requests;
+    toolOriginIndex = buildTimelineToolOriginIndex(requests);
   }
-  return [...callsById.values()];
+  return toolOriginIndex.get(request?.id) || [];
 }
 
 function renderAssistantResponse(request) {
@@ -1747,18 +1774,24 @@ function jumpToRequest(requestId) {
   if (!requestId) return;
   const request = state.data?.requests?.find((item) => item.id === requestId);
   if (!request) return;
-  if (request.turn_id && request.turn_id !== state.activeId) jumpToTurn(request.turn_id, false);
+  let needsRender = false;
+  if (request.turn_id && request.turn_id !== state.activeId) {
+    clientStore.setSelection({ activeId: request.turn_id }, { reason: "jump-to-request-turn" });
+    needsRender = true;
+  }
   const agentBranch = agentBranchForRequest(requestId);
   if (agentBranch && request.turn_id) {
-    state.openAgentDashboards.add(request.turn_id);
-    state.selectedAgentBranches.set(request.turn_id, agentBranch.id);
-    renderTimelineSurface();
+    if (state.selectedAgentBranches.get(request.turn_id) !== agentBranch.id) {
+      state.selectedAgentBranches.set(request.turn_id, agentBranch.id);
+      needsRender = true;
+    }
   }
-  if (!els.timeline.querySelector(`[data-card="${cssEscape(requestId)}"]`) && request.turn_id) {
+  if (!needsRender && !els.timeline.querySelector(`[data-card="${cssEscape(requestId)}"]`) && request.turn_id) {
     state.openSupportingTimelines.add(request.turn_id);
-    renderTimelineSurface();
+    needsRender = true;
   }
-  markActiveRequest(requestId, true);
+  if (needsRender) renderTimelineSurface();
+  markActiveTimelineRequest(requestId, true);
 }
 
 function agentBranchForRequest(requestId) {
@@ -1791,12 +1824,15 @@ function restoreToolOriginResult() {
 function jumpToAgentBranch(branchId) {
   if (!branchId) return;
   const turn = state.data?.turns?.find((item) => (item.agent_branches || []).includes(branchId));
+  let needsRender = false;
   if (turn) {
-    clientStore.setSelection({ activeId: turn.id }, { reason: "jump-to-agent-branch" });
-    state.openAgentDashboards.add(turn.id);
+    if (state.activeId !== turn.id) {
+      clientStore.setSelection({ activeId: turn.id }, { reason: "jump-to-agent-branch" });
+      needsRender = true;
+    }
     state.selectedAgentBranches.set(turn.id, branchId);
   }
-  renderTimelineSurface();
+  if (needsRender || !turn || !renderAgentBranchesForTurnInPlace(turn)) renderTimelineSurface();
   const target = document.querySelector(`[data-agent-selected-branch="${cssEscape(branchId)}"]`);
   if (!target) return;
   const turnElement = target.closest("[data-turn-group]");
@@ -1811,7 +1847,7 @@ function selectAgentBranch(branchId) {
   const turn = state.data?.turns?.find((item) => (item.agent_branches || []).includes(branchId));
   if (!turn) return;
   state.selectedAgentBranches.set(turn.id, branchId);
-  renderTimelineSurface();
+  if (!renderAgentBranchesForTurnInPlace(turn)) renderTimelineSurface();
 }
 
 function scrollElementIntoView(target, { blockOffset = 0 } = {}) {
@@ -1922,8 +1958,8 @@ function syncActiveTurnDom(id) {
   traceTimelineController.syncActiveTurn(id);
 }
 
-function markActiveRequest(id, scroll) {
-  clientStore.setSelection({ activeRequestId: id }, { reason: "mark-active-request" });
+function markActiveTimelineRequest(id, scroll) {
+  clientStore.setSelection({ activeTimelineRequestId: id }, { reason: "mark-active-timeline-request" });
   const target = document.getElementById(id);
   if (scroll) target?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -1934,6 +1970,7 @@ function syncActiveRequestDom(id) {
 }
 
 function showSystemDiff(id) {
+  markActiveTimelineRequest(id, false);
   rawInspectorController.show(id, "system_diff");
 }
 

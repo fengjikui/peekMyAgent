@@ -1,5 +1,3 @@
-export const AGENT_SUMMARY_DOT_LIMIT = 8;
-
 const AGENT_BRANCH_COLORS = [
   "oklch(56% 0.2 258)",
   "oklch(52% 0.12 155)",
@@ -12,7 +10,7 @@ const AGENT_BRANCH_COLORS = [
 ];
 const AGENT_BRANCH_GLYPHS = ["circle", "square", "diamond", "triangle", "hexagon", "cross"];
 
-export function buildAgentGraphView({ turn, trace, dashboardOpen = false, selectedBranchId = null } = {}) {
+export function buildAgentGraphView({ turn, trace, selectedBranchId = null } = {}) {
   const turnId = String(turn?.id || "");
   const branchIds = new Set(Array.isArray(turn?.agent_branches) ? turn.agent_branches : []);
   const branches = (Array.isArray(trace?.branches) ? trace.branches : [])
@@ -37,13 +35,10 @@ export function buildAgentGraphView({ turn, trace, dashboardOpen = false, select
 
   return {
     turnId,
-    dashboardOpen: Boolean(dashboardOpen),
     branches,
     branchEntries,
     branchCount: branches.length,
     selectedBranch,
-    summaryDots: branchEntries.slice(0, AGENT_SUMMARY_DOT_LIMIT).map(({ visual }) => visual),
-    summaryOverflow: Math.max(0, branches.length - AGENT_SUMMARY_DOT_LIMIT),
     spawnIndexes: uniqueIndexes(branches, (branch) => branch.spawn?.parent_request_index),
     launchIndexes: uniqueIndexes(branches, (branch) => branch.launch?.parent_request_index),
     returnIndexes: uniqueIndexes(branches, (branch) => branch.return?.parent_request_index),

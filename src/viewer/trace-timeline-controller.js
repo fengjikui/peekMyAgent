@@ -18,7 +18,6 @@ export class TraceTimelineController {
     onAgentBranchJump,
     onAgentBranchSelect = () => {},
     onSupportingTimelineToggle,
-    onAgentDashboardToggle,
     onSystemDiff,
     searchDelay = 160,
     windowRef = globalThis.window,
@@ -40,7 +39,6 @@ export class TraceTimelineController {
     this.onAgentBranchJump = requiredFunction(onAgentBranchJump, "onAgentBranchJump");
     this.onAgentBranchSelect = requiredFunction(onAgentBranchSelect, "onAgentBranchSelect");
     this.onSupportingTimelineToggle = requiredFunction(onSupportingTimelineToggle, "onSupportingTimelineToggle");
-    this.onAgentDashboardToggle = requiredFunction(onAgentDashboardToggle, "onAgentDashboardToggle");
     this.onSystemDiff = requiredFunction(onSystemDiff, "onSystemDiff");
     this.searchDelay = searchDelay;
     this.window = windowRef || globalThis;
@@ -133,7 +131,6 @@ export class TraceTimelineController {
     else if (action.type === "agent-branch-jump") this.onAgentBranchJump(action.branchId);
     else if (action.type === "agent-branch-select") this.onAgentBranchSelect(action.branchId);
     else if (action.type === "supporting-timeline-toggle") this.onSupportingTimelineToggle(action.turnId);
-    else if (action.type === "agent-dashboard-toggle") this.onAgentDashboardToggle(action.turnId);
     else if (action.type === "system-diff") this.onSystemDiff(action.requestId);
   }
 
@@ -208,7 +205,6 @@ export function timelineAction(target, root) {
       "[data-supporting-timeline-toggle]",
       (element) => ({ type: "supporting-timeline-toggle", turnId: element.dataset.supportingTimelineToggle }),
     ],
-    ["[data-agent-dashboard-toggle]", (element) => ({ type: "agent-dashboard-toggle", turnId: element.dataset.agentDashboardToggle })],
     ["[data-system-diff]", (element) => ({ type: "system-diff", requestId: element.dataset.systemDiff })],
   ];
   for (const [selector, build] of selectors) {

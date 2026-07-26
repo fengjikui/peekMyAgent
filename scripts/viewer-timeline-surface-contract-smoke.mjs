@@ -206,13 +206,13 @@ for (const functionName of [
 assert.doesNotMatch(translationActionControllerSource, /renderAll\s*\(/, "block translation should not rebuild the Viewer");
 assert.match(
   source,
-  /clientStore\.subscribe\(\(change\) => \{[\s\S]*?syncActiveTurnDom\(change\.state\.activeId\)[\s\S]*?syncActiveRequestDom\(change\.state\.activeRequestId\)/,
+  /clientStore\.subscribe\(\(change\) => \{[\s\S]*?syncActiveTurnDom\(change\.state\.activeId\)[\s\S]*?syncActiveRequestDom\(change\.state\.activeTimelineRequestId\)/,
   "Client Store selection notifications should own active DOM synchronization",
 );
 assert.match(functionSource("markActiveTurn"), /clientStore\.setSelection/);
 assert.doesNotMatch(functionSource("markActiveTurn"), /querySelectorAll/);
-assert.match(functionSource("markActiveRequest"), /clientStore\.setSelection/);
-assert.doesNotMatch(functionSource("markActiveRequest"), /querySelectorAll/);
+assert.match(functionSource("markActiveTimelineRequest"), /activeTimelineRequestId/);
+assert.doesNotMatch(functionSource("markActiveTimelineRequest"), /querySelectorAll/);
 assert.doesNotMatch(functionSource("syncActiveTurnDom"), /document\.querySelectorAll/);
 assert.doesNotMatch(functionSource("syncActiveRequestDom"), /document\.querySelectorAll/);
 assert.match(functionSource("syncActiveTurnDom"), /traceTimelineController\.syncActiveTurn/);

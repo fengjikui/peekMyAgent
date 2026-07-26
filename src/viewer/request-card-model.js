@@ -38,9 +38,10 @@ export function buildTimelineUpstreamView(
     preview = defaultPreview,
     serialize = stableSerialize,
     formatCompactNumber = defaultNumberFormat,
+    includeSubagentContent = false,
   } = {},
 ) {
-  const showInlineContent = shouldShowTimelineRequestContent(request, { cleanText });
+  const showInlineContent = shouldShowTimelineRequestContent(request, { cleanText, includeSubagentContent });
   const entryPreview = cleanText(request.summary?.entry?.text || "");
   const semanticEvent = buildTimelineSemanticEventView(request, { translate, formatCompactNumber });
   return {
@@ -214,10 +215,13 @@ function describeObservedToolSemantics(call = {}, translate = identityTranslate)
   };
 }
 
-export function shouldShowTimelineRequestContent(request = {}, { cleanText = defaultCleanText } = {}) {
+export function shouldShowTimelineRequestContent(
+  request = {},
+  { cleanText = defaultCleanText, includeSubagentContent = false } = {},
+) {
   if (request.source_hint?.type === "metadata" || request.source_hint?.type === "background") return false;
   if (request.summary?.command_message) return false;
-  if (request.is_subagent) return false;
+  if (request.is_subagent && !includeSubagentContent) return false;
   if (request.source_hint?.type === "parent_spawn") return false;
   if ((request.summary?.current_tool_results?.length || 0) > 0) return false;
   if ((request.summary?.current_tool_calls?.length || 0) > 0) return false;
@@ -419,6 +423,34 @@ export function pairTimelineToolEvents(calls = [], results = [], { priorToolCall
     });
   }
   return pairs;
+}
+
+export function buildTimelineToolOriginIndex(requests = []) {
+  const latestCallsById = new Map();
+  const originsByRequestId = new Map();
+  for (const request of requests || []) {
+    const origins = [];
+    const seenResultIds = new Set();
+    for (const result of request?.summary?.current_tool_results || []) {
+      if (!result?.id || seenResultIds.has(result.id)) continue;
+      seenResultIds.add(result.id);
+      const origin = latestCallsById.get(result.id);
+      if (origin) origins.push(origin);
+    }
+    originsByRequestId.set(request?.id, origins);
+    for (const call of [
+      ...(request?.summary?.current_tool_calls || []),
+      ...(request?.summary?.response?.tool_calls || []),
+    ]) {
+      if (!call?.id) continue;
+      latestCallsById.set(call.id, {
+        call,
+        requestId: request.id,
+        requestIndex: request.request_index,
+      });
+    }
+  }
+  return originsByRequestId;
 }
 
 function normalizePriorToolCall(value) {

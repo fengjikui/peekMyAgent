@@ -58,7 +58,6 @@ const turn = { id: "turn-7", agent_branches: ["branch-ptolemy", "branch-euclid"]
 const view = buildAgentGraphView({
   turn,
   trace,
-  dashboardOpen: true,
   selectedBranchId: "branch-euclid",
 });
 
@@ -128,7 +127,8 @@ const html = renderAgentGraph(view, {
   selectedTimelineHtml: '<article data-card="request-14">trusted child timeline</article>',
 });
 
-assert.match(html, /data-agent-dashboard="turn-7" open/);
+assert.match(html, /<section class="agent-branch-map"[^>]*data-agent-dashboard="turn-7"/);
+assert.match(html, /class="agent-dashboard-header"/);
 assert.match(html, /role="tablist"/);
 assert.equal((html.match(/data-agent-branch-select=/g) || []).length, 2, "every child Agent receives one tab");
 assert.match(html, /data-agent-branch-select="branch-euclid"[^>]*style=/);
@@ -136,6 +136,10 @@ assert.match(html, /data-agent-branch-select="branch-euclid"[\s\S]*?Euclid[\s\S]
 assert.match(html, /data-agent-selected-branch="branch-euclid"/);
 assert.match(html, /data-card="request-14">trusted child timeline/);
 assert.match(html, /agentSelectedTimelineAria:name=Euclid/);
+assert.ok(
+  html.indexOf('data-card="request-14"') < html.indexOf('class="agent-branch-lineage"'),
+  "the full child request timeline should lead, with parent linkage kept as secondary evidence",
+);
 assert.match(html, /data-request-jump="request-13"/);
 assert.match(html, /data-request-jump="request-14"/);
 assert.match(html, /agentLinkageEvidence:confidence=highConfidence/);
@@ -144,6 +148,7 @@ assert.doesNotMatch(html, /Ptolemy <unsafe>/);
 assert.doesNotMatch(html, /data-agent-branch-toggle=/);
 assert.doesNotMatch(html, /data-agent-status-filter=/);
 assert.doesNotMatch(html, /agentInterleavedTimeline/);
+assert.doesNotMatch(html, /data-agent-dashboard-toggle=/);
 
 const modelSource = fs.readFileSync(new URL("../src/viewer/agent-graph-model.js", import.meta.url), "utf8");
 const rendererSource = fs.readFileSync(new URL("../src/viewer/agent-graph-renderer.js", import.meta.url), "utf8");
