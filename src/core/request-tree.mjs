@@ -135,16 +135,25 @@ function blockKindForValue(value, path) {
   if (/^\$\.system\[\d+\]$/.test(path)) return "system_block";
   if (path === "$.instructions" && !Array.isArray(value)) return "system_block";
   if (/^\$\.instructions\[\d+\]$/.test(path)) return "system_block";
-  if (/^\$\.(?:tools|additional_tools)\[\d+\]$/.test(path)) return "tool_schema";
+  if (isToolDefinitionPath(path)) {
+    if (String(value?.type || "").toLowerCase() === "namespace" && Array.isArray(value?.tools)) return null;
+    return "tool_schema";
+  }
   if (/^\$\.messages\[\d+\]$/.test(path)) return value?.role === "tool" ? "tool_result" : "message";
   if (path === "$.input" && !Array.isArray(value)) return "message";
   if (/^\$\.input\[\d+\]$/.test(path)) return responsesInputBlockKind(value);
   return null;
 }
 
+function isToolDefinitionPath(path) {
+  return /^\$\.(?:tools|additional_tools)\[\d+\](?:\.tools\[\d+\])*$/.test(path) ||
+    /^\$\.input\[\d+\]\.tools\[\d+\](?:\.tools\[\d+\])*$/.test(path);
+}
+
 function responsesInputBlockKind(value) {
   const type = String(value?.type || "").toLowerCase();
   const role = String(value?.role || "").toLowerCase();
+  if (type === "additional_tools") return null;
   if (role === "tool" || type.endsWith("_output") || type === "function_call_output") return "tool_result";
   return "message";
 }

@@ -69,6 +69,7 @@ assert.doesNotMatch(dedupedHarness, /permissions instructions|environment_contex
 assert.match(dedupedHarness, /<md>\*\*真实用户消息\*\*<\/md>/);
 
 const developerView = renderMessagesSection({
+  section: "developer",
   messagesValue: [
     { role: "developer", content: [{ type: "input_text", text: "<permissions instructions>Full access.</permissions instructions>" }] },
   ],
@@ -78,6 +79,32 @@ const developerView = renderMessagesSection({
 });
 assert.match(developerView, /role-developer/);
 assert.match(developerView, /permissions instructions/);
+assert.match(developerView, /data-translation-retranslate="translate-developer_instruction"/);
+
+const translatedDeveloperView = renderMessagesSection({
+  section: "developer",
+  messagesValue: [{ role: "developer", content: "Follow repository evidence." }],
+  mode: "organized",
+  preserveHarnessText: true,
+  displayTranslation: true,
+  ...dependencies,
+  translatedTextFor: (kind, sourceText) =>
+    kind === "developer_instruction" && sourceText === "Follow repository evidence." ? "遵循仓库证据。" : "",
+});
+assert.match(translatedDeveloperView, /遵循仓库证据。/);
+assert.match(translatedDeveloperView, /messageTranslatedText/);
+assert.match(translatedDeveloperView, /<summary>source<\/summary>/);
+
+const sourceOnlyHistory = renderMessagesSection({
+  section: "history",
+  messagesValue: [{ role: "user", content: "Do not translate this history item." }],
+  mode: "organized",
+  displayTranslation: true,
+  ...dependencies,
+  translatedTextFor: () => "不应显示",
+});
+assert.match(sourceOnlyHistory, /Do not translate this history item/);
+assert.doesNotMatch(sourceOnlyHistory, /不应显示|data-translation-retranslate/);
 
 const codexCompactHandoff = `Another language model started to solve this problem and produced a summary of its thinking process. You also have access to the state of the tools that were used by that language model. Use this to build on the work that has already been done and avoid duplicating work. Here is the summary produced by the other language model, use the information in this summary to assist with your own analysis:
 **Handoff Summary**
@@ -328,12 +355,37 @@ assert.equal(normalizeMessageBlocks(responseMessages[0])[0].text, "summarize the
 assert.equal(responseMessages[0].content[1].text, "**Done.**");
 assert.match(
   renderMessagesSection({
+    section: "response",
     messagesValue: responseMessages,
     mode: "organized",
     ...dependencies,
   }),
   /summarize the outputs/,
 );
+
+const translatedResponseHtml = renderMessagesSection({
+  section: "response",
+  messagesValue: responseMessages,
+  mode: "organized",
+  displayTranslation: true,
+  ...dependencies,
+  translatedTextFor: (kind) =>
+    kind === "assistant_reasoning" ? "总结工具输出。" : kind === "assistant_response" ? "完成。" : "",
+});
+assert.match(translatedResponseHtml, /总结工具输出。/);
+assert.match(translatedResponseHtml, /完成。/);
+assert.match(translatedResponseHtml, /translate-assistant_reasoning/);
+assert.match(translatedResponseHtml, /translate-assistant_response/);
+
+const legacyThinkingCacheHtml = renderMessagesSection({
+  section: "response",
+  messagesValue: responseMessages,
+  mode: "organized",
+  displayTranslation: true,
+  ...dependencies,
+  translatedTextFor: (kind) => kind === "assistant_thinking" ? "兼容旧 Thinking 缓存。" : "",
+});
+assert.match(legacyThinkingCacheHtml, /兼容旧 Thinking 缓存。/);
 
 const opaqueReasoningMessages = responseConversationMessages({
   summary: {

@@ -29,6 +29,7 @@ export function renderRequestRawNavigation({ request, activeSection, hasPrevious
   );
   const sections = [
     ["full", translate(requestUsesReconstructedUpstream(request) ? "rawReconstructedRequest" : "rawFull")],
+    ["protocol", translate("rawProtocol")],
     ["system", "System"],
     ...(hasDeveloperMessages ? [["developer", translate("rawDeveloper")]] : []),
     ...(hasPrevious ? [["system_diff", "System diff"]] : []),

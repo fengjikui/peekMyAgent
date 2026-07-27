@@ -25,6 +25,8 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/messages-renderer.js", javascriptAsset("messages-renderer.js")],
   ["/pane-layout-controller.js", javascriptAsset("pane-layout-controller.js")],
   ["/pane-layout-model.js", javascriptAsset("pane-layout-model.js")],
+  ["/protocol-exchange-renderer.js", javascriptAsset("protocol-exchange-renderer.js")],
+  ["/protocol-exchange-view-model.js", javascriptAsset("protocol-exchange-view-model.js")],
   ["/raw-inspector-controller.js", javascriptAsset("raw-inspector-controller.js")],
   ["/raw-inspector-renderer.js", javascriptAsset("raw-inspector-renderer.js")],
   ["/raw-search-controller.js", javascriptAsset("raw-search-controller.js")],
@@ -80,6 +82,10 @@ const VIEWER_STATIC_ASSETS = new Map([
   [
     "/trace/message-semantics.mjs",
     { base: "project", file: path.join("src", "trace", "message-semantics.mjs"), contentType: "text/javascript; charset=utf-8" },
+  ],
+  [
+    "/trace/protocol-exchange.mjs",
+    { base: "project", file: path.join("src", "trace", "protocol-exchange.mjs"), contentType: "text/javascript; charset=utf-8" },
   ],
   [
     "/shared/request-payload.mjs",

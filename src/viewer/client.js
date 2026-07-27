@@ -111,6 +111,8 @@ import {
 } from "./trace-timeline-renderer.js";
 import { buildUpstreamDetailView } from "./upstream-detail-model.js";
 import { renderUpstreamDetail as renderUpstreamDetailView } from "./upstream-detail-renderer.js";
+import { buildProtocolExchangeView } from "./protocol-exchange-view-model.js";
+import { renderProtocolExchange as renderProtocolExchangeView } from "./protocol-exchange-renderer.js";
 import {
   normalizeTranslationSourceText as normalizeTranslationText,
   sanitizeTranslationOutput,
@@ -120,6 +122,7 @@ import { extractRequestMessages } from "../shared/request-payload.mjs";
 import {
   extractContentText,
   extractHarnessTranslationParts,
+  translatedTextForKind,
   translationMaterialsForRequest,
 } from "./translation-materials.js";
 
@@ -802,7 +805,7 @@ async function writeClipboard(text, button) {
 }
 
 function sectionTranslationMaterials(request, section) {
-  if (!["system", "tools", "harness"].includes(section)) return [];
+  if (!["system", "developer", "tools", "harness", "response"].includes(section)) return [];
   return translationMaterialsForRequest(request, {
     section,
     extractHarnessParts: extractClientHarnessTranslationParts,
@@ -1741,7 +1744,7 @@ function renderAssistantResponse(request) {
 
 function buildAssistantThinkingView(thinking, request) {
   if (!thinking?.text) return null;
-  const translation = translatedTextFor("assistant_thinking", thinking.text);
+  const translation = translatedTextForKind(translatedTextFor, "assistant_thinking", thinking.text);
   const actionId = translationActionController.registerAction({
     kind: "assistant_thinking",
     sourceText: thinking.text,
@@ -2087,10 +2090,11 @@ function renderRawStickyControls(request, section, mode = "request") {
   return renderRawStickyControlsView({
     navigation: `${renderToolOriginReturnAction(request)}${navigation}`,
     searchControls: renderRawSearchControls(request, section, mode),
-    viewControls:
-      renderTranslationControls(request, section) ||
-      renderMessagesControls(section) ||
+    viewControls: [
+      renderTranslationControls(request, section),
+      renderMessagesControls(section),
       renderMetadataControls(section),
+    ].filter(Boolean).join(""),
   });
 }
 
@@ -2203,6 +2207,14 @@ function highlightSearchSnippet(text, query) {
 
 function renderRawSectionContent(request, section, sectionData) {
   if (section === "metadata") return renderMetadataSection(request, sectionData);
+  if (section === "protocol") {
+    if (normalizedRawSearchQuery()) return renderRawSearchResults(request, section, state.activeRawMode || "request");
+    return renderProtocolExchangeView(buildProtocolExchangeView(request), {
+      translate: t,
+      escapeHtml,
+      formatNumber: formatCompactNumber,
+    });
+  }
   if (["developer", "history", "message", "messages", "tool_results"].includes(section)) {
     return renderMessagesSection(request, section, sectionData.value);
   }
@@ -2263,6 +2275,7 @@ function renderMessagesSection(request, section, messagesValue) {
         ? [request.request_index]
         : requestIndexes;
   return renderMessagesSectionView({
+    section,
     messagesValue,
     timelineRequestIndexes,
     preserveHarnessText: section === "developer",
@@ -2275,6 +2288,7 @@ function renderMessagesSection(request, section, messagesValue) {
     renderJson,
     formatNumber: formatCompactNumber,
     translatedTextFor,
+    displayTranslation: state.translationMode === currentTargetLanguage(),
     targetLanguageLabel: currentTargetLanguageLabel(),
     translationLoading: Boolean(state.translationGenerate.loading),
     registerTranslationAction: (action) =>
@@ -2390,6 +2404,9 @@ function translationKindLabel(kind) {
   if (kind === "system_prompt") return "System";
   if (kind === "system_injected_context") return t("systemInjectedContext");
   if (kind === "assistant_thinking") return "Thinking";
+  if (kind === "assistant_reasoning") return t("protocolSemanticReasoning");
+  if (kind === "assistant_response") return t("messageModelResponse");
+  if (kind === "developer_instruction") return t("protocolSemanticInstruction");
   if (kind === "harness_reminder") return t("harnessReminder");
   if (kind === "harness_compact") return t("harnessCompact");
   if (kind === "harness_command") return t("harnessCommand");
@@ -2431,6 +2448,7 @@ function rawSectionLabel(section, request = null) {
   if (requestHasSemanticEvent(request)) return section === "metadata" ? t("rawEventMetadata") : t("rawEventSource");
   const labels = {
     full: t(requestUsesReconstructedUpstream(request) ? "rawReconstructedRequest" : "rawFull"),
+    protocol: t("rawProtocol"),
     system: "System",
     developer: t("rawDeveloper"),
     system_diff: "System diff",
@@ -2495,24 +2513,9 @@ function systemTextFromRequest(request) {
 }
 
 function collectTranslationMaterials(request) {
-  return [
-    ...translationMaterialsForRequest(request, {
-      extractHarnessParts: extractClientHarnessTranslationParts,
-    }),
-    ...collectResponseTranslationMaterials(request),
-  ];
-}
-
-function collectResponseTranslationMaterials(request) {
-  const thinking = normalizeTranslationText(request.summary?.response?.thinking || "");
-  if (!thinking) return [];
-  return [
-    {
-      kind: "assistant_thinking",
-      source_text: thinking,
-      metadata: { source: "response.thinking" },
-    },
-  ];
+  return translationMaterialsForRequest(request, {
+    extractHarnessParts: extractClientHarnessTranslationParts,
+  });
 }
 
 function extractClientHarnessTranslationParts(messages, context = {}) {

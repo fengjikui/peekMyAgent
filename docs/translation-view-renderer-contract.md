@@ -1,8 +1,8 @@
 # Viewer 翻译视图契约
 
-更新时间：2026-07-25
+更新时间：2026-07-27
 
-本文记录 Raw Inspector 中 System、Tools 和 Harness 翻译视图的当前模块边界。翻译块的身份、规范化和 hash 契约仍以 [翻译块协议](translation-block-contract.md) 为准；这里不重新定义缓存 key。
+本文记录 Raw Inspector 中 System、Developer、Tools、Harness 和 Response 翻译视图的当前模块边界。System/Tools/Harness 使用 Translation View Model/Renderer；Developer instruction 与 Assistant reasoning/response 复用 Message Renderer 的原文/译文结构。翻译块的身份、规范化和 hash 契约仍以 [翻译块协议](translation-block-contract.md) 和 [Translation Material 契约](translation-material-contract.md)为准；这里不重新定义缓存 key。
 
 ## 模块职责
 
@@ -46,7 +46,7 @@ Renderer 不读取 `state`、不访问 DOM、不请求翻译 provider，也不�
 
 应用装配层当前仍负责：
 
-- 从已水合 request 收集 System、Tools 和 Harness 翻译材料。
+- 从已水合 request 收集 System、Developer、Tools、Harness 和 Assistant reasoning/response 翻译材料；用户/历史消息与工具结果保持 source-only。
 - 向 Cache Controller 注入共享材料收集、hash、lookup key 与缓存 API，并读取其公开 lookup。
 - 维护翻译模式、生成状态、动作表和活动 request/section；执行主动生成、复制和重译副作用。
 - 生成与块级重译在每个异步边界后复核 Cache Controller 签发的 Source/语言 operation token，迟到结果不得修改当前 UI。
@@ -67,6 +67,7 @@ Renderer 不读取 `state`、不访问 DOM、不请求翻译 provider，也不�
 6. 所有材料仍通过共享 translation block identity 查询缓存，已有缓存无需迁移。
 7. Assistant 的“只看本次调用”按下行工具名过滤上行注入 schema；界面必须继续标明 Tools schema 属于上行参考，而不是 Response 返回内容。若动态发现工具未出现在该次捕获的上行 tools 中，筛选视图明确报告缺失证据，不伪造 schema。
 8. 所有用户可见文案继续通过现有中英文资源表取得。
+9. 打开 Protocol、Developer 或 Response 视图不触发 provider 请求；只有用户显式生成/重译才允许发送对应材料。
 
 ## 验证
 
@@ -84,4 +85,5 @@ npm run smoke:viewer-static-assets-contract
 - System 原文/译文切换、缓存状态和搜索跳转。
 - Tools 工具名搜索、单工具一体化说明/参数、原文/译文切换、合并原文和本次调用筛选。
 - Harness 结构化翻译列表。
+- Developer instruction 与 Assistant reasoning/response 的原文、译文和 source 折叠入口；用户/历史消息不出现翻译动作。
 - 复制与重译按钮可点击，且浏览器控制台无模块加载或运行错误。

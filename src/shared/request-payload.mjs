@@ -5,9 +5,15 @@ export function extractRequestMessages(body = {}) {
 }
 
 export function extractRequestTools(body = {}) {
+  const inputTools = Array.isArray(body?.input)
+    ? body.input.flatMap((item) =>
+        item?.type === "additional_tools" && Array.isArray(item.tools) ? item.tools : [],
+      )
+    : [];
   const tools = [
     ...(Array.isArray(body?.tools) ? body.tools : []),
     ...(Array.isArray(body?.additional_tools) ? body.additional_tools : []),
+    ...inputTools,
   ];
   const seen = new Set();
   return tools.filter((tool) => {
@@ -22,6 +28,7 @@ export function extractRequestTools(body = {}) {
 
 export function responseInputItemToMessage(item) {
   if (!item || typeof item !== "object") return null;
+  if (item.type === "additional_tools") return null;
   if (item.type === "agent_message") {
     return {
       role: "user",

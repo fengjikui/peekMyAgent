@@ -6,8 +6,14 @@ import {
   translationMaterialsForRequest,
 } from "../src/translation/request-materials.mjs";
 import { extractContentText } from "../src/trace/content-parts.mjs";
+import { translatedTextForKind } from "../src/viewer/translation-materials.js";
 
 const source = { id: "source-a", workspace: "/workspace", conversation_id: "conversation-a" };
+assert.equal(
+  translatedTextForKind((kind) => kind === "assistant_reasoning" ? "new reasoning cache" : "", "assistant_thinking", "source"),
+  "new reasoning cache",
+  "Timeline thinking reuses the new protocol reasoning cache without duplicating materials",
+);
 const first = request(1, "deepseek-v4-pro", "/workspace/a");
 const second = request(2, "claude-sonnet", "/workspace/b");
 const collector = createCollector();
@@ -192,6 +198,43 @@ assert.deepEqual(malformedCommandEvidence, [], "malformed wrapper evidence is ig
 const toolOnly = createCollector();
 toolOnly.collectRequest(first, source, { section: "tools" });
 assert.deepEqual([...new Set(toolOnly.materials().map((item) => item.kind))].sort(), ["tool_description", "tool_parameter_description"]);
+
+const protocolLanguageRequest = {
+  id: "request-language",
+  request_index: 65,
+  raw: {
+    body: {
+      input: [
+        { type: "message", role: "developer", content: [{ type: "input_text", text: "Follow the repository instructions." }] },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "用户原始问题" }] },
+      ],
+    },
+  },
+  summary: {
+    response: {
+      thinking: "Inspect the protocol fields.",
+      text: "The request uses the Responses API.",
+    },
+  },
+};
+assert.deepEqual(
+  translationMaterialsForRequest(protocolLanguageRequest).map((item) => item.kind),
+  ["developer_instruction", "assistant_reasoning", "assistant_response"],
+  "Developer instructions and model output are translatable while user/history messages stay source-only",
+);
+const protocolLanguageCollector = createCollector();
+protocolLanguageCollector.collectRequest(protocolLanguageRequest, source);
+assert.deepEqual(
+  protocolLanguageCollector.materials().map((item) => item.kind),
+  ["assistant_reasoning", "assistant_response", "developer_instruction"],
+  "server and browser collectors agree on protocol translation categories",
+);
+const developerOnly = createCollector();
+developerOnly.collectRequest(protocolLanguageRequest, source, { section: "developer" });
+assert.deepEqual(developerOnly.materials().map((item) => item.kind), ["developer_instruction"]);
+const responseOnly = createCollector();
+responseOnly.collectRequest(protocolLanguageRequest, source, { section: "response" });
+assert.deepEqual(responseOnly.materials().map((item) => item.kind), ["assistant_reasoning", "assistant_response"]);
 
 const manual = createCollector();
 manual.collectInput(

@@ -1,4 +1,5 @@
 import { analyzeToolCallSemantics } from "../trace/tool-call-semantics.mjs";
+import { compactProtocolExchange } from "../trace/protocol-exchange.mjs";
 
 export const TIMELINE_VIEW_LIMITS = Object.freeze({
   responseTextChars: 700,
@@ -29,7 +30,7 @@ export function projectTimelineViewerData(data) {
 export function projectTimelineRequest(request) {
   const summary = request?.summary || {};
   const historyStack = Array.isArray(summary.history_stack) ? summary.history_stack : [];
-  const { history_stack, tool_calls, tool_results, roles, tool_names, ...summaryWithoutHeavyFields } = summary;
+  const { history_stack, tool_calls, tool_results, roles, tool_names, protocol_exchange, ...summaryWithoutHeavyFields } = summary;
   return {
     ...request,
     source_hint: projectSourceHint(request?.source_hint),
@@ -42,6 +43,7 @@ export function projectTimelineRequest(request) {
       roles_omitted: omittedArrayCount(roles, TIMELINE_VIEW_LIMITS.roleCount, summary.roles_omitted),
       tool_names: compactArray(tool_names, TIMELINE_VIEW_LIMITS.toolNameCount),
       tool_names_omitted: omittedArrayCount(tool_names, TIMELINE_VIEW_LIMITS.toolNameCount, summary.tool_names_omitted),
+      protocol_exchange: compactProtocolExchange(protocol_exchange),
       current_user: textPreview(summary.current_user || "", TIMELINE_VIEW_LIMITS.currentUserChars),
       system_preview: textPreview(summary.system_preview || "", TIMELINE_VIEW_LIMITS.systemPreviewChars),
       assistant_preview: textPreview(summary.assistant_preview || "", TIMELINE_VIEW_LIMITS.assistantPreviewChars),

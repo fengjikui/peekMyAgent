@@ -31,6 +31,7 @@ const request = {
 
 const requestNav = renderRequestRawNavigation({ request, activeSection: "tools", hasPrevious: true, translate, escapeHtml });
 assert.match(requestNav, /rawFull/);
+assert.match(requestNav, /rawProtocol/);
 assert.match(requestNav, /System diff/);
 assert.match(requestNav, /rawDeveloper/);
 assert.match(requestNav, /rawHistory/);
@@ -38,6 +39,7 @@ assert.match(requestNav, /rawMessage/);
 assert.doesNotMatch(requestNav, /data-raw-section="upstream_tool_calls"/);
 assert.doesNotMatch(requestNav, /data-raw-section="tool_results"/);
 assert.ok(requestNav.indexOf("rawFull") < requestNav.indexOf("Metadata"));
+assert.ok(requestNav.indexOf('data-raw-section="protocol"') < requestNav.indexOf('data-raw-section="system"'));
 assert.doesNotMatch(requestNav, /<script>/);
 assert.doesNotMatch(requestNav, /data-raw-mode=/);
 

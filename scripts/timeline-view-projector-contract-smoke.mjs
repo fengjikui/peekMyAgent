@@ -73,6 +73,29 @@ const request = {
         { name: "ResponseTool", arguments: { content: longText } },
       ],
     },
+    protocol_exchange: {
+      schema_version: 1,
+      protocol: "openai_responses",
+      protocol_label: "OpenAI Responses",
+      request: {
+        counts: { instruction_blocks: 2, input_items: 25, tools: 3 },
+        instruction_blocks: [{ source_path: "$.input[1]", chars: longText.length }],
+        input_items: [{ index: 0, semantic: "tools_added", source_path: "$.input[0]" }],
+        tool_stages: [{
+          kind: "added",
+          source_path: "$.input[0].tools",
+          input_index: 0,
+          tool_count: TIMELINE_VIEW_LIMITS.toolNameCount + 2,
+          effective_tool_count: TIMELINE_VIEW_LIMITS.toolNameCount + 2,
+          tools: toolNames.map((name) => ({ name, type: "function" })),
+        }],
+      },
+      response: {
+        counts: { output_items: 3, reasoning_items: 1, tool_calls: 1 },
+        status: "completed",
+        output_items: [{ index: 0, semantic: "reasoning", source_path: "$.output[0]" }],
+      },
+    },
   },
   raw: {
     body_source: "original",
@@ -133,6 +156,13 @@ assert.deepEqual(projected.summary.response.tool_calls[0].semantic, {
 assert.equal(projected.summary.response.tool_calls[1].semantic, undefined);
 assert.equal(projected.summary.response.tool_calls[1].arguments.omitted.reason, "compact_view");
 assert.match(projected.summary.response.tool_calls[1].arguments.preview, /^\{"content":/);
+assert.equal(projected.summary.protocol_exchange.protocol, "openai_responses");
+assert.deepEqual(projected.summary.protocol_exchange.request.counts, { instruction_blocks: 2, input_items: 25, tools: 3 });
+assert.equal(projected.summary.protocol_exchange.request.input_items, undefined);
+assert.equal(projected.summary.protocol_exchange.request.instruction_blocks, undefined);
+assert.equal(projected.summary.protocol_exchange.request.tool_stages, undefined);
+assert.equal(projected.summary.protocol_exchange.response.output_items, undefined);
+assert.equal(projected.summary.protocol_exchange.response.status, "completed");
 assert.equal(projected.summary.current_tool_results[0].content.length, TIMELINE_VIEW_LIMITS.toolArgumentChars + 3);
 assert.equal(projected.raw.headers, undefined);
 assert.deepEqual(projected.raw.body, { model: "test-model", stream: true, max_tokens: 1024 });

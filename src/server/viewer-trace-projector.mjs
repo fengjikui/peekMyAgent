@@ -33,6 +33,7 @@ import {
   inferRequestSource,
   isContextTokenCountingRequest,
 } from "../trace/request-profile.mjs";
+import { projectProtocolExchange } from "../trace/protocol-exchange.mjs";
 import {
   annotateSubagentLineage,
   attachSubagentGraphToTurns,
@@ -161,6 +162,11 @@ export function createViewerTraceProjector({
     const toolResults = extractToolResults(messages);
     const codexSubagent = codexSubagentIdentity(capture, body);
     const protocolProfile = inferProtocolProfile(capture, body);
+    const protocolExchange = projectProtocolExchange({
+      protocol: protocolProfile.protocol,
+      request: body,
+      response: capture.response?.body_json || responseSummary.complete_response || null,
+    });
     const historyCount = Math.max(0, messages.length - (currentUser ? 1 : 0) - systemParts.length);
     const claudeAgentId = headerValue(capture.headers, "x-claude-code-agent-id");
     const claudeSessionId = headerValue(capture.headers, "x-claude-code-session-id");
@@ -237,6 +243,7 @@ export function createViewerTraceProjector({
         response: responseSummary,
         evidence: captureEvidenceProfile(capture),
         protocol: protocolProfile,
+        protocol_exchange: protocolExchange,
         composition: analyzeRequestComposition({
           body,
           messages,

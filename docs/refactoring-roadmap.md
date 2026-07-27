@@ -1,6 +1,6 @@
 # peekMyAgent 重构路线图
 
-更新时间：2026-07-15
+更新时间：2026-07-27
 
 这份路线图的目标不是“大改得更漂亮”，而是在不破坏现有用户闭环的前提下，让 peekMyAgent 能长期演进、方便外部贡献，并为更多 Agent 适配建立稳定边界。当前系统事实见 [架构文档](architecture.md)。
 
@@ -21,7 +21,7 @@
 | Server | `src/viewer/server.mjs` 同时负责 HTTP、安全、repository、Trace domain、翻译、bundle 和 Agent send | 很难局部测试和分配代码所有权 |
 | Client | `src/viewer/client.js` 同时负责 store、fetch、协议解释和所有视图 | 小交互容易触发全量渲染，贡献者难定位 |
 | CLI | `bin/peekmyagent.mjs` 包含命令解析和几乎全部命令实现 | 新命令继续扩大入口文件，wrapper 生命周期难单测 |
-| 协议 | provenance、translation block、`SourceSummary`、单请求 `TraceRequestDetail` 与完整/compact/cursor Timeline envelope 已有共享契约；其余 operation 响应仍由各层分别解释 | 高频读取 DTO 已阻断漂移，写操作与控制面接口仍需按功能逐条迁移 |
+| 协议 | provenance、translation block、`SourceSummary`、单请求 `TraceRequestDetail`、完整/compact/cursor Timeline envelope 和 `protocol_exchange` 已有共享契约；Responses/Chat/Messages/GenerateContent 的常用上下行结构由协议 adapter 投影，其余 operation 响应仍由各层分别解释 | 高频读取 DTO 与常用模型交换已阻断漂移；未知协议、写操作和控制面接口仍需按真实证据逐条迁移 |
 | 数据库 | 内容寻址和 migration runner 已落地；Capture 读取 repository 已抽离，Watch/Capture 写入、维护与连接生命周期仍集中在 `PersistenceStore` | 写路径继续受单体 store 约束，但读取查询和水合已有独立可测边界 |
 | 性能 | live/SQLite/file/import 已使用 cursor 增量读取和实体 delta；文件后端使用私有 sidecar byte range；System diff 已有精确门限和块级退化；Client/Server 仍累计 compact 实体 | 首屏网络、文件 hydrate 和大 System diff 成本已受控，但超长会话的常驻 compact 实体仍随会话增长 |
 | 测试 | smoke 丰富，但基础设施重复，部分 UI 仅正则检查源码 | 维护成本高，真实交互回归覆盖不足 |
@@ -169,6 +169,7 @@ src/
 - 已建立 Trace Content Parts 原语层：上行与下行共用可见文本、thinking、Anthropic/OpenAI tool call 和 tool result 提取，避免协议块解释分叉。
 - 已迁移 Trace 消息语义：真实用户输入、slash command、compact/Skill/framework/suggestion 注入、混合工具结果与 task notification 由单一纯模块解释，Turn、标题和翻译层复用显式端口。
 - 已迁移 Trace 请求画像：System 位置、Anthropic/OpenAI/Gemini 协议、provider/reasoning 扩展及 main/subagent/parent-spawn/metadata 来源提示由单一纯模块解释；metadata 优先级与 provenance 概念边界由直接契约锁定。
+- 已建立 Protocol Exchange v1（2026-07-27）：OpenAI Responses/Chat、Anthropic Messages 和 Google GenerateContent 的指令、message、工具声明/追加/加载、调用/结果、推理与回复由独立纯 adapter 投影；完整详情保留条目、递归 namespace 工具目录和 Raw JSONPath，compact Timeline 只保留卡片所需计数与状态。协议事实与 Agent 归因继续分层，未知字段不做跨厂商猜测。
 - 已迁移 Trace 请求构成分析：System、Tools、参数、历史消息、当前用户、工具交互及回复规模由纯模块输出兼容 DTO；字符近似、包含关系与上/下行展示边界由直接契约说明。
 - 已迁移 Timeline 轻量投影：完整 Viewer Trace DTO 到 compact 首屏/时间线 DTO 的截断、Raw/Response 省略和遗漏计数由独立纯模块管理；HTTP route 只选择完整或 compact 表示，直接契约与大 Trace 性能 smoke 共同锁定边界。
 - 已迁移 Viewer Trace 投影：Capture 到 request/Turn/Agent graph/stats/workbench DTO 的组合成为无 I/O `ViewerTraceProjector`；完整加载、单请求详情和 cursor 分页共享同一组消息、Context Delta、Turn、子 Agent 与 response 语义端口，HTTP route 不再拥有该组装实现。
@@ -188,6 +189,7 @@ src/
 - 已迁移 Raw Search Model：递归条目、过滤、摘要命中分段和循环导航索引不再依赖 DOM 或全局状态。
 - 已迁移 Raw Search Controller：查询、IME 组合态、延迟重绘、清空、当前命中和滚动高亮不再由全局 client state 所有。
 - 已迁移 Raw Inspector 基础 Renderer：请求/响应导航、搜索控件与结果、详情状态和来源提示只依赖显式 DTO 与渲染依赖。
+- 已建立 Raw Protocol 视图（2026-07-27）：纯 View Model/Renderer 消费 `protocol_exchange`，展示上下行顺序和工具生命周期并跳回 Raw；Developer instruction 与 Assistant reasoning/response 接入显式翻译材料，用户/历史消息和工具结果保持原文，打开视图本身不触发外发。
 - 已迁移 Message View Model 与 Renderer：role/content/block 规范化、结构化判定、长文本截断、原文/整理切换与安全 Markdown 不再由全局 client 所有。
 - 已迁移 Translation View Model 与 Renderer：工具分组、译文搜索排序、命中统计、System/Harness 块、工具说明与参数汇总不再直接读取全局 client state；缓存 key 继续复用共享 translation block contract，动作注册通过显式依赖留在应用层。
 - 最小 client store 已建立：source/Turn/Raw request/Timeline request selection、Raw/messages mode、UI/翻译语言、pane layout 与 latest-only 已有单一写入边界和原子变更通知；Raw 证据上下文已与滚动高亮分离，避免首击详情被自动滚动误判为过期。大 Trace cursor、Client entity store 与 file/imported sidecar 已在阶段 4 落地，page eviction/细粒度订阅继续演进。

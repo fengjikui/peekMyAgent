@@ -14,7 +14,7 @@ export function renderTranslationControls({
   translate,
   escapeHtml,
 }) {
-  if (!["system", "tools", "harness"].includes(section)) return "";
+  if (!["system", "developer", "tools", "harness", "response"].includes(section)) return "";
   const statusText = cacheAvailable
     ? translate("translationCacheHit", {
         hit: stats.hit,

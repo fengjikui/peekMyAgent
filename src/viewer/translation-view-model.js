@@ -166,6 +166,9 @@ export function translationKindClass(kind) {
   if (kind === "system_prompt") return "system-prompt";
   if (kind === "system_injected_context") return "system-injected";
   if (kind === "assistant_thinking") return "assistant-thinking-kind";
+  if (kind === "assistant_reasoning") return "assistant-reasoning-kind";
+  if (kind === "assistant_response") return "assistant-response-kind";
+  if (kind === "developer_instruction") return "developer-instruction-kind";
   if (kind?.startsWith("harness_")) return "harness-kind";
   return "other-kind";
 }

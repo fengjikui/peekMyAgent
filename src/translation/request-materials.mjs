@@ -60,6 +60,20 @@ export function projectTranslationBodyMaterials(
     }
   }
 
+  if (!section || section === "developer") {
+    messages.forEach((message, messageIndex) => {
+      if (message?.role !== "developer") return;
+      const text = contentText(message.content);
+      if (!text) return;
+      materials.push({
+        kind: "developer_instruction",
+        source_text: text,
+        source_language: "en",
+        metadata: { source: "messages.developer", index: messageIndex },
+      });
+    });
+  }
+
   if (!section || section === "tools") {
     const tools = extractRequestTools(source);
     tools.forEach((tool, toolIndex) => {
@@ -99,9 +113,14 @@ export function translationMaterialsForRequest(
   if (!section) {
     return [
       ...translationMaterialsForRequest(request, { section: "system", contentText, extractHarnessParts }),
+      ...translationMaterialsForRequest(request, { section: "developer", contentText, extractHarnessParts }),
       ...translationMaterialsForRequest(request, { section: "tools", contentText, extractHarnessParts }),
       ...translationMaterialsForRequest(request, { section: "harness", contentText, extractHarnessParts }),
+      ...translationMaterialsForRequest(request, { section: "response", contentText, extractHarnessParts }),
     ];
+  }
+  if (section === "response") {
+    return dedupeTranslationMaterials(projectTranslationResponseMaterials(request, { contentText }));
   }
   const materials = projectTranslationBodyMaterials(body, {
     section,
@@ -112,6 +131,51 @@ export function translationMaterialsForRequest(
   return section === "tools"
     ? dedupeToolTranslationMaterials(materials)
     : dedupeTranslationMaterials(materials);
+}
+
+export function projectTranslationResponseMaterials(request, { contentText = extractContentText } = {}) {
+  const extract = requiredFunction(contentText, "contentText");
+  const summary = request?.summary?.response || {};
+  const output = [];
+  appendResponseTranslation(output, "assistant_reasoning", summary.thinking, "summary.response.thinking");
+  appendResponseTranslation(output, "assistant_response", summary.text, "summary.response.text");
+
+  const response =
+    summary.complete_response ||
+    request?.raw?.response?.body_json ||
+    request?.response?.body_json ||
+    request?.response ||
+    null;
+  for (const [index, item] of (Array.isArray(response?.output) ? response.output : []).entries()) {
+    const type = String(item?.type || "").toLowerCase();
+    if (type === "reasoning") {
+      appendResponseTranslation(output, "assistant_reasoning", extract(item.summary), `response.output[${index}].summary`);
+    } else if (type === "message") {
+      appendResponseTranslation(output, "assistant_response", extract(item.content), `response.output[${index}].content`);
+    }
+  }
+  if (Array.isArray(response?.content)) {
+    response.content.forEach((item, index) => {
+      const type = String(item?.type || "").toLowerCase();
+      if (["thinking", "reasoning"].includes(type)) {
+        appendResponseTranslation(output, "assistant_reasoning", extract(item), `response.content[${index}]`);
+      } else if (["text", "output_text"].includes(type)) {
+        appendResponseTranslation(output, "assistant_response", extract(item), `response.content[${index}]`);
+      }
+    });
+  }
+  return output;
+}
+
+function appendResponseTranslation(output, kind, value, source) {
+  const text = normalizeTranslationSourceText(value);
+  if (!text) return;
+  output.push({
+    kind,
+    source_text: text,
+    source_language: "en",
+    metadata: { source },
+  });
 }
 
 export function extractTranslationSystemParts(body, messages, contentText = extractContentText) {

@@ -9,6 +9,7 @@ import {
   responseUsesReconstructedDownstream,
 } from "./evidence-view-model.js";
 import { upstreamConversationMessageSections, upstreamToolResultMessages } from "./message-view-model.js";
+import { projectProtocolExchange } from "../trace/protocol-exchange.mjs";
 
 export {
   requestHasSemanticEvent,
@@ -25,6 +26,18 @@ export function rawSectionData(request, section, { translate = (key) => key, har
   }
   const body = request?.raw?.body || {};
   const messages = extractRequestMessages(body);
+  if (section === "protocol") {
+    return {
+      title: translate("rawProtocol"),
+      value:
+        request?.summary?.protocol_exchange ||
+        projectProtocolExchange({
+          protocol: request?.protocol,
+          request: body,
+          response: rawProviderResponse(request),
+        }),
+    };
+  }
   if (section === "system") {
     return {
       title: "system",

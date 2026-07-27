@@ -1,6 +1,6 @@
 # peekMyAgent 当前架构
 
-更新时间：2026-07-25
+更新时间：2026-07-27
 
 本文描述当前代码真实运行方式。它是维护者和贡献者理解仓库的事实源，不是未来架构愿景；需要快速定位改动位置的 Coding Agent 先读[代码库地图](codebase-map.md)，演进计划见[重构路线图](refactoring-roadmap.md)。
 
@@ -77,6 +77,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/trace/request-profile.mjs` | System 提取、协议/provider 能力画像以及 main/subagent/parent-spawn/metadata/background 来源提示 |
 | `src/trace/request-attribution.mjs` | 跨 Harness 的 actor/relation/operation/evidence 归因结构与低敏证据规范化 |
 | `src/trace/request-composition.mjs` | System、Tools、参数、历史消息、工具交互与回复规模的字符近似诊断 |
+| `src/trace/protocol-exchange.mjs` | OpenAI Responses/Chat、Anthropic Messages、Google GenerateContent 上下行条目和工具生命周期的协议优先投影；完整/compact DTO 边界见[Protocol Exchange 契约](protocol-exchange-contract.md) |
 | `src/trace/model-response-normalizer.mjs` | Anthropic/OpenAI-compatible JSON/SSE 流事件、usage、stop reason 与完整回复 DTO 归一化 |
 | `src/trace/message-equivalence.mjs`、`context-delta.mjs`、`turn-timeline.mjs`、`subagent-graph.mjs` | 消息等价、context chain、历史复用、Turn 编组与多 Agent 血缘图协议 |
 | `src/translation/blocks.mjs`、`hash.mjs`、`materials.mjs` | 跨 Server/Client/脚本共享的翻译块规范化、key、marker、schema 遍历、材料去重与限额 |
@@ -120,6 +121,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/viewer/raw-search-controller.js` | Raw 搜索输入法生命周期、延迟重绘、当前命中、高亮和滚动控制器 |
 | `src/viewer/raw-inspector-controller.js` | Raw 请求选择、详情懒加载、竞态失效、面板状态与重绘生命周期控制器 |
 | `src/viewer/raw-inspector-renderer.js` | Raw 请求/响应导航、搜索控件与结果、详情状态和来源提示的纯 HTML renderer |
+| `src/viewer/protocol-exchange-view-model.js`、`protocol-exchange-renderer.js` | 完整 `protocol_exchange` 到可跳回 Raw 证据的协议上下行视图；不读取全局状态、不重新解释 provider Raw |
 | `src/viewer/system-diff-model.js` | System 文本的精确行级 diff 门限、块级退化策略与有界 View DTO |
 | `src/viewer/system-diff-renderer.js` | System diff 行/块摘要的双语、安全 HTML renderer |
 | `src/viewer/message-view-model.js` | History、Message、Response 三类会话信息的切分，role/type 协议推断、同次模型回复分组、请求链编号映射、工具调用/结果投影和长文本截断 DTO |
@@ -221,7 +223,9 @@ OpenCode 的自定义 command 在 wire 上可能只表现为普通 user message�
 
 绑定后 Viewer 增量读取 rollout JSONL；正文继续留在 `CODEX_HOME`，选择文件只保存观察模式、工作区、基线/绑定 thread id 与 provenance，不复制进 peekMyAgent SQLite。`pma codex desktop -c`、`--select`、`--resume` 和 `--list` 都是已有会话的只读 rollout 入口，并隐式选择该模式。rollout reader 是版本化可选 adapter：若上游停止保留相应事件或改变格式，PMA 明确报告该观察入口不可用，不能把语义重建冒充 wire request。
 
-OpenAI Responses 的 `instructions`、`tools`/`additional_tools` 和 `input` 已映射到共享请求语义；Responses JSON/SSE 的 reasoning、message、function/custom tool call、usage、status 和终止响应由共享下行 normalizer 解析。精确代理会把 `/responses/compact` 识别为 Harness 上下文压缩交换、把 `/alpha/search` 识别为 Codex 内置搜索交换，二者都保留完整 request/response Raw，但不会伪装成新的用户 Turn 或普通 Assistant 回复。下行 normalizer 同时维护两层数据：协议原生的完整响应供 Raw Inspector 使用，统一的 `text`、`thinking`、`tool_calls` 摘要供时间线和整理视图使用；统一摘要不得再写回 Raw 响应形成第二份字段。Anthropic 的 Raw 保留 `tool_use`，OpenAI Responses 的 Raw 保留 `function_call`、`custom_tool_call`、`tool_search_call` 等原始类型。`x-openai-subagent` 以及父 thread 标识都会在持久化前脱敏；redaction 记录保留的字段存在性证据可把独立模型请求标记为 Codex 子 Agent，而私有 marker/thread id 本身不会持久化。Codex rollout 的语义重建同样只保留规范 `input`，需要 role 语义的共享模块再统一投影 message，不在 Raw body 中复制第二份 `messages`。存储层将 instructions、单工具 schema、单条 input/message 和工具结果分别写入内容寻址 blob，同一会话后续请求复用相同 hash。
+OpenAI Responses 的 `instructions`、`tools`/`additional_tools` 和 `input` 已映射到共享请求语义；Responses JSON/SSE 的 reasoning、message、function/custom tool call、usage、status 和终止响应由共享下行 normalizer 解析。`protocol-exchange.mjs` 在此之上保留协议条目顺序和 Raw JSONPath：顶层 tools 是 `declared`，有序 input 中的 `additional_tools` 是 `added`，`tool_search_output` 是 `loaded`。`type=namespace` 的工具定义按容器树递归解析：namespace 自身保留路径但不计为可调用工具，叶子以限定名和精确 Raw JSONPath 投影；Request Tree 同样保留容器节点并把每个叶子 schema 独立成 blob。官方协议规定 `additional_tools` 以 `role=developer` 出现在 input 中，工具只在该位置之后生效；因此它不能被渲染为空 Developer message。相同投影边界也为 OpenAI Chat Completions、Anthropic Messages 和 Google GenerateContent 提供保守 adapter，未知字段继续回到 Raw，不根据 Agent 名称猜测。完整边界见 [Protocol Exchange 契约](protocol-exchange-contract.md)。
+
+精确代理会把 `/responses/compact` 识别为 Harness 上下文压缩交换、把 `/alpha/search` 识别为 Codex 内置搜索交换，二者都保留完整 request/response Raw，但不会伪装成新的用户 Turn 或普通 Assistant 回复。下行 normalizer 同时维护两层数据：协议原生的完整响应供 Raw Inspector 使用，统一的 `text`、`thinking`、`tool_calls` 摘要供时间线和整理视图使用；统一摘要不得再写回 Raw 响应形成第二份字段。Anthropic 的 Raw 保留 `tool_use`，OpenAI Responses 的 Raw 保留 `function_call`、`custom_tool_call`、`tool_search_call` 等原始类型。`x-openai-subagent` 以及父 thread 标识都会在持久化前脱敏；redaction 记录保留的字段存在性证据可把独立模型请求标记为 Codex 子 Agent，而私有 marker/thread id 本身不会持久化。Codex rollout 的语义重建同样只保留规范 `input`，需要 role 语义的共享模块再统一投影 message，不在 Raw body 中复制第二份 `messages`。存储层将 instructions、单工具 schema、单条 input/message 和工具结果分别写入内容寻址 blob，同一会话后续请求复用相同 hash。
 
 部分 Harness 会通过一个外层工具执行内部工具路由，例如 Codex rollout 中的 `exec` 参数包含 `tools.web__run(...)` 或 `tools.exec_command(...)`，Skill 加载也可能表现为读取 `skills/<name>/SKILL.md`。`tool-call-semantics.mjs` 只依据捕获到的工具名与参数添加 `semantic` 观察证据，同时完整保留原始工具名和参数。默认 Timeline 必须区分“模型选择的外层工具”和“参数中观测到的内部派发”，例如显示“模型调用 `exec`（内部派发 `web__run`）”，不能把两者压成一个未经解释的工具名；该标注不证明未出现在 Trace 中的服务器端调用，也不能替代 Raw 证据。
 
@@ -303,7 +307,7 @@ cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 ses
 
 多 Agent 看板紧跟 Turn 的发起请求，保持“原因在上、分支活动在下”的稳定阅读顺序。收起时只呈现聚合标题和 child 身份 glyph。展开后的第一行是一位 child Agent 一个 tab，tab 只显示稳定 glyph 和真实 spawn nickname/分支 label，选中态使用对应身份色文字与下划线；运行、完成、回流状态只放在选中分支详情行。颜色和几何 glyph 由稳定 `agent_id` 派生，不随显示顺序变化。选中 tab 后使用主 Agent 相同的 Request Card/Assistant/Thinking/工具语言展示该 child 的完整有序上行/下行 timeline，每张 request 保留 child owner 与右侧详情动作；parent spawn、启动确认、结果回流和 linkage confidence 放在 timeline 后的次级证据区。已进入 child panel 的 request id 从主请求、幕后请求和 request rail 中去除，避免同一请求出现两次；未捕获 child 模型请求时只显示诚实空态，不推断虚构步骤。Trace 顶层搜索索引派生摘要而不是 Raw body，可按异常、慢请求、工具和子 Agent 定位请求。结果以 Turn 为归属、以命中请求为证据，每次最多追加 24 条，避免搜索本身重新制造超大 DOM。主栏使用容器条件适配真实栏宽，三栏拖拽或折叠不会再把标题挤成竖排。
 
-Raw Inspector 的分类标签、当前区块搜索和原文/翻译操作组成同一个粘性控制区。原文模式只搜索原始 JSON 路径和值；整理/翻译模式只搜索当前可见的结构化 system、harness 或工具文本，并筛选原有块和工具组。匹配计数以可见关键词的实际出现次数为准，上一个/下一个按钮逐词循环定位并强化当前高亮。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属；单个工具的说明、全部参数、合并原文、复制与重译作为一个视觉及动作单元，底层仍沿用既有块级 hash 缓存。
+Raw Inspector 的分类标签、当前区块搜索和原文/翻译操作组成同一个粘性控制区。`Protocol` 标签以协议原顺序呈现上下行、工具声明/追加/加载阶段和响应状态，每个条目只提供结构摘要及回到 Raw 证据的入口；它不复制正文，也不把 PMA 语义字段伪装成厂商字段。原文模式只搜索原始 JSON 路径和值；整理/翻译模式只搜索当前可见的结构化 system、developer、harness、工具或 response 文本，并筛选原有块和工具组。匹配计数以可见关键词的实际出现次数为准，上一个/下一个按钮逐词循环定位并强化当前高亮。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属；单个工具的说明、全部参数、合并原文、复制与重译作为一个视觉及动作单元，底层仍沿用既有块级 hash 缓存。
 
 Raw Inspector 的一次导航由 `RawInspectorController` 串联：更新 Store 中的 `activeRequestId`/section/mode、打开右栏、同步提交已有完整详情或按需读取 compact detail，再通知搜索装饰。中栏滚动与 Request 导航只更新独立的 `activeTimelineRequestId`，不能让正在读取的 Raw operation 失效。控制器使用递增 operation id 和 Raw context 双重校验；用户快速切换证据请求或区块时，旧详情或旧错误即使更晚返回也不能覆盖当前面板。详情返回先绘制，整条 Source 的翻译 lookup 重建在后台调度，不能阻塞首次内容提交。后台同上下文刷新还需经过交互 gate，Raw 搜索正在 IME 组词时不会替换输入框；选词完成后的搜索重绘会消费最新状态。翻译缓存、Raw section 语义、HTML 和搜索算法仍由注入端口及各自 Model/Renderer/Controller 所有。完整边界见 [Raw Inspector Controller 契约](raw-inspector-controller-contract.md)。
 
@@ -353,7 +357,7 @@ Raw Inspector 按数据方向组织证据：请求卡和上行视图只展示 Sy
 
 中间时间线与右侧 Inspector 使用不同的信息密度：时间线只消费有界摘要，右侧是完整证据与语义整理入口。右侧 `tool_result` 从本轮原始上行 message 增量读取完整条目，并提供原文/整理切换；例如 `tool_search_output` 会在整理视图中按命名空间展示完整工具描述、参数 schema、参数说明、原始定义与块级翻译操作，不受时间线 800 字预览限制。
 
-Raw Inspector 的结构化翻译视图已经拆为纯 View Model 和 Renderer。View Model 只接收显式材料、查询词、可选工具名范围和译文 lookup 回调，负责工具分组、精确范围过滤、命中排序、缓存统计与展示 DTO；Renderer 只接收 DTO、i18n、Markdown/Pre renderer 和 action id 注册回调。Source/目标语言的缓存探测、lookup 重建、自动刷新去重以及旧异步结果失效由 `TranslationCacheController` 所有；应用层继续拥有活动 request/section、翻译生成、复制/重译动作和局部重绘，但生成副作用必须携带控制器签发的上下文 operation token 并在每个异步边界后复核。单工具动作可聚合说明和全部参数材料，却不改变每项材料既有的翻译 hash 与缓存生命周期。详细边界见 [Viewer 翻译视图契约](translation-view-renderer-contract.md)与[Viewer 翻译缓存上下文契约](translation-cache-controller-contract.md)。
+Raw Inspector 的结构化翻译视图已经拆为纯 View Model 和 Renderer。View Model 只接收显式材料、查询词、可选工具名范围和译文 lookup 回调，负责工具分组、精确范围过滤、命中排序、缓存统计与展示 DTO；Renderer 只接收 DTO、i18n、Markdown/Pre renderer 和 action id 注册回调。Developer instruction 与 Assistant reasoning/response 复用 Message Renderer 的原文/译文结构；用户消息、历史对话与工具结果保持 source-only。只有用户显式生成/重译时这些材料才进入既有 provider/Harness 翻译边界，单纯打开 Protocol、Developer 或 Response 不会外发内容。Source/目标语言的缓存探测、lookup 重建、自动刷新去重以及旧异步结果失效由 `TranslationCacheController` 所有；应用层继续拥有活动 request/section、翻译生成、复制/重译动作和局部重绘，但生成副作用必须携带控制器签发的上下文 operation token 并在每个异步边界后复核。单工具动作可聚合说明和全部参数材料，却不改变每项材料既有的翻译 hash 与缓存生命周期。详细边界见 [Viewer 翻译视图契约](translation-view-renderer-contract.md)、[Translation Material 契约](translation-material-contract.md)与[Viewer 翻译缓存上下文契约](translation-cache-controller-contract.md)。
 
 大 Trace 已使用真正的 cursor 增量读取：live/SQLite Source 只 hydrate 当前 capture 页面；file/import Source 首次建立结构索引后按 byte range hydrate 当前页，三种后端都不会在首屏完整 `JSON.parse` Trace。后续页面由 `TimelineEntityStore` 合并进 request、Turn 和 Agent 的 normalized map，Raw/detail 仍按 request 懒加载。Store 在状态未变化时复用兼容快照，完整详情只能覆盖对应证据字段，不能反向覆盖 cursor 已确认的 Turn、Context 或 Agent 归属。当前边界是 Store 仍需为旧 View Model 物化完整 compact 数组，尚未实现 page eviction/细粒度订阅；legacy 文件首次索引仍是线性扫描，冷启动 deep link 可能顺序确认 request identity。搜索后台索引、浏览器峰值内存 gate 和更细粒度的局部重绘继续属于下一阶段优化。
 
@@ -368,7 +372,7 @@ Viewer 会从 capture 中派生：
 - 主 Agent、子 Agent、spawn/return 和事件时间线。
 - 相邻上下文的新增消息、system diff 和工具变化。
 
-模型下行的 JSON/SSE、thinking、text、tool use 和 stop reason 已由 `src/trace/model-response-normalizer.mjs` 统一归一化，详见[模型回复归一化契约](model-response-normalizer-contract.md)。上行消息分类由 `message-semantics.mjs` 统一解释；请求协议/provider 与来源画像由 `request-profile.mjs` 提供，`request-attribution.mjs` 以 `actor`、`relation`、`operation` 和脱敏 `evidence` 表达跨 Harness 归因，详见[Trace 请求画像契约](request-profile-contract.md)；请求字符构成由 `request-composition.mjs` 提供，详见[Trace 请求构成契约](request-composition-contract.md)。部分 adapter-specific normalize 仍在后续收敛范围内。
+模型下行的 JSON/SSE、thinking、text、tool use 和 stop reason 已由 `src/trace/model-response-normalizer.mjs` 统一归一化，详见[模型回复归一化契约](model-response-normalizer-contract.md)。上行消息分类由 `message-semantics.mjs` 统一解释；请求协议/provider 与来源画像由 `request-profile.mjs` 提供，`protocol-exchange.mjs` 将已识别协议投影为可追溯的上下行条目与工具阶段，`request-attribution.mjs` 再以 `actor`、`relation`、`operation` 和脱敏 `evidence` 表达跨 Harness 归因。三者分别拥有协议事实、Agent 归因和证据来源，不能互相替代。详见[Protocol Exchange 契约](protocol-exchange-contract.md)和[Trace 请求画像契约](request-profile-contract.md)；请求字符构成由 `request-composition.mjs` 提供，详见[Trace 请求构成契约](request-composition-contract.md)。部分 adapter-specific normalize 仍在后续收敛范围内。
 
 ## 翻译缓存
 
