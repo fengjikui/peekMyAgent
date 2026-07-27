@@ -37,7 +37,7 @@ import { claudeCodeProjectDir, claudeCodeProxySettingsArgs, claudeCodeUserDir, i
 import { defaultStateDir, defaultStorePath, ideRegistryPath as defaultIdeRegistryPath, viewerRegistryPath as resolveViewerRegistryPath } from "../src/core/app-paths.mjs";
 import { openPersistenceStore } from "../src/core/persistence-store.mjs";
 import { otelTelemetryEnv } from "../src/core/otel-capture.mjs";
-import { backgroundProcessSpawnOptions, childProcessSpawnConfig, launchBrowserUrl, safeProcessCwd, shellInlineEnv, shellQuote, userHome, workspaceFromEnv } from "../src/core/platform.mjs";
+import { backgroundProcessSpawnOptions, childProcessSpawnConfig, inspectCommandResolution, launchBrowserUrl, safeProcessCwd, shellInlineEnv, shellQuote, userHome, workspaceFromEnv } from "../src/core/platform.mjs";
 import { canConnect, listeningPidsForUrl, processHasAncestor, terminatePids } from "../src/core/process-tools.mjs";
 import { clearViewerRegistry, readViewerRegistry, viewerRegistryPath } from "../src/core/viewer-registry.mjs";
 import { startViewerServer } from "../src/viewer/server.mjs";
@@ -482,6 +482,7 @@ async function runDoctor() {
   const claudeInstall = inspectClaudeSkillInstall({ cwd });
   const storeSummary = inspectStore(storePath);
   const cliCommand = commandAvailable("peekmyagent", ["--help"]);
+  const cliOnPath = cliCommand.on_path !== false;
   const nodeOk = nodeMajorVersion(process.version) >= MIN_NODE_MAJOR;
   const checks = [
     {
@@ -492,9 +493,17 @@ async function runDoctor() {
     },
     {
       id: "cli-command",
-      status: cliCommand.available ? "ok" : "info",
-      message: cliCommand.available ? "peekmyagent command is available on PATH" : "peekmyagent command is not available on PATH",
-      next_action: cliCommand.available ? null : "Run node scripts/install.mjs, npm link, or use node /path/to/peekMyAgent/bin/peekmyagent.mjs.",
+      status: cliCommand.available && cliOnPath ? "ok" : "info",
+      message: cliCommand.available && cliOnPath
+        ? "peekmyagent command is available on PATH"
+        : cliCommand.available
+          ? `peekmyagent command was found outside PATH at ${cliCommand.resolved_path}`
+          : "peekmyagent command is not available on PATH",
+      next_action: cliCommand.available && !cliOnPath
+        ? `Add ${path.dirname(cliCommand.resolved_path)} to PATH and restart the terminal.`
+        : cliCommand.available
+          ? null
+          : "Run node scripts/install.mjs, npm link, or use node /path/to/peekMyAgent/bin/peekmyagent.mjs.",
     },
     {
       id: "daemon",
@@ -716,6 +725,7 @@ function inspectClaudeInstallScope(claudeDir) {
 }
 
 function commandAvailable(commandName, commandArgs = ["--version"]) {
+  const resolution = inspectCommandResolution(commandName);
   const spawnConfig = childProcessSpawnConfig(commandName, commandArgs);
   const result = spawnSync(spawnConfig.command, spawnConfig.args, {
     cwd: safeProcessCwd(),
@@ -724,8 +734,12 @@ function commandAvailable(commandName, commandArgs = ["--version"]) {
     ...spawnConfig.options,
   });
   const output = `${result.stdout || ""}${result.stderr || ""}`.trim();
+  const available = result.status === 0 || Boolean(output);
   return {
-    available: result.status === 0 || Boolean(output),
+    available,
+    on_path: process.platform === "win32" ? resolution.on_path : available,
+    resolved_path: resolution.resolved_path,
+    resolution_source: resolution.source,
     exit_code: Number.isInteger(result.status) ? result.status : null,
     error: result.error?.message || null,
   };
@@ -748,15 +762,15 @@ function printDoctor(result) {
   console.log(`registry: ${result.paths.viewer_registry_path}${result.paths.viewer_registry_exists ? " (exists)" : " (missing)"}`);
   console.log(`ide registry: ${result.paths.ide_registry_path}${result.paths.ide_registry_exists ? " (exists)" : " (missing)"}`);
   console.log(`translations: ${result.paths.translations_root}${result.paths.translations_root_exists ? " (exists)" : " (missing)"}`);
-  console.log(`cli: ${result.cli.command.available ? "command found" : "command not found"} (${result.cli.invoked_path})`);
+  console.log(`cli: ${formatCommandAvailability(result.cli.command)} (${result.cli.invoked_path})`);
   console.log(`daemon: ${result.daemon.reachable ? "reachable" : result.daemon.api_port_open ? "port occupied" : "not running"} ${result.daemon.url}`);
   if (result.daemon.api_port_owner?.pids?.length) console.log(`daemon port owner: ${result.daemon.api_port_owner.pids.join(", ")} (${result.daemon.api_port_owner.method})`);
   console.log(`capture: ${result.daemon.capture_port_open ? "port open" : "port free"} ${result.daemon.capture_url}`);
   if (result.daemon.capture_port_owner?.pids?.length) console.log(`capture port owner: ${result.daemon.capture_port_owner.pids.join(", ")} (${result.daemon.capture_port_owner.method})`);
-  console.log(`claude: ${result.agents.claude_code.command.available ? "command found" : "command not found"}, upstream ${result.agents.claude_code.target_base_url_source}`);
+  console.log(`claude: ${formatCommandAvailability(result.agents.claude_code.command)}, upstream ${result.agents.claude_code.target_base_url_source}`);
   console.log(`claude capture: auto -> ${result.agents.claude_code.default_capture.mode} (${result.agents.claude_code.default_capture.reason})`);
   console.log(`claude helpers: user ${formatInstallStatus(result.agents.claude_code.install.user)}, project ${formatInstallStatus(result.agents.claude_code.install.project)}`);
-  console.log(`openclaw: ${result.agents.openclaw.command.available ? "command found" : "command not found"}`);
+  console.log(`openclaw: ${formatCommandAvailability(result.agents.openclaw.command)}`);
   console.log(`data cleanup: ${result.data.cleanup_commands.clear_sessions}; ${result.data.cleanup_commands.uninstall_remove_data}`);
   const existingSettings = result.agents.claude_code.settings.filter((item) => item.exists);
   if (existingSettings.length) {
@@ -778,6 +792,12 @@ function formatInstallStatus(scope) {
   if (scope.skill_installed && scope.commands_installed) return "installed";
   if (scope.skill_installed || scope.commands.some((item) => item.installed)) return "partial";
   return "not installed";
+}
+
+function formatCommandAvailability(command) {
+  if (!command.available) return "command not found";
+  if (command.on_path === false) return `command found outside PATH (${command.resolved_path})`;
+  return "command found";
 }
 
 function nodeMajorVersion(version) {
@@ -2251,6 +2271,7 @@ async function shutdownDaemonTarget(target) {
       const pid = result.pid || target.pid || null;
       await waitForDaemonDown(target.url);
       await waitForPidExit(pid);
+      clearViewerRegistry(trimSlash(target.url), pid);
       return {
         action: "shutdown",
         status: "stopped",
@@ -2263,6 +2284,7 @@ async function shutdownDaemonTarget(target) {
       allowPidFallback = true;
     }
   } else if (!(await canConnectToUrl(target.url))) {
+    clearViewerRegistry(trimSlash(target.url), target.pid);
     return null;
   }
 
@@ -2287,7 +2309,7 @@ async function shutdownDaemonTarget(target) {
   if (failed) throw new Error(`Could not stop PID ${failed.pid}: ${failed.error}`);
   await waitForDaemonDown(target.url);
   await waitForPidExit(pid);
-  clearViewerRegistry(trimSlash(target.url));
+  clearViewerRegistry(trimSlash(target.url), pid);
   return {
     action: "shutdown",
     status: "stopped",

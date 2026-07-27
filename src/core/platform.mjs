@@ -96,6 +96,14 @@ export function childProcessSpawnConfig(command, args = [], { platform = process
   return { command: resolved, args: finalArgs, options: { shell: false, windowsHide: true } };
 }
 
+export function inspectCommandResolution(command, { platform = process.platform, env = process.env } = {}) {
+  const requested = String(command || "");
+  if (platform !== "win32") {
+    return { requested, resolved_path: null, source: null, on_path: null };
+  }
+  return inspectWindowsCommandResolution(requested, { env });
+}
+
 export function backgroundProcessSpawnOptions({ platform = process.platform } = {}) {
   return platform === "win32" ? { windowsHide: true } : {};
 }
@@ -127,21 +135,38 @@ export function shouldSpawnViaShell(command, { platform = process.platform } = {
 }
 
 function resolveWindowsCommand(command, { env = process.env } = {}) {
+  return inspectWindowsCommandResolution(command, { env }).resolved_path;
+}
+
+function inspectWindowsCommandResolution(command, { env = process.env } = {}) {
   const text = String(command || "");
-  if (!text) return text;
+  if (!text) return { requested: text, resolved_path: null, source: "missing", on_path: false };
   const pathApi = path.win32;
   const hasPath = pathApi.isAbsolute(text) || /[\\/]/.test(text);
-  if (hasPath) return resolveWindowsPathCandidate(text, { env }) || text;
+  if (hasPath) {
+    return {
+      requested: text,
+      resolved_path: resolveWindowsPathCandidate(text, { env }) || text,
+      source: "explicit",
+      on_path: null,
+    };
+  }
 
-  const pathValue = [env.Path, env.PATH].filter(Boolean).join(path.delimiter);
-  const dirs = [...pathValue.split(path.delimiter), ...windowsLikelyCommandDirs(env)]
+  const pathValue = [env.Path, env.PATH].filter(Boolean).join(pathApi.delimiter);
+  const pathDirs = pathValue.split(pathApi.delimiter)
     .filter(Boolean)
     .filter((dir, index, list) => list.findIndex((item) => item.toLowerCase() === dir.toLowerCase()) === index);
-  for (const dir of dirs) {
+  for (const dir of pathDirs) {
     const candidate = resolveWindowsPathCandidate(pathApi.join(dir, text), { env });
-    if (candidate) return candidate;
+    if (candidate) return { requested: text, resolved_path: candidate, source: "path", on_path: true };
   }
-  return null;
+  const fallbackDirs = windowsLikelyCommandDirs(env)
+    .filter((dir) => !pathDirs.some((pathDir) => pathDir.toLowerCase() === dir.toLowerCase()));
+  for (const dir of fallbackDirs) {
+    const candidate = resolveWindowsPathCandidate(pathApi.join(dir, text), { env });
+    if (candidate) return { requested: text, resolved_path: candidate, source: "windows_fallback", on_path: false };
+  }
+  return { requested: text, resolved_path: null, source: "missing", on_path: false };
 }
 
 function windowsLikelyCommandDirs(env = process.env) {

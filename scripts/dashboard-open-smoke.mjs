@@ -59,6 +59,7 @@ try {
   assert.match(shutdownResult.stdout, new RegExp(`peekMyAgent daemon stopped: ${escapeRegExp(dashboardUrl)}`));
   assert.equal(await canConnect("127.0.0.1", apiPort), false);
   assert.equal(await canConnect("127.0.0.1", capturePort), false);
+  assert.equal(fs.existsSync(path.join(stateDir, "viewer.json")), false);
 
   const shutdownAgainResult = runCli(["shutdown"], env);
   assert.equal(shutdownAgainResult.status, 0, shutdownAgainResult.stderr);
@@ -81,6 +82,7 @@ try {
   assert.equal(shutdownJson.method, "api");
   assert.equal(await canConnect("127.0.0.1", apiPort), false);
   assert.equal(await canConnect("127.0.0.1", capturePort), false);
+  assert.equal(fs.existsSync(path.join(stateDir, "viewer.json")), false);
 
   const restartJsonResult = runCli(["restart", "--json", "--no-open"], env);
   assert.equal(restartJsonResult.status, 0, restartJsonResult.stderr);
@@ -96,6 +98,7 @@ try {
   const finalShutdown = runCli(["shutdown", "--json"], env);
   assert.equal(finalShutdown.status, 0, finalShutdown.stderr);
   assert.equal(JSON.parse(finalShutdown.stdout).status, "stopped");
+  assert.equal(fs.existsSync(path.join(stateDir, "viewer.json")), false);
 
   const staleServer = await startStaleDaemonServer(apiPort);
   try {

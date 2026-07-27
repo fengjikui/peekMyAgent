@@ -33,6 +33,8 @@ flowchart LR
 
 daemon、Viewer HTTP API 和静态资源服务由同一个 `startViewerServer()` 实例提供。共享 Capture Proxy 在配置了 capture port 时由该进程一并启动，但监听独立端口。
 
+CLI shutdown 会等待 daemon 监听端口和 Windows PID 退出，并以 URL 与 PID 双重匹配清理 Viewer registry；daemon 自身关闭回调仍执行同一清理，因此兜底退出不会留下被 doctor 误认为当前实例的陈旧记录，也不会删除并发启动的新实例记录。
+
 Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、file/demo、import 和显式选择的 Codex rollout 等 provider。左侧导航先按观察对象隔离 Claude Code、Codex、OpenClaw 和导入 Trace，一次只渲染一类来源。`ViewerRouter` 按共享 API contract 处理 URL、method、intent、body 和响应，将解析后的输入交给 `server.mjs` 注入的显式 operations；SourceSummary、单请求详情以及完整/compact/cursor Timeline 响应均在 Server 序列化前和浏览器解析后执行同一版本化 DTO 契约。`WatchRuntimeService` 拥有 active watch registry、new/reuse/restore、pause/resume/stop、共享/独立代理和 Capture 回调，Server 只装配 shared proxy、Store、metadata 与 presenter 端口。rename、pin、archive、delete 和项目批量操作继续由 `SourceLifecycleService` 执行，该 service 只通过 runtime、SQLite、metadata 和 imports 端口产生副作用。模型下行 JSON/SSE、上行消息语义以及请求协议/provider/source 画像已由 Trace Domain 统一解释；`ViewerTraceProjector` 将这些领域契约统一投影为完整加载、单请求详情和 cursor 分页共用的 Viewer DTO。
 
 ## 源码地图

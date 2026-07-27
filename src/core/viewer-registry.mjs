@@ -31,9 +31,10 @@ export function readViewerRegistry() {
   }
 }
 
-export function clearViewerRegistry(expectedUrl) {
+export function clearViewerRegistry(expectedUrl, expectedPid) {
   const current = readViewerRegistry();
   if (expectedUrl && current?.url !== expectedUrl) return;
+  if (expectedPid && Number(current?.pid) !== Number(expectedPid)) return;
   try {
     fs.rmSync(viewerRegistryPath());
   } catch {

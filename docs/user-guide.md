@@ -60,6 +60,8 @@ node scripts/install.mjs
 node scripts/install.mjs --dry-run
 ```
 
+Windows 上如果安装成功但新终端仍无法直接运行 `pma`，请查看 `pma doctor --json` 的 `cli.command`，或从源码运行 `node bin/peekmyagent.mjs doctor`。doctor 会区分命令确实位于当前 PATH，还是只在 npm 常见全局目录中被兼容发现；后一种情况按提示把该目录加入 PATH 并重启终端。PMA 对 Claude Code 等子进程保留这个兼容发现能力，但它不能替代终端自身的 PATH。
+
 源码安装器等价于：
 
 ```bash

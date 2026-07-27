@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { traeCnAppDataRoot } from "../src/adapters/trae-cn-integration.mjs";
 import { appConfigDir, defaultStateDir, defaultStorePath, ideRegistryPath, safePathSegment, slugify, translationsDir, viewerRegistryPath } from "../src/core/app-paths.mjs";
-import { childProcessSpawnConfig, childProcessSpawnOptions, expandHomePath, launchBrowserUrl, npmGlobalBinPath, openBrowserCommand, safeProcessCwd, shellInlineEnv, shellQuote, shouldSpawnViaShell, userHome, workspaceFromEnv } from "../src/core/platform.mjs";
+import { childProcessSpawnConfig, childProcessSpawnOptions, expandHomePath, inspectCommandResolution, launchBrowserUrl, npmGlobalBinPath, openBrowserCommand, safeProcessCwd, shellInlineEnv, shellQuote, shouldSpawnViaShell, userHome, workspaceFromEnv } from "../src/core/platform.mjs";
 import { canConnect, listeningPidsForPort, terminatePids } from "../src/core/process-tools.mjs";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peek-platform-"));
@@ -94,6 +94,35 @@ try {
     fs.mkdirSync(fakeNpmBin, { recursive: true });
     fs.writeFileSync(fakeClaudeScript, "process.stdout.write('ok');\n");
     fs.writeFileSync(path.join(fakeNpmBin, "claude.cmd"), `@echo off\r\n"${process.execPath}" "%~dp0claude.mjs" %*\r\n`);
+    assert.deepEqual(
+      inspectCommandResolution("claude", {
+        platform: "win32",
+        env: {
+          APPDATA: fakeAppData,
+          USERPROFILE: path.join(tmpDir, "home"),
+          Path: path.dirname(process.execPath),
+          PATH: path.dirname(process.execPath),
+        },
+      }),
+      {
+        requested: "claude",
+        resolved_path: path.join(fakeNpmBin, "claude.cmd"),
+        source: "windows_fallback",
+        on_path: false,
+      },
+    );
+    assert.deepEqual(
+      inspectCommandResolution("claude", {
+        platform: "win32",
+        env: { Path: fakeNpmBin, PATH: fakeNpmBin },
+      }),
+      {
+        requested: "claude",
+        resolved_path: path.join(fakeNpmBin, "claude.cmd"),
+        source: "path",
+        on_path: true,
+      },
+    );
     assert.deepEqual(
       childProcessSpawnConfig("claude", ["-p", "hello world"], {
         platform: "win32",

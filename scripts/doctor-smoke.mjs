@@ -26,6 +26,20 @@ try {
     PEEKMYAGENT_DAEMON_PORT: String(apiPort),
     PEEKMYAGENT_CAPTURE_PORT: String(capturePort),
   };
+  if (process.platform === "win32") {
+    const fakeAppData = path.join(tmpDir, "app-data");
+    const fakeNpmBin = path.join(fakeAppData, "npm");
+    const fakeCliScript = path.join(fakeNpmBin, "peekmyagent.mjs");
+    fs.mkdirSync(fakeNpmBin, { recursive: true });
+    fs.writeFileSync(fakeCliScript, "process.stdout.write('fake peekmyagent');\n");
+    fs.writeFileSync(
+      path.join(fakeNpmBin, "peekmyagent.cmd"),
+      `@echo off\r\n"${process.execPath}" "%~dp0peekmyagent.mjs" %*\r\n`,
+    );
+    env.APPDATA = fakeAppData;
+    env.Path = path.dirname(process.execPath);
+    env.PATH = path.dirname(process.execPath);
+  }
   const result = runCli(["doctor", "--json"], env, workspace);
   assert.equal(result.status, 0, result.stderr);
   const report = JSON.parse(result.stdout);
@@ -46,6 +60,13 @@ try {
   assert.equal(report.cli.invoked_path.endsWith(path.join("bin", "peekmyagent.mjs")), true);
   assert.equal(typeof report.cli.command.available, "boolean");
   assert.ok(report.checks.some((item) => item.id === "cli-command"));
+  if (process.platform === "win32") {
+    assert.equal(report.cli.command.available, true);
+    assert.equal(report.cli.command.on_path, false);
+    assert.equal(report.cli.command.resolution_source, "windows_fallback");
+    assert.match(report.checks.find((item) => item.id === "cli-command")?.message || "", /outside PATH/);
+    assert.ok(report.next_actions.some((item) => /Add .* to PATH and restart the terminal/i.test(item)));
+  }
   assert.equal(report.daemon.url, `http://127.0.0.1:${apiPort}`);
   assert.equal(report.daemon.capture_url, `http://127.0.0.1:${capturePort}`);
   assert.equal(report.daemon.reachable, false);
