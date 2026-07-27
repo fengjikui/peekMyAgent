@@ -45,6 +45,9 @@ export function summarizeModelResponse(response) {
     truncated: Boolean(response.truncated),
     raw_body_bytes: response.raw_body_length || 0,
     captured_body_bytes: response.captured_body_length || 0,
+    decoded_body_bytes: response.decoded_body_length ?? null,
+    response_content_encoding: response.response_content_encoding || "identity",
+    content_decoding: response.content_decoding || null,
     received_at: response.received_at || null,
   };
 }
@@ -160,7 +163,7 @@ export function summarizeSseResponse(text) {
     else if (!data.delta?.type && data.delta?.text) textParts.push(data.delta.text);
     if (data.content_block?.type === "text" && data.content_block.text) fallbackTextParts.push(data.content_block.text);
     if (data.content_block?.type === "thinking" && data.content_block.thinking) fallbackThinkingParts.push(data.content_block.thinking);
-    if (data.content_block?.type === "tool_use") {
+    if (["tool_use", "server_tool_use"].includes(data.content_block?.type)) {
       const call = toolCallFromPart(data.content_block);
       if (call) {
         toolCalls.push(call);
@@ -557,7 +560,7 @@ function createAnthropicContentBlock(contentBlock) {
     block.thinking = String(block.thinking || "");
     if (block.signature !== undefined) block.signature = String(block.signature || "");
   }
-  if (block.type === "tool_use") {
+  if (["tool_use", "server_tool_use"].includes(block.type)) {
     block.input = block.input && typeof block.input === "object" ? block.input : {};
     block.__partial_json = "";
   }
@@ -571,6 +574,9 @@ function mergeAnthropicContentBlockDelta(blocks, index, delta) {
   else if (delta.type === "thinking_delta") block.thinking = `${block.thinking || ""}${delta.thinking || ""}`;
   else if (delta.type === "signature_delta") block.signature = `${block.signature || ""}${delta.signature || ""}`;
   else if (delta.type === "input_json_delta") block.__partial_json = `${block.__partial_json || ""}${delta.partial_json || ""}`;
+  else if (delta.type === "citations_delta" && delta.citation) {
+    block.citations = [...(Array.isArray(block.citations) ? block.citations : []), structuredCloneSafe(delta.citation)];
+  }
   blocks.set(index, block);
 }
 
@@ -585,7 +591,7 @@ function reconstructAnthropicMessage({ message, contentBlocks, messageId, role, 
     .sort(([left], [right]) => Number(left) - Number(right))
     .map(([, source]) => {
       const block = { ...source };
-      if (block.type === "tool_use" && block.__partial_json) {
+      if (["tool_use", "server_tool_use"].includes(block.type) && block.__partial_json) {
         block.input = parseMaybeJson(block.__partial_json);
       }
       delete block.__partial_json;

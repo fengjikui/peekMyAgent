@@ -14,6 +14,7 @@ assert.equal(extractContentText(42), "42");
 assert.equal(
   extractContentText([
     { type: "thinking", thinking: "private" },
+    { type: "redacted_thinking", data: "opaque" },
     { type: "text", text: "visible" },
     { type: "image", source: { type: "base64", data: "abc" } },
   ]),
@@ -49,6 +50,10 @@ assert.deepEqual(
   extractToolCallsFromContent({ type: "tool_use", id: "one", name: "Bash", input: { command: "pwd" } }),
   [{ id: "one", name: "Bash", arguments: { command: "pwd" } }],
 );
+assert.deepEqual(
+  extractToolCallsFromContent({ type: "server_tool_use", id: "server-one", name: "web_search", input: { query: "PMA" } }),
+  [{ id: "server-one", name: "web_search", arguments: { query: "PMA" } }],
+);
 
 assert.deepEqual(
   extractToolResults([
@@ -57,6 +62,7 @@ assert.deepEqual(
       role: "user",
       content: [
         { type: "tool_result", tool_use_id: "anthropic-1", content: [{ type: "text", text: "written" }] },
+        { type: "web_search_tool_result", tool_use_id: "server-one", content: [{ type: "text", text: "result" }] },
         { type: "text", text: "harness continuation" },
       ],
     },
@@ -64,6 +70,7 @@ assert.deepEqual(
   [
     { id: "openai-1", content: "file contents" },
     { id: "anthropic-1", content: "written" },
+    { id: "server-one", content: "result" },
   ],
 );
 assert.deepEqual(parseMaybeJson('{"ok":true}'), { ok: true });

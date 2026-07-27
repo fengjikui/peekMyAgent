@@ -1,3 +1,14 @@
+const ANTHROPIC_TOOL_CALL_BLOCK_TYPES = new Set(["tool_use", "server_tool_use"]);
+const ANTHROPIC_TOOL_RESULT_BLOCK_TYPES = new Set([
+  "tool_result",
+  "web_search_tool_result",
+  "web_fetch_tool_result",
+  "code_execution_tool_result",
+  "bash_code_execution_tool_result",
+  "text_editor_code_execution_tool_result",
+  "tool_search_tool_result",
+]);
+
 export function extractContentText(content) {
   if (content == null) return "";
   if (typeof content === "string") return content;
@@ -6,7 +17,7 @@ export function extractContentText(content) {
     return content
       .map((part) => {
         if (typeof part === "string") return part;
-        if (part?.type === "thinking" || part?.type === "reasoning") return "";
+        if (["thinking", "reasoning", "redacted_thinking"].includes(part?.type)) return "";
         if (part?.type === "text") return part.text || "";
         if (part?.text) return part.text;
         if (part?.content) return extractContentText(part.content);
@@ -15,7 +26,7 @@ export function extractContentText(content) {
       .filter(Boolean)
       .join("\n");
   }
-  if (content.type === "thinking" || content.type === "reasoning") return "";
+  if (["thinking", "reasoning", "redacted_thinking"].includes(content.type)) return "";
   if (content.text) return content.text;
   if (content.content) return extractContentText(content.content);
   return JSON.stringify(content);
@@ -78,7 +89,7 @@ export function extractToolResults(messages) {
     }
     const parts = Array.isArray(message?.content) ? message.content : [];
     for (const part of parts) {
-      if (part?.type === "tool_result") {
+      if (ANTHROPIC_TOOL_RESULT_BLOCK_TYPES.has(part?.type)) {
         results.push({ id: part.tool_use_id || null, content: extractContentText(part.content) });
       }
     }
@@ -87,7 +98,7 @@ export function extractToolResults(messages) {
 }
 
 export function toolCallFromPart(part) {
-  if (!part || typeof part !== "object" || part.type !== "tool_use") return null;
+  if (!part || typeof part !== "object" || !ANTHROPIC_TOOL_CALL_BLOCK_TYPES.has(part.type)) return null;
   return { name: part.name || "unknown", id: part.id || null, arguments: part.input ?? null };
 }
 

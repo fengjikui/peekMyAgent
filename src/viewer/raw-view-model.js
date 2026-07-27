@@ -207,6 +207,10 @@ export function rawResponseSectionValue(request) {
           content_type: rawResponse.headers?.["content-type"] || rawResponse.headers?.["Content-Type"] || null,
           raw_body_bytes: rawResponse.raw_body_length ?? response.raw_body_bytes ?? null,
           captured_body_bytes: rawResponse.captured_body_length ?? response.captured_body_bytes ?? null,
+          decoded_body_bytes: rawResponse.decoded_body_length ?? response.decoded_body_bytes ?? null,
+          content_encoding: rawResponse.response_content_encoding || response.response_content_encoding || "identity",
+          content_decoding: rawResponse.content_decoding || response.content_decoding || null,
+          body_text_source: rawResponse.body_text_source || null,
           received_at: rawResponse.received_at || response.received_at || null,
           body_json_available: rawResponse.body_json !== undefined && rawResponse.body_json !== null,
           transport: response.stream ? "stream" : "json",
@@ -222,7 +226,7 @@ export function rawResponseToolCalls(request) {
   const response = rawProviderResponse(request);
   const calls = [];
   if (Array.isArray(response?.content)) {
-    calls.push(...response.content.filter((item) => item?.type === "tool_use"));
+    calls.push(...response.content.filter((item) => ["tool_use", "server_tool_use"].includes(item?.type)));
   }
   if (Array.isArray(response?.output)) {
     calls.push(...response.output.filter(isResponsesToolCallItem));
@@ -236,8 +240,10 @@ export function rawResponseToolCalls(request) {
 export function responseToolCallSectionLabel(request, { translate = (key) => key } = {}) {
   const response = rawProviderResponse(request);
   const protocolTypes = [];
-  if (Array.isArray(response?.content) && response.content.some((item) => item?.type === "tool_use")) {
-    protocolTypes.push("tool_use");
+  if (Array.isArray(response?.content)) {
+    protocolTypes.push(...response.content
+      .filter((item) => ["tool_use", "server_tool_use"].includes(item?.type))
+      .map((item) => item.type));
   }
   for (const item of Array.isArray(response?.output) ? response.output : []) {
     if (isResponsesToolCallItem(item)) protocolTypes.push(item.type);

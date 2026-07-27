@@ -14,7 +14,7 @@ const request = {
       protocol: "openai_responses",
       protocol_label: "OpenAI Responses",
       request: {
-        counts: { instruction_blocks: 2, input_items: 4, tools: 3 },
+        counts: { instruction_blocks: 2, input_items: 6, tools: 3, unknown_items: 1 },
         instruction_blocks: [
           { source_path: "$.input[1]", role: "developer", item_type: "message", chars: 21335 },
         ],
@@ -41,14 +41,17 @@ const request = {
           { index: 1, source_path: "$.input[1]", item_type: "message", role: "developer", semantic: "instruction", chars: 21335 },
           { index: 2, source_path: "$.input[2]", item_type: "message", role: "user", semantic: "user_message", chars: 18 },
           { index: 3, source_path: "$.input[3]", item_type: "custom_tool_call_output", role: "tool", semantic: "tool_result", call_id: "call-prior" },
+          { index: 4, source_path: "$.input[4]", item_type: "future_item", role: "assistant", semantic: "assistant_message", schema_known: false },
+          { index: 5, source_path: "$.input[5]", item_type: "mcp_list_tools", role: "assistant", semantic: "tool_discovery", schema_known: true },
         ],
       },
       response: {
         status: "completed",
-        counts: { output_items: 2, reasoning_items: 1, tool_calls: 1 },
+        counts: { output_items: 3, reasoning_items: 1, tool_calls: 1, tool_approvals: 1 },
         output_items: [
           { index: 0, source_path: "$.output[0]", item_type: "reasoning", role: "assistant", semantic: "reasoning", chars: 12 },
           { index: 1, source_path: "$.output[1]", item_type: "custom_tool_call", role: "assistant", semantic: "tool_call", call_id: "call-current", name: "exec" },
+          { index: 2, source_path: "$.output[2]", item_type: "mcp_approval_request", role: "assistant", semantic: "tool_approval", call_id: "approval-current", name: "remote" },
         ],
       },
     },
@@ -65,9 +68,12 @@ assert.equal(view.upstream.toolStages[0].tools[1].qualifiedName, 'web.<unsafe to
 assert.equal(view.upstream.items[0].semantic, "tools_added");
 assert.equal(view.upstream.items[0].section, "tools");
 assert.equal(view.upstream.items[3].section, "tool_results");
+assert.equal(view.upstream.items[4].schemaKnown, false);
+assert.equal(view.upstream.items[5].section, "full");
 assert.equal(view.downstream.items[1].callId, "call-current");
 assert.equal(view.downstream.items[1].section, "tool_calls");
 assert.equal(view.downstream.items[1].mode, "response");
+assert.equal(view.downstream.items[2].section, "response");
 
 const escapeHtml = (value) => String(value ?? "")
   .replaceAll("&", "&amp;")
@@ -97,6 +103,8 @@ assert.match(html, /data-raw-section="response" data-raw-mode="response"/);
 assert.match(html, /protocolInstructionTranslationPolicy/);
 assert.match(html, /protocolContextTranslationPolicy/);
 assert.match(html, /protocolResponseTranslationPolicy/);
+assert.match(html, /protocolUnknownItems/);
+assert.match(html, /protocolSchemaUnknown/);
 assert.doesNotMatch(html, /<unsafe/);
 assert.doesNotMatch(html, /<img/);
 assert.match(html, /&lt;unsafe tool=&quot;x&quot;&gt;/);

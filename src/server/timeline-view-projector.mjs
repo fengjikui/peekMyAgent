@@ -213,7 +213,19 @@ function projectRawBodyMetadata(body) {
 function projectRawResponseMetadata(response) {
   if (!response || typeof response !== "object") return response || null;
   const output = {};
-  for (const key of ["status", "received_at", "duration_ms", "raw_body_length", "captured_body_length", "truncated", "body_text_omitted"]) {
+  for (const key of [
+    "status",
+    "received_at",
+    "duration_ms",
+    "raw_body_length",
+    "captured_body_length",
+    "decoded_body_length",
+    "response_content_encoding",
+    "content_decoding",
+    "body_text_source",
+    "truncated",
+    "body_text_omitted",
+  ]) {
     if (response[key] !== undefined) output[key] = response[key];
   }
   if (response.body_json_omitted || (response.body_json !== undefined && response.body_json !== null)) output.body_json_omitted = true;

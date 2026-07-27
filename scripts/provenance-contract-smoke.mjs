@@ -54,7 +54,7 @@ try {
     kind: "request_response",
     transport: "capture_proxy",
     request: { origin: "network_proxy", fidelity: "exact", artifact: "http_request", exact: true, available: true },
-    response: { origin: "network_proxy", fidelity: "exact", artifact: "http_response", exact: true, available: true },
+    response: { origin: "network_proxy", fidelity: "exact", artifact: "http_response_body", exact: true, available: true },
     sections: {
       system: { source: "request", origin: "network_proxy", fidelity: "exact", scope: "complete_request", available: true },
       tools: { source: "request", origin: "network_proxy", fidelity: "exact", scope: "complete_request", available: true },
@@ -92,7 +92,28 @@ try {
   });
   assert.equal(legacyNormalized.provenance.transport, "capture_proxy");
   assert.equal(legacyNormalized.provenance.response.fidelity, "partial");
+  assert.equal(legacyNormalized.provenance.response.artifact, "http_response_partial_body");
   assert.equal(legacyNormalized.provenance.association.confidence, "exact");
+
+  const decoded = proxyCaptureProvenance({
+    capture_id: "gzip-response",
+    response: {
+      status: 200,
+      content_decoding: { status: "decoded", encodings: ["gzip"] },
+    },
+  });
+  assert.equal(decoded.response.fidelity, "exact");
+  assert.equal(decoded.response.artifact, "http_response_decoded_body");
+
+  const unsupported = proxyCaptureProvenance({
+    capture_id: "unsupported-response",
+    response: {
+      status: 200,
+      content_decoding: { status: "unsupported", encodings: ["future-coding"] },
+    },
+  });
+  assert.equal(unsupported.response.fidelity, "partial");
+  assert.equal(unsupported.response.artifact, "http_response_metadata");
 
   const imported = importedTraceProvenance({
     capture_id: "legacy-import",

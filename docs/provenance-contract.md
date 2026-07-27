@@ -18,7 +18,7 @@
   "response": {
     "origin": "network_proxy",
     "fidelity": "exact",
-    "artifact": "http_response"
+    "artifact": "http_response_body"
   },
   "association": {
     "method": "capture_lifecycle",
@@ -37,7 +37,7 @@
 
 | transport | request/response 来源 | 关联依据 | 说明 |
 | --- | --- | --- | --- |
-| `capture_proxy` | 实际 HTTP 转发生命周期 | 同一 `capture_id` 生命周期 | request 为 `exact`；response 被大小上限截断时为 `partial`；关联为 `exact` |
+| `capture_proxy` | 实际 HTTP 转发生命周期 | 同一 `capture_id` 生命周期 | request 为 `exact`；identity 正文使用 `http_response_body`，解压后的完整正文使用 `http_response_decoded_body`，不能称为逐字 wire body；截断正文使用 `http_response_partial_body`，未知/失败编码仅保留 `http_response_metadata`，后两者 fidelity 为 `partial`；关联为 `exact` |
 | `otel_raw_body_file` | Claude Code 官方 OTel raw-body 事件 | 优先 `traceId + spanId`，旧版本才按文件顺序回退 | 正文可以是 `exact`，关联可能是 `exact/high/heuristic/none` |
 | `trace_import` | 用户导入的 portable trace 记录 | 导入文件中同一个 capture record | 只能证明导入记录内的归组，关联最高为 `high`，不能反推原始捕获过程 |
 

@@ -24,6 +24,89 @@ const ADAPTERS = Object.freeze({
   gemini_generate_content: projectGeminiExchange,
 });
 
+const OPENAI_RESPONSES_KNOWN_ITEM_TYPES = new Set([
+  "message",
+  "reasoning",
+  "additional_tools",
+  "tool_search_call",
+  "tool_search_output",
+  "file_search_call",
+  "computer_call",
+  "computer_call_output",
+  "web_search_call",
+  "function_call",
+  "function_call_output",
+  "image_generation_call",
+  "code_interpreter_call",
+  "local_shell_call",
+  "local_shell_call_output",
+  "shell_call",
+  "shell_call_output",
+  "apply_patch_call",
+  "apply_patch_call_output",
+  "mcp_list_tools",
+  "mcp_approval_request",
+  "mcp_approval_response",
+  "mcp_call",
+  "custom_tool_call",
+  "custom_tool_call_output",
+  "compaction",
+  "compaction_trigger",
+  "item_reference",
+  "program",
+  "program_output",
+]);
+
+const OPENAI_RESPONSES_KNOWN_OUTPUT_ITEM_TYPES = new Set(
+  [...OPENAI_RESPONSES_KNOWN_ITEM_TYPES].filter((type) => !["compaction_trigger", "item_reference"].includes(type)),
+);
+
+const ANTHROPIC_KNOWN_INPUT_CONTENT_BLOCK_TYPES = new Set([
+  "text",
+  "image",
+  "document",
+  "search_result",
+  "thinking",
+  "redacted_thinking",
+  "tool_use",
+  "tool_result",
+  "server_tool_use",
+  "web_search_tool_result",
+  "web_fetch_tool_result",
+  "code_execution_tool_result",
+  "bash_code_execution_tool_result",
+  "text_editor_code_execution_tool_result",
+  "tool_search_tool_result",
+  "container_upload",
+  "mid_conv_system",
+]);
+const ANTHROPIC_KNOWN_OUTPUT_CONTENT_BLOCK_TYPES = new Set([
+  "text",
+  "thinking",
+  "redacted_thinking",
+  "tool_use",
+  "server_tool_use",
+  "web_search_tool_result",
+  "web_fetch_tool_result",
+  "code_execution_tool_result",
+  "bash_code_execution_tool_result",
+  "text_editor_code_execution_tool_result",
+  "tool_search_tool_result",
+  "container_upload",
+]);
+
+const ANTHROPIC_TOOL_CALL_BLOCK_TYPES = new Set(["tool_use", "server_tool_use"]);
+const ANTHROPIC_TOOL_RESULT_BLOCK_TYPES = new Set([
+  "tool_result",
+  "web_search_tool_result",
+  "web_fetch_tool_result",
+  "code_execution_tool_result",
+  "bash_code_execution_tool_result",
+  "text_editor_code_execution_tool_result",
+]);
+const ANTHROPIC_RESOURCE_BLOCK_TYPES = new Set(["image", "document", "search_result", "container_upload"]);
+const OPENAI_CHAT_MESSAGE_ROLES = new Set(["developer", "system", "user", "assistant", "tool", "function"]);
+
 export function projectProtocolExchange({ protocol = "unknown", request = {}, response = null } = {}) {
   const normalizedProtocol = normalizeProtocol(protocol, request, response);
   const adapter = ADAPTERS[normalizedProtocol] || projectUnknownExchange;
@@ -47,12 +130,22 @@ export function compactProtocolExchange(exchange) {
       counts: compactProtocolCounts(exchange.request?.counts, [
         "instruction_blocks",
         "input_items",
+        "context_items",
+        "resource_items",
         "tool_stages",
         "tools",
+        "unknown_items",
       ]),
     },
     response: {
-      counts: compactProtocolCounts(exchange.response?.counts, ["output_items", "tool_calls"]),
+      counts: compactProtocolCounts(exchange.response?.counts, [
+        "output_items",
+        "tool_calls",
+        "tool_approvals",
+        "context_items",
+        "resource_items",
+        "unknown_items",
+      ]),
       status: exchange.response?.status || null,
     },
   };
@@ -97,7 +190,7 @@ function projectOpenAiResponsesExchange(request, response) {
         inputIndex: index,
       });
     }
-    if (item?.type === "tool_search_output") {
+    if (["tool_search_output", "mcp_list_tools"].includes(item?.type)) {
       appendToolStage(toolStages, effectiveTools, item.tools, {
         kind: "loaded",
         sourcePath: `${summary.source_path}.tools`,
@@ -133,7 +226,7 @@ function projectAnthropicMessagesExchange(request, response) {
   });
   const inputItems = flattenAnthropicMessages(messages);
   const responseItems = Array.isArray(response?.content)
-    ? response.content.map((item, index) => summarizeContentBlock(item, index, "$.content", "assistant"))
+    ? response.content.map((item, index) => summarizeContentBlock(item, index, "$.content", "assistant", { downstream: true }))
     : [];
   return exchangeProjection({
     requestInstructions: instructions,
@@ -158,7 +251,9 @@ function projectChatCompletionsExchange(request, response) {
     sourcePath: "$.tools",
     inputIndex: null,
   });
-  const inputItems = messages.map((message, index) => summarizeMessage(message, index, "$.messages"));
+  const inputItems = messages.map((message, index) => summarizeMessage(message, index, "$.messages", {
+    schemaKnown: OPENAI_CHAT_MESSAGE_ROLES.has(normalizedRole(message?.role)),
+  }));
   const responseItems = flattenChatCompletionChoices(response?.choices);
   return exchangeProjection({
     requestInstructions: instructions,
@@ -276,7 +371,7 @@ function flattenChatCompletionChoices(choices) {
       : [];
     if (itemTextChars(message) || (!toolCalls.length && !legacyFunctionCall.length)) {
       output.push({
-        ...summarizeMessage(message, choiceIndex, "$.choices", { downstream: true }),
+        ...summarizeMessage(message, choiceIndex, "$.choices", { downstream: true, schemaKnown: true }),
         index: output.length,
         source_path: messagePath,
         finish_reason: choice.finish_reason || null,
@@ -314,6 +409,8 @@ function summarizeChatToolCall(call, { index, sourcePath, finishReason }) {
     tool_count: 1,
     tool_names: [name],
     finish_reason: finishReason || null,
+    schema_known: true,
+    mechanism_category: "tool_execution",
   };
 }
 
@@ -390,7 +487,7 @@ function summarizeResponsesItem(item, index, rootPath, { downstream = false } = 
   const type = normalizedType(item?.type) || (item?.role ? "message" : "unknown");
   const role = normalizedRole(item?.role) || inferredResponsesRole(item);
   const sourcePath = `${rootPath}[${index}]`;
-  const toolList = item?.type === "additional_tools" || item?.type === "tool_search_output"
+  const toolList = ["additional_tools", "tool_search_output", "mcp_list_tools"].includes(item?.type)
     ? collectToolCatalog(item.tools, { sourcePath: `${sourcePath}.tools` }).tools
     : [];
   const semantic = responsesItemSemantic(item, role, { downstream });
@@ -405,47 +502,43 @@ function summarizeResponsesItem(item, index, rootPath, { downstream = false } = 
     name: item?.name || item?.function?.name || (semantic.startsWith("tool_") ? responsesToolProtocolName(type) : null),
     tool_count: toolList.length,
     tool_names: toolList.map((tool) => tool.qualified_name),
+    schema_known: (downstream ? OPENAI_RESPONSES_KNOWN_OUTPUT_ITEM_TYPES : OPENAI_RESPONSES_KNOWN_ITEM_TYPES).has(type),
+    mechanism_category: mechanismCategory(semantic),
   };
 }
 
-function summarizeMessage(message, index, rootPath, { downstream = false } = {}) {
+function summarizeMessage(message, index, rootPath, { downstream = false, schemaKnown } = {}) {
   const role = normalizedRole(message?.role) || (downstream ? "assistant" : "unknown");
   const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
+  const semantic = ["system", "developer"].includes(role)
+    ? "instruction"
+    : ["tool", "function"].includes(role)
+      ? "tool_result"
+      : role === "assistant"
+        ? "assistant_message"
+        : role === "user"
+          ? "user_message"
+          : "message";
   return {
     index,
     source_path: `${rootPath}[${index}]`,
     item_type: normalizedType(message?.type) || "message",
     role,
-    semantic: ["system", "developer"].includes(role)
-      ? "instruction"
-      : role === "tool"
-        ? "tool_result"
-        : role === "assistant"
-          ? "assistant_message"
-          : role === "user"
-            ? "user_message"
-            : "message",
+    semantic,
     chars: itemTextChars(message),
     call_id: message?.tool_call_id || null,
     name: message?.name || null,
     tool_count: toolCalls.length,
     tool_names: toolCalls.map((call) => call?.function?.name || call?.name || "unknown"),
+    ...(schemaKnown == null ? {} : { schema_known: Boolean(schemaKnown) }),
+    mechanism_category: mechanismCategory(semantic),
   };
 }
 
-function summarizeContentBlock(item, index, rootPath, role) {
+function summarizeContentBlock(item, index, rootPath, role, { downstream = false } = {}) {
   const type = normalizedType(item?.type) || "content";
-  const semantic = type === "tool_use"
-    ? "tool_call"
-    : type === "tool_result"
-      ? "tool_result"
-      : ["thinking", "reasoning"].includes(type)
-        ? "reasoning"
-        : role === "assistant"
-          ? "assistant_message"
-          : role === "user"
-            ? "user_message"
-            : "message";
+  const semantic = anthropicBlockSemantic(type, role);
+  const toolReferences = anthropicToolReferences(item);
   return {
     index,
     source_path: `${rootPath}[${index}]`,
@@ -454,16 +547,73 @@ function summarizeContentBlock(item, index, rootPath, role) {
     semantic,
     chars: itemTextChars(item),
     call_id: item?.id || item?.tool_use_id || null,
-    name: item?.name || null,
-    tool_count: type === "tool_use" ? 1 : 0,
-    tool_names: type === "tool_use" ? [item?.name || "unknown"] : [],
+    name: item?.name || anthropicToolResultName(type),
+    tool_count: ANTHROPIC_TOOL_CALL_BLOCK_TYPES.has(type) ? 1 : toolReferences.length,
+    tool_names: ANTHROPIC_TOOL_CALL_BLOCK_TYPES.has(type) ? [item?.name || "unknown"] : toolReferences,
+    schema_known: (downstream
+      ? ANTHROPIC_KNOWN_OUTPUT_CONTENT_BLOCK_TYPES
+      : ANTHROPIC_KNOWN_INPUT_CONTENT_BLOCK_TYPES).has(type),
+    mechanism_category: mechanismCategory(semantic),
   };
+}
+
+function anthropicBlockSemantic(type, role) {
+  if (ANTHROPIC_TOOL_CALL_BLOCK_TYPES.has(type)) return "tool_call";
+  if (["tool_search_tool_result", "tool_reference"].includes(type)) return "tools_loaded";
+  if (ANTHROPIC_TOOL_RESULT_BLOCK_TYPES.has(type)) return "tool_result";
+  if (["thinking", "redacted_thinking", "reasoning"].includes(type)) return "reasoning";
+  if (type === "mid_conv_system") return "instruction";
+  if (ANTHROPIC_RESOURCE_BLOCK_TYPES.has(type)) return "resource";
+  if (role === "assistant") return "assistant_message";
+  if (role === "user") return "user_message";
+  return "message";
+}
+
+function anthropicToolReferences(item) {
+  const names = new Set();
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    if (value.type === "tool_reference" && value.tool_name) names.add(String(value.tool_name));
+    if (Array.isArray(value.tool_references)) value.tool_references.forEach(visit);
+    if (value.content !== undefined) visit(value.content);
+  };
+  visit(item);
+  return [...names];
+}
+
+function anthropicToolResultName(type) {
+  return ({
+    web_search_tool_result: "web_search",
+    web_fetch_tool_result: "web_fetch",
+    code_execution_tool_result: "code_execution",
+    bash_code_execution_tool_result: "bash_code_execution",
+    text_editor_code_execution_tool_result: "text_editor_code_execution",
+    tool_search_tool_result: "tool_search",
+  })[type] || null;
+}
+
+function mechanismCategory(semantic) {
+  if (semantic === "instruction") return "instructions";
+  if (["tools_added", "tools_loaded", "tool_search", "tool_discovery"].includes(semantic)) return "tool_availability";
+  if (["tool_call", "tool_result", "tool_approval"].includes(semantic)) return "tool_execution";
+  if (semantic === "reasoning") return "reasoning";
+  if (["context_management", "context_reference"].includes(semantic)) return "context";
+  if (semantic === "resource") return "resource";
+  return "conversation";
 }
 
 function responsesItemSemantic(item, role, { downstream }) {
   const type = normalizedType(item?.type);
   if (type === "additional_tools") return "tools_added";
   if (type === "tool_search_output") return "tools_loaded";
+  if (type === "mcp_list_tools") return "tool_discovery";
+  if (["mcp_approval_request", "mcp_approval_response"].includes(type)) return "tool_approval";
+  if (["compaction", "compaction_trigger"].includes(type)) return "context_management";
+  if (type === "item_reference") return "context_reference";
   if (isResponsesToolOutputItem(item)) return "tool_result";
   if (isResponsesToolCallItem(item)) return type === "tool_search_call" ? "tool_search" : "tool_call";
   if (type === "reasoning") return "reasoning";
@@ -517,8 +667,11 @@ function countRequestProjection(instructions, items, toolStages, requestTools) {
     user_items: items.filter((item) => item.role === "user").length,
     assistant_items: items.filter((item) => item.role === "assistant").length,
     tool_result_items: items.filter((item) => item.semantic === "tool_result").length,
+    context_items: items.filter((item) => item.mechanism_category === "context").length,
+    resource_items: items.filter((item) => item.mechanism_category === "resource").length,
     tool_stages: toolStages.length,
     tools: uniqueToolCount(requestTools, toolStages),
+    unknown_items: items.filter((item) => item.schema_known === false).length,
   };
 }
 
@@ -529,6 +682,10 @@ function countResponseProjection(items) {
     reasoning_items: items.filter((item) => item.semantic === "reasoning").length,
     tool_calls: items.filter((item) => ["tool_call", "tool_search"].includes(item.semantic)).length,
     tool_results: items.filter((item) => item.semantic === "tool_result").length,
+    tool_approvals: items.filter((item) => item.semantic === "tool_approval").length,
+    context_items: items.filter((item) => item.mechanism_category === "context").length,
+    resource_items: items.filter((item) => item.mechanism_category === "resource").length,
+    unknown_items: items.filter((item) => item.schema_known === false).length,
   };
 }
 
@@ -544,8 +701,9 @@ function toolIdentity(tool) {
 }
 
 function inferredResponsesRole(item) {
-  if (isResponsesToolCallItem(item) || normalizedType(item?.type) === "reasoning") return "assistant";
-  if (isResponsesToolOutputItem(item)) return "tool";
+  const type = normalizedType(item?.type);
+  if (isResponsesToolCallItem(item) || ["reasoning", "mcp_list_tools", "mcp_approval_request"].includes(type)) return "assistant";
+  if (isResponsesToolOutputItem(item) || type === "mcp_approval_response") return "tool";
   return "unknown";
 }
 

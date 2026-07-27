@@ -1,6 +1,6 @@
 # 模型回复归一化契约
 
-更新时间：2026-07-25
+更新时间：2026-07-27
 
 `src/trace/model-response-normalizer.mjs` 把捕获层保存的 JSON 或 SSE 模型回复转换成 Viewer 与 Trace Domain 共用的下行 DTO。它属于协议归一化边界，不属于 HTTP Server，也不负责页面渲染；content/tool block 基础解析复用 [Trace Content Parts 契约](content-parts-contract.md)。
 
@@ -8,9 +8,9 @@
 
 该模块负责：
 
-- 从 Anthropic/OpenAI-compatible content 中区分可见文本、thinking/reasoning 与 `tool_use`；
+- 从 Anthropic/OpenAI-compatible content 中区分可见文本、thinking/reasoning、client `tool_use` 与 `server_tool_use`；
 - 解析非流式 Anthropic message、OpenAI Chat Completions 风格 `choices` 和兼容 `output`；
-- 重组 Anthropic SSE 的 text/thinking/input JSON delta；
+- 重组 Anthropic SSE 的 text/thinking/input JSON/citation delta；
 - 重组 OpenAI-compatible SSE 中按 index 分片的 function tool call，以及 `tool_search_call` 等 Responses API 动态 `*_call` 下行条目；
 - 输出稳定的语义 summary，以及保留协议字段名和层级的 `complete_response`。
 
@@ -35,6 +35,9 @@
   truncated,
   raw_body_length,
   captured_body_length,
+  decoded_body_length,
+  response_content_encoding,
+  content_decoding,
   received_at
 }
 ```
@@ -59,12 +62,13 @@ complete_response_source
 complete_response
 latency_ms / status
 stream / event_count / truncated
-raw_body_bytes / captured_body_bytes / received_at
+raw_body_bytes / captured_body_bytes / decoded_body_bytes
+response_content_encoding / content_decoding / received_at
 ```
 
 `complete_response` 不是统一 DTO，而是 Raw Inspector 使用的协议终态对象：
 
-- Anthropic Messages 保留 `content[]` 的原始块顺序，工具调用仍是 `type: "tool_use"`，参数位于 `input`；
+- Anthropic Messages 保留 `content[]` 的原始块顺序，客户端与服务端工具调用仍分别是 `type: "tool_use"` / `type: "server_tool_use"`，参数位于 `input`；text block 的 citation delta 合并回原生 `citations[]`；
 - OpenAI Responses 直接保留终止事件中的 `response`，工具调用继续是 `output[]` 中独立的 `function_call`、`custom_tool_call`、`tool_search_call` 等条目；
 - OpenAI-compatible Chat Completions 把 SSE delta 还原成 `choices[].message`，工具调用保留在 `message.tool_calls[]`，`function.arguments` 仍为协议规定的 JSON 字符串。
 
@@ -78,7 +82,7 @@ Responses API 的下行 `response.created` / `response.completed` 对象可能�
 
 PMA 将下行数据区分为三个层次，避免把产品整理结果误称为原始响应：
 
-1. **线级捕获**：`response_blobs` 引用 `content_blobs.payload_json`，保存 Capture Proxy 实际收到的完整 HTTP body。非流式响应是 JSON body；流式响应是完整 SSE 文本。这是最高保真的本地证据。
+1. **HTTP 捕获与可读正文**：`raw_body_length` 和 `captured_body_length` 始终记录上游 `Content-Encoding` 尚未解码时的 wire 字节数；`decoded_body_length` 是成功解码后的字节数。Capture Proxy 向调用方原样转发 wire 字节，只为 PMA 捕获副本按 `gzip`、`deflate`、`br` 或运行时可用的 `zstd` 逆序解码。`response_blobs` 引用的 `content_blobs.payload_json` 保存解码后的 UTF-8 `body_text`，不是逐字压缩 wire body；`response_content_encoding`、`content_decoding`、`body_text_source` 和 provenance artifact 明确该转换。identity 响应保存 UTF-8 文本；未知编码、损坏压缩流、被截断的压缩体或超过解码上限的正文不生成 `body_text/body_json`，只保留捕获长度、header、状态和省略原因。
 2. **协议终态对象**：normalizer 按厂商协议消费线级捕获。协议本身提供完整终态对象时直接保留；协议只提供增量事件时，按事件索引和顺序重建对应协议的终态对象，并标记 `complete_response_source: "stream_reconstruction"`。
 3. **语义摘要**：`capture_json` 与 summary 中的 `text`、`thinking`、`tool_calls` 用于时间线和整理视图。它们是 PMA 的派生数据，不是 Raw，也不能反向充当协议证据。
 
@@ -107,4 +111,4 @@ Responses API 中所有已捕获的 `*_call` output item 都按模型下行工�
 npm run smoke:model-response-normalizer-contract
 ```
 
-它覆盖 Anthropic JSON、Anthropic SSE、OpenAI-compatible JSON/SSE、可读 thinking、仅含加密内容的 Responses reasoning、分片工具参数、损坏 SSE、空 response 和依赖方向。`npm run smoke:response-capture` 继续用真实本地 HTTP 流程验证 Capture Proxy、SQLite 重启与 Viewer DTO 的端到端兼容。
+它覆盖 Anthropic JSON、Anthropic SSE、client/server tool use、citation delta、OpenAI-compatible JSON/SSE、可读 thinking、仅含加密内容的 Responses reasoning、分片工具参数、损坏 SSE、空 response 和依赖方向。`npm run smoke:response-capture` 继续用真实本地 HTTP 流程验证 Capture Proxy、SQLite 重启与 Viewer DTO 的端到端兼容。

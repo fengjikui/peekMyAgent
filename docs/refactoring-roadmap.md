@@ -130,6 +130,7 @@ src/
 - 已建立共享 request translation material projector：System parts、Tools schema descriptions 与 Harness 注入只提取一次，Node Collector 与浏览器展示复用同一纯模块；Tools 同时复用共享递归目录解析顶层声明、中途追加、动态加载和任意深度 namespace，容器与限定名叶子不再混淆；服务端继续独占 hash、occurrence、限额和缓存写入。
 - 已建立共享 Viewer API DTO contract：`SourceSummary` 与单请求 `TraceRequestDetail` 具有版本、运行时 schema 和 Node/浏览器双端断言，SourceRepository、Viewer Server 与 API Client 共用同一事实源。
 - 已将 provenance v1 接入 Capture Proxy、OpenClaw normalizer 和 portable Trace import：区分 artifact fidelity 与关联 confidence，保留合法原始来源，旧导入采用保守回退。
+- Capture Proxy 的响应捕获副本已按 `Content-Encoding` 支持 identity、gzip、deflate、br，并在 Node 运行时提供时支持实验性 zstd；下游仍接收原始 wire 字节。wire/captured/decoded 长度、解码状态和 decoded-body provenance 分开记录，未知、损坏、截断或解码后超限的正文不再被伪装成 JSON。
 - file/demo/debug 等尚未形成 CaptureRecord 的 source 仍需在后续 source repository 阶段建立统一 DTO；阶段 1 的共享地基已经完成，可以进入 Viewer Server 拆分。
 
 ## 阶段 2：拆分 Viewer Server
@@ -169,7 +170,7 @@ src/
 - 已建立 Trace Content Parts 原语层：上行与下行共用可见文本、thinking、Anthropic/OpenAI tool call 和 tool result 提取，避免协议块解释分叉。
 - 已迁移 Trace 消息语义：真实用户输入、slash command、compact/Skill/framework/suggestion 注入、混合工具结果与 task notification 由单一纯模块解释，Turn、标题和翻译层复用显式端口。
 - 已迁移 Trace 请求画像：System 位置、Anthropic/OpenAI/Gemini 协议、provider/reasoning 扩展及 main/subagent/parent-spawn/metadata 来源提示由单一纯模块解释；metadata 优先级与 provenance 概念边界由直接契约锁定。
-- 已建立 Protocol Exchange v1（2026-07-27）：OpenAI Responses/Chat、Anthropic Messages 和 Google GenerateContent 的指令、message、工具声明/追加/加载、调用/结果、推理与回复由独立纯 adapter 投影；完整详情保留条目、递归 namespace 工具目录和 Raw JSONPath，compact Timeline 只保留卡片所需计数与状态。协议事实与 Agent 归因继续分层，未知字段不做跨厂商猜测。
+- 已建立 Protocol Exchange v1（2026-07-27）：OpenAI Responses/Chat、Anthropic Messages 和 Google GenerateContent 的指令、message、工具声明/追加/加载、调用/结果、推理与回复由独立纯 adapter 投影；OpenAI/Anthropic 再以官方完整 union 清单校准 Responses MCP list/approval、compaction/reference/program、Anthropic client/server tool、tool search/reference、resource 与 citation delta。完整详情保留条目、递归 namespace 工具目录、Raw JSONPath、机制类别与 `schema_known`，compact Timeline 只保留卡片所需计数与状态。协议事实与 Agent 归因继续分层，未知类型显式进入漂移统计而不做跨厂商猜测；覆盖规模与 P0/P1/P2 边界见 [Schema 覆盖与用户信息模型](protocol-schema-coverage.md)。
 - 已迁移 Trace 请求构成分析：System、Tools、参数、历史消息、当前用户、工具交互及回复规模由纯模块输出兼容 DTO；字符近似、包含关系与上/下行展示边界由直接契约说明。
 - 已迁移 Timeline 轻量投影：完整 Viewer Trace DTO 到 compact 首屏/时间线 DTO 的截断、Raw/Response 省略和遗漏计数由独立纯模块管理；HTTP route 只选择完整或 compact 表示，直接契约与大 Trace 性能 smoke 共同锁定边界。
 - 已迁移 Viewer Trace 投影：Capture 到 request/Turn/Agent graph/stats/workbench DTO 的组合成为无 I/O `ViewerTraceProjector`；完整加载、单请求详情和 cursor 分页共享同一组消息、Context Delta、Turn、子 Agent 与 response 语义端口，HTTP route 不再拥有该组装实现。

@@ -15,7 +15,7 @@
 - `findCaptureRow` / `previousCaptureRows`：执行 request identity 定位和前序行查询。
 - `captureFromRow`：恢复 CaptureRecord 的持久化字段并选择 body 来源。
 - `reconstructBody`：从 ordered request tree 与 content blobs 重建 request body。
-- `hydrateResponse`：从 content-addressed response blob 恢复 `response.body_text`。
+- `hydrateResponse`：从 content-addressed response blob 恢复 `response.body_text`；该 blob 是 Capture Proxy 已按 `Content-Encoding` 解码的 UTF-8 捕获表示，不是压缩 wire 字节。
 
 ## 不拥有的行为
 
@@ -32,6 +32,7 @@ Repository 不得：
 
 1. 有原始 `raw_body_json` 时优先使用原始 body；否则只为当前行读取 request tree 和 content blobs。
 2. 有 `response.body_ref` 且没有内联 `body_text` 时才读取 response blob。
+   `raw_body_length` / `captured_body_length` 的 wire 字节语义与 `decoded_body_length`、`content_decoding` 元数据必须在水合前后保持不变。
 3. 页面读取不得水合页外 Capture。页外 blob 缺失不能让当前有效页面失败。
 4. 数字形式的 request id 同时可能命中 `request_id` 与 `request_index`；精确 `request_id` 必须优先。
 5. 窗口返回顺序必须是“较早 Capture 到目标 Capture”，而不是数据库查询使用的倒序。

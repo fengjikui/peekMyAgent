@@ -4,6 +4,8 @@
 
 `src/trace/protocol-exchange.mjs` 把一次已捕获的模型上行请求和下行响应投影为稳定的 `protocol_exchange` DTO。它的目的不是发明一套替代厂商协议，而是让 Viewer 在保留 Raw 事实的同时，用同一组语义展示指令、消息、工具声明/追加/加载、工具调用/结果、推理和回复。
 
+官方完整类型规模、目标用户问题和 P0/P1/P2 取舍见 [OpenAI / Anthropic 协议 Schema 覆盖与用户信息模型](protocol-schema-coverage.md)。本契约描述已经实现的稳定 DTO；覆盖文档同时记录尚待实现的正式类型，二者不得混写。
+
 核心边界是：**协议解析提供事实，Agent Adapter 提供归因，启发式只提供可撤销的推断。** `protocol_exchange` 不根据 Agent 名称重写协议，也不替代 Raw Inspector 中保存的原始 request/response。
 
 ## 数据流
@@ -29,11 +31,11 @@ Capture request/response Raw
 - `request.instruction_blocks`：指令事实及其 Raw JSONPath；
 - `request.input_items`：按协议原顺序投影的上行条目；
 - `request.tool_stages`：工具 `declared`、`added`、`loaded` 阶段及阶段后的有效工具数；每个阶段分别保留 namespace 容器和可调用叶子工具；
-- `request.counts`：指令、input、角色、工具结果、工具阶段和有效工具计数；
+- `request.counts`：指令、input、角色、工具结果、上下文/资源、工具阶段、有效工具和未知 Schema 条目计数；
 - `response.output_items`：按协议原顺序投影的下行条目；
-- `response.counts` / `response.status`：消息、推理、调用、结果和协议终态摘要。
+- `response.counts` / `response.status`：消息、推理、调用、审批、上下文/资源、未知 Schema 条目和协议终态摘要。
 
-每个条目保留 `source_path`、协议原生 `item_type`、规范角色、语义、字符近似值以及可用的 `call_id`、工具名。Viewer 中的每个协议条目必须能跳回相应 Raw section；协议页不是第二份正文查看器。
+每个条目保留 `source_path`、协议原生 `item_type`、规范角色、语义、`mechanism_category`、`schema_known`、字符近似值以及可用的 `call_id`、工具名。`schema_known=false` 必须在 Viewer 显示并进入 unknown 计数，不能因为角色像普通消息就静默隐藏协议漂移。Viewer 中的每个协议条目必须能跳回相应 Raw section；协议页不是第二份正文查看器。
 
 工具目录由 `src/shared/request-payload.mjs` 按树解析，Protocol Exchange、Viewer 摘要、Tools 翻译材料和动态工具发现整理视图共用这一事实源。`type=namespace` 是容器，不计入有效工具数；容器保留 `qualified_name`、`source_path` 和递归叶子数。叶子工具保留原始 `name`，同时生成限定名（例如 `collaboration.followup_task`）、完整 namespace 路径和精确 Raw JSONPath（例如 `$.input[0].tools[3].tools[0]`）。解析器递归处理任意深度 namespace，不能假设只有一层，也不能因为遇到未知容器字段而丢弃 Raw 结构。需要 schema 的内部消费者可以请求原始 definition 引用；Protocol DTO 不携带该引用，原始容器树继续只由 Raw 保存。namespace 与叶子目录只进入完整 DTO；compact DTO 仅保留其计数。
 
@@ -41,9 +43,9 @@ Capture request/response Raw
 
 | 协议 | 上行 | 下行 | 当前限制 |
 | --- | --- | --- | --- |
-| OpenAI Responses | `instructions`、`input`、顶层 `tools`/`additional_tools`、input 中的 `additional_tools` 与 `tool_search_output`；namespace 工具目录递归展开为限定名叶子 | `output` 中的 reasoning、message、function/custom/built-in tool call 和 tool result | 以最终捕获/归一化响应投影，不展示逐个 SSE delta |
+| OpenAI Responses | `instructions`、`input`、顶层 `tools`/`additional_tools`；input 中的 `additional_tools`、`tool_search_output`、MCP list/approval、compaction/reference、program call/output；namespace 工具目录递归展开为限定名叶子 | `output` 中的 reasoning、message、function/custom/built-in/program tool call/result、MCP list/approval 和 context-management item | 以最终捕获/归一化响应投影，不展示逐个 SSE delta；message 内嵌资源仍只在 Raw/lazy payload 查看 |
 | OpenAI Chat Completions | system/developer/user/assistant/tool messages 与工具声明 | `choices[].message`/`delta`、`tool_calls` 和旧 `function_call` | 多 choice 逐项投影，不合并成虚构的单一回复 |
-| Anthropic Messages | `system`、`tools`、message content 中的 text、thinking、`tool_use`、`tool_result` | response `content` blocks | 保留 content-block 顺序，不从工具名推断 Agent 生命周期 |
+| Anthropic Messages | `system`、`tools`、message content 中的 text/resource/thinking、client/server tool use/result、mid-conversation system、tool search/reference | response 的 reasoning、resource、client/server tool use/result 与 tool-search `content` blocks | 保留 content-block 顺序和 SSE citation delta，不从工具名推断 Agent 生命周期 |
 | Google GenerateContent | `systemInstruction`、`contents[].parts`、`functionDeclarations` 和已知 built-in tool 声明 | `candidates[].content.parts` 中的 text、thought、function call/response | 未识别的 part 仍作为普通协议条目保留，不猜测其含义 |
 | Unknown | 只做保守的 messages/tools 摘要 | 不伪造下行序列 | Raw 是唯一事实入口 |
 

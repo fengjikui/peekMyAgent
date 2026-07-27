@@ -40,7 +40,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | 路径 | 职责 |
 | --- | --- |
 | `bin/peekmyagent.mjs` | CLI 命令路由、daemon 生命周期、Claude/OpenClaw wrapper、doctor、维护和卸载编排 |
-| `src/core/capture-proxy.mjs` | HTTP 转发、请求/响应截获、大小和请求边界 |
+| `src/core/capture-proxy.mjs` | HTTP 转发、请求/响应截获、Content-Encoding 捕获副本解码、wire/decoded 大小和请求边界 |
 | `src/core/upstream-http-transport.mjs` | loopback/HTTPS 上游转发、代理环境与原始字节请求边界 |
 | `src/core/otel-capture.mjs` | 扫描 Claude Code OTel raw-body dump、关联 request/response 并生成 capture |
 | `src/core/otel-events.mjs` | 提取 OTel raw-body log events 和 trace/span 关联字段 |
@@ -160,7 +160,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 
 1. 调用 `/api/watch/start` 创建或复用 watch。
 2. 将子进程的 `ANTHROPIC_BASE_URL` 指向该 watch 的稳定代理地址。
-3. Capture Proxy 转发原始 HTTP 请求，并在请求开始和响应完成时分别写入 SQLite。
+3. Capture Proxy 转发原始 HTTP 请求与响应 wire 字节，并在请求开始和响应完成时分别写入 SQLite；响应捕获副本会在有界范围内按 `Content-Encoding` 解码后再生成 `body_text/body_json`。
 4. Claude Code 仍直接运行在用户终端，stdin/stdout 由子进程继承。
 
 该路径最接近网络层原始证据，但仍可能受 provider 协议差异影响。
@@ -185,7 +185,7 @@ Capture 内的 `provenance` v1 将两个概念分开，完整字段与来源矩�
 - request/response artifact 的 `fidelity` 表示 JSON 正文是否来自 Agent 原始遥测文件；
 - `association.confidence` 表示 request 与 response 的配对证据强度。
 
-因此，OTel request body 可以是 `exact`，但其 response 关联仍可能是 `heuristic`。不能再用一个笼统的 `capture_confidence` 同时表达这两件事。Proxy 在请求开始时记录 request `exact`/response `missing`，响应结束后以同一 capture 生命周期更新为精确关联；响应正文若被大小上限截断，则 fidelity 为 `partial`。
+因此，OTel request body 可以是 `exact`，但其 response 关联仍可能是 `heuristic`。不能再用一个笼统的 `capture_confidence` 同时表达这两件事。Proxy 在请求开始时记录 request `exact`/response `missing`，响应结束后以同一 capture 生命周期更新为精确关联；响应正文若被大小上限截断、编码未知或解码失败，则 fidelity 为 `partial`。Proxy 保持下游响应 wire 字节不变，`raw_body_length` / `captured_body_length` 记录压缩前未解码的 wire 字节，`decoded_body_length` 记录捕获副本成功解码后的字节；response blob 和 `body_json` 是可读的 decoded 表示，provenance 使用 `http_response_decoded_body`，不得称为逐字 raw wire body。
 
 当 `-c/--continue` 或 `-r/--resume` 选择复用已有监听时，OTel wrapper 会继续使用同一 `watch_id`；新一轮 dump 的 request index 从该 watch 当前最大值继续递增，从而与 proxy capture 保持一致的会话归属语义。
 
@@ -225,7 +225,7 @@ OpenCode 的自定义 command 在 wire 上可能只表现为普通 user message�
 
 绑定后 Viewer 增量读取 rollout JSONL；正文继续留在 `CODEX_HOME`，选择文件只保存观察模式、工作区、基线/绑定 thread id 与 provenance，不复制进 peekMyAgent SQLite。`pma codex desktop -c`、`--select`、`--resume` 和 `--list` 都是已有会话的只读 rollout 入口，并隐式选择该模式。rollout reader 是版本化可选 adapter：若上游停止保留相应事件或改变格式，PMA 明确报告该观察入口不可用，不能把语义重建冒充 wire request。
 
-OpenAI Responses 的 `instructions`、`tools`/`additional_tools` 和 `input` 已映射到共享请求语义；Responses JSON/SSE 的 reasoning、message、function/custom tool call、usage、status 和终止响应由共享下行 normalizer 解析。`src/shared/request-payload.mjs` 是工具目录的单一递归解析边界：顶层 tools 是 `declared`，有序 input 中的 `additional_tools` 是 `added`，`tool_search_output` 是 `loaded`；`type=namespace` 只保留容器身份、描述和路径，不计为可调用工具，任意深度叶子都生成限定名与精确 Raw JSONPath。`protocol-exchange.mjs`、Viewer 请求摘要、Tools 翻译材料和动态工具发现整理视图共同消费该目录，而原文 Raw 仍保留厂商容器树。Request Tree 同样保留容器节点并把每个叶子 schema 独立成 blob。官方协议规定 `additional_tools` 以 `role=developer` 出现在 input 中，工具只在该位置之后生效；因此它不能被渲染为空 Developer message。相同投影边界也为 OpenAI Chat Completions、Anthropic Messages 和 Google GenerateContent 提供保守 adapter，未知字段继续回到 Raw，不根据 Agent 名称猜测。完整边界见 [Protocol Exchange 契约](protocol-exchange-contract.md)。
+OpenAI Responses 的 `instructions`、`tools`/`additional_tools` 和 `input` 已映射到共享请求语义；Responses JSON/SSE 的 reasoning、message、function/custom/program tool call、MCP list/approval、compaction/reference、usage、status 和终止响应由共享协议层解析。`src/shared/request-payload.mjs` 是工具目录的单一递归解析边界：顶层 tools 是 `declared`，有序 input 中的 `additional_tools` 是 `added`，`tool_search_output` 与 `mcp_list_tools` 是 `loaded`；`type=namespace` 只保留容器身份、描述和路径，不计为可调用工具，任意深度叶子都生成限定名与精确 Raw JSONPath。`protocol-exchange.mjs`、Viewer 请求摘要、Tools 翻译材料和动态工具发现整理视图共同消费该目录，而原文 Raw 仍保留厂商容器树。Request Tree 同样保留容器节点并把每个叶子 schema 独立成 blob。官方协议规定 `additional_tools` 以 `role=developer` 出现在 input 中，工具只在该位置之后生效；因此它不能被渲染为空 Developer message。Anthropic Messages 同一层识别 client/server tool、tool search/reference、mid-conversation system、resource 和 SSE citation delta。所有已识别协议条目保留 `schema_known` 与机制类别，未知官方类型进入显式漂移计数；协议事实不根据 Agent 名称改写。覆盖规模、取舍与完整边界见 [Schema 覆盖与用户信息模型](protocol-schema-coverage.md)和 [Protocol Exchange 契约](protocol-exchange-contract.md)。
 
 精确代理会把 `/responses/compact` 识别为 Harness 上下文压缩交换、把 `/alpha/search` 识别为 Codex 内置搜索交换，二者都保留完整 request/response Raw，但不会伪装成新的用户 Turn 或普通 Assistant 回复。下行 normalizer 同时维护两层数据：协议原生的完整响应供 Raw Inspector 使用，统一的 `text`、`thinking`、`tool_calls` 摘要供时间线和整理视图使用；统一摘要不得再写回 Raw 响应形成第二份字段。Anthropic 的 Raw 保留 `tool_use`，OpenAI Responses 的 Raw 保留 `function_call`、`custom_tool_call`、`tool_search_call` 等原始类型。`x-openai-subagent` 以及父 thread 标识都会在持久化前脱敏；redaction 记录保留的字段存在性证据可把独立模型请求标记为 Codex 子 Agent，而私有 marker/thread id 本身不会持久化。Codex rollout 的语义重建同样只保留规范 `input`，需要 role 语义的共享模块再统一投影 message，不在 Raw body 中复制第二份 `messages`。存储层将 instructions、单工具 schema、单条 input/message 和工具结果分别写入内容寻址 blob，同一会话后续请求复用相同 hash。
 
@@ -351,7 +351,7 @@ Trace Domain 根据统一 `source_hint.relation` 把 `independent` 请求从用�
 
 compact 首屏后的完整 request 由 `RequestDetailCache` 按需读取。同一 request 的并发展开共享 Promise，失败可重试，source 切换统一清空；首次加载和缓存命中的应用副作用通过回调注入，缓存层不反向依赖 DOM、全局 state 或翻译模块。
 
-Raw Inspector 的请求/响应方向由 `raw-view-model.js` 统一。它从完整上行和 Metadata 移除 response 派生字段，单独组织完整 Response 与 capture facts，并通过调用方注入 Harness 材料，避免 renderer 各自重新解释同一份 DTO。Response 优先展示 Capture Proxy 保存的 `body_json`；流式协议若提供终止响应则展示该协议原生终止对象，否则仅在 normalizer 能保持 Anthropic Messages 或 Chat Completions 原生字段层级时展示协议终态重建。旧版通用 `stream_assembly` 和证据不足的不完整流不再伪装成 Raw。Raw 不展示 SSE 事件序列，也不重复展示 normalizer 的顶层 `text`、`thinking` 或统一 `tool_calls`；单独的调用页直接抽取协议原始调用条目并以原始类型命名。
+Raw Inspector 的请求/响应方向由 `raw-view-model.js` 统一。它从完整上行和 Metadata 移除 response 派生字段，单独组织完整 Response 与 capture facts，并通过调用方注入 Harness 材料，避免 renderer 各自重新解释同一份 DTO。Response 优先展示 Capture Proxy 保存的 `body_json`；capture facts 同时展示 wire/captured/decoded 字节、Content-Encoding、解码状态和正文来源，明确压缩响应的 JSON 是 decoded 表示而非逐字 wire body。流式协议若提供终止响应则展示该协议原生终止对象，否则仅在 normalizer 能保持 Anthropic Messages 或 Chat Completions 原生字段层级时展示协议终态重建。旧版通用 `stream_assembly` 和证据不足的不完整流不再伪装成 Raw。Raw 不展示 SSE 事件序列，也不重复展示 normalizer 的顶层 `text`、`thinking` 或统一 `tool_calls`；单独的调用页直接抽取协议原始调用条目并以原始类型命名。
 
 工具调用区块保留原文与整理两种证据阅读方式。原文继续展示协议条目；整理视图由 `tool-call-view-model.js` 兼容 Anthropic `tool_use.input`、OpenAI Responses `function_call.arguments` 和 Chat Completions `function.arguments`，保留原生类型、工具名和 call id，再由安全 Renderer 将命令/脚本作为代码块、结构化参数作为格式化 JSON、普通标量作为紧凑字段展示。该视图只改变阅读方式，不改写 Raw 或跨 Harness 统一字段名。
 
@@ -376,7 +376,7 @@ Viewer 会从 capture 中派生：
 - 主 Agent、子 Agent、spawn/return 和事件时间线。
 - 相邻上下文的新增消息、system diff 和工具变化。
 
-模型下行的 JSON/SSE、thinking、text、tool use 和 stop reason 已由 `src/trace/model-response-normalizer.mjs` 统一归一化，详见[模型回复归一化契约](model-response-normalizer-contract.md)。上行消息分类由 `message-semantics.mjs` 统一解释；请求协议/provider 与来源画像由 `request-profile.mjs` 提供，`protocol-exchange.mjs` 将已识别协议投影为可追溯的上下行条目与工具阶段，`request-attribution.mjs` 再以 `actor`、`relation`、`operation` 和脱敏 `evidence` 表达跨 Harness 归因。三者分别拥有协议事实、Agent 归因和证据来源，不能互相替代。详见[Protocol Exchange 契约](protocol-exchange-contract.md)和[Trace 请求画像契约](request-profile-contract.md)；请求字符构成由 `request-composition.mjs` 提供，详见[Trace 请求构成契约](request-composition-contract.md)。部分 adapter-specific normalize 仍在后续收敛范围内。
+模型下行的 JSON/SSE、thinking、text、client/server tool use、citation delta 和 stop reason 已由 `src/trace/model-response-normalizer.mjs` 统一归一化，详见[模型回复归一化契约](model-response-normalizer-contract.md)。上行消息分类由 `message-semantics.mjs` 统一解释；请求协议/provider 与来源画像由 `request-profile.mjs` 提供，`protocol-exchange.mjs` 将已识别协议投影为可追溯的上下行条目、机制类别、Schema 漂移状态与工具阶段，`request-attribution.mjs` 再以 `actor`、`relation`、`operation` 和脱敏 `evidence` 表达跨 Harness 归因。三者分别拥有协议事实、Agent 归因和证据来源，不能互相替代。详见[Schema 覆盖与用户信息模型](protocol-schema-coverage.md)、[Protocol Exchange 契约](protocol-exchange-contract.md)和[Trace 请求画像契约](request-profile-contract.md)；请求字符构成由 `request-composition.mjs` 提供，详见[Trace 请求构成契约](request-composition-contract.md)。部分 adapter-specific normalize 仍在后续收敛范围内。
 
 ## 翻译缓存
 

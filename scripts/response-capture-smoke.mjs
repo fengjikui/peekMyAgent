@@ -3,7 +3,9 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import * as zlib from "node:zlib";
 import { startViewerServer } from "../src/viewer/server.mjs";
+import { rawResponseSectionValue } from "../src/viewer/raw-view-model.js";
 import { jsonHeadersForUrl } from "./lib/http-intents.mjs";
 
 const cwd = process.cwd();
@@ -43,17 +45,34 @@ const upstream = http.createServer(async (req, res) => {
     res.end();
     return;
   }
-  res.writeHead(200, { "content-type": "application/json" });
-  res.end(
-    JSON.stringify({
-      id: "msg_response_smoke",
-      type: "message",
-      role: "assistant",
-      content: [{ type: "text", text: "json reply from upstream" }],
-      stop_reason: "end_turn",
-      usage: { input_tokens: 11, output_tokens: 4 },
-    }),
-  );
+  if (body.response_encoding === "gzip-corrupt") {
+    res.writeHead(200, { "content-type": "application/json", "content-encoding": "gzip" });
+    res.end("not a gzip stream");
+    return;
+  }
+  const requestedEncoding = body.response_encoding || "identity";
+  const responseEncoding = requestedEncoding === "gzip-large" ? "gzip" : requestedEncoding;
+  const responseText =
+    requestedEncoding === "gzip-large"
+      ? "x".repeat(4 * 1024 * 1024 + 1)
+      : responseEncoding === "identity"
+        ? "json reply from upstream"
+        : `${responseEncoding} reply from upstream`;
+  const responseJson = {
+    id: `msg_response_smoke_${requestedEncoding}`,
+    type: "message",
+    role: "assistant",
+    model: "mock-claude",
+    content: [{ type: "text", text: responseText }],
+    stop_reason: "end_turn",
+    usage: { input_tokens: 11, output_tokens: 4 },
+  };
+  const responseBuffer = Buffer.from(JSON.stringify(responseJson));
+  const encoded = encodeResponseBody(responseBuffer, responseEncoding);
+  const headers = { "content-type": "application/json", "content-length": String(encoded.length) };
+  if (responseEncoding !== "identity") headers["content-encoding"] = responseEncoding;
+  res.writeHead(200, headers);
+  res.end(encoded);
 });
 
 const upstreamUrl = await listen(upstream);
@@ -104,9 +123,34 @@ try {
       anthropic_stream: true,
       messages: [{ role: "user", content: "capture an anthropic stream response" }],
     });
+    const encodedResponses = [];
+    for (const encoding of ["gzip", "deflate", "br", "zstd", "pma-unknown", "gzip-corrupt", "gzip-large"]) {
+      encodedResponses.push([
+        encoding,
+        await postRawModelRequest(watch.base_url, {
+          model: "mock-claude",
+          response_encoding: encoding,
+          messages: [{ role: "user", content: `capture a ${encoding} response` }],
+        }),
+      ]);
+    }
+    for (const [encoding, response] of encodedResponses) {
+      assert.equal(response.status, 200);
+      assert.equal(response.headers["content-encoding"], ["gzip-corrupt", "gzip-large"].includes(encoding) ? "gzip" : encoding);
+    }
+    const gzipDownstream = encodedResponses[0][1].body;
+    assert.equal(gzipDownstream[0], 0x1f, "downstream keeps the upstream gzip bytes");
+    assert.equal(gzipDownstream[1], 0x8b, "downstream keeps the upstream gzip bytes");
+    assert.equal(JSON.parse(zlib.gunzipSync(gzipDownstream)).content[0].text, "gzip reply from upstream");
+    assert.equal(JSON.parse(zlib.inflateSync(encodedResponses[1][1].body)).content[0].text, "deflate reply from upstream");
+    assert.equal(JSON.parse(zlib.brotliDecompressSync(encodedResponses[2][1].body)).content[0].text, "br reply from upstream");
+    assert.equal(JSON.parse(zlib.zstdDecompressSync(encodedResponses[3][1].body)).content[0].text, "zstd reply from upstream");
+    assert.equal(JSON.parse(encodedResponses[4][1].body).content[0].text, "pma-unknown reply from upstream");
+    assert.equal(encodedResponses[5][1].body.toString("utf8"), "not a gzip stream");
+    assert.ok(zlib.gunzipSync(encodedResponses[6][1].body).length > 4 * 1024 * 1024);
 
     const view = await getJson(`${viewer.url}/api/view?source=${encodeURIComponent(sourceId)}`);
-    assert.equal(view.stats.request_count, 3);
+    assert.equal(view.stats.request_count, 10);
     assert.equal(view.requests[0].summary.response.captured, true);
     assert.equal(view.requests[0].summary.response.preview, "json reply from upstream");
     assert.equal(view.requests[0].summary.response.finish_reason, "end_turn");
@@ -151,6 +195,52 @@ try {
     assert.equal(view.requests[2].summary.response.complete_response.stop_reason, "end_turn");
     assert.equal(view.requests[2].summary.response.complete_response.content[0].type, "thinking");
     assert.equal(view.requests[2].summary.response.complete_response.content[1].text, "anthropic stream reply");
+    const gzipRequest = view.requests[3];
+    assert.equal(gzipRequest.summary.response.preview, "gzip reply from upstream");
+    assert.equal(gzipRequest.summary.response.complete_response.content[0].text, "gzip reply from upstream");
+    assert.equal(gzipRequest.summary.protocol_exchange.request.counts.input_items, 1, "gzip capture keeps the upstream request");
+    assert.equal(gzipRequest.summary.protocol_exchange.response.counts.output_items, 1, "gzip capture restores the downstream protocol item");
+    assert.equal(gzipRequest.summary.protocol_exchange.response.output_items[0].semantic, "assistant_message");
+    assert.equal(gzipRequest.raw.response.response_content_encoding, "gzip");
+    assert.equal(gzipRequest.raw.response.content_decoding.status, "decoded");
+    assert.deepEqual(gzipRequest.raw.response.content_decoding.encodings, ["gzip"]);
+    assert.equal(gzipRequest.raw.response.raw_body_length, encodedResponses[0][1].body.length);
+    assert.equal(gzipRequest.raw.response.captured_body_length, encodedResponses[0][1].body.length);
+    assert.equal(gzipRequest.raw.response.decoded_body_length, Buffer.byteLength(JSON.stringify(gzipRequest.summary.response.complete_response)));
+    assert.equal(gzipRequest.raw.response.body_text_source, "utf8_from_content_decoded_bytes");
+    assert.equal(gzipRequest.raw.provenance.response.fidelity, "exact");
+    assert.equal(gzipRequest.raw.provenance.response.artifact, "http_response_decoded_body");
+    assert.equal(rawResponseSectionValue(gzipRequest).response.content[0].text, "gzip reply from upstream", "Raw Inspector receives the decoded provider JSON");
+    for (const [index, encoding] of ["deflate", "br", "zstd"].entries()) {
+      const request = view.requests[index + 4];
+      assert.equal(request.summary.response.preview, `${encoding} reply from upstream`);
+      assert.equal(request.raw.response.response_content_encoding, encoding);
+      assert.equal(request.raw.response.content_decoding.status, "decoded");
+      assert.equal(request.raw.response.body_text_source, "utf8_from_content_decoded_bytes");
+    }
+    const unknownRequest = view.requests[7];
+    assert.equal(unknownRequest.summary.response.preview, "");
+    assert.equal(unknownRequest.summary.response.complete_response, null);
+    assert.equal(unknownRequest.summary.protocol_exchange.response.counts.output_items, 0);
+    assert.equal(unknownRequest.raw.response.body_json, null);
+    assert.equal(unknownRequest.raw.response.body_text, null);
+    assert.equal(unknownRequest.raw.response.content_decoding.status, "unsupported");
+    assert.equal(unknownRequest.raw.response.content_decoding.failed_encoding, "pma-unknown");
+    assert.equal(unknownRequest.raw.response.body_text_omitted.reason, "unsupported_content_encoding");
+    assert.equal(unknownRequest.raw.provenance.response.fidelity, "partial");
+    assert.equal(unknownRequest.raw.provenance.response.artifact, "http_response_metadata");
+    const corruptRequest = view.requests[8];
+    assert.equal(corruptRequest.raw.response.body_json, null);
+    assert.equal(corruptRequest.raw.response.body_text, null);
+    assert.equal(corruptRequest.raw.response.content_decoding.status, "failed");
+    assert.equal(corruptRequest.raw.response.body_text_omitted.reason, "content_decoding_failed");
+    const oversizedDecodedRequest = view.requests[9];
+    assert.equal(oversizedDecodedRequest.raw.response.body_json, null);
+    assert.equal(oversizedDecodedRequest.raw.response.body_text, null);
+    assert.equal(oversizedDecodedRequest.raw.response.content_decoding.status, "decoded_too_large");
+    assert.equal(oversizedDecodedRequest.raw.response.content_decoding.error_code, "ERR_BUFFER_TOO_LARGE");
+    assert.equal(oversizedDecodedRequest.raw.response.body_text_omitted.reason, "decoded_body_too_large");
+    assert.equal(oversizedDecodedRequest.raw.provenance.response.fidelity, "partial");
   } finally {
     await viewer.close();
   }
@@ -165,6 +255,14 @@ try {
     assert.equal(persistedView.requests[1].summary.response.preview, "stream reply");
     assert.equal(persistedView.requests[2].summary.response.preview, "anthropic stream reply");
     assert.equal(persistedView.requests[2].summary.response.thinking, "internal thought should be folded");
+    assert.equal(persistedView.requests[3].summary.response.preview, "gzip reply from upstream");
+    assert.equal(persistedView.requests[3].raw.response.body_ref.kind, "response_body");
+    assert.equal(persistedView.requests[3].raw.response.response_content_encoding, "gzip");
+    assert.equal(persistedView.requests[3].raw.response.content_decoding.status, "decoded");
+    assert.equal(persistedView.requests[3].summary.protocol_exchange.response.counts.output_items, 1);
+    assert.equal(rawResponseSectionValue(persistedView.requests[3]).response.content[0].text, "gzip reply from upstream");
+    assert.equal(persistedView.requests[7].raw.response.body_ref, undefined, "unsupported encodings do not persist fake response text");
+    assert.equal(persistedView.requests[7].raw.response.body_text_omitted.reason, "unsupported_content_encoding");
     assert.equal(persistedView.requests[0].raw.response.body_ref.kind, "response_body");
     assert.equal(persistedView.requests[0].raw.response.body_text, undefined, "duplicated JSON response text is not sent to the viewer");
     assert.equal(persistedView.requests[0].raw.response.body_text_omitted.reason, "duplicated_body_json");
@@ -189,6 +287,47 @@ async function postModelRequest(baseUrl, body) {
   });
   const text = await response.text();
   if (!response.ok) throw new Error(`${response.status} ${text}`);
+}
+
+function postRawModelRequest(baseUrl, body) {
+  const url = new URL("/v1/messages", baseUrl);
+  const payload = Buffer.from(JSON.stringify(body));
+  return new Promise((resolve, reject) => {
+    const request = http.request(
+      url,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "content-length": String(payload.length),
+          authorization: "Bearer smoke",
+        },
+      },
+      (response) => {
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        response.on("end", () =>
+          resolve({
+            status: response.statusCode,
+            headers: response.headers,
+            body: Buffer.concat(chunks),
+          }),
+        );
+        response.on("error", reject);
+      },
+    );
+    request.on("error", reject);
+    request.end(payload);
+  });
+}
+
+function encodeResponseBody(buffer, encoding) {
+  if (encoding === "identity" || encoding === "pma-unknown") return buffer;
+  if (encoding === "gzip") return zlib.gzipSync(buffer);
+  if (encoding === "deflate") return zlib.deflateSync(buffer);
+  if (encoding === "br") return zlib.brotliCompressSync(buffer);
+  if (encoding === "zstd" && typeof zlib.zstdCompressSync === "function") return zlib.zstdCompressSync(buffer);
+  throw new Error(`Unsupported response smoke encoding: ${encoding}`);
 }
 
 async function getJson(url) {

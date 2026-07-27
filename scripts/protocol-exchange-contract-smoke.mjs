@@ -130,8 +130,11 @@ const compact = compactProtocolExchange(codex);
 assert.deepEqual(compact.request.counts, {
   instruction_blocks: 2,
   input_items: 7,
+  context_items: 0,
+  resource_items: 0,
   tool_stages: 3,
   tools: 7,
+  unknown_items: 0,
 });
 assert.equal("tool_stages" in compact.request, false, "timeline DTO does not repeat tool catalogs for every request");
 assert.equal("input_items" in compact.request, false, "timeline DTO does not carry the full protocol sequence");
@@ -169,6 +172,115 @@ assert.deepEqual(
 );
 assert.equal(anthropic.request.input_items[2].source_path, "$.messages[2].content[0]");
 assert.equal(anthropic.response.output_items[0].semantic, "tool_call");
+
+const modernAnthropic = projectProtocolExchange({
+  protocol: "anthropic_messages",
+  request: {
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "mid_conv_system", content: [{ type: "text", text: "Harness state changed." }] },
+          { type: "image", source: { type: "base64", media_type: "image/png", data: "AA==" } },
+        ],
+      },
+      {
+        role: "assistant",
+        content: [{ type: "server_tool_use", id: "server-1", name: "web_search", input: { query: "PMA" } }],
+      },
+      {
+        role: "user",
+        content: [
+          { type: "web_search_tool_result", tool_use_id: "server-1", content: [{ type: "text", text: "found" }] },
+          {
+            type: "tool_search_tool_result",
+            tool_use_id: "search-1",
+            content: {
+              type: "tool_search_tool_search_result",
+              tool_references: [{ type: "tool_reference", tool_name: "Bash" }],
+            },
+          },
+          { type: "future_anthropic_block", payload: true },
+        ],
+      },
+    ],
+  },
+  response: {
+    type: "message",
+    content: [
+      { type: "redacted_thinking", data: "opaque" },
+      { type: "server_tool_use", id: "server-2", name: "code_execution", input: { code: "1 + 1" } },
+      { type: "container_upload", file_id: "file-1" },
+      { type: "future_response_block", payload: true },
+    ],
+  },
+});
+assert.deepEqual(
+  modernAnthropic.request.input_items.map((item) => item.semantic),
+  ["instruction", "resource", "tool_call", "tool_result", "tools_loaded", "user_message"],
+);
+assert.equal(modernAnthropic.request.input_items[4].name, "tool_search");
+assert.deepEqual(modernAnthropic.request.input_items[4].tool_names, ["Bash"]);
+assert.equal(modernAnthropic.request.counts.resource_items, 1);
+assert.equal(modernAnthropic.request.counts.unknown_items, 1);
+assert.deepEqual(
+  modernAnthropic.response.output_items.map((item) => item.semantic),
+  ["reasoning", "tool_call", "resource", "assistant_message"],
+);
+assert.equal(modernAnthropic.response.output_items[1].name, "code_execution");
+assert.equal(modernAnthropic.response.counts.resource_items, 1);
+assert.equal(modernAnthropic.response.counts.unknown_items, 1);
+
+const modernResponses = projectProtocolExchange({
+  protocol: "openai_responses",
+  request: {
+    input: [
+      { type: "mcp_list_tools", id: "list-1", tools: [{ type: "function", name: "remote_inspect" }] },
+      { type: "mcp_approval_response", approval_request_id: "approval-1", approve: true },
+      { type: "compaction", id: "compact-1", encrypted_content: "opaque" },
+      { type: "item_reference", id: "ref-1" },
+      { type: "program_output", id: "program-1", output: "ok" },
+      { type: "future_context_item", role: "assistant", payload: true },
+    ],
+  },
+  response: {
+    status: "completed",
+    output: [
+      { type: "mcp_approval_request", id: "approval-1", name: "dangerous_tool" },
+      { type: "program", id: "program-2", name: "python", input: "print(2)" },
+      { type: "compaction", id: "compact-2", encrypted_content: "opaque" },
+      { type: "future_response_item", role: "assistant", payload: true },
+    ],
+  },
+});
+assert.deepEqual(
+  modernResponses.request.input_items.map((item) => item.semantic),
+  ["tool_discovery", "tool_approval", "context_management", "context_reference", "tool_result", "assistant_message"],
+);
+assert.equal(modernResponses.request.tool_stages[0].kind, "loaded");
+assert.equal(modernResponses.request.tool_stages[0].tools[0].name, "remote_inspect");
+assert.equal(modernResponses.request.counts.context_items, 2);
+assert.equal(modernResponses.request.counts.unknown_items, 1);
+assert.deepEqual(
+  modernResponses.response.output_items.map((item) => item.semantic),
+  ["tool_approval", "tool_call", "context_management", "assistant_message"],
+);
+assert.equal(modernResponses.response.counts.tool_approvals, 1);
+assert.equal(modernResponses.response.counts.context_items, 1);
+assert.equal(modernResponses.response.counts.unknown_items, 1);
+
+const directionSpecificSchema = {
+  responses: projectProtocolExchange({
+    protocol: "openai_responses",
+    response: { output: [{ type: "item_reference", id: "input-only" }] },
+  }),
+  anthropic: projectProtocolExchange({
+    protocol: "anthropic_messages",
+    response: { content: [{ type: "image", source: { type: "base64", data: "AA==" } }] },
+  }),
+};
+assert.equal(directionSpecificSchema.responses.response.output_items[0].schema_known, false);
+assert.equal(directionSpecificSchema.anthropic.response.output_items[0].schema_known, false);
 
 const chat = projectProtocolExchange({
   protocol: "openai_chat_completions",

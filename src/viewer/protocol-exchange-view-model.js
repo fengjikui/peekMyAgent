@@ -73,6 +73,8 @@ function normalizeProtocolItem(item = {}, { direction = "request", current = fal
     name: item.name || "",
     toolCount: Number(item.tool_count || 0),
     toolNames: Array.isArray(item.tool_names) ? item.tool_names : [],
+    schemaKnown: item.schema_known !== false,
+    mechanismCategory: item.mechanism_category || "conversation",
     section: route.section,
     mode: route.mode,
   };
@@ -80,7 +82,14 @@ function normalizeProtocolItem(item = {}, { direction = "request", current = fal
 
 function currentProtocolInputIndexes(request, items) {
   const messageItems = (Array.isArray(items) ? items : []).filter(
-    (item) => !["tools_added", "tools_loaded"].includes(item?.semantic),
+    (item) => ![
+      "tools_added",
+      "tools_loaded",
+      "tool_discovery",
+      "tool_approval",
+      "context_management",
+      "context_reference",
+    ].includes(item?.semantic),
   );
   const delta = request?.context_delta || request?.summary?.context_delta || {};
   const count = Number(delta.new_messages);
@@ -92,14 +101,17 @@ function protocolItemRoute(item, { direction, current }) {
   const semantic = item?.semantic || "";
   const role = item?.role || "";
   if (direction === "response") {
-    return semantic === "tool_call" || semantic === "tool_search"
+    return ["tool_call", "tool_search"].includes(semantic)
       ? { section: "tool_calls", mode: "response" }
       : { section: "response", mode: "response" };
   }
   if (semantic === "instruction") return { section: role === "developer" ? "developer" : "system", mode: "request" };
   if (semantic === "tools_added") return { section: "tools", mode: "request" };
   if (semantic === "tools_loaded" || semantic === "tool_result") return { section: "tool_results", mode: "request" };
-  if (semantic === "tool_call" || semantic === "tool_search") return { section: "upstream_tool_calls", mode: "request" };
+  if (["tool_call", "tool_search"].includes(semantic)) {
+    return { section: "upstream_tool_calls", mode: "request" };
+  }
+  if (["tool_discovery", "tool_approval"].includes(semantic)) return { section: "full", mode: "request" };
   return { section: current ? "message" : "history", mode: "request" };
 }
 

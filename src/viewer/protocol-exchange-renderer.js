@@ -30,6 +30,7 @@ function renderUpstream(view, dependencies) {
         metric(translate("protocolInstructionBlocks"), counts.instruction_blocks, dependencies),
         metric(translate("protocolInputItems"), counts.input_items, dependencies),
         metric(translate("protocolEffectiveTools"), counts.tools, dependencies),
+        optionalMetric(translate("protocolUnknownItems"), counts.unknown_items, dependencies),
       ])}
       ${renderInstructionBlocks(view, dependencies)}
       ${renderToolStages(view, dependencies)}
@@ -53,6 +54,7 @@ function renderDownstream(view, dependencies) {
         metric(translate("protocolOutputItems"), counts.output_items, dependencies),
         metric(translate("protocolReasoningItems"), counts.reasoning_items, dependencies),
         metric(translate("protocolToolCalls"), counts.tool_calls, dependencies),
+        optionalMetric(translate("protocolUnknownItems"), counts.unknown_items, dependencies),
       ], view.downstream.status ? escapeHtml(view.downstream.status) : "")}
       ${renderItemSequence(view.requestId, view.downstream.items, "response", dependencies)}
       <div class="protocol-direction-actions">
@@ -160,6 +162,7 @@ function renderItemSequence(requestId, items, mode, dependencies) {
                   <strong>${escapeHtml(protocolSemanticLabel(item.semantic, translate))}</strong>
                   <code>${escapeHtml(item.itemType)}</code>
                   ${item.role && item.role !== "unknown" ? `<span>${escapeHtml(item.role)}</span>` : ""}
+                  ${item.schemaKnown ? "" : `<em class="protocol-schema-unknown">${escapeHtml(translate("protocolSchemaUnknown"))}</em>`}
                 </div>
                 <small>${escapeHtml(item.sourcePath)}</small>
                 ${item.name ? `<p>${escapeHtml(item.name)}${item.callId ? ` · ${escapeHtml(item.callId)}` : ""}</p>` : ""}
@@ -176,6 +179,10 @@ function renderItemSequence(requestId, items, mode, dependencies) {
 
 function metric(label, value, { escapeHtml, formatNumber }) {
   return `<span><strong>${escapeHtml(formatNumber(Number(value || 0)))}</strong><small>${escapeHtml(label)}</small></span>`;
+}
+
+function optionalMetric(label, value, dependencies) {
+  return Number(value || 0) > 0 ? metric(label, value, dependencies) : "";
 }
 
 function rawButton(requestId, section, label, mode, escapeHtml) {
@@ -197,8 +204,13 @@ function protocolSemanticLabel(semantic, translate) {
     assistant_message: "protocolSemanticAssistantMessage",
     reasoning: "protocolSemanticReasoning",
     tool_search: "protocolSemanticToolSearch",
+    tool_discovery: "protocolSemanticToolDiscovery",
+    tool_approval: "protocolSemanticToolApproval",
     tool_call: "protocolSemanticToolCall",
     tool_result: "protocolSemanticToolResult",
+    context_management: "protocolSemanticContextManagement",
+    context_reference: "protocolSemanticContextReference",
+    resource: "protocolSemanticResource",
     response_item: "protocolSemanticResponseItem",
     input_item: "protocolSemanticInputItem",
     message: "protocolSemanticInputItem",
