@@ -6,7 +6,11 @@ const listeners = new Map();
 const scheduled = [];
 let renderCount = 0;
 let prevented = 0;
+let focusCount = 0;
 const input = fakeTarget("[data-raw-search]", { value: "Claude" });
+input.focus = () => {
+  focusCount += 1;
+};
 const clearButton = fakeTarget("[data-raw-search-clear]");
 const root = {
   addEventListener(type, listener) {
@@ -51,6 +55,7 @@ assert.equal(controller.activeIndex, 0);
 assert.equal(scheduled.length, 1);
 scheduled.shift()();
 assert.equal(renderCount, 1);
+assert.equal(focusCount, 2, "search focus must be restored immediately and confirmed on the next frame");
 
 listeners.get("compositionstart")({ target: input });
 assert.equal(controller.isComposing(), true);
@@ -63,6 +68,7 @@ assert.equal(controller.query, "中文");
 assert.equal(scheduled.length, 1);
 scheduled.shift()();
 assert.equal(renderCount, 2);
+assert.equal(focusCount, 4, "IME completion must not depend on requestAnimationFrame to restore focus");
 
 listeners.get("keydown")({ target: input, key: "Enter", isComposing: false, preventDefault: () => (prevented += 1) });
 assert.equal(prevented, 1);
