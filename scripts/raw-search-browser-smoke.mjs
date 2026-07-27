@@ -140,12 +140,36 @@ try {
     input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: ${JSON.stringify(query)} }));
     return true;
   })()`);
-  await browser.waitFor(
-    `document.querySelector('[data-raw-search-position]')?.textContent === '1/13' &&
-      document.querySelectorAll('mark.raw-search-highlight').length === 13 &&
-      document.activeElement === document.querySelector('[data-raw-search]')`,
-    { description: "13 visible System search occurrences with restored search focus" },
-  );
+  try {
+    await browser.waitFor(
+      `document.querySelector('[data-raw-search-position]')?.textContent === '1/13' &&
+        document.querySelectorAll('mark.raw-search-highlight').length === 13 &&
+        document.activeElement === document.querySelector('[data-raw-search]')`,
+      { description: "13 visible System search occurrences with restored search focus" },
+    );
+  } catch (error) {
+    const timeoutState = await browser.evaluate(`(() => {
+      const input = document.querySelector('[data-raw-search]');
+      const marks = [...document.querySelectorAll('mark')];
+      return {
+        value: input?.value || '',
+        position: document.querySelector('[data-raw-search-position]')?.textContent || '',
+        marks: marks.length,
+        highlightedMarks: document.querySelectorAll('mark.raw-search-highlight').length,
+        visibleMarks: marks.filter((mark) => mark.getClientRects().length > 0).length,
+        focused: document.activeElement === input,
+        activeElement: document.activeElement?.tagName || '',
+        inputConnected: Boolean(input?.isConnected),
+        originalInputConnected: Boolean(window.__rawSearchInputBeforeComposition?.isConnected),
+        originalInputRetained: input === window.__rawSearchInputBeforeComposition,
+        visibility: document.visibilityState,
+        events: window.__rawSearchEventLog || [],
+        mutations: window.__rawSearchMutationLog || [],
+      };
+    })()`);
+    error.message = `${error.message} Final browser state: ${JSON.stringify(timeoutState)}`;
+    throw error;
+  }
 
   const initialState = await searchState(browser);
   assert.deepEqual(initialState, {
