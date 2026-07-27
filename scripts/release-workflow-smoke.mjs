@@ -13,6 +13,7 @@ const requiredPairs = [
 ];
 
 assert.match(checkWorkflow, /^name:\s*Release Check/m);
+assert.match(checkWorkflow, /push:\s*\n\s+branches:\s*\n\s+- main\s*\n\s+- ["']codex\/\*\*["']/);
 assert.match(checkWorkflow, /pull_request:/);
 assert.match(checkWorkflow, /permissions:\s*\n\s+contents:\s*read/);
 assert.match(checkWorkflow, /actions\/checkout@[0-9a-f]{40}/);
