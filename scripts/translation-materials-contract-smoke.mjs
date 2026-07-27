@@ -132,12 +132,6 @@ assert.deepEqual(
     .map((item) => item.metadata.tool_name),
   ["collaboration.followup_task", "collaboration.mailbox.send_message", "web.open"],
 );
-assert.deepEqual(
-  namespacedMaterials
-    .filter((item) => item.kind === "tool_namespace_description")
-    .map((item) => item.metadata.namespace_name),
-  ["collaboration", "collaboration.mailbox"],
-);
 assert.equal(
   namespacedMaterials.find((item) => item.metadata?.field_name === "message")?.metadata?.path,
   "$.input[0].tools[0].tools[1].tools[0].parameters.properties.message.description",

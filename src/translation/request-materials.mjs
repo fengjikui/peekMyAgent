@@ -75,37 +75,12 @@ export function projectTranslationBodyMaterials(
 
   if (!section || section === "tools") {
     const catalog = extractRequestToolCatalog(source, { includeDefinitions: true });
-    const namespaces = new Map(catalog.namespaces.map((namespace) => [namespace.qualified_name, namespace]));
-    for (const namespace of catalog.namespaces) {
-      const description = translationToolDescription(namespace.definition);
-      if (description) {
-        materials.push({
-          kind: "tool_namespace_description",
-          source_text: description,
-          source_language: "en",
-          metadata: {
-            namespace_name: namespace.qualified_name,
-            namespace_leaf_name: namespace.name,
-            namespace_parent: namespace.namespace,
-            namespace_path: namespace.namespace_path,
-            namespace_source_path: namespace.source_path,
-            namespace_tool_count: namespace.tool_count,
-            path: `${namespace.source_path}.description`,
-          },
-        });
-      }
-    }
     for (const tool of catalog.tools) {
       const definition = tool.definition || {};
-      const namespace = namespaces.get(tool.namespace) || null;
       const metadata = {
         tool_name: tool.qualified_name,
         tool_leaf_name: tool.name,
         tool_namespace: tool.namespace,
-        tool_namespace_path: tool.namespace_path,
-        tool_source_path: tool.source_path,
-        tool_deferred: tool.deferred,
-        tool_namespace_tool_count: namespace?.tool_count || null,
       };
       const description = translationToolDescription(definition);
       if (description) {
@@ -339,7 +314,7 @@ export function dedupeToolTranslationMaterials(materials) {
         const metadata = item?.metadata || {};
         const key = [
           translationLookupKey(item?.kind, sourceText),
-          metadata.tool_name || metadata.namespace_name || "unknown",
+          metadata.tool_name || "unknown",
           metadata.field_name || metadata.path || "",
         ].join("\0");
         return [key, { ...item, source_text: sourceText }];

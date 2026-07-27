@@ -28,31 +28,25 @@ export function extractRequestTools(body = {}) {
 
 export function extractRequestToolCatalog(body = {}, { includeDefinitions = false } = {}) {
   const source = body && typeof body === "object" ? body : {};
-  const stages = [];
-  appendCatalogStage(stages, source.tools, "$.tools", "declared", includeDefinitions);
-  appendCatalogStage(stages, source.additional_tools, "$.additional_tools", "added", includeDefinitions);
+  const roots = [
+    [source.tools, "$.tools"],
+    [source.additional_tools, "$.additional_tools"],
+  ];
   for (const [inputIndex, item] of (Array.isArray(source.input) ? source.input : []).entries()) {
     if (!item || !["additional_tools", "tool_search_output"].includes(item.type)) continue;
-    appendCatalogStage(
-      stages,
-      item.tools,
-      `$.input[${inputIndex}].tools`,
-      item.type === "tool_search_output" ? "loaded" : "added",
-      includeDefinitions,
-      inputIndex,
-    );
+    roots.push([item.tools, `$.input[${inputIndex}].tools`]);
   }
 
   const tools = new Map();
   const namespaces = new Map();
-  for (const stage of stages) {
-    for (const namespace of stage.namespaces) namespaces.set(namespace.qualified_name, namespace);
-    for (const tool of stage.tools) tools.set(tool.qualified_name, tool);
+  for (const [rootTools, sourcePath] of roots) {
+    const catalog = collectToolCatalog(rootTools, { sourcePath, includeDefinitions });
+    for (const namespace of catalog.namespaces) namespaces.set(namespace.qualified_name, namespace);
+    for (const tool of catalog.tools) tools.set(tool.qualified_name, tool);
   }
   return {
     tools: [...tools.values()],
     namespaces: [...namespaces.values()],
-    stages,
   };
 }
 
@@ -126,7 +120,7 @@ export function collectToolCatalog(tools, {
         namespace: namespacePath.join(".") || null,
         namespace_path: nestedNamespacePath,
         source_path: toolPath,
-        description_chars: textChars(tool.description),
+        description_chars: String(tool.description || "").length,
         tool_count: nestedCatalog.tools.length,
         ...(includeDefinitions ? { definition: tool } : {}),
       });
@@ -228,12 +222,6 @@ function parseMaybeJson(value) {
   }
 }
 
-function appendCatalogStage(stages, tools, sourcePath, kind, includeDefinitions, inputIndex = null) {
-  if (!Array.isArray(tools) || !tools.length) return;
-  const catalog = collectToolCatalog(tools, { sourcePath, includeDefinitions });
-  stages.push({ kind, source_path: sourcePath, input_index: inputIndex, ...catalog });
-}
-
 function toolCatalogLeaf(tool, {
   name = null,
   type = null,
@@ -254,18 +242,6 @@ function toolCatalogLeaf(tool, {
     deferred: Boolean(deferred),
     ...(includeDefinitions ? { definition: tool } : {}),
   };
-}
-
-function textChars(value) {
-  if (value == null) return 0;
-  if (["string", "number", "boolean"].includes(typeof value)) return String(value).length;
-  if (Array.isArray(value)) return value.reduce((sum, item) => sum + textChars(item), 0);
-  if (typeof value !== "object") return 0;
-  let total = 0;
-  for (const key of ["text", "description", "content", "parts"]) {
-    if (value[key] !== undefined) total += textChars(value[key]);
-  }
-  return total;
 }
 
 function normalizedToolType(value) {

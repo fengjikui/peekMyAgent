@@ -10,7 +10,6 @@
 
 - 每个 system prompt part 是一个块；
 - 每条 Developer instruction 是一个块；
-- 每个 namespace description 是一个块；
 - 每个工具 description 是一个块；
 - input schema 中每个字段 description 是一个块；
 - 每个 harness reminder、compact、command 或 suggestion 注入是一个块；
@@ -19,7 +18,7 @@
 
 块 hash 继续使用 `kind + normalizeTranslationSourceText(source_text)`。日期、模型名、工作目录和项目 memory 路径等已知易变系统行先归一化，命中相同 hash；不会做可能改变真实语义的泛化归一化。
 
-Tools 材料必须消费 `src/shared/request-payload.mjs` 的递归工具目录。目录统一合并顶层 `tools`/`additional_tools`、input 中的 `additional_tools` 和 `tool_search_output`：namespace 是容器材料，不能作为工具说明；可调用叶子使用限定名（如 `collaboration.followup_task`）作为稳定 `tool_name`，同时保留叶子名、namespace 路径、deferred 状态和精确 Raw JSONPath。任意深度的 namespace 都遵循同一规则，Node Collector、浏览器和离线提取脚本不得另写浅层解析。
+Tools 材料必须消费 `src/shared/request-payload.mjs` 的递归工具目录。目录统一合并顶层 `tools`/`additional_tools`、input 中的 `additional_tools` 和 `tool_search_output`：namespace 只提供结构身份，不能作为工具说明；可调用叶子使用限定名（如 `collaboration.followup_task`）作为稳定 `tool_name`，同时保留叶子名、namespace 路径、deferred 状态和精确 Raw JSONPath。任意深度的 namespace 都遵循同一规则，Node Collector、浏览器和离线提取脚本不得另写浅层解析；容器说明仍可从 Raw 查看，不自动形成翻译材料。
 
 ## 去重与 occurrence
 
@@ -43,7 +42,7 @@ Claude Code 的 compact/command/suggestion/reminder 判断由共享 `extractHarn
 ## 回归约束
 
 - Viewer、Viewer Adapter 与 `scripts/extract-translation-materials.mjs` 必须复用同一个 request-material projector 和 translation block contract；浏览器不得复制服务端提取规则。
-- namespace 容器不得进入工具计数或工具动作；namespace 说明和叶子工具说明/参数必须保持不同材料 kind 与动作边界。
+- namespace 容器不得进入工具计数、工具说明材料或工具动作；叶子工具说明和参数继续保持各自材料身份。
 - section 刷新只产生当前 system、developer、tools、harness 或 response 类型的材料。
 - 同一归一化块的 hash、metadata 和 occurrence 顺序必须稳定。
 - 新增可翻译材料类型时，必须同步检查 UI 国际化文本、复制行为、缓存命中和主动重译路径。

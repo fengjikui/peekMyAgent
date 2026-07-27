@@ -94,7 +94,6 @@ export function translationMaterialMatchesQuery(item, { query = "", translatedTe
     metadata.tool_name,
     metadata.tool_leaf_name,
     metadata.tool_namespace,
-    metadata.namespace_name,
     metadata.field_name,
     metadata.label,
     displayedText,
@@ -107,20 +106,13 @@ export function translationMaterialMatchesQuery(item, { query = "", translatedTe
 
 export function groupToolTranslationMaterials(materials) {
   const groups = new Map();
-  const namespaceDescriptions = new Map();
   for (const item of Array.isArray(materials) ? materials : []) {
-    if (item?.kind === "tool_namespace_description") {
-      const namespaceName = item?.metadata?.namespace_name || "unknown";
-      if (!namespaceDescriptions.has(namespaceName)) namespaceDescriptions.set(namespaceName, item);
-      continue;
-    }
     const toolName = item?.metadata?.tool_name || "unknown";
     if (!groups.has(toolName)) {
       groups.set(toolName, {
         toolName,
         toolDisplayName: item?.metadata?.tool_leaf_name || toolName,
         namespace: item?.metadata?.tool_namespace || "",
-        namespaceToolCount: Number(item?.metadata?.tool_namespace_tool_count || 0),
         description: null,
         parameters: [],
       });
@@ -129,10 +121,7 @@ export function groupToolTranslationMaterials(materials) {
     if (item?.kind === "tool_description" && !group.description) group.description = item;
     else group.parameters.push(item);
   }
-  return [...groups.values()].map((group) => ({
-    ...group,
-    namespaceDescription: namespaceDescriptions.get(group.namespace) || null,
-  }));
+  return [...groups.values()];
 }
 
 export function filterToolTranslationGroups(groups, { query = "", translatedTextFor = () => "" } = {}) {
@@ -145,7 +134,7 @@ export function filterToolTranslationGroups(groups, { query = "", translatedText
         .filter(Boolean)
         .map((name) => String(name).toLowerCase());
       const nameMatch = names.some((name) => name.includes(normalizedQuery));
-      const contentMatch = [group.namespaceDescription, group.description, ...(group.parameters || [])]
+      const contentMatch = [group.description, ...(group.parameters || [])]
         .filter(Boolean)
         .some((item) =>
           translationMaterialMatchesQuery(item, {
@@ -194,7 +183,6 @@ export function responseInvokedToolNames(response) {
 }
 
 export function translationKindClass(kind) {
-  if (kind === "tool_namespace_description") return "tool-namespace-description";
   if (kind === "tool_description") return "tool-description";
   if (kind === "tool_parameter_description") return "tool-parameter";
   if (kind === "system_prompt") return "system-prompt";
@@ -221,14 +209,6 @@ function toolTranslationGroupView(group, { translatedTextFor, labelForKind, disp
         labelForKind,
       })
     : null;
-  const namespaceDescription = group.namespaceDescription
-    ? translationBlockView({
-        material: group.namespaceDescription,
-        label: "",
-        translatedTextFor,
-        labelForKind,
-      })
-    : null;
   const materials = [group.description, ...(group.parameters || [])]
     .filter(Boolean)
     .map((item) => ({
@@ -241,13 +221,6 @@ function toolTranslationGroupView(group, { translatedTextFor, labelForKind, disp
     toolName: group.toolName,
     toolDisplayName: group.toolDisplayName,
     namespace: group.namespace,
-    namespaceToolCount: group.namespaceToolCount,
-    namespaceDescription: namespaceDescription
-      ? {
-          ...namespaceDescription,
-          displayText: displaySource ? namespaceDescription.sourceText : namespaceDescription.displayText,
-        }
-      : null,
     description: description
       ? { ...description, displayText: displaySource ? description.sourceText : description.displayText }
       : null,

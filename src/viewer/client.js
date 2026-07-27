@@ -2399,7 +2399,6 @@ function renderTranslatedSection(request, section) {
 }
 
 function translationKindLabel(kind) {
-  if (kind === "tool_namespace_description") return t("toolNamespaceDescription");
   if (kind === "tool_description") return t("toolDescription");
   if (kind === "tool_parameter_description") return t("parameterDescriptions");
   if (kind === "system_prompt") return "System";

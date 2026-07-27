@@ -10,7 +10,7 @@
 
 这是无 DOM、无网络、无全局状态的纯数据层，负责：
 
-- 按 namespace 和限定工具名聚合容器说明、叶子工具说明和参数说明。
+- 按 namespace 和限定工具名聚合叶子工具说明和参数说明。
 - 在原文、当前译文、namespace、限定名、叶子工具名、参数名和材料标签中筛选查询词。
 - 工具搜索结果按“工具名完全匹配、工具名部分匹配、内容匹配”稳定排序。
 - 计算当前材料的缓存命中、缺失数量。
@@ -24,7 +24,7 @@
 这是只消费显式 DTO 和渲染依赖的 HTML Renderer，负责：
 
 - 原文/目标语言切换、缓存状态、复制全部和刷新区块工具栏。
-- System/Harness 块，以及“namespace 容器 + 一个叶子工具一个整体”的 Tools schema HTML；namespace 说明属于容器单元，同一叶子工具的说明、全部参数、缓存状态、动作和合并原文属于工具单元。
+- System/Harness 块，以及“一个叶子工具一个整体”的 Tools schema HTML；namespace 作为次级身份，同一叶子工具的说明、全部参数、缓存状态、动作和合并原文属于工具单元。
 - HTML 转义、Markdown 预览和原文折叠区。
 - 向调用方请求 action id，并把 id 写入复制/重译按钮。
 
@@ -68,7 +68,7 @@ Renderer 不读取 `state`、不访问 DOM、不请求翻译 provider，也不�
 7. Assistant 的“只看本次调用”按下行工具名过滤上行注入 schema；界面必须继续标明 Tools schema 属于上行参考，而不是 Response 返回内容。若动态发现工具未出现在该次捕获的上行 tools 中，筛选视图明确报告缺失证据，不伪造 schema。
 8. 所有用户可见文案继续通过现有中英文资源表取得。
 9. 打开 Protocol、Developer 或 Response 视图不触发 provider 请求；只有用户显式生成/重译才允许发送对应材料。
-10. namespace 永远不是可调用工具；容器标题显示限定 namespace 和递归叶子数，叶子标题显示原始可调用名，稳定筛选和动作身份使用限定名。
+10. namespace 永远不是可调用工具；叶子标题显示原始可调用名并附带限定 namespace，稳定筛选和动作身份使用限定名。
 
 ## 验证
 
@@ -84,7 +84,7 @@ npm run smoke:viewer-static-assets-contract
 真实浏览器回归应至少覆盖：
 
 - System 原文/译文切换、缓存状态和搜索跳转。
-- Tools namespace 分组、限定名/叶子名搜索、单工具一体化说明/参数、原文/译文切换、合并原文和本次调用筛选。
+- Tools namespace 身份、限定名/叶子名搜索、单工具一体化说明/参数、原文/译文切换、合并原文和本次调用筛选。
 - Harness 结构化翻译列表。
 - Developer instruction 与 Assistant reasoning/response 的原文、译文和 source 折叠入口；用户/历史消息不出现翻译动作。
 - 复制与重译按钮可点击，且浏览器控制台无模块加载或运行错误。

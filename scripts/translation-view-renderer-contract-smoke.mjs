@@ -208,11 +208,6 @@ assert.doesNotMatch(sourceToolsHtml, /tool-translation-source/);
 
 const namespaceMaterials = [
   {
-    kind: "tool_namespace_description",
-    source_text: "Tools for spawning and managing sub-agents.",
-    metadata: { namespace_name: "collaboration", namespace_tool_count: 2 },
-  },
-  {
     kind: "tool_description",
     source_text: "Send a follow-up task.",
     metadata: {
@@ -247,7 +242,7 @@ const namespaceMaterials = [
 const namespaceView = buildTranslationSectionView({
   section: "tools",
   materials: namespaceMaterials,
-  translatedTextFor: (_kind, sourceText) => sourceText === "Tools for spawning and managing sub-agents." ? "用于生成和管理子 Agent 的工具。" : "",
+  translatedTextFor: () => "",
   labelForKind: (kind) => kind,
 });
 assert.deepEqual(namespaceView.groups.map((group) => group.toolName), [
@@ -256,7 +251,6 @@ assert.deepEqual(namespaceView.groups.map((group) => group.toolName), [
 ]);
 assert.deepEqual(namespaceView.groups.map((group) => group.toolDisplayName), ["followup_task", "send_message"]);
 assert.equal(namespaceView.groups[0].namespace, "collaboration");
-assert.equal(namespaceView.groups[0].namespaceDescription.displayText, "用于生成和管理子 Agent 的工具。");
 assert.deepEqual(
   filterToolTranslationGroupsByName(groupToolTranslationMaterials(namespaceMaterials), new Set(["followup_task"]))
     .map((group) => group.toolName),
@@ -273,14 +267,12 @@ const namespaceHtml = renderTranslationSection({
     return `namespace-action-${namespaceActions.length}`;
   },
 });
-assert.equal((namespaceHtml.match(/class="tool-translation-namespace"/g) || []).length, 1);
 assert.equal((namespaceHtml.match(/class="tool-translation-group"/g) || []).length, 2);
-assert.match(namespaceHtml, />collaboration<\/strong>/);
+assert.match(namespaceHtml, /collaboration ·/);
 assert.match(namespaceHtml, />followup_task<\/strong>/);
 assert.match(namespaceHtml, />send_message<\/strong>/);
 assert.doesNotMatch(namespaceHtml, />collaboration\.followup_task<\/strong>/);
-assert.equal(namespaceActions[0].kind, "tool_namespace_description");
-assert.equal(namespaceActions[1].metadata.tool_name, "collaboration.followup_task");
+assert.equal(namespaceActions[0].metadata.tool_name, "collaboration.followup_task");
 
 const unsafeHtml = renderTranslationBlock({ block, ...dependencies });
 assert.doesNotMatch(unsafeHtml, /<script>/);

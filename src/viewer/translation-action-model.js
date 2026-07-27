@@ -55,20 +55,7 @@ export function toolsTranslationClipboardText(
   materials,
   { translatedTextFor = () => "", translate = identityTranslate } = {},
 ) {
-  const namespaceSections = (Array.isArray(materials) ? materials : [])
-    .filter((item) => item?.kind === "tool_namespace_description")
-    .map((item) => {
-      const namespace = item?.metadata?.namespace_name || "unknown";
-      return [
-        `## ${translate("toolNamespaceDescription")}: ${namespace}`,
-        "",
-        translationMaterialClipboardSection(item, translate("toolNamespaceDescription"), {
-          translatedTextFor,
-          translate,
-        }),
-      ].join("\n");
-    });
-  const toolSections = groupToolTranslationMaterials(materials)
+  return groupToolTranslationMaterials(materials)
     .map((group) => {
       const parts = [`## ${translate("toolClipboardHeading")}: ${group.toolName}`];
       if (group.description) {
@@ -92,8 +79,8 @@ export function toolsTranslationClipboardText(
         );
       }
       return parts.join("\n");
-    });
-  return [...namespaceSections, ...toolSections].join("\n\n---\n\n");
+    })
+    .join("\n\n---\n\n");
 }
 
 export function translationGenerationMessage(
