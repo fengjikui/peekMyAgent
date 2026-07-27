@@ -31,7 +31,7 @@ pma CLI / adapter
 | 要修改的行为 | 首先阅读 | 通常不应直接修改 |
 | --- | --- | --- |
 | CLI 命令、wrapper、进程退出、安装卸载 | `bin/`、`src/core/platform.mjs`、`src/core/app-paths.mjs`、`src/core/process-tools.mjs` | Viewer renderer |
-| Proxy 请求/回复捕获 | `src/core/capture-proxy.mjs`、`provenance.mjs` | UI 文案 |
+| Proxy 请求/回复捕获、响应 Content-Encoding 解码和 wire/decoded provenance | `src/core/capture-proxy.mjs`、`provenance.mjs`、[模型回复归一化契约](model-response-normalizer-contract.md) | UI 文案、把 decoded JSON 称为逐字 wire body、对未知/失败编码强行 UTF-8/JSON 解析 |
 | Watch 新建/复用/恢复、暂停/停止、共享代理和动态路由 | `src/server/watch-runtime-service.mjs`、[Service 契约](watch-runtime-service-contract.md) | 在 Router、wrapper、Source service 或 Agent send 各维护一份 watch Map/恢复策略 |
 | Claude Code OTel 关联与入库 | `src/core/otel-capture.mjs`、`otel-events.mjs`、`src/server/otel-ingest-service.mjs`、`src/adapters/claude-otel.mjs`、[Service 契约](otel-ingest-service-contract.md) | 在 HTTP route 复制配对算法，或让 core 解析层直接写 Store |
 | Codex Desktop 受管精确捕获、thread 选择性路由、等待/绑定与 rollout 观察 | `src/adapters/codex-desktop-installation.mjs`、`codex-desktop-managed-session.mjs`、`codex-app-server-relay.mjs`、`codex-app-server-protocol.mjs`、`codex-desktop-session.mjs`、`codex-desktop-discovery.mjs`、`codex-rollout-normalizer.mjs`、`codex-exact-proxy.mjs`、`src/server/codex-pending-capture-reader.mjs`、`codex-rollout-capture-reader.mjs`、[托管精确捕获](codex-desktop-managed-exact-capture.md)、[证据与 Viewer 契约](codex-rollout-evidence-and-viewer-contract.md) | 扫描并导入全部 Codex 历史、把 rollout 冒充 wire request、热切换已加载 thread、持久化 App Server JSON-RPC/认证值，或把订阅认证转发到非 first-party host |

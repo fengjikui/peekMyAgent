@@ -45,6 +45,9 @@ export function summarizeModelResponse(response) {
     truncated: Boolean(response.truncated),
     raw_body_bytes: response.raw_body_length || 0,
     captured_body_bytes: response.captured_body_length || 0,
+    decoded_body_bytes: response.decoded_body_length ?? null,
+    response_content_encoding: response.response_content_encoding || "identity",
+    content_decoding: response.content_decoding || null,
     received_at: response.received_at || null,
   };
 }

@@ -16,6 +16,8 @@ Capture Proxy 和 OTel 都可能先写入模型请求，稍后再补写模型 re
 
 任一步失败都必须回滚以上所有变化。不能留下只有 blob/关联却没有 Capture response，或 Capture 已更新但 watch 时间未更新的半写入状态。
 
+`response_blobs` 保存的是 Capture Proxy 完成 `Content-Encoding` 解码后的 UTF-8 `body_text`。压缩 wire 字节仍原样转发给调用方，但不作为 response blob 持久化；其长度和编码由 response record 的 `raw_body_length`、`captured_body_length`、`response_content_encoding` 与 `content_decoding` 保留。无法安全解码时不创建伪正文 blob。
+
 ## 返回和失败语义
 
 - 缺少 `capture_id` 或数据库中不存在该 Capture：返回 `{ updated: false }`，不写任何数据。

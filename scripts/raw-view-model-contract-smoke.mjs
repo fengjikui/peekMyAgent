@@ -60,6 +60,10 @@ const request = {
       headers: { "content-type": "text/event-stream" },
       raw_body_length: 2048,
       captured_body_length: 1024,
+      decoded_body_length: 4096,
+      response_content_encoding: "gzip",
+      content_decoding: { status: "decoded", encodings: ["gzip"] },
+      body_text_source: "utf8_from_content_decoded_bytes",
       received_at: "2026-07-12T00:00:00.000Z",
       body_json: { type: "message" },
     },
@@ -196,6 +200,12 @@ assert.equal("complete_response" in downstream, false);
 assert.equal("parsed_from_response" in downstream, false);
 assert.equal(downstream.response_capture.status, 200);
 assert.equal(downstream.response_capture.content_type, "text/event-stream");
+assert.equal(downstream.response_capture.raw_body_bytes, 2048);
+assert.equal(downstream.response_capture.captured_body_bytes, 1024);
+assert.equal(downstream.response_capture.decoded_body_bytes, 4096);
+assert.equal(downstream.response_capture.content_encoding, "gzip");
+assert.deepEqual(downstream.response_capture.content_decoding, { status: "decoded", encodings: ["gzip"] });
+assert.equal(downstream.response_capture.body_text_source, "utf8_from_content_decoded_bytes");
 assert.equal(downstream.response_capture.body_json_available, true);
 assert.equal(downstream.response_capture.displayed_response, "captured_body_json");
 assert.deepEqual(rawSectionData(request, "response").value.response, { type: "message" });

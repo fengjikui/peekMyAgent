@@ -130,6 +130,7 @@ src/
 - 已建立共享 request translation material projector：System parts、Tools schema descriptions 与 Harness 注入只提取一次，Node Collector 与浏览器展示复用同一纯模块；Tools 同时复用共享递归目录解析顶层声明、中途追加、动态加载和任意深度 namespace，容器与限定名叶子不再混淆；服务端继续独占 hash、occurrence、限额和缓存写入。
 - 已建立共享 Viewer API DTO contract：`SourceSummary` 与单请求 `TraceRequestDetail` 具有版本、运行时 schema 和 Node/浏览器双端断言，SourceRepository、Viewer Server 与 API Client 共用同一事实源。
 - 已将 provenance v1 接入 Capture Proxy、OpenClaw normalizer 和 portable Trace import：区分 artifact fidelity 与关联 confidence，保留合法原始来源，旧导入采用保守回退。
+- Capture Proxy 的响应捕获副本已按 `Content-Encoding` 支持 identity、gzip、deflate、br，并在 Node 运行时提供时支持实验性 zstd；下游仍接收原始 wire 字节。wire/captured/decoded 长度、解码状态和 decoded-body provenance 分开记录，未知、损坏、截断或解码后超限的正文不再被伪装成 JSON。
 - file/demo/debug 等尚未形成 CaptureRecord 的 source 仍需在后续 source repository 阶段建立统一 DTO；阶段 1 的共享地基已经完成，可以进入 Viewer Server 拆分。
 
 ## 阶段 2：拆分 Viewer Server

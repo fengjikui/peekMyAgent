@@ -40,7 +40,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | 路径 | 职责 |
 | --- | --- |
 | `bin/peekmyagent.mjs` | CLI 命令路由、daemon 生命周期、Claude/OpenClaw wrapper、doctor、维护和卸载编排 |
-| `src/core/capture-proxy.mjs` | HTTP 转发、请求/响应截获、大小和请求边界 |
+| `src/core/capture-proxy.mjs` | HTTP 转发、请求/响应截获、Content-Encoding 捕获副本解码、wire/decoded 大小和请求边界 |
 | `src/core/upstream-http-transport.mjs` | loopback/HTTPS 上游转发、代理环境与原始字节请求边界 |
 | `src/core/otel-capture.mjs` | 扫描 Claude Code OTel raw-body dump、关联 request/response 并生成 capture |
 | `src/core/otel-events.mjs` | 提取 OTel raw-body log events 和 trace/span 关联字段 |
@@ -160,7 +160,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 
 1. 调用 `/api/watch/start` 创建或复用 watch。
 2. 将子进程的 `ANTHROPIC_BASE_URL` 指向该 watch 的稳定代理地址。
-3. Capture Proxy 转发原始 HTTP 请求，并在请求开始和响应完成时分别写入 SQLite。
+3. Capture Proxy 转发原始 HTTP 请求与响应 wire 字节，并在请求开始和响应完成时分别写入 SQLite；响应捕获副本会在有界范围内按 `Content-Encoding` 解码后再生成 `body_text/body_json`。
 4. Claude Code 仍直接运行在用户终端，stdin/stdout 由子进程继承。
 
 该路径最接近网络层原始证据，但仍可能受 provider 协议差异影响。
@@ -185,7 +185,7 @@ Capture 内的 `provenance` v1 将两个概念分开，完整字段与来源矩�
 - request/response artifact 的 `fidelity` 表示 JSON 正文是否来自 Agent 原始遥测文件；
 - `association.confidence` 表示 request 与 response 的配对证据强度。
 
-因此，OTel request body 可以是 `exact`，但其 response 关联仍可能是 `heuristic`。不能再用一个笼统的 `capture_confidence` 同时表达这两件事。Proxy 在请求开始时记录 request `exact`/response `missing`，响应结束后以同一 capture 生命周期更新为精确关联；响应正文若被大小上限截断，则 fidelity 为 `partial`。
+因此，OTel request body 可以是 `exact`，但其 response 关联仍可能是 `heuristic`。不能再用一个笼统的 `capture_confidence` 同时表达这两件事。Proxy 在请求开始时记录 request `exact`/response `missing`，响应结束后以同一 capture 生命周期更新为精确关联；响应正文若被大小上限截断、编码未知或解码失败，则 fidelity 为 `partial`。Proxy 保持下游响应 wire 字节不变，`raw_body_length` / `captured_body_length` 记录压缩前未解码的 wire 字节，`decoded_body_length` 记录捕获副本成功解码后的字节；response blob 和 `body_json` 是可读的 decoded 表示，provenance 使用 `http_response_decoded_body`，不得称为逐字 raw wire body。
 
 当 `-c/--continue` 或 `-r/--resume` 选择复用已有监听时，OTel wrapper 会继续使用同一 `watch_id`；新一轮 dump 的 request index 从该 watch 当前最大值继续递增，从而与 proxy capture 保持一致的会话归属语义。
 
@@ -351,7 +351,7 @@ Trace Domain 根据统一 `source_hint.relation` 把 `independent` 请求从用�
 
 compact 首屏后的完整 request 由 `RequestDetailCache` 按需读取。同一 request 的并发展开共享 Promise，失败可重试，source 切换统一清空；首次加载和缓存命中的应用副作用通过回调注入，缓存层不反向依赖 DOM、全局 state 或翻译模块。
 
-Raw Inspector 的请求/响应方向由 `raw-view-model.js` 统一。它从完整上行和 Metadata 移除 response 派生字段，单独组织完整 Response 与 capture facts，并通过调用方注入 Harness 材料，避免 renderer 各自重新解释同一份 DTO。Response 优先展示 Capture Proxy 保存的 `body_json`；流式协议若提供终止响应则展示该协议原生终止对象，否则仅在 normalizer 能保持 Anthropic Messages 或 Chat Completions 原生字段层级时展示协议终态重建。旧版通用 `stream_assembly` 和证据不足的不完整流不再伪装成 Raw。Raw 不展示 SSE 事件序列，也不重复展示 normalizer 的顶层 `text`、`thinking` 或统一 `tool_calls`；单独的调用页直接抽取协议原始调用条目并以原始类型命名。
+Raw Inspector 的请求/响应方向由 `raw-view-model.js` 统一。它从完整上行和 Metadata 移除 response 派生字段，单独组织完整 Response 与 capture facts，并通过调用方注入 Harness 材料，避免 renderer 各自重新解释同一份 DTO。Response 优先展示 Capture Proxy 保存的 `body_json`；capture facts 同时展示 wire/captured/decoded 字节、Content-Encoding、解码状态和正文来源，明确压缩响应的 JSON 是 decoded 表示而非逐字 wire body。流式协议若提供终止响应则展示该协议原生终止对象，否则仅在 normalizer 能保持 Anthropic Messages 或 Chat Completions 原生字段层级时展示协议终态重建。旧版通用 `stream_assembly` 和证据不足的不完整流不再伪装成 Raw。Raw 不展示 SSE 事件序列，也不重复展示 normalizer 的顶层 `text`、`thinking` 或统一 `tool_calls`；单独的调用页直接抽取协议原始调用条目并以原始类型命名。
 
 工具调用区块保留原文与整理两种证据阅读方式。原文继续展示协议条目；整理视图由 `tool-call-view-model.js` 兼容 Anthropic `tool_use.input`、OpenAI Responses `function_call.arguments` 和 Chat Completions `function.arguments`，保留原生类型、工具名和 call id，再由安全 Renderer 将命令/脚本作为代码块、结构化参数作为格式化 JSON、普通标量作为紧凑字段展示。该视图只改变阅读方式，不改写 Raw 或跨 Harness 统一字段名。
 

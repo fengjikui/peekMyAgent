@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import http from "node:http";
+import * as zlib from "node:zlib";
 import { proxyCaptureProvenance } from "./provenance.mjs";
 import { extractSafeHeaderSemantics, redactHeaders } from "./redaction.mjs";
 import { createUpstreamHttpTransport } from "./upstream-http-transport.mjs";
@@ -589,7 +590,7 @@ function proxyUpstreamResponse({ upstreamRes, downstreamRes, capture, watch, onC
     if (capture) {
       capture.response = buildResponseRecord({
         upstreamRes,
-        bodyText: Buffer.concat(chunks).toString("utf8"),
+        bodyBuffer: Buffer.concat(chunks),
         rawBytes,
         capturedBytes,
         startedAt,
@@ -610,9 +611,14 @@ function proxyUpstreamResponse({ upstreamRes, downstreamRes, capture, watch, onC
   });
 }
 
-function buildResponseRecord({ upstreamRes, bodyText, rawBytes, capturedBytes, startedAt }) {
+function buildResponseRecord({ upstreamRes, bodyBuffer, rawBytes, capturedBytes, startedAt }) {
   const { headers, redactions } = redactHeaders(downstreamResponseHeaders(upstreamRes.headers || {}));
-  return {
+  const contentEncoding = responseContentEncoding(upstreamRes.headers || {});
+  const decoded = decodeCapturedResponseBody(bodyBuffer, {
+    contentEncoding,
+    truncated: rawBytes > capturedBytes,
+  });
+  const response = {
     status: upstreamRes.statusCode || null,
     headers,
     header_redactions: redactions,
@@ -621,9 +627,15 @@ function buildResponseRecord({ upstreamRes, bodyText, rawBytes, capturedBytes, s
     raw_body_length: rawBytes,
     captured_body_length: capturedBytes,
     truncated: rawBytes > capturedBytes,
-    body_text: bodyText,
-    body_json: parseJson(bodyText),
+    response_content_encoding: contentEncoding,
+    content_decoding: decoded.content_decoding,
+    body_text: decoded.body_text,
+    body_json: decoded.body_text == null ? null : parseJson(decoded.body_text),
   };
+  if (decoded.decoded_body_length != null) response.decoded_body_length = decoded.decoded_body_length;
+  if (decoded.body_text_source) response.body_text_source = decoded.body_text_source;
+  if (decoded.body_text_omitted) response.body_text_omitted = decoded.body_text_omitted;
+  return response;
 }
 
 function buildErrorResponseRecord(error, { rawBytes = 0, capturedBytes = 0, startedAt = Date.now() } = {}) {
@@ -635,10 +647,131 @@ function buildErrorResponseRecord(error, { rawBytes = 0, capturedBytes = 0, star
     raw_body_length: rawBytes,
     captured_body_length: capturedBytes,
     truncated: false,
+    response_content_encoding: "identity",
+    content_decoding: { status: "identity", encodings: [] },
+    decoded_body_length: Buffer.byteLength(JSON.stringify({ error: error.message })),
+    body_text_source: "utf8_from_generated_proxy_error",
     body_text: JSON.stringify({ error: error.message }),
     body_json: { error: error.message },
     error: error.message,
   };
+}
+
+function decodeCapturedResponseBody(bodyBuffer, { contentEncoding = "identity", truncated = false } = {}) {
+  const encodings = parseContentEncodings(contentEncoding);
+  const wireEncoding = encodings.length ? encodings.join(", ") : "identity";
+  if (bodyBuffer.length === 0) {
+    return {
+      content_decoding: { status: "empty", encodings },
+      decoded_body_length: 0,
+      body_text_source: "utf8_from_empty_body",
+      body_text: "",
+    };
+  }
+  if (truncated && encodings.length) {
+    return omittedDecodedBody({
+      status: "skipped_truncated",
+      reason: "truncated_encoded_body",
+      encodings,
+      contentEncoding: wireEncoding,
+      capturedBytes: bodyBuffer.length,
+    });
+  }
+
+  let decoded = bodyBuffer;
+  if (encodings.length) {
+    for (const encoding of [...encodings].reverse()) {
+      const decoder = responseDecoder(encoding);
+      if (!decoder) {
+        return omittedDecodedBody({
+          status: "unsupported",
+          reason: "unsupported_content_encoding",
+          encodings,
+          contentEncoding: wireEncoding,
+          capturedBytes: bodyBuffer.length,
+          failedEncoding: encoding,
+        });
+      }
+      try {
+        decoded = decoder(decoded);
+      } catch (error) {
+        const outputTooLarge = error?.code === "ERR_BUFFER_TOO_LARGE";
+        return omittedDecodedBody({
+          status: outputTooLarge ? "decoded_too_large" : "failed",
+          reason: outputTooLarge ? "decoded_body_too_large" : "content_decoding_failed",
+          encodings,
+          contentEncoding: wireEncoding,
+          capturedBytes: bodyBuffer.length,
+          failedEncoding: encoding,
+          errorCode: safeErrorCode(error),
+        });
+      }
+    }
+  }
+
+  return {
+    content_decoding: {
+      status: encodings.length ? "decoded" : "identity",
+      encodings,
+    },
+    decoded_body_length: decoded.length,
+    body_text_source: encodings.length
+      ? "utf8_from_content_decoded_bytes"
+      : "utf8_from_captured_wire_bytes",
+    body_text: decoded.toString("utf8"),
+  };
+}
+
+function responseDecoder(encoding) {
+  const options = { maxOutputLength: MAX_CAPTURED_RESPONSE_BYTES };
+  if (encoding === "gzip" || encoding === "x-gzip") return (buffer) => zlib.gunzipSync(buffer, options);
+  if (encoding === "deflate") return (buffer) => zlib.inflateSync(buffer, options);
+  if (encoding === "br") return (buffer) => zlib.brotliDecompressSync(buffer, options);
+  if (encoding === "zstd" && typeof zlib.zstdDecompressSync === "function") {
+    return (buffer) => zlib.zstdDecompressSync(buffer, options);
+  }
+  return null;
+}
+
+function responseContentEncoding(headers = {}) {
+  const value = headers["content-encoding"];
+  if (Array.isArray(value)) return value.join(", ");
+  return String(value || "identity").trim().toLowerCase() || "identity";
+}
+
+function parseContentEncodings(value) {
+  return String(value || "identity")
+    .split(",")
+    .map((encoding) => encoding.trim().toLowerCase())
+    .filter((encoding) => encoding && encoding !== "identity");
+}
+
+function omittedDecodedBody({
+  status,
+  reason,
+  encodings,
+  contentEncoding,
+  capturedBytes,
+  failedEncoding = null,
+  errorCode = null,
+}) {
+  const contentDecoding = { status, encodings };
+  if (failedEncoding) contentDecoding.failed_encoding = failedEncoding;
+  if (errorCode) contentDecoding.error_code = errorCode;
+  return {
+    content_decoding: contentDecoding,
+    body_text: null,
+    body_text_omitted: {
+      reason,
+      content_encoding: contentEncoding,
+      captured_wire_bytes: capturedBytes,
+    },
+  };
+}
+
+function safeErrorCode(error) {
+  const value = String(error?.code || error?.name || "DECODE_ERROR");
+  return /^[A-Za-z0-9_]+$/.test(value) ? value : "DECODE_ERROR";
 }
 
 export function resolveUpstreamUrl(targetBaseUrl, forwardPath, preserveTargetPathPrefix = false) {

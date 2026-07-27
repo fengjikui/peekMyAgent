@@ -49,6 +49,9 @@ const json = summarizeModelResponse({
   status: 200,
   raw_body_length: 640,
   captured_body_length: 640,
+  decoded_body_length: 960,
+  response_content_encoding: "gzip",
+  content_decoding: { status: "decoded", encodings: ["gzip"] },
   received_at: "2026-07-14T00:00:00.000Z",
 });
 assert.equal(json.captured, true);
@@ -66,6 +69,11 @@ assert.equal("text" in json.complete_response, false, "provider JSON is preserve
 assert.equal("tool_use" in json.complete_response, false);
 assert.equal(json.latency_ms, 42);
 assert.equal(json.status, 200);
+assert.equal(json.raw_body_bytes, 640);
+assert.equal(json.captured_body_bytes, 640);
+assert.equal(json.decoded_body_bytes, 960);
+assert.equal(json.response_content_encoding, "gzip");
+assert.deepEqual(json.content_decoding, { status: "decoded", encodings: ["gzip"] });
 
 const openAiStream = sse([
   { choices: [{ delta: { role: "assistant", reasoning_content: "plan " } }] },

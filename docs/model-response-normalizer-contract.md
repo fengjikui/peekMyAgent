@@ -35,6 +35,9 @@
   truncated,
   raw_body_length,
   captured_body_length,
+  decoded_body_length,
+  response_content_encoding,
+  content_decoding,
   received_at
 }
 ```
@@ -59,7 +62,8 @@ complete_response_source
 complete_response
 latency_ms / status
 stream / event_count / truncated
-raw_body_bytes / captured_body_bytes / received_at
+raw_body_bytes / captured_body_bytes / decoded_body_bytes
+response_content_encoding / content_decoding / received_at
 ```
 
 `complete_response` 不是统一 DTO，而是 Raw Inspector 使用的协议终态对象：
@@ -78,7 +82,7 @@ Responses API 的下行 `response.created` / `response.completed` 对象可能�
 
 PMA 将下行数据区分为三个层次，避免把产品整理结果误称为原始响应：
 
-1. **线级捕获**：`response_blobs` 引用 `content_blobs.payload_json`，保存 Capture Proxy 实际收到的完整 HTTP body。非流式响应是 JSON body；流式响应是完整 SSE 文本。这是最高保真的本地证据。
+1. **HTTP 捕获与可读正文**：`raw_body_length` 和 `captured_body_length` 始终记录上游 `Content-Encoding` 尚未解码时的 wire 字节数；`decoded_body_length` 是成功解码后的字节数。Capture Proxy 向调用方原样转发 wire 字节，只为 PMA 捕获副本按 `gzip`、`deflate`、`br` 或运行时可用的 `zstd` 逆序解码。`response_blobs` 引用的 `content_blobs.payload_json` 保存解码后的 UTF-8 `body_text`，不是逐字压缩 wire body；`response_content_encoding`、`content_decoding`、`body_text_source` 和 provenance artifact 明确该转换。identity 响应保存 UTF-8 文本；未知编码、损坏压缩流、被截断的压缩体或超过解码上限的正文不生成 `body_text/body_json`，只保留捕获长度、header、状态和省略原因。
 2. **协议终态对象**：normalizer 按厂商协议消费线级捕获。协议本身提供完整终态对象时直接保留；协议只提供增量事件时，按事件索引和顺序重建对应协议的终态对象，并标记 `complete_response_source: "stream_reconstruction"`。
 3. **语义摘要**：`capture_json` 与 summary 中的 `text`、`thinking`、`tool_calls` 用于时间线和整理视图。它们是 PMA 的派生数据，不是 Raw，也不能反向充当协议证据。
 

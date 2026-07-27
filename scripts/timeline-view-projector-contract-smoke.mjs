@@ -113,6 +113,12 @@ const request = {
     response: {
       status: 200,
       received_at: "2026-07-14T00:00:00.000Z",
+      raw_body_length: 120,
+      captured_body_length: 120,
+      decoded_body_length: 240,
+      response_content_encoding: "gzip",
+      content_decoding: { status: "decoded", encodings: ["gzip"] },
+      body_text_source: "utf8_from_content_decoded_bytes",
       headers: { "content-type": "application/json" },
       body_json: { content: longText },
       body_text: longText,
@@ -171,6 +177,12 @@ assert.equal(projected.raw.response.headers, undefined);
 assert.equal(projected.raw.response.body_json_omitted, true);
 assert.equal(projected.raw.response.body_text, undefined);
 assert.equal(projected.raw.response.body_text_omitted.reason, "compact_view");
+assert.equal(projected.raw.response.raw_body_length, 120);
+assert.equal(projected.raw.response.captured_body_length, 120);
+assert.equal(projected.raw.response.decoded_body_length, 240);
+assert.equal(projected.raw.response.response_content_encoding, "gzip");
+assert.deepEqual(projected.raw.response.content_decoding, { status: "decoded", encodings: ["gzip"] });
+assert.equal(projected.raw.response.body_text_source, "utf8_from_content_decoded_bytes");
 assert.deepEqual(projectTimelineRequest(projected), projected, "compact projection must be idempotent for cursor assembly");
 
 const projectedData = projectTimelineViewerData({ source: { id: "source-1" }, requests: [request] });

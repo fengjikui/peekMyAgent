@@ -40,8 +40,19 @@ export function captureProvenanceOr(value, fallbackFactory) {
 
 export function proxyCaptureProvenance(capture = {}) {
   const hasResponse = Boolean(capture.response);
-  const responseIsPartial = hasResponse && Boolean(capture.response?.truncated);
+  const decodingStatus = capture.response?.content_decoding?.status || "identity";
+  const decodedBodyUnavailable = ["unsupported", "failed", "decoded_too_large", "skipped_truncated"].includes(decodingStatus);
+  const responseIsPartial = hasResponse && (Boolean(capture.response?.truncated) || decodedBodyUnavailable);
   const responseIsError = hasResponse && Boolean(capture.response?.error || capture.upstream_error);
+  const responseArtifact = responseIsError
+    ? "proxy_error_response"
+    : decodedBodyUnavailable
+      ? "http_response_metadata"
+      : decodingStatus === "decoded"
+        ? "http_response_decoded_body"
+        : responseIsPartial
+          ? "http_response_partial_body"
+          : "http_response_body";
   return createCaptureProvenance({
     transport: "capture_proxy",
     request: { origin: "network_proxy", fidelity: "exact", artifact: "http_request" },
@@ -49,7 +60,7 @@ export function proxyCaptureProvenance(capture = {}) {
       ? {
           origin: responseIsError ? "capture_proxy" : "network_proxy",
           fidelity: responseIsPartial ? "partial" : "exact",
-          artifact: responseIsError ? "proxy_error_response" : "http_response",
+          artifact: responseArtifact,
         }
       : { origin: null, fidelity: "missing", artifact: null },
     association: hasResponse
