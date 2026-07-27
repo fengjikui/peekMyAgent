@@ -182,6 +182,12 @@ const toolSearchMessages = [
             },
           },
           { type: "function", name: "wait_agent", description: "Wait for an agent" },
+          {
+            type: "namespace",
+            name: "mailbox",
+            defer_loading: true,
+            tools: [{ type: "function", name: "send_message", description: "Send a message to an agent" }],
+          },
         ],
       },
     ],
@@ -209,14 +215,16 @@ const toolSearchGroups = organizedMessagesViewModel(toolSearchMessages, { timeli
 assert.equal(toolSearchGroups[0].blocks[0].toolCall.name, "tool_search");
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.name, "tool_search");
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.namespaceCount, 1);
-assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.toolCount, 2);
+assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.toolCount, 3);
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools[0].description, "Spawn an agent with a bounded task.");
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools[0].parameters.required[0], "message");
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools[0].parameterDescriptions[0].field_name, "message");
 assert.deepEqual(
   toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools.map((tool) => tool.name),
-  ["spawn_agent", "wait_agent"],
+  ["spawn_agent", "wait_agent", "mailbox.send_message"],
+  "nested namespaces flatten to callable leaves without becoming fake tools",
 );
+assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools[2].deferLoading, true);
 const renderedToolSearch = renderMessagesSection({
   messagesValue: toolSearchMessages,
   timelineRequestIndexes: [11, 12],

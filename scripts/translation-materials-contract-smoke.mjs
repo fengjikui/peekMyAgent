@@ -7,6 +7,7 @@ import {
 } from "../src/translation/request-materials.mjs";
 import { extractContentText } from "../src/trace/content-parts.mjs";
 import { translatedTextForKind } from "../src/viewer/translation-materials.js";
+import { extractRequestToolCatalog } from "../src/shared/request-payload.mjs";
 
 const source = { id: "source-a", workspace: "/workspace", conversation_id: "conversation-a" };
 assert.equal(
@@ -56,6 +57,91 @@ assert.equal(
   translationMaterialsForRequest(first, { section: "tools" }).filter((item) => item.metadata.tool_name === "Read").length,
   3,
   "tool projection preserves the tool description and each parameter description",
+);
+
+const namespacedToolBody = {
+  input: [
+    {
+      type: "additional_tools",
+      tools: [
+        {
+          type: "namespace",
+          name: "collaboration",
+          description: "Tools for spawning and managing sub-agents.",
+          tools: [
+            {
+              type: "function",
+              name: "followup_task",
+              description: "Send a follow-up task.",
+              parameters: {
+                type: "object",
+                properties: { target: { type: "string", description: "Agent target." } },
+              },
+            },
+            {
+              type: "namespace",
+              name: "mailbox",
+              description: "Mailbox operations.",
+              tools: [
+                {
+                  type: "function",
+                  name: "send_message",
+                  description: "Send a message.",
+                  parameters: {
+                    type: "object",
+                    properties: { message: { type: "string", description: "Message text." } },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      type: "tool_search_output",
+      tools: [
+        {
+          type: "namespace",
+          name: "web",
+          tools: [{ type: "function", name: "open", description: "Open a page." }],
+        },
+      ],
+    },
+  ],
+};
+const namespacedCatalog = extractRequestToolCatalog(namespacedToolBody, { includeDefinitions: true });
+assert.deepEqual(
+  namespacedCatalog.tools.map((tool) => tool.qualified_name),
+  ["collaboration.followup_task", "collaboration.mailbox.send_message", "web.open"],
+  "one shared catalog recursively expands added and dynamically loaded namespace tools",
+);
+assert.deepEqual(
+  namespacedCatalog.namespaces.map((namespace) => [namespace.qualified_name, namespace.tool_count]),
+  [["collaboration", 2], ["collaboration.mailbox", 1], ["web", 1]],
+);
+const namespacedMaterials = translationMaterialsForRequest({ raw: { body: namespacedToolBody } }, { section: "tools" });
+assert.equal(
+  namespacedMaterials.some((item) => item.metadata?.tool_name === "collaboration"),
+  false,
+  "namespace containers never become callable tool groups",
+);
+assert.deepEqual(
+  namespacedMaterials
+    .filter((item) => item.kind === "tool_description")
+    .map((item) => item.metadata.tool_name),
+  ["collaboration.followup_task", "collaboration.mailbox.send_message", "web.open"],
+);
+assert.deepEqual(
+  namespacedMaterials
+    .filter((item) => item.kind === "tool_namespace_description")
+    .map((item) => item.metadata.namespace_name),
+  ["collaboration", "collaboration.mailbox"],
+);
+assert.equal(
+  namespacedMaterials.find((item) => item.metadata?.field_name === "message")?.metadata?.path,
+  "$.input[0].tools[0].tools[1].tools[0].parameters.properties.message.description",
+  "leaf schema descriptions retain their exact Raw JSONPath",
 );
 
 const harnessParts = extractHarnessTranslationParts([

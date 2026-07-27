@@ -11,6 +11,7 @@
 ```text
 Capture request/response Raw
   -> request-profile 识别协议
+  -> shared request-payload 递归投影工具目录
   -> protocol-exchange 按厂商协议投影
   -> ViewerTraceProjector 保存完整 protocol_exchange
   -> Timeline projector 只保留卡片需要的 counts + status
@@ -34,7 +35,7 @@ Capture request/response Raw
 
 每个条目保留 `source_path`、协议原生 `item_type`、规范角色、语义、字符近似值以及可用的 `call_id`、工具名。Viewer 中的每个协议条目必须能跳回相应 Raw section；协议页不是第二份正文查看器。
 
-工具目录按树解析。`type=namespace` 是容器，不计入有效工具数；容器保留 `qualified_name`、`source_path` 和递归叶子数。叶子工具保留原始 `name`，同时生成限定名（例如 `collaboration.followup_task`）、完整 namespace 路径和精确 Raw JSONPath（例如 `$.input[0].tools[3].tools[0]`）。解析器递归处理任意深度 namespace，不能假设只有一层，也不能因为遇到未知容器字段而丢弃 Raw 结构。namespace 与叶子目录只进入完整 DTO；compact DTO 仅保留其计数。
+工具目录由 `src/shared/request-payload.mjs` 按树解析，Protocol Exchange、Viewer 摘要、Tools 翻译材料和动态工具发现整理视图共用这一事实源。`type=namespace` 是容器，不计入有效工具数；容器保留 `qualified_name`、`source_path` 和递归叶子数。叶子工具保留原始 `name`，同时生成限定名（例如 `collaboration.followup_task`）、完整 namespace 路径和精确 Raw JSONPath（例如 `$.input[0].tools[3].tools[0]`）。解析器递归处理任意深度 namespace，不能假设只有一层，也不能因为遇到未知容器字段而丢弃 Raw 结构。需要 schema 的内部消费者可以请求原始 definition 引用；Protocol DTO 不携带该引用，原始容器树继续只由 Raw 保存。namespace 与叶子目录只进入完整 DTO；compact DTO 仅保留其计数。
 
 ## 当前协议覆盖
 

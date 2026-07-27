@@ -6292,6 +6292,68 @@ details .details-body {
   gap: 0;
 }
 
+.tool-translation-namespace {
+  display: grid;
+  gap: 8px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tool-translation-namespace + .tool-translation-namespace,
+.tool-translation-group + .tool-translation-namespace,
+.tool-translation-namespace + .tool-translation-group {
+  padding-top: 14px;
+}
+
+.tool-translation-namespace-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px 2px;
+  border-bottom: 1px dashed var(--line-soft);
+}
+
+.tool-translation-namespace-identity {
+  display: inline-flex;
+  min-width: 0;
+  flex: 1 1 180px;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.tool-translation-namespace-identity strong {
+  overflow: hidden;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-translation-namespace-identity span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.tool-translation-namespace-description {
+  padding: 0 2px 2px;
+}
+
+.tool-translation-namespace-tools {
+  display: grid;
+  gap: 0;
+  padding-left: 12px;
+  border-left: 1px dashed var(--line-soft);
+}
+
+.tool-translation-namespace-tools > .tool-translation-group:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 .tool-translation-group {
   display: grid;
   gap: 8px;

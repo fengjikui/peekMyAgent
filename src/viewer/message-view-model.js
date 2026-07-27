@@ -1,4 +1,5 @@
 import {
+  collectToolCatalog,
   extractRequestMessages,
   responseInputItemToMessage,
   responsesToolProtocolName,
@@ -316,7 +317,7 @@ function toolResultView(raw = {}, text = "") {
 
 function toolSearchResultView(raw = {}) {
   if (raw.type !== "tool_search_output" || !Array.isArray(raw.tools)) return null;
-  const groups = raw.tools.map((item) => toolSearchGroupView(item)).filter(Boolean);
+  const groups = raw.tools.map((item, index) => toolSearchGroupView(item, index)).filter(Boolean);
   return {
     groups,
     namespaceCount: groups.filter((group) => group.type === "namespace").length,
@@ -324,41 +325,54 @@ function toolSearchResultView(raw = {}) {
   };
 }
 
-function toolSearchGroupView(item) {
+function toolSearchGroupView(item, index) {
   if (!item || typeof item !== "object") return null;
-  const type = String(item.type || "tool");
-  const nestedSource = Array.isArray(item.tools) ? item.tools : type === "function" ? [item] : [];
-  const nestedTools = nestedSource
-    .map((tool, index) => toolSearchToolView(tool, index))
+  const sourcePath = `$.tools[${index}]`;
+  const catalog = collectToolCatalog([item], { sourcePath: "$.tools", includeDefinitions: true });
+  const namespace = catalog.namespaces.find((entry) => entry.source_path === sourcePath) || null;
+  const type = namespace ? "namespace" : String(item.type || "tool");
+  const groupName = namespace?.qualified_name || String(item.name || item.function?.name || "").trim() || type;
+  const nestedTools = catalog.tools
+    .map((tool, toolIndex) => toolSearchToolView(tool, toolIndex, namespace?.qualified_name || ""))
     .filter(Boolean);
   return {
     type,
-    name: String(item.name || "").trim() || type,
+    name: groupName,
     description: typeof item.description === "string" ? item.description.trim() : "",
     tools: nestedTools,
-    toolCount: nestedTools.length || (type === "function" ? 1 : 0),
+    toolCount: nestedTools.length,
     raw: item,
   };
 }
 
-function toolSearchToolView(tool, index) {
-  if (!tool || typeof tool !== "object") return null;
-  const name = String(tool.name || tool.function?.name || "").trim();
+function toolSearchToolView(tool, index, groupNamespace = "") {
+  const definition = tool?.definition;
+  if (!definition || typeof definition !== "object") return null;
+  const qualifiedName = String(tool.qualified_name || tool.name || "").trim();
+  const name = groupNamespace && qualifiedName.startsWith(`${groupNamespace}.`)
+    ? qualifiedName.slice(groupNamespace.length + 1)
+    : qualifiedName;
   if (!name) return null;
-  const parameters = tool.parameters || tool.input_schema || tool.function?.parameters || null;
-  const description = String(tool.description || tool.function?.description || "").trim();
+  const parameters =
+    definition.parameters ||
+    definition.input_schema ||
+    definition.function?.parameters ||
+    definition.parametersJsonSchema ||
+    definition.parameters_json_schema ||
+    null;
+  const description = String(definition.description || definition.function?.description || "").trim();
   return {
     index,
     type: String(tool.type || "tool"),
     name,
     description,
-    strict: typeof tool.strict === "boolean" ? tool.strict : null,
-    deferLoading: typeof tool.defer_loading === "boolean" ? tool.defer_loading : null,
+    strict: typeof definition.strict === "boolean" ? definition.strict : null,
+    deferLoading: tool.deferred ? true : null,
     parameters,
     parameterDescriptions: extractTranslationSchemaDescriptions(parameters, {
-      rootPath: `tools.${name}.parameters`,
+      rootPath: tool.source_path || `tools.${name}.parameters`,
     }),
-    raw: tool,
+    raw: definition,
   };
 }
 

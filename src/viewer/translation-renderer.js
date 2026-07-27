@@ -53,20 +53,16 @@ export function renderTranslationSection({
     if (!view.groups.length) return `<div class="empty-box">${escapeHtml(emptyText)}</div>`;
     return `
       <section class="tool-translation-list">
-        ${view.groups
-          .map((group) =>
-            renderToolTranslationGroup(group, {
-              searchTarget: Boolean(view.query),
-              generating,
-              targetLanguageLabel,
-              translate,
-              escapeHtml,
-              renderMarkdown,
-              renderPre,
-              registerAction,
-            }),
-          )
-          .join("")}
+        ${renderToolTranslationGroups(view.groups, {
+          searchTarget: Boolean(view.query),
+          generating,
+          targetLanguageLabel,
+          translate,
+          escapeHtml,
+          renderMarkdown,
+          renderPre,
+          registerAction,
+        })}
       </section>
     `;
   }
@@ -142,7 +138,7 @@ function renderToolTranslationGroup(group, dependencies) {
     <section class="tool-translation-group" ${searchTarget ? 'data-raw-search-target="true"' : ""}>
       <header class="tool-translation-group-header">
         <div class="tool-translation-group-identity">
-          <strong>${escapeHtml(group.toolName)}</strong>
+          <strong title="${escapeHtml(group.toolName)}">${escapeHtml(group.toolDisplayName || group.toolName)}</strong>
           <span>${escapeHtml(group.description ? translate("toolDescriptionCount") : translate("noToolDescription"))} · ${escapeHtml(translate("parameterCount", { count: group.parameters.total }))}</span>
         </div>
         <div class="tool-translation-group-actions">
@@ -171,6 +167,90 @@ function renderToolTranslationGroup(group, dependencies) {
       }
     </section>
   `;
+}
+
+function renderToolTranslationGroups(groups, dependencies) {
+  return groupToolsByNamespace(groups)
+    .map(({ namespace, groups: namespaceGroups }) => {
+      if (!namespace) {
+        return namespaceGroups.map((group) => renderToolTranslationGroup(group, dependencies)).join("");
+      }
+      return renderToolNamespace(namespace, namespaceGroups, dependencies);
+    })
+    .join("");
+}
+
+function renderToolNamespace(namespace, groups, dependencies) {
+  const {
+    generating,
+    targetLanguageLabel,
+    translate,
+    escapeHtml,
+    renderMarkdown,
+    renderPre,
+    registerAction,
+  } = dependencies;
+  const description = groups.find((group) => group.namespaceDescription)?.namespaceDescription || null;
+  const toolCount = Math.max(
+    groups.length,
+    ...groups.map((group) => Number(group.namespaceToolCount || 0)),
+  );
+  const actionId = description
+    ? registerAction({
+        kind: description.kind,
+        sourceText: description.sourceText,
+        metadata: { ...description.metadata, label: namespace, group: "namespace" },
+      })
+    : "";
+  return `
+    <section class="tool-translation-namespace">
+      <header class="tool-translation-namespace-header">
+        <div class="tool-translation-namespace-identity">
+          <strong>${escapeHtml(namespace)}</strong>
+          <span>${escapeHtml(translate("protocolNamespaceToolCount", { count: toolCount }))}</span>
+        </div>
+        ${
+          description
+            ? `<div class="tool-translation-group-actions">
+                <span class="translation-cache-state">${escapeHtml(
+                  description.hit
+                    ? translate("cacheState", { language: targetLanguageLabel })
+                    : translate("missingTranslation"),
+                )}</span>
+                <button type="button" class="translation-inline-button" data-translation-copy="${escapeHtml(actionId)}" title="${escapeHtml(translate("copyBlockTitle"))}">${escapeHtml(translate("copy"))}</button>
+                <button type="button" class="translation-inline-button" data-translation-retranslate="${escapeHtml(actionId)}" ${generating ? "disabled" : ""}>${escapeHtml(description.hit ? translate("retranslate") : translate("translate"))}</button>
+              </div>`
+            : ""
+        }
+      </header>
+      ${
+        description
+          ? `<div class="tool-translation-namespace-description">${renderMarkdown(description.displayText)}</div>
+            ${
+              description.displayText === description.sourceText
+                ? ""
+                : `<details class="tool-translation-source"><summary>${escapeHtml(translate("source"))}</summary><div class="details-body">${renderPre(description.sourceText)}</div></details>`
+            }`
+          : ""
+      }
+      <div class="tool-translation-namespace-tools">
+        ${groups.map((group) => renderToolTranslationGroup(group, dependencies)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function groupToolsByNamespace(groups) {
+  const buckets = new Map();
+  for (const group of Array.isArray(groups) ? groups : []) {
+    const namespace = String(group?.namespace || "");
+    if (!buckets.has(namespace)) buckets.set(namespace, []);
+    buckets.get(namespace).push(group);
+  }
+  return [...buckets.entries()].map(([namespace, namespaceGroups]) => ({
+    namespace,
+    groups: namespaceGroups,
+  }));
 }
 
 function renderToolParameterList(parameters, { translate, escapeHtml, renderMarkdown }) {

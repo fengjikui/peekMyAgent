@@ -23,6 +23,7 @@ import {
 } from "../trace/message-semantics.mjs";
 import { summarizeModelResponse } from "../trace/model-response-normalizer.mjs";
 import { analyzeRequestComposition } from "../trace/request-composition.mjs";
+import { extractRequestToolCatalog } from "../shared/request-payload.mjs";
 import {
   classifyTransportOperation,
   codexSubagentIdentity,
@@ -107,6 +108,7 @@ export function createViewerTraceProjector({
     const messages = extractRequestMessages(body);
     const systemParts = extractSystemParts(body, messages);
     const tools = extractRequestTools(body);
+    const callableTools = extractRequestToolCatalog(body).tools;
     const lastUser = lastMessage(messages, "user");
     const currentUser = lastRealUserMessage(messages);
     const currentUserRealText = realUserVisibleText(currentUser);
@@ -206,7 +208,7 @@ export function createViewerTraceProjector({
       redaction_count: Array.isArray(capture.header_redactions) ? capture.header_redactions.length : 0,
       fingerprints: {
         system: hashJson(systemParts.map((part) => part.text)),
-        tools: hashJson(tools.map((tool) => tool.function?.name || tool.name || tool.type || "unknown")),
+        tools: hashJson(callableTools.map((tool) => tool.qualified_name || tool.name || tool.type || "unknown")),
         params: hashJson(Object.fromEntries(
           Object.entries(body).filter(([key]) => !["messages", "input", "system", "instructions", "tools", "additional_tools"].includes(key)),
         )),
@@ -214,7 +216,7 @@ export function createViewerTraceProjector({
       counts: {
         messages: messages.length,
         system: systemParts.length,
-        tools: tools.length,
+        tools: callableTools.length,
         tool_calls: toolCalls.length,
         tool_results: toolResults.length,
         assistant_messages: assistantMessages.length,
@@ -237,7 +239,7 @@ export function createViewerTraceProjector({
         current_tool_calls: toolCalls,
         tool_results: toolResults.map((result) => ({ ...result, content: textPreview(result.content, 800) })),
         current_tool_results: toolResults.map((result) => ({ ...result, content: textPreview(result.content, 800) })),
-        tool_names: tools.map((tool) => tool.function?.name || tool.name || tool.type).filter(Boolean),
+        tool_names: callableTools.map((tool) => tool.qualified_name || tool.name || tool.type).filter(Boolean),
         roles: messages.map((message) => message.role || "unknown"),
         history_stack: summarizeHistoryStack(messages, currentUser),
         response: responseSummary,

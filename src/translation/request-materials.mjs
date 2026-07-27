@@ -5,10 +5,9 @@ import {
   systemTranslationKind,
   translationLookupKey,
   translationToolDescription,
-  translationToolName,
 } from "./blocks.mjs";
 import { extractContentText } from "../trace/content-parts.mjs";
-import { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
+import { extractRequestMessages, extractRequestToolCatalog } from "../shared/request-payload.mjs";
 import {
   classifyCodexDeveloperInstruction,
   codexSlashCommandInjection,
@@ -75,30 +74,63 @@ export function projectTranslationBodyMaterials(
   }
 
   if (!section || section === "tools") {
-    const tools = extractRequestTools(source);
-    tools.forEach((tool, toolIndex) => {
-      const toolName = translationToolName(tool);
-      const description = translationToolDescription(tool);
+    const catalog = extractRequestToolCatalog(source, { includeDefinitions: true });
+    const namespaces = new Map(catalog.namespaces.map((namespace) => [namespace.qualified_name, namespace]));
+    for (const namespace of catalog.namespaces) {
+      const description = translationToolDescription(namespace.definition);
+      if (description) {
+        materials.push({
+          kind: "tool_namespace_description",
+          source_text: description,
+          source_language: "en",
+          metadata: {
+            namespace_name: namespace.qualified_name,
+            namespace_leaf_name: namespace.name,
+            namespace_parent: namespace.namespace,
+            namespace_path: namespace.namespace_path,
+            namespace_source_path: namespace.source_path,
+            namespace_tool_count: namespace.tool_count,
+            path: `${namespace.source_path}.description`,
+          },
+        });
+      }
+    }
+    for (const tool of catalog.tools) {
+      const definition = tool.definition || {};
+      const namespace = namespaces.get(tool.namespace) || null;
+      const metadata = {
+        tool_name: tool.qualified_name,
+        tool_leaf_name: tool.name,
+        tool_namespace: tool.namespace,
+        tool_namespace_path: tool.namespace_path,
+        tool_source_path: tool.source_path,
+        tool_deferred: tool.deferred,
+        tool_namespace_tool_count: namespace?.tool_count || null,
+      };
+      const description = translationToolDescription(definition);
       if (description) {
         materials.push({
           kind: "tool_description",
           source_text: description,
           source_language: "en",
-          metadata: { tool_name: toolName, path: `tools[${toolIndex}].description` },
+          metadata: {
+            ...metadata,
+            path: toolDescriptionPath(definition, tool.source_path),
+          },
         });
       }
-      const schema = tool.input_schema || tool.function?.parameters || tool.parameters || null;
+      const { schema, path } = toolSchema(definition, tool.source_path);
       for (const item of extractTranslationSchemaDescriptions(schema, {
-        rootPath: `tools[${toolIndex}].input_schema`,
+        rootPath: path,
       })) {
         materials.push({
           kind: "tool_parameter_description",
           source_text: item.description,
           source_language: "en",
-          metadata: { tool_name: toolName, path: item.path, field_name: item.field_name },
+          metadata: { ...metadata, path: item.path, field_name: item.field_name },
         });
       }
-    });
+    }
   }
 
   return materials;
@@ -307,13 +339,39 @@ export function dedupeToolTranslationMaterials(materials) {
         const metadata = item?.metadata || {};
         const key = [
           translationLookupKey(item?.kind, sourceText),
-          metadata.tool_name || "unknown",
+          metadata.tool_name || metadata.namespace_name || "unknown",
           metadata.field_name || metadata.path || "",
         ].join("\0");
         return [key, { ...item, source_text: sourceText }];
       }),
     ).values(),
   ].filter((item) => item.source_text && !isSkippableTranslationMaterial(item.kind, item.source_text));
+}
+
+function toolDescriptionPath(definition, sourcePath) {
+  if (definition?.function?.description != null && definition?.description == null) {
+    return `${sourcePath}.function.description`;
+  }
+  return `${sourcePath}.description`;
+}
+
+function toolSchema(definition, sourcePath) {
+  if (definition?.input_schema != null) {
+    return { schema: definition.input_schema, path: `${sourcePath}.input_schema` };
+  }
+  if (definition?.function?.parameters != null) {
+    return { schema: definition.function.parameters, path: `${sourcePath}.function.parameters` };
+  }
+  if (definition?.parameters != null) {
+    return { schema: definition.parameters, path: `${sourcePath}.parameters` };
+  }
+  if (definition?.parametersJsonSchema != null) {
+    return { schema: definition.parametersJsonSchema, path: `${sourcePath}.parametersJsonSchema` };
+  }
+  if (definition?.parameters_json_schema != null) {
+    return { schema: definition.parameters_json_schema, path: `${sourcePath}.parameters_json_schema` };
+  }
+  return { schema: null, path: `${sourcePath}.parameters` };
 }
 
 function harnessPart(kind, text, messageIndex, labelForPart, details = {}) {

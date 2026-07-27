@@ -280,6 +280,11 @@ const codexAdditionalToolsData = projector.buildData({
               { type: "custom", name: "exec" },
               { type: "custom", name: "wait" },
               { type: "function", name: "request_user_input" },
+              {
+                type: "namespace",
+                name: "collaboration",
+                tools: [{ type: "function", name: "followup_task" }],
+              },
             ],
           },
           { type: "message", role: "developer", content: [{ type: "input_text", text: "You are Codex." }] },
@@ -303,8 +308,13 @@ const codexAdditionalToolsData = projector.buildData({
 });
 const codexRequest65 = codexAdditionalToolsData.requests[0];
 assert.equal(codexRequest65.protocol, "openai_responses");
-assert.equal(codexRequest65.counts.tools, 3, "input additional_tools contributes to the request tool inventory");
-assert.deepEqual(codexRequest65.summary.tool_names, ["exec", "wait", "request_user_input"]);
+assert.equal(codexRequest65.counts.tools, 4, "input additional_tools counts callable leaves instead of namespace containers");
+assert.deepEqual(codexRequest65.summary.tool_names, [
+  "exec",
+  "wait",
+  "request_user_input",
+  "collaboration.followup_task",
+]);
 assert.deepEqual(codexRequest65.summary.roles, ["developer", "user"], "additional_tools is not shown as an empty Developer message");
 assert.equal(codexRequest65.summary.protocol_exchange.request.counts.instruction_blocks, 1);
 assert.equal(codexRequest65.summary.protocol_exchange.request.tool_stages[0].kind, "added");

@@ -1,4 +1,5 @@
 import {
+  collectToolCatalog,
   extractRequestMessages,
   extractRequestTools,
   isResponsesToolCallItem,
@@ -506,97 +507,6 @@ function appendToolStage(stages, effectiveTools, tools, { kind, sourcePath, inpu
     namespaces: catalog.namespaces,
     tools: flattened,
   });
-}
-
-function collectToolCatalog(tools, {
-  sourcePath = "$",
-  namespacePath = [],
-  inheritedDeferred = false,
-} = {}) {
-  const catalog = { tools: [], namespaces: [] };
-  for (const [toolIndex, tool] of (Array.isArray(tools) ? tools : []).entries()) {
-    if (!tool || typeof tool !== "object") continue;
-    const toolPath = `${sourcePath}[${toolIndex}]`;
-    let expanded = false;
-    const functionDeclarations = Array.isArray(tool.functionDeclarations)
-      ? tool.functionDeclarations
-      : Array.isArray(tool.function_declarations)
-        ? tool.function_declarations
-        : [];
-    if (functionDeclarations.length) {
-      for (const [declarationIndex, declaration] of functionDeclarations.entries()) {
-        if (!declaration || typeof declaration !== "object") continue;
-        catalog.tools.push(toolCatalogLeaf(declaration, {
-          type: "function",
-          sourcePath: `${toolPath}.${Array.isArray(tool.functionDeclarations) ? "functionDeclarations" : "function_declarations"}[${declarationIndex}]`,
-          namespacePath,
-          deferred: inheritedDeferred,
-        }));
-      }
-      expanded = true;
-    }
-    for (const key of ["googleSearch", "google_search", "codeExecution", "code_execution", "computerUse", "computer_use", "urlContext", "url_context"]) {
-      if (tool[key] == null) continue;
-      catalog.tools.push(toolCatalogLeaf({ name: key }, {
-        type: "built_in",
-        sourcePath: `${toolPath}.${key}`,
-        namespacePath,
-        deferred: inheritedDeferred,
-      }));
-      expanded = true;
-    }
-    if (expanded) continue;
-    const type = normalizedType(tool.type) || (tool.function ? "function" : "tool");
-    const name = String(tool.name || tool.function?.name || tool.server_label || type || "unknown");
-    if (type === "namespace" && Array.isArray(tool.tools)) {
-      const nestedNamespacePath = [...namespacePath, name];
-      const nestedCatalog = collectToolCatalog(tool.tools, {
-        sourcePath: `${toolPath}.tools`,
-        namespacePath: nestedNamespacePath,
-        inheritedDeferred: inheritedDeferred || Boolean(tool.defer_loading),
-      });
-      catalog.namespaces.push({
-        name,
-        qualified_name: nestedNamespacePath.join("."),
-        namespace: namespacePath.join(".") || null,
-        namespace_path: nestedNamespacePath,
-        source_path: toolPath,
-        description_chars: itemTextChars(tool.description),
-        tool_count: nestedCatalog.tools.length,
-      });
-      catalog.namespaces.push(...nestedCatalog.namespaces);
-      catalog.tools.push(...nestedCatalog.tools);
-      continue;
-    }
-    catalog.tools.push(toolCatalogLeaf(tool, {
-      name,
-      type,
-      sourcePath: toolPath,
-      namespacePath,
-      deferred: inheritedDeferred || Boolean(tool.defer_loading),
-    }));
-  }
-  return catalog;
-}
-
-function toolCatalogLeaf(tool, {
-  name = null,
-  type = null,
-  sourcePath,
-  namespacePath,
-  deferred,
-}) {
-  const leafName = String(name || tool?.name || tool?.function?.name || "unknown");
-  const namespace = namespacePath.join(".") || null;
-  return {
-    name: leafName,
-    qualified_name: namespace ? `${namespace}.${leafName}` : leafName,
-    type: type || normalizedType(tool?.type) || (tool?.function ? "function" : "tool"),
-    namespace,
-    namespace_path: [...namespacePath],
-    source_path: sourcePath,
-    deferred: Boolean(deferred),
-  };
 }
 
 function countRequestProjection(instructions, items, toolStages, requestTools) {
