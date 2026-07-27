@@ -13,24 +13,24 @@ peekMyAgent is not meant to "steal hidden prompts". It is an observability tool 
 ![peekMyAgent dashboard feature tour](assets/demo/dashboard-overview-tour.gif)
 
 <p>
-  <strong>Upstream Context Walkthrough</strong><br>
-  Inspect the exact System, Tools, Messages, and Response slices sent around a normal chat request.
+  <strong>Protocol &amp; Namespace Walkthrough</strong><br>
+  Preserve provider wire order, distinguish declared/added/loaded tools, and expand namespace containers into qualified callable leaves.
 </p>
 
 <p>
-  <img src="assets/demo/chat-upstream-context.gif" alt="Upstream context walkthrough" width="960">
+  <img src="assets/demo/chat-upstream-context.gif" alt="Protocol and namespace walkthrough" width="960">
 </p>
 
 <p>
-  <strong>Tool Call Loop Walkthrough</strong><br>
-  Follow a basic <code>tool_use</code> -> <code>tool_result</code> -> final answer loop from the model request timeline.
+  <strong>Tool Loop &amp; Lazy Payload Walkthrough</strong><br>
+  Follow the user -> tool call -> result -> final answer loop while large tool results and images stay local placeholders until opened.
 </p>
 
 <p>
-  <img src="assets/demo/tool-call-loop.gif" alt="Tool call loop walkthrough" width="960">
+  <img src="assets/demo/tool-call-loop.gif" alt="Tool loop and lazy payload walkthrough" width="960">
 </p>
 
-See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated screenshot, upstream-context walkthrough, tool-call loop walkthrough, and README recording plan.
+See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated screenshot, protocol/namespace walkthrough, lazy-payload walkthrough, and reproducible media workflow.
 
 ## What You Can Do Today
 

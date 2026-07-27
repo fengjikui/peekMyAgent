@@ -9,24 +9,24 @@ peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 
 ![peekMyAgent dashboard feature tour](assets/demo/dashboard-overview-tour.gif)
 
 <p>
-  <strong>普通聊天上行上下文拆解</strong><br>
-  查看一次普通聊天请求里真正发送给模型的 System、Tools、Messages 和 Response 切片。
+  <strong>协议顺序与 namespace 工具目录</strong><br>
+  保留厂商 wire protocol 顺序，区分工具的声明、追加与加载阶段，并把 namespace 容器展开为带限定名的可调用叶子。
 </p>
 
 <p>
-  <img src="assets/demo/chat-upstream-context.gif" alt="普通聊天上行上下文拆解" width="960">
+  <img src="assets/demo/chat-upstream-context.gif" alt="协议顺序与 namespace 工具目录" width="960">
 </p>
 
 <p>
-  <strong>工具调用闭环拆解</strong><br>
-  从时间线里追踪一次基础 <code>tool_use</code> -> <code>tool_result</code> -> 最终回答的完整链路。
+  <strong>工具闭环与懒加载</strong><br>
+  追踪用户 -> 工具调用 -> 结果回传 -> 最终回答；大型工具结果和图片在打开前只保留本地占位。
 </p>
 
 <p>
-  <img src="assets/demo/tool-call-loop.gif" alt="工具调用闭环拆解" width="960">
+  <img src="assets/demo/tool-call-loop.gif" alt="工具闭环与懒加载" width="960">
 </p>
 
-更多静态标注图、普通聊天上行拆解、工具调用闭环和 README 录制脚本见：[图文使用说明](docs/visual-usage-guide.zh-CN.md)。
+更多静态标注图、协议/namespace 拆解、懒加载演示和可复现的素材制作流程见：[图文使用说明](docs/visual-usage-guide.zh-CN.md)。
 
 ## 当前能力
 

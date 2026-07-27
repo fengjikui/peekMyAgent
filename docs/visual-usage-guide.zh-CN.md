@@ -12,21 +12,22 @@
 
 ## 两段核心流程
 
-普通聊天的上行上下文拆解：
+协议顺序与 namespace 工具目录：
 
-![普通聊天也能追溯完整上行](../assets/demo/chat-upstream-context.gif)
+![按厂商协议顺序查看 namespace 与可调用叶子](../assets/demo/chat-upstream-context.gif)
 
-基础工具调用闭环：
+工具调用闭环与懒加载：
 
-![工具调用从问题到 tool_result 再到最终回复](../assets/demo/tool-call-loop.gif)
+![工具调用、结果关联与大型载荷按需加载](../assets/demo/tool-call-loop.gif)
 
-图中 5 个区域分别对应日常调试中最常用的动作：
+图中 4 个标注区域对应当前最关键的观察动作：
 
-1. **Sessions / Projects**：左侧按项目和会话组织记录，方便在不同 Agent 会话之间切换。
-2. **Request timeline**：中间按时间展示用户输入、模型回复、tool_use、tool_result、子 Agent 回流等事件。
-3. **Raw JSON + translation**：右侧展示原始 JSON、结构化分段和翻译后的 System / Tools / Messages 等内容。
-4. **Stats and language controls**：顶部展示请求数量、回复数量、工具调用数量、Raw 大小，并可以切换界面语言和翻译目标语言。
-5. **Send to a watched Agent**：底部输入框可以向当前监听的 Agent 发送消息；它是独立发送入口，原终端不会显示这条消息，也不会继承原终端后续上下文。
+1. **Session / project**：左侧按项目和会话组织记录，并按 Agent 隔离观察对象。
+2. **Tool loop**：中间的机制流程与时间线把用户请求、工具调用、结果回传和最终回答串成一条可追溯链路。
+3. **Protocol evidence**：右侧按厂商 wire protocol 原顺序展示上行、下行、工具阶段及对应 Raw 路径。
+4. **Qualified namespace leaves**：namespace 容器保留层级身份，实际可调用叶子使用 `collaboration.followup_task` 这类限定名；容器不再被误算为零参数工具。
+
+第二段 GIF 还展示了大型结果和图片的按需加载：默认只进入浏览器一行 MIME、大小、token 估算、尺寸与 hash 占位，用户点击后才从本地 Viewer 读取正文或还原安全 raster 图片。
 
 ## 最短使用路径
 
@@ -52,11 +53,11 @@ pma claude -c
 pma claude -c --dangerously-skip-permissions
 ```
 
-之后正常使用 Claude Code。每次模型请求都会出现在 dashboard 中，你可以点击请求卡片上的 `System`、`Tools`、`Messages`、`Tool use`、`Tool result`、`Response` 或 `Raw` 查看对应切片。
+之后正常使用 Claude Code。每次模型请求都会出现在 dashboard 中：点击请求或回复旁的 `详情`，再从右侧选择 `协议视图`、`System`、`Developer`、`Tools`、`History`、`Message` 或 `Metadata`；也可以直接点时间线里的工具调用/工具结果行追踪关联关系。
 
 ## 适合演示的 4 个场景
 
-### 1. 看清 Agent 实际发给模型的内容
+### 1. 按真实协议顺序看清 Agent 发了什么
 
 推荐提示词：
 
@@ -67,9 +68,9 @@ pma claude -c --dangerously-skip-permissions
 演示重点：
 
 - 中间时间线会出现用户输入和模型回复。
-- 点击 `展开上行` 可以看到本次上行请求的组成。
-- 点击 `System` / `Tools` / `Messages` 可以拆开查看上下文、工具 schema 和历史消息。
-- 右侧 Raw 面板保留原始结构，适合排查“到底是谁注入了这段内容”。
+- 点击用户请求旁的 `详情`，打开右侧 `协议视图`。
+- OpenAI Responses、OpenAI Chat、Anthropic Messages 和 Google GenerateContent 都按自己的原生顺序展示，不根据 Agent 名称猜测协议。
+- 每个条目都保留 Raw 路径；需要精确排查时可以直接跳回原始证据。
 
 ### 2. 观察工具调用链路
 
@@ -81,9 +82,9 @@ pma claude -c --dangerously-skip-permissions
 
 演示重点：
 
-- 模型回复中会出现 `tool_use`。
-- 后续请求会出现 `tool_result` 回传。
-- peekMyAgent 会把工具调用和结果按轮次串起来，便于复盘工具是否被正确调用、结果是否被带回模型。
+- 模型回复中会出现工具调用，后续请求会出现结果回传。
+- 机制流程和“来源 #N”把调用、结果与最终回答串起来。
+- 大于阈值的结果先显示类型、大小、token 估算与 hash，只有点击 `加载内容` 才读取本地正文。
 
 ### 3. 查看 System / Tools 的中文翻译
 
@@ -113,44 +114,45 @@ pma claude -c --dangerously-skip-permissions
 - 多 Agent 面板用于看整体信息流：哪个子 Agent 被启动、何时返回、返回后主 Agent 如何继续。
 - 这能帮助用户理解 Agent harness 的内部编排，而不只是看到最终自然语言答案。
 
-## README GIF 录制大纲
+## README 素材与复现方式
 
-如果只录一个总览 GIF，建议 12-18 秒：
+当前 README 使用 3 个短 GIF：
 
-1. 打开 dashboard，左侧选中一个 demo trace。
-2. 点击中间一条请求的 `System`。
-3. 在右侧从原文切到中文翻译。
-4. 回到中间点击一条含 `tool_use` 的回复。
-5. 最后停在右侧 Raw / Tools schema 面板，显示“原始数据 + 结构化解释”。
+- `dashboard-overview-tour.gif`：会话导航、工具闭环、Protocol、namespace 与懒加载总览。
+- `chat-upstream-context.gif`：协议顺序、工具阶段和限定名叶子。
+- `tool-call-loop.gif`：工具调用/结果关联、文本与图片按需加载。
 
-推荐输出文件：
+制作前先固定“这支动图只回答什么问题”，再按下面的 storyboard 采集界面，不从一段长录屏里随机截取：
 
-```text
-assets/demo/hero-agent-trace.gif
-```
+| 动图 | 用户问题 | 叙事顺序 | 节奏 |
+| --- | --- | --- | --- |
+| 总览 | 一条本地 Trace 能让我看懂什么？ | 选择会话 -> 工具闭环 -> 厂商原生协议 -> namespace 叶子 -> 大载荷懒加载 | 5 帧，约 17 秒 |
+| 协议与 namespace | PMA 如何忠实解析不同协议和工具目录？ | 打开 Protocol -> declared/added/loaded 阶段 -> 容器不是工具 -> 叶子 schema | 4 帧，约 14 秒 |
+| 工具闭环与懒加载 | 大 Trace 如何既完整又不拖慢首屏？ | 调用/结果关联 -> 占位元数据 -> 按需加载正文 -> 图片保持本地 | 4 帧，约 14 秒 |
 
-如果拆成多个短 GIF，建议：
+每帧只保留一个红框和一句结论；导航帧至少停留 2.8 秒，需要阅读结构或字段的帧停留 3.4-3.8 秒。总时长控制在 12-18 秒，既能看清，也适合 README 自动循环播放。
 
-- `assets/demo/raw-sections.gif`：System / Tools / Messages / Response / Raw 面板切换。
-- `assets/demo/subagent-flow.gif`：多 Agent 面板和子 Agent 结果回流。
-- `assets/demo/translation-tools.gif`：工具描述、参数描述、中文缓存与重译按钮。
-- `assets/demo/share-trace.gif`：导出 Trace、导入 Trace、离线查看。
-
-macOS 可以先用系统录屏得到 `.mov`，再用 ffmpeg 转 GIF：
+素材来自隔离、可复现的假 provider，不读取用户会话，也不向外部服务发请求：
 
 ```bash
-ffmpeg -i recording.mov -vf "fps=12,scale=960:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" assets/demo/hero-agent-trace.gif
+node scripts/readme-media-demo.mjs --port 43112
 ```
 
-如果安装了 `gifski`，可以用它做更高质量的 GIF 压缩；如果没有，ffmpeg 已经足够完成 README 级别的素材。
+随后用浏览器在 `http://127.0.0.1:43112` 操作真实 Viewer，把关键状态保存到 `tmp/readme-media-frames/`。完成截图后运行：
+
+```bash
+python3 scripts/build-readme-media.py
+```
+
+脚本使用 Pillow 叠加确定性的红框、箭头、编号和说明，并按 storyboard 中的停留时间直接生成 `assets/demo/` 下的静态图与 GIF。当前输出为 1280×720，单个 GIF 控制在 1 MiB 内。
 
 ## 素材制作工具链
 
-- 截图标注：[Pillow `ImageDraw`](https://pillow.readthedocs.io/en/stable/reference/ImageDraw.html) 适合自动加红框、箭头、编号和标签。
-- 自动网页截图：[Playwright `page.screenshot()`](https://playwright.dev/docs/screenshots) 适合后续稳定复现 dashboard 截图。
-- GIF 转码：[ffmpeg](https://ffmpeg.org/ffmpeg-filters.html) 的 `palettegen` / `paletteuse` 流程适合控制 GIF 体积；[gifski](https://github.com/ImageOptim/gifski) 可作为质量更高的可选工具。
+- 截图与交互：使用 Codex 内置 Browser 控制真实本地 Viewer，不读取浏览器历史、Cookie 或用户会话。
+- 截图标注：`scripts/build-readme-media.py` 使用 Pillow `ImageDraw` 自动加红框、箭头、编号和标签。
+- GIF 输出：Pillow 自适应调色板；需要视频发布物时仍可用 ffmpeg / gifski 做二次转码。
 
-本次 README 素材使用 Pillow 从非敏感 demo 截图生成，未新增仓库运行依赖。
+本次 README 素材使用浏览器真实截图与 Pillow 确定性标注生成，未新增产品运行依赖。
 
 ## 分享前检查
 
