@@ -406,7 +406,7 @@ experiment:opencode-real-integration
 experiment:opencode-compaction-local
 ```
 
-前三项和翻译项是无凭据确定性 smoke；后三项依次验证真实 OpenCode protocol、真实 provider 集成和本地模型压缩。其中真实 provider 集成必须人工确认当前 provider 可用，不进入无凭据 release gate。
+前三项和翻译项是无凭据确定性 smoke，已纳入 current、Linux、macOS 和 Windows release profile；后三项依次验证真实 OpenCode protocol、真实 provider 集成和本地模型压缩。其中真实 provider 集成必须人工确认当前 provider 可用，不进入无凭据 release gate。
 
 聚焦复用：
 

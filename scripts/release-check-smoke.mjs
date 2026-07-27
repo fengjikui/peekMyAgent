@@ -38,6 +38,10 @@ for (const [profile, description] of profiles) {
   assert.match(result.stdout, /npm run smoke:proxy-openai/);
   assert.match(result.stdout, /npm run smoke:proxy-anthropic/);
   assert.match(result.stdout, /npm run smoke:proxy-attribution/);
+  assert.match(result.stdout, /npm run smoke:opencode-config/);
+  assert.match(result.stdout, /npm run smoke:opencode-classification/);
+  assert.match(result.stdout, /npm run smoke:run-opencode/);
+  assert.match(result.stdout, /npm run smoke:translation-opencode-cli/);
   assert.match(result.stdout, /npm run smoke:response-capture/);
   assert.match(result.stdout, /npm run smoke:raw-search-browser/);
   assert.match(result.stdout, /npm run smoke:tool-exchange-delta/);

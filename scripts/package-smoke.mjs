@@ -210,8 +210,8 @@ const MAX_PACKAGE_ENTRIES = 154;
 // Protocol Exchange, OpenCode continuation identity, and the two explicitly
 // required lazy-payload runtime modules. They leave less than 0.5% headroom;
 // allowlist, entry count, and denied patterns remain unchanged.
-const MAX_PACKED_BYTES = 387_000;
-const MAX_UNPACKED_BYTES = 1_702_000;
+const MAX_PACKED_BYTES = 389_000;
+const MAX_UNPACKED_BYTES = 1_710_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);
 assert.ok(

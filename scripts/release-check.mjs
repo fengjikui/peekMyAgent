@@ -156,6 +156,11 @@ const codexCommands = [
   ["npm", "run", "smoke:run-codex-capture"],
   ["npm", "run", "smoke:run-codex-desktop"],
 ];
+const openCodeCommands = [
+  ["npm", "run", "smoke:opencode-config"],
+  ["npm", "run", "smoke:opencode-classification"],
+  ["npm", "run", "smoke:run-opencode"],
+];
 const macosManagedCodexCommands = [
   ["npm", "run", "smoke:codex-desktop-managed-session"],
 ];
@@ -182,6 +187,7 @@ const profiles = {
       ...coreCommands,
       ...protocolCommands,
       ...codexCommands,
+      ...openCodeCommands,
       ...(process.platform === "darwin" ? macosManagedCodexCommands : []),
       ...viewerCommands,
       ...persistenceCommands,
@@ -191,17 +197,17 @@ const profiles = {
   linux: {
     description: "Linux host release gate. Run this on a real Linux machine or Linux CI runner.",
     requirePlatform: "linux",
-    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
+    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...openCodeCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
   },
   macos: {
     description: "macOS host release gate. Run this on a real macOS machine or macOS CI runner.",
     requirePlatform: "darwin",
-    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...macosManagedCodexCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
+    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...openCodeCommands, ...macosManagedCodexCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
   },
   windows: {
     description: "Windows host gate. Run this on a real Windows machine.",
     requirePlatform: "win32",
-    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
+    commands: [...coreCommands, ...protocolCommands, ...codexCommands, ...openCodeCommands, ...viewerCommands, ...persistenceCommands, ...otelCommands],
   },
 };
 

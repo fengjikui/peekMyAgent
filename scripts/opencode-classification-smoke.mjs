@@ -31,7 +31,14 @@ assert.equal(isTitleGenerationRequest(titleRequest), true);
 assert.deepEqual(inferRequestSource({ body: titleRequest }), {
   type: "metadata",
   label: "生成会话标题",
+  label_key: "sessionTitleGenerationRequest",
+  note_key: "sessionTitleGenerationNote",
+  actor: "harness",
+  relation: "current_dialogue",
+  operation: "session_title_generation",
+  turn_placement: "trigger_turn",
   confidence: "high",
+  evidence: [{ origin: "request_body", field: "semantic_shape", value: "title_generation" }],
 });
 assert.equal(
   isTitleGenerationRequest(titleRequest, { agent_profile: "Claude Code" }),
