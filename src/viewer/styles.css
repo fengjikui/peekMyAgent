@@ -5277,6 +5277,17 @@ details .details-body {
   color: var(--muted);
 }
 
+.protocol-sequence-main > div .protocol-schema-unknown {
+  border: 1px solid color-mix(in srgb, var(--warning) 38%, transparent);
+  border-radius: 999px;
+  padding: 1px 5px;
+  color: var(--warning);
+  font-family: var(--mono);
+  font-size: 7.5px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
 .protocol-sequence-main small {
   max-width: 100%;
 }

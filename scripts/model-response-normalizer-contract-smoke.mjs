@@ -297,7 +297,8 @@ const anthropicStream = sse([
   { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "reason" } },
   { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
   { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "answer" } },
-  { type: "content_block_start", index: 2, content_block: { type: "tool_use", id: "call-sse", name: "Read", input: {} } },
+  { type: "content_block_delta", index: 1, delta: { type: "citations_delta", citation: { type: "char_location", cited_text: "source", document_index: 0, document_title: "README", start_char_index: 0, end_char_index: 6 } } },
+  { type: "content_block_start", index: 2, content_block: { type: "server_tool_use", id: "call-sse", name: "web_search", input: {} } },
   { type: "content_block_delta", index: 2, delta: { type: "input_json_delta", partial_json: '{"file_path":' } },
   { type: "content_block_delta", index: 2, delta: { type: "input_json_delta", partial_json: '"README.md"}' } },
   { type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { input_tokens: 8, output_tokens: 4 } },
@@ -312,9 +313,10 @@ assert.equal(anthropic.finish_reason, "tool_use");
 assert.deepEqual(anthropic.tool_calls[0].arguments, { file_path: "README.md" });
 assert.equal(anthropic.response_protocol, "anthropic_messages");
 assert.equal(anthropic.complete_response_source, "stream_reconstruction");
-assert.deepEqual(anthropic.complete_response.content.map((part) => part.type), ["thinking", "text", "tool_use"]);
+assert.deepEqual(anthropic.complete_response.content.map((part) => part.type), ["thinking", "text", "server_tool_use"]);
 assert.equal(anthropic.complete_response.content[0].thinking, "reason");
 assert.equal(anthropic.complete_response.content[1].text, "answer");
+assert.equal(anthropic.complete_response.content[1].citations[0].document_title, "README");
 assert.deepEqual(anthropic.complete_response.content[2].input, { file_path: "README.md" });
 assert.deepEqual(anthropic.complete_response.usage, { input_tokens: 8, output_tokens: 4 });
 

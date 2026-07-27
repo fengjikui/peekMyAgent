@@ -222,7 +222,7 @@ export function rawResponseToolCalls(request) {
   const response = rawProviderResponse(request);
   const calls = [];
   if (Array.isArray(response?.content)) {
-    calls.push(...response.content.filter((item) => item?.type === "tool_use"));
+    calls.push(...response.content.filter((item) => ["tool_use", "server_tool_use"].includes(item?.type)));
   }
   if (Array.isArray(response?.output)) {
     calls.push(...response.output.filter(isResponsesToolCallItem));
@@ -236,8 +236,10 @@ export function rawResponseToolCalls(request) {
 export function responseToolCallSectionLabel(request, { translate = (key) => key } = {}) {
   const response = rawProviderResponse(request);
   const protocolTypes = [];
-  if (Array.isArray(response?.content) && response.content.some((item) => item?.type === "tool_use")) {
-    protocolTypes.push("tool_use");
+  if (Array.isArray(response?.content)) {
+    protocolTypes.push(...response.content
+      .filter((item) => ["tool_use", "server_tool_use"].includes(item?.type))
+      .map((item) => item.type));
   }
   for (const item of Array.isArray(response?.output) ? response.output : []) {
     if (isResponsesToolCallItem(item)) protocolTypes.push(item.type);

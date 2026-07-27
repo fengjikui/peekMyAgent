@@ -236,6 +236,26 @@ assert.equal(responseToolCallSectionLabel(streamOnlyRequest), "function_call");
 assert.equal(rawResponseToolCalls(streamOnlyRequest)[0].type, "function_call");
 assert.equal(rawSectionData(streamOnlyRequest, "tool_calls").title, "function_call");
 
+const anthropicServerToolRequest = {
+  ...request,
+  raw: {
+    ...request.raw,
+    response: {
+      ...request.raw.response,
+      body_json: {
+        type: "message",
+        role: "assistant",
+        content: [
+          { type: "tool_use", id: "client-1", name: "Bash", input: { command: "pwd" } },
+          { type: "server_tool_use", id: "server-1", name: "web_search", input: { query: "PMA" } },
+        ],
+      },
+    },
+  },
+};
+assert.deepEqual(rawResponseToolCalls(anthropicServerToolRequest).map((item) => item.type), ["tool_use", "server_tool_use"]);
+assert.equal(responseToolCallSectionLabel(anthropicServerToolRequest), "tool_use / server_tool_use");
+
 const chatStreamRequest = {
   ...streamOnlyRequest,
   summary: {

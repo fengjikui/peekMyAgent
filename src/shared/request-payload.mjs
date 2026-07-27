@@ -33,7 +33,7 @@ export function extractRequestToolCatalog(body = {}, { includeDefinitions = fals
     [source.additional_tools, "$.additional_tools"],
   ];
   for (const [inputIndex, item] of (Array.isArray(source.input) ? source.input : []).entries()) {
-    if (!item || !["additional_tools", "tool_search_output"].includes(item.type)) continue;
+    if (!item || !["additional_tools", "tool_search_output", "mcp_list_tools"].includes(item.type)) continue;
     roots.push([item.tools, `$.input[${inputIndex}].tools`]);
   }
 
@@ -193,12 +193,16 @@ export function responseInputItemToMessage(item) {
 
 export function isResponsesToolCallItem(item) {
   const type = String(item?.type || "").toLowerCase();
-  return Boolean(type && type.endsWith("_call") && !type.endsWith("_output"));
+  return Boolean(type && ((type.endsWith("_call") && !type.endsWith("_output")) || type === "program"));
 }
 
 export function isResponsesToolOutputItem(item) {
   const type = String(item?.type || "").toLowerCase();
-  return Boolean(type && (type.endsWith("_call_output") || type === "tool_search_output"));
+  return Boolean(type && (
+    type.endsWith("_call_output") ||
+    type === "tool_search_output" ||
+    type === "program_output"
+  ));
 }
 
 export function responsesToolProtocolName(value) {
