@@ -37,11 +37,23 @@ peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 
 - 通过 `pma openclaw ...` 启动 OpenClaw 并捕获模型请求。
 - 在左侧切换当前观察的 Agent，让 Codex、Claude Code、OpenCode、OpenClaw 和导入 Trace 分开显示。
 - 在时间线中查看用户输入、System 摘要、Tools、Tool calls、Tool results、Response、token 统计和 Raw JSON。
+- 通过 Protocol 视图按厂商协议原顺序查看 OpenAI Responses/Chat、Anthropic Messages 和 Google GenerateContent 的指令、消息、工具阶段、调用/结果、推理与回复，并跳回对应 Raw 证据。
+- 递归展开嵌套 `namespace` 工具目录，以 `collaboration.followup_task` 这类限定名识别可调用叶子；namespace 容器保留层级，但不会再被算作“零参数工具”。
 - 大型工具结果和图片输入在详情中先显示一行大小/MIME/hash 占位；只有点击后才从本地 Viewer 加载，安全 raster base64 图片可原地还原预览。
 - 识别并展示 Claude Code 子 Agent 请求流。
 - 在 Claude Code 内通过 `/peekmyagent` 打开 dashboard。
 - 暂停、恢复、停止或清理当前捕获。
 - 直接从 dashboard 向正在监听的 Agent 发送消息。
+
+## 协议与工具目录
+
+打开一条请求的右侧详情后：
+
+- `Protocol` 按厂商原生顺序整理上下行条目，并区分工具的 `declared`、`added` 和 `loaded` 阶段；每项都可以返回对应 Raw 位置。
+- `Tools` 展示可调用叶子的完整说明和参数 schema；嵌套 namespace 只作为层级身份显示。
+- `Raw` 始终是事实源。Protocol 不会把一个厂商协议改写成另一个协议，也不会根据 Agent 名称猜测协议语义。
+
+大型工具结果与图片只有在用户点击占位后才进入浏览器；支持的 PNG、JPEG、GIF、WebP 和 AVIF base64 图片可在本地原地还原，不会上传到外部服务。
 
 ## 环境要求
 
@@ -300,6 +312,8 @@ npm run release:check
 - [用户指南](docs/user-guide.md)
 - [图文使用说明](docs/visual-usage-guide.zh-CN.md)
 - [当前架构](docs/architecture.md)
+- [Protocol Exchange 与递归工具目录契约](docs/protocol-exchange-contract.md)
+- [字段级懒加载契约](docs/lazy-payload-contract.md)
 - [重构路线图](docs/refactoring-roadmap.md)
 - [Roadmap / 待实现计划](docs/roadmap.md)
 - [隐私与保留策略](docs/privacy-retention-strategy.md)
