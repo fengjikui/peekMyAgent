@@ -129,6 +129,7 @@ export class RawSearchController {
     this.timer = this.scheduler.setTimeout(() => {
       this.timer = 0;
       this.renderCurrent();
+      this.restoreInputFocus();
       this.scheduler.requestAnimationFrame?.(() => this.restoreInputFocus());
     }, this.delay);
   }
