@@ -204,11 +204,11 @@ const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pat
 assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);
 
 const MAX_PACKAGE_ENTRIES = 152;
-// These limits include the three explicitly required Protocol Exchange runtime
-// modules and leave less than 0.5% headroom. The exact entry cap, required-file
-// list, allowlist, and denied patterns remain the primary release-safety guards.
-const MAX_PACKED_BYTES = 375_700;
-const MAX_UNPACKED_BYTES = 1_655_200;
+// These limits include Protocol Exchange plus OpenCode continuation identity
+// selection and leave less than 0.5% headroom. The exact entry cap,
+// required-file list, allowlist, and denied patterns remain the primary guards.
+const MAX_PACKED_BYTES = 378_000;
+const MAX_UNPACKED_BYTES = 1_663_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);
 assert.ok(

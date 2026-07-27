@@ -206,6 +206,8 @@ pma opencode --model <provider/model>
 
 PMA 只覆盖当前子进程的 `baseURL`，不改配置、不读 `auth.json`、不捕获其他会话，并要求显式 `baseURL`。
 
+使用 `-c/--continue` 或 `-s/--session` 时，PMA 会通过 OpenCode 的公开 session 身份定位已有记录，并询问是否继续写入。直接回车默认复用，选择 2 会创建独立记录；也可用 `pma --reuse opencode -c` 跳过询问。`--fork` 会产生新的 OpenCode session，因此始终创建新记录。
+
 ## 快速开始：OpenClaw
 
 ```bash

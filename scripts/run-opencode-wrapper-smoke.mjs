@@ -141,6 +141,16 @@ if (process.argv[2] === "debug" && process.argv[3] === "config" && process.argv[
   process.exit(0);
 }
 
+if (process.argv[2] === "session" && process.argv[3] === "list") {
+  process.stdout.write(JSON.stringify([{
+    id: ${JSON.stringify(learnedSessionId)},
+    directory: process.cwd(),
+    created: 100,
+    updated: 200,
+  }]));
+  process.exit(0);
+}
+
 await fs.promises.writeFile(${JSON.stringify(argsPath)}, JSON.stringify(process.argv.slice(2), null, 2));
 const inline = JSON.parse(process.env.OPENCODE_CONFIG_CONTENT || "{}");
 await fs.promises.writeFile(${JSON.stringify(envPath)}, JSON.stringify({
@@ -336,6 +346,29 @@ console.log("fake opencode ok");
   );
   assert.equal(data.requests[2].summary.current_tool_results[0].id, "call-opencode-read");
   assert.equal(data.requests[2].summary.response.preview, "OPEN_CODE_OK");
+
+  const continueResult = await runCli(
+    [`--viewer-url=${viewer.url}`, "--reuse", "opencode", "-c"],
+    baseEnv,
+  );
+  assert.equal(continueResult.code, 0, continueResult.stderr);
+  assert.match(continueResult.stderr, /peekMyAgent watch: .* \(reused\)/);
+  assert.match(continueResult.stdout, /fake opencode ok/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(argsPath, "utf8")), ["-c"]);
+
+  const sourcesAfterContinue = await getJson(`${viewer.url}/api/sources`);
+  const continuedSources = sourcesAfterContinue.filter(
+    (item) => item.agent === "OpenCode" && item.conversation_id === learnedSessionId,
+  );
+  assert.equal(continuedSources.length, 1, "OpenCode continue reuses one captured source");
+  assert.equal(continuedSources[0].id, source.id);
+  assert.equal(continuedSources[0].request_count, 6);
+  const continuedData = await getJson(`${viewer.url}/api/view?source=${encodeURIComponent(source.id)}`);
+  assert.deepEqual(
+    continuedData.requests.map((request) => request.request_index),
+    [1, 2, 3, 4, 5, 6],
+    "continued OpenCode requests append to the existing watch",
+  );
 
   const failure = await runCli(
     [

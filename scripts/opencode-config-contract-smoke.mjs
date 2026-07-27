@@ -6,10 +6,13 @@ import {
   inspectOpenCodeConfiguration,
   openCodeModelFromArgs,
   openCodeCommandFromArgs,
+  openCodeContinuesSession,
+  openCodeForksSession,
   openCodeSessionFromArgs,
   openCodeWorkingDirectory,
   parseInlineConfig,
   providerFromOpenCodeModel,
+  resolveOpenCodeContinuationSession,
 } from "../src/adapters/opencode-config.mjs";
 
 const effectiveConfig = {
@@ -104,6 +107,26 @@ assert.equal(openCodeCommandFromArgs(["run", "--command=/project/check"]), "proj
 assert.equal(openCodeCommandFromArgs(["run", "--command", "bad\nheader"]), null);
 assert.equal(openCodeSessionFromArgs(["run", "-s", "session-a"]), "session-a");
 assert.equal(openCodeSessionFromArgs(["--session=session-b"]), "session-b");
+assert.equal(openCodeContinuesSession(["-c"]), true);
+assert.equal(openCodeContinuesSession(["--continue=true"]), true);
+assert.equal(openCodeContinuesSession(["--session", "session-c"]), true);
+assert.equal(openCodeContinuesSession(["run", "hello"]), false);
+assert.equal(openCodeForksSession(["--fork", "-c"]), true);
+assert.equal(
+  resolveOpenCodeContinuationSession({
+    args: ["-c"],
+    cwd: "/tmp/workspace",
+    listSessions: () => [
+      { id: "wrong-project", directory: "/tmp/other" },
+      { id: "continued-session", directory: "/tmp/workspace" },
+    ],
+  }),
+  "continued-session",
+);
+assert.equal(
+  resolveOpenCodeContinuationSession({ args: ["--fork", "-c"], listSessions: () => [{ id: "must-not-reuse" }] }),
+  null,
+);
 assert.equal(
   openCodeWorkingDirectory(["run", "--dir", "nested/project"], "/tmp/workspace"),
   path.resolve("/tmp/workspace/nested/project"),

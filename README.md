@@ -237,6 +237,8 @@ pma opencode --model <provider/model>
 
 PMA only overrides the wrapped process's `baseURL`; it does not change config, read `auth.json`, or capture other sessions. An explicit `baseURL` is required.
 
+For `-c/--continue` and `-s/--session`, PMA resolves OpenCode's public session identity and offers to append to the matching existing recording. Press Enter to reuse it, choose option 2 for a separate recording, or use `pma --reuse opencode -c` to skip the prompt. `--fork` always starts a new recording because OpenCode creates a new session identity.
+
 ## Resume A Claude Code Session
 
 Resume a specific Claude Code session:

@@ -189,7 +189,7 @@ Capture 内的 `provenance` v1 将两个概念分开，完整字段与来源矩�
 
 ## OpenCode 捕获路径
 
-`pma opencode [OpenCode args...]` 创建 `opencode_proxy_exact` watch，读取 OpenCode effective config 中当前 model/provider/baseURL，只在随后启动的 OpenCode 子进程内通过 `OPENCODE_CONFIG_CONTENT` 覆盖 provider `baseURL`。用户的配置文件、driver、模型目录、认证和其他 provider options 均保持不变；真实 OpenCode 参数原样透传，退出后 watch 停止并保留 Trace。
+`pma opencode [OpenCode args...]` 创建 `opencode_proxy_exact` watch，读取 OpenCode effective config 中当前 model/provider/baseURL，只在随后启动的 OpenCode 子进程内通过 `OPENCODE_CONFIG_CONTENT` 覆盖 provider `baseURL`。用户的配置文件、driver、模型目录、认证和其他 provider options 均保持不变；真实 OpenCode 参数原样透传，退出后 watch 停止并保留 Trace。`-s/--session` 直接提供原生 session id；`-c/--continue` 会通过 OpenCode 的 `session list --format json` 只读解析当前工作区最近 session，再按 Agent、mode、workspace 和 conversation id 查找既有 watch。交互式终端默认询问是否继续写入，`--watch reuse` 可显式复用；`--fork` 因原生 session identity 会变化而始终新建 watch。
 
 当前已经由真实 OpenCode `1.18.4`、隔离 loopback upstream 和真实 provider 证明 `@ai-sdk/openai-compatible` driver 使用 OpenAI Chat Completions streaming，并在 title-generation、主 Agent 和 child Agent 请求上携带 `x-session-id`。Capture Proxy 先计算 request header/route/fallback 合并后的 effective Agent，再仅在它明确为 OpenCode 时把该 header 作为 conversation id；因此第一轮尚无 `--session` 参数也能在请求到达时精确归属，其他 Harness 的同名 header 不会被泛化解释。title-generation 请求由结构指纹和 Agent provenance 共同标为 Harness metadata，不进入用户对话主线。
 
