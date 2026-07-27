@@ -31,6 +31,10 @@ responses.push(jsonResponse(requestDetail("source/a", "request 1")));
 await api.requestDetail("source/a", "request 1");
 assert.equal(calls.at(-1).path, "/api/request?source=source%2Fa&request=request%201");
 
+responses.push(jsonResponse(lazyPayloadResponse("request 1", "payload-ref")));
+await api.requestPayload("source/a", "request 1", "payload-ref");
+assert.equal(calls.at(-1).path, "/api/request/payload?source=source%2Fa&request=request+1&ref=payload-ref");
+
 responses.push(jsonResponse({ entries: {} }));
 await api.translations("Claude Code", "zh-CN");
 assert.equal(calls.at(-1).path, "/api/translations?agent=Claude%20Code&target_language=zh-CN");
@@ -105,6 +109,21 @@ function requestDetail(sourceId, requestId) {
     source: sourceSummary(sourceId),
     request: { id: requestId, request_index: 1, detail_scope: "request_window" },
     detail_scope: "request_window",
+  };
+}
+
+function lazyPayloadResponse(requestId, ref) {
+  return {
+    request_id: requestId,
+    ref,
+    payload: {
+      kind: "text",
+      encoding: "utf8",
+      mime_type: "text/plain",
+      byte_size: 5,
+      sha256: "abc123",
+      value: "hello",
+    },
   };
 }
 

@@ -183,6 +183,7 @@ src/
 - Watch 生命周期扩展字段持久化、persisted-only 控制面、shared per-watch cache 清理和大 watch 流式恢复仍需独立 schema/proxy 协议阶段，不属于本次抽离的已实现行为。
 - 已迁移 Viewer 两级导航 feature：Turn Rail 管全局 Turn，Request Rail 只在长 active Turn 中出现；二者的窗口策略、点击跳转和滚动激活由独立控制器管理，并有直接契约测试。
 - 已建立 Viewer API Client：source/view/request/translation/import/export/send/watch 的浏览器协议与错误处理不再散落在全局脚本。
+- 已建立字段级 lazy payload API：单请求详情中的安全 raster base64/data URL 与大型工具结果先返回大小/hash/尺寸占位，显式点击后才按 source/request/ref 读取并局部水合；普通用户/System/Tools/翻译材料保持既有语义，Server 零水合仍是后续优化。
 - 已建立共享 Viewer API 读取 DTO：SourceSummary、单请求窗口以及完整/compact/cursor Timeline 的身份、信封和分页不变量在 Server 序列化前与 API Client 解析后双向执行；领域实体内部字段继续由 Trace Domain 和 normalized Store 所有。
 - 已迁移 request-detail cache：compact request 的详情判定、并发去重、错误重试和 source 生命周期由独立对象管理。
 - 已建立 Raw Inspector View Model：上行请求、下行 Response、Harness 和 Metadata 的方向约束由纯模块统一。
@@ -260,6 +261,7 @@ src/
 - Context Delta 与 body-only 子 Agent lineage 已支持显式跨页状态，不再错误地按全局上一行比较或丢失早页 spawn。
 - 已建立 `TimelinePageAssembler`：首屏返回 compact 基线，后续只返回 request patch、Turn entity update 和 Agent graph entity delta。
 - Client 已由持久的 `TimelineEntityStore` 按稳定 id 管理 request/Turn/Agent map，页面合并不再从完整数组重建临时 map；完整 detail 覆盖也统一经过该边界。大 Source 首屏后不再请求完整 compact Trace，live 自动刷新优先从 refresh cursor 续读。
+- 单 request 的图片输入和大型工具结果已从详情响应与初始 DOM 中移出，使用可验证引用按字段读取；SQLite blob skeleton/file byte-range 的零整包 Server 水合尚未完成。
 - Source 加载、progressive cursor、live refresh、过期回建和 normalized Store 已由 `SourceTimelineController` 统一管理 generation 与提交；旧 Source/page 不再能迟到覆盖，后台续读与自动刷新不再并发写同一个 Store，Viewer 应用层只保留 DOM、选择、滚动、URL 和翻译副作用。边界见 [Source Timeline Controller 契约](source-timeline-controller-contract.md)。
 - 420-request 性能 fixture 已验证分页覆盖所有请求、Client normalized merge、累计网络载荷保持线性；真实 HTTP smoke 覆盖跨页父/子 Agent/回流和 live 增量。
 - System diff 已迁移为纯 Model/Renderer：小输入运行有矩阵/字符上限的精确行级 LCS，大输入退化为共同前后缀加至多 256 个动态内容块的指纹摘要，不再在主线程创建无界二维数组。

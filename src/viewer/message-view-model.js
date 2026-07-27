@@ -6,6 +6,7 @@ import {
 } from "../shared/request-payload.mjs";
 import { extractTranslationSchemaDescriptions } from "../translation/blocks.mjs";
 import { messageTextWithoutHarnessInjections, userVisibleText } from "../trace/message-semantics.mjs";
+import { containsLazyPayload } from "../contracts/lazy-payload.mjs";
 
 export const DEFAULT_MESSAGE_TEXT_LIMIT = 5000;
 
@@ -259,6 +260,7 @@ function blockViewModel(block, { role, roleInferred, sourceIndex, textLimit }) {
     text,
     textPreview: truncateMessageText(text, textLimit),
     raw: block.raw,
+    hasLazyPayload: containsLazyPayload(block.raw),
     toolCall: kind === "tool_call" ? toolCallView(block.raw) : null,
     toolResult: kind === "tool_result" ? toolResultView(block.raw, text) : null,
   };
@@ -312,6 +314,7 @@ function toolResultView(raw = {}, text = "") {
     name: raw.name || raw.tool_name || responsesToolProtocolName(raw.type) || null,
     output: text || stringValue(raw.output ?? raw.content ?? raw.result ?? raw.tools ?? ""),
     toolSearch: toolSearchResultView(raw),
+    hasLazyPayload: containsLazyPayload(raw),
   };
 }
 

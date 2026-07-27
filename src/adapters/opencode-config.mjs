@@ -82,6 +82,52 @@ export function runOpenCodeDebugConfig({
   }
 }
 
+export function listOpenCodeSessions({
+  cwd = safeProcessCwd(),
+  env = process.env,
+  command = "opencode",
+  maxCount = 20,
+} = {}) {
+  const safeMaxCount = Math.max(1, Math.min(100, Number(maxCount) || 20));
+  const args = ["session", "list", "--format", "json", "--max-count", String(safeMaxCount)];
+  const spawnConfig = childProcessSpawnConfig(command, args, { env });
+  const result = spawnSync(spawnConfig.command, spawnConfig.args, {
+    cwd,
+    env,
+    encoding: "utf8",
+    ...spawnConfig.options,
+  });
+  if (result.error) throw new Error(`Could not list OpenCode sessions: ${result.error.message}`);
+  if (result.status !== 0) {
+    throw new Error(`OpenCode session listing failed with exit code ${result.status}.`);
+  }
+  const output = String(result.stdout || "").trim();
+  if (!output) return [];
+  let parsed;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    throw new Error('OpenCode returned invalid JSON from "session list --format json".');
+  }
+  if (!Array.isArray(parsed)) throw new Error("OpenCode session listing must be a JSON array.");
+  return parsed.map(normalizeOpenCodeSession).filter(Boolean);
+}
+
+export function resolveOpenCodeContinuationSession({
+  args = [],
+  cwd = safeProcessCwd(),
+  env = process.env,
+  command = "opencode",
+  listSessions = listOpenCodeSessions,
+} = {}) {
+  const explicit = openCodeSessionFromArgs(args);
+  if (explicit) return explicit;
+  if (!openCodeContinuesSession(args) || openCodeForksSession(args)) return null;
+  const workspace = path.resolve(cwd);
+  const sessions = listSessions({ cwd: workspace, env, command });
+  return sessions.find((session) => !session.directory || path.resolve(session.directory) === workspace)?.id || null;
+}
+
 export function buildOpenCodeProxyEnv({
   env = process.env,
   providerId,
@@ -175,6 +221,14 @@ export function openCodeSessionFromArgs(args = []) {
   return optionValue(args, ["--session", "-s"]);
 }
 
+export function openCodeContinuesSession(args = []) {
+  return Boolean(openCodeSessionFromArgs(args) || booleanFlag(args, ["--continue", "-c"]));
+}
+
+export function openCodeForksSession(args = []) {
+  return booleanFlag(args, ["--fork"]);
+}
+
 export function openCodeCommandFromArgs(args = []) {
   return normalizeOpenCodeCommandName(optionValue(args, ["--command"]));
 }
@@ -189,6 +243,17 @@ function normalizeOpenCodeCommandName(value) {
   if (!command) return null;
   if (command.length > 128 || !/^[A-Za-z0-9._:/-]+$/.test(command)) return null;
   return command;
+}
+
+function normalizeOpenCodeSession(value) {
+  const id = stringValue(value?.id || value?.sessionID || value?.sessionId);
+  if (!id) return null;
+  return {
+    id,
+    directory: stringValue(value?.directory || value?.path),
+    created: value?.created ?? value?.time?.created ?? null,
+    updated: value?.updated ?? value?.time?.updated ?? null,
+  };
 }
 
 export function providerFromOpenCodeModel(model) {
@@ -230,6 +295,10 @@ function optionValue(args, names) {
     }
   }
   return null;
+}
+
+function booleanFlag(args, names) {
+  return args.some((value) => names.some((name) => value === name || value === `${name}=true`));
 }
 
 function assertHttpUrl(value, label) {

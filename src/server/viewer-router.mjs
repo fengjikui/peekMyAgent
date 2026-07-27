@@ -50,6 +50,7 @@ const REQUIRED_OPERATIONS = Object.freeze([
   "startTimeline",
   "nextTimeline",
   "loadRequestDetail",
+  "loadRequestPayload",
 ]);
 
 const INTENT_VALIDATORS = new Map([
@@ -163,6 +164,7 @@ function createRouteHandlers({ defaultSourceId, operations, pid }) {
     ],
     ["/api/view", createViewHandler({ defaultSourceId, operations })],
     ["/api/request", createRequestHandler({ defaultSourceId, operations })],
+    ["/api/request/payload", createRequestPayloadHandler({ defaultSourceId, operations })],
   ]);
 }
 
@@ -203,6 +205,20 @@ function createRequestHandler({ defaultSourceId, operations }) {
       res,
       200,
       await operations.loadRequestDetail({ sourceId, requestId, requireSource: Boolean(requestedSource) }),
+    );
+  };
+}
+
+function createRequestPayloadHandler({ defaultSourceId, operations }) {
+  return async ({ res, url }) => {
+    const requestedSource = sanitizeApiLookupId(url.searchParams.get("source"), { limit: VIEWER_API_LIMITS.sourceIdChars });
+    const sourceId = requestedSource || defaultSourceId || null;
+    const requestId = sanitizeApiLookupId(url.searchParams.get("request") || "", { limit: VIEWER_API_LIMITS.requestIdChars });
+    const ref = sanitizeApiLookupId(url.searchParams.get("ref") || "", { limit: VIEWER_API_LIMITS.payloadRefChars });
+    return writeJson(
+      res,
+      200,
+      await operations.loadRequestPayload({ sourceId, requestId, ref, requireSource: Boolean(requestedSource) }),
     );
   };
 }

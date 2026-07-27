@@ -109,7 +109,9 @@ for (const required of [
   "src/adapters/codex-desktop-managed-session.mjs",
   "src/adapters/codex-desktop-session.mjs",
   "src/server/http.mjs",
+  "src/contracts/lazy-payload.mjs",
   "src/contracts/viewer-api.mjs",
+  "src/server/lazy-payload-service.mjs",
   "src/server/viewer-router.mjs",
   "src/server/viewer-translation-adapter.mjs",
   "src/server/watch-runtime-service.mjs",
@@ -203,12 +205,12 @@ const allowedPatterns = [
 const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);
 
-const MAX_PACKAGE_ENTRIES = 152;
-// These limits include the three explicitly required Protocol Exchange runtime
-// modules and leave less than 0.5% headroom. The exact entry cap, required-file
-// list, allowlist, and denied patterns remain the primary release-safety guards.
-const MAX_PACKED_BYTES = 375_700;
-const MAX_UNPACKED_BYTES = 1_655_200;
+const MAX_PACKAGE_ENTRIES = 154;
+// These limits include Protocol Exchange, OpenCode continuation identity, and
+// the two explicitly required lazy-payload runtime modules. They leave less
+// than 0.5% headroom; allowlist and denied patterns remain unchanged.
+const MAX_PACKED_BYTES = 383_500;
+const MAX_UNPACKED_BYTES = 1_689_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);
 assert.ok(

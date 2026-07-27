@@ -124,6 +124,23 @@ assert.match(structured, /call-1/);
 assert.match(structured, /messageParameters/);
 assert.match(structured, /<json>/);
 
+const lazyMarker = {
+  __peekmyagent_lazy_payload__: "peekmyagent.lazy_payload.v1",
+  ref: "payload-ref",
+  kind: "text",
+  encoding: "utf8",
+  byte_size: 8192,
+  sha256: "hash",
+};
+const lazyToolResult = renderMessagesSection({
+  messagesValue: [{ type: "function_call_output", call_id: "call-lazy", output: lazyMarker }],
+  mode: "organized",
+  ...dependencies,
+});
+assert.match(lazyToolResult, /payload-ref/);
+assert.match(lazyToolResult, /<json>/, "organized tool results preserve interactive lazy payload markers");
+assert.doesNotMatch(lazyToolResult, /messageTextFallback/);
+
 const responsesMessages = [
   { type: "message", role: "user", content: [{ type: "input_text", text: "question one" }] },
   { type: "reasoning", summary: [{ type: "summary_text", text: "reason one" }] },

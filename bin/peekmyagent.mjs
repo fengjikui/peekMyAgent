@@ -8,7 +8,13 @@ import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { normalizeOpenClawProxyCapture } from "../src/adapters/openclaw-proxy.mjs";
 import { DEFAULT_OPENCLAW_PROFILE, patchOpenClawProviderBaseUrl, prepareOpenClawProfilePatch } from "../src/adapters/openclaw-config.mjs";
-import { buildOpenCodeProxyEnv, inspectOpenCodeConfiguration } from "../src/adapters/opencode-config.mjs";
+import {
+  buildOpenCodeProxyEnv,
+  inspectOpenCodeConfiguration,
+  openCodeContinuesSession,
+  openCodeForksSession,
+  resolveOpenCodeContinuationSession,
+} from "../src/adapters/opencode-config.mjs";
 import { normalizeClaudeOtelRequestFile } from "../src/adapters/claude-otel.mjs";
 import { CodexDesktopDiscovery } from "../src/adapters/codex-desktop-discovery.mjs";
 import {
@@ -53,7 +59,7 @@ function usage(exitCode = 0) {
 
 Usage:
   pma [--reuse|--ask] [--open] claude [claude args...]
-  pma [--reuse] [--open] opencode [opencode args...]
+  pma [--reuse|--ask] [--open] opencode [opencode args...]
   pma [--reuse] [--open] openclaw [openclaw args...]
   pma normalize openclaw-capture <capture.json> [--out <file>]
   pma normalize claude-otel <request.json> [--out <file>] [--delete-raw-after-import]
@@ -76,7 +82,7 @@ Usage:
   pma status trae-cn [--json]
   pma dev view [--demo openclaw-subagent|openclaw-multiturn|claude-subagent|claude-proxy-resume] [--evidence <dir>] [--port <port>] [--open]
   pma run claude [--watch ask|reuse|new] [peekMyAgent options] -- [claude args...]
-  pma run opencode [--watch reuse|new] [peekMyAgent options] -- [opencode args...]
+  pma run opencode [--watch ask|reuse|new] [peekMyAgent options] -- [opencode args...]
   pma run openclaw [--watch reuse|new] [peekMyAgent options] -- [openclaw args...]
   pma watch-current [--agent claude-code|openclaw] [--mode next_request|single_session|privacy_guard] [--viewer-url <url>] [--json] [--open] [--pause] [--resume] [--stop] [--clear] [--session-key <key>] [--patch-openclaw] [--openclaw-profile <name>] [--provider <id>] [--model <id>] [--target-base-url <url>] [--refresh-profile]
   pma install-claude-skill [--scope user|project] [--commands] [--dest <claude-dir>] [--json]
@@ -89,7 +95,7 @@ Notes:
   - openclaw-capture expects one proxy capture record with method/path/headers/body.
   - claude-otel expects one Claude Code OTel .request.json file.
   - output is normalized JSON and does not print raw secrets beyond adapter redaction.
-  - run is the advanced compatibility path. Starting an Agent through peekMyAgent is the user's explicit consent to capture that process. For Claude --continue/--resume, peekMyAgent asks where to write capture by default when a matching watch exists; use --reuse to reuse automatically or choose option 2 to start a separate recording.
+  - run is the advanced compatibility path. Starting an Agent through peekMyAgent is the user's explicit consent to capture that process. For Claude or OpenCode continue/resume, peekMyAgent asks where to write capture by default when a matching watch exists; use --reuse to reuse automatically or choose option 2 to start a separate recording. OpenCode --fork always starts a new recording.
   - daemon starts the stable local API/dashboard plus fixed capture proxy. open opens that shared dashboard and starts the daemon if needed. shutdown stops it, and restart reloads it on the fixed ports.
   - doctor explains current paths, daemon status, installed helpers, and common cross-platform configuration issues. clear --all-sessions removes captured session storage after stopping the daemon. uninstall removes the CLI, peekMyAgent helpers, and optionally local data, but does not modify Agent provider configs unless a future restore adapter explicitly owns them.
   - compact stops the daemon, removes duplicated raw request bodies that can be rebuilt from content blocks, and VACUUMs the SQLite store unless --no-vacuum is set.
@@ -1142,7 +1148,7 @@ async function runAgent() {
   if (!parsed.agent || ["--help", "-h"].includes(parsed.agent)) {
     console.log(`Usage:
   peekmyagent run claude [--watch ask|reuse|new] [--viewer-url <url>] [--open-viewer] [--mode <mode>] -- [claude args...]
-  peekmyagent run opencode [--watch reuse|new] [--viewer-url <url>] [--open-viewer] [--mode <mode>] [--provider <id>] [--target-base-url <url>] -- [opencode args...]
+  peekmyagent run opencode [--watch ask|reuse|new] [--viewer-url <url>] [--open-viewer] [--mode <mode>] [--provider <id>] [--target-base-url <url>] -- [opencode args...]
   peekmyagent run openclaw [--watch reuse|new] [--viewer-url <url>] [--open-viewer] [--mode <mode>] [--session-key <key>] [--openclaw-profile <name>] [--provider <id>] -- [openclaw args...]`);
     return { exit_code: 0 };
   }
@@ -1327,14 +1333,29 @@ async function runOpenCodeAgent(parsed, viewerUrl) {
     model: optionValueIn(parsed.wrapperArgs, "--model"),
   });
   const workspace = configuration.workspace;
-  const watchPolicy = normalizeWatchPolicy(optionValueIn(parsed.wrapperArgs, "--watch"), { allowAsk: false });
+  const fork = openCodeForksSession(parsed.childArgs);
+  let conversationId = fork ? null : configuration.conversation_id;
+  if (!conversationId && openCodeContinuesSession(parsed.childArgs) && !fork) {
+    try {
+      conversationId = resolveOpenCodeContinuationSession({
+        args: parsed.childArgs,
+        cwd: workspace,
+        env: process.env,
+      });
+    } catch (error) {
+      if (optionValueIn(parsed.wrapperArgs, "--watch") === "reuse") throw error;
+      console.error(`peekMyAgent: 无法确认 OpenCode continue 对应的 session；本次将新建监听。${error.message}`);
+    }
+  }
+  const reuseWatchId = await resolveOpenCodeRunWatchChoice({ parsed, viewerUrl, workspace, conversationId, fork });
   const watch = await postJson(`${trimSlash(viewerUrl)}/api/watch/start`, {
     agent: "OpenCode",
     mode: optionValueIn(parsed.wrapperArgs, "--mode") || "single_session",
     workspace,
-    conversation_id: configuration.conversation_id,
+    conversation_id: conversationId,
     started_by: "peekmyagent-run",
-    reuse: watchPolicy === "reuse",
+    reuse: Boolean(reuseWatchId),
+    reuse_watch_id: reuseWatchId,
     target_base_url: configuration.target_base_url,
     provider_id: configuration.provider_id,
     config_patched: false,
@@ -1407,7 +1428,7 @@ async function resolveClaudeRunWatchChoice({ parsed, viewerUrl, conversationId }
   const shouldConsiderReuse = Boolean(continuation || watchPolicy === "reuse" || explicitPolicy === "ask");
   if (!shouldConsiderReuse) return null;
 
-  const candidates = await findClaudeRunWatchCandidates({ parsed, viewerUrl, conversationId });
+  const candidates = await findRunWatchCandidates({ agent: "Claude Code", parsed, viewerUrl, conversationId });
   const best = candidates[0] || null;
   if (watchPolicy === "reuse") {
     if (!best) console.error("peekMyAgent: 没有找到可复用的 Claude Code 监听，本次将新建监听。");
@@ -1419,7 +1440,32 @@ async function resolveClaudeRunWatchChoice({ parsed, viewerUrl, conversationId }
     console.error("peekMyAgent: 检测到 Claude Code continue/resume，但当前不是交互式终端；本次将新建监听。可用 --watch reuse 显式复用。");
     return null;
   }
-  return (await askClaudeWatchReuse({ conversationId, candidate: best })) ? watchCandidateId(best) : null;
+  return (await askRunWatchReuse({ agent: "Claude Code", conversationId, candidate: best })) ? watchCandidateId(best) : null;
+}
+
+async function resolveOpenCodeRunWatchChoice({ parsed, viewerUrl, workspace, conversationId, fork }) {
+  const explicitPolicy = optionValueIn(parsed.wrapperArgs, "--watch");
+  if (fork) {
+    if (explicitPolicy === "reuse" || explicitPolicy === "ask") {
+      console.error("peekMyAgent: OpenCode --fork 会创建新 session，因此本次始终新建监听。");
+    }
+    return null;
+  }
+  const continuation = Boolean(conversationId || openCodeContinuesSession(parsed.childArgs));
+  const watchPolicy = explicitPolicy ? normalizeWatchPolicy(explicitPolicy, { allowAsk: true }) : continuation ? "ask" : "new";
+  if (watchPolicy === "new") return null;
+  const candidates = await findRunWatchCandidates({ agent: "OpenCode", parsed, viewerUrl, workspace, conversationId });
+  const best = candidates[0] || null;
+  if (watchPolicy === "reuse") {
+    if (!best) console.error("peekMyAgent: 没有找到可复用的 OpenCode 监听，本次将新建监听。");
+    return watchCandidateId(best);
+  }
+  if (!best) return null;
+  if (!isInteractiveStdio()) {
+    console.error("peekMyAgent: 检测到 OpenCode continue/session，但当前不是交互式终端；本次将新建监听。可用 --watch reuse 显式复用。");
+    return null;
+  }
+  return (await askRunWatchReuse({ agent: "OpenCode", conversationId, candidate: best })) ? watchCandidateId(best) : null;
 }
 
 function watchCandidateId(candidate) {
@@ -1433,22 +1479,21 @@ function normalizeWatchPolicy(value, { allowAsk = false } = {}) {
   throw new Error(`Invalid --watch: ${value}. Expected ${allowAsk ? "ask, " : ""}reuse, or new.`);
 }
 
-async function findClaudeRunWatchCandidates({ parsed, viewerUrl, conversationId }) {
+async function findRunWatchCandidates({ agent, parsed, viewerUrl, workspace = safeProcessCwd(), conversationId }) {
   const mode = optionValueIn(parsed.wrapperArgs, "--mode") || "single_session";
-  const workspace = safeProcessCwd();
   const data = await fetchJson(`${trimSlash(viewerUrl)}/api/watch/status`);
   return (Array.isArray(data) ? data : [])
-    .filter((watch) => watch.agent === "Claude Code")
+    .filter((watch) => watch.agent === agent)
     .filter((watch) => watch.mode === mode)
     .filter((watch) => watch.workspace === workspace)
     .filter((watch) => (conversationId ? watch.conversation_id === conversationId : true))
     .sort((a, b) => Date.parse(b.last_seen || b.stopped_at || b.created_at || 0) - Date.parse(a.last_seen || a.stopped_at || a.created_at || 0));
 }
 
-async function askClaudeWatchReuse({ conversationId, candidate }) {
+async function askRunWatchReuse({ agent, conversationId, candidate }) {
   const heading = conversationId
-    ? `检测到你正在恢复 Claude Code 会话：\n  ${conversationId}`
-    : "检测到你使用了 claude --continue。";
+    ? `检测到你正在恢复 ${agent} 会话：\n  ${conversationId}`
+    : `检测到你使用了 ${agent} continue。`;
   const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
   try {
     process.stderr.write(`\n${heading}\n\n`);

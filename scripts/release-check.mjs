@@ -81,6 +81,7 @@ const coreCommands = [
   ["npm", "run", "smoke:governance"],
 ];
 const viewerCommands = [
+  ["npm", "run", "smoke:lazy-payload-contract"],
   ["npm", "run", "smoke:viewer-api-client-contract"],
   ["npm", "run", "smoke:timeline-entity-store-contract"],
   ["npm", "run", "smoke:viewer-client-store-contract"],

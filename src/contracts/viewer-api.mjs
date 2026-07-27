@@ -6,6 +6,7 @@ export const TRACE_TIMELINE_RESPONSE_CONTRACT_VERSION = 1;
 export const VIEWER_API_LIMITS = Object.freeze({
   sourceIdChars: 512,
   requestIdChars: 256,
+  payloadRefChars: 2048,
   cursorChars: 128,
   initialRequests: 32,
   maxInitialRequests: 120,
@@ -21,6 +22,7 @@ export const VIEWER_API_ROUTES = Object.freeze(
     ["/api/daemon/status", "GET"],
     ["/api/view", "GET"],
     ["/api/request", "GET"],
+    ["/api/request/payload", "GET"],
     ["/api/translations/generate", "POST"],
     ["/api/watch/start", "POST"],
     ["/api/watch/stop", "POST"],
