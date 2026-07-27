@@ -130,6 +130,9 @@ function renderMessageText(block, dependencies) {
     registerTranslationAction,
     section,
   } = dependencies;
+  if (block.hasLazyPayload) {
+    return `<div class="json-node raw-message-tool-json">${dependencies.renderJson(block.raw)}</div>`;
+  }
   const translationKind = messageTranslationKind(block, section);
   const translatedText = translationKind
     ? translatedTextForKind(translatedTextFor, translationKind, block.text)
@@ -222,7 +225,7 @@ function renderToolCall(block, { translate, escapeHtml, renderJson }) {
 }
 
 function renderToolResult(block, dependencies) {
-  const { translate, escapeHtml } = dependencies;
+  const { translate, escapeHtml, renderJson } = dependencies;
   const result = block.toolResult || {};
   return `
     ${
@@ -236,7 +239,9 @@ function renderToolResult(block, dependencies) {
     <div class="raw-message-tool-field">
       <span>${escapeHtml(translate("messageOutput"))}</span>
       ${
-        result.toolSearch
+        result.hasLazyPayload
+          ? `<div class="json-node raw-message-tool-json">${renderJson(block.raw)}</div>`
+          : result.toolSearch
           ? renderToolSearchResult(result.toolSearch, dependencies)
           : `<pre class="raw-message-tool-output">${escapeHtml(result.output || translate("messageTextFallback"))}</pre>`
       }

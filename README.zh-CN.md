@@ -37,6 +37,7 @@ peekMyAgent 是一个本地优先的 Agent 请求观察工作台，用来查看 
 - 通过 `pma openclaw ...` 启动 OpenClaw 并捕获模型请求。
 - 在左侧切换当前观察的 Agent，让 Codex、Claude Code、OpenCode、OpenClaw 和导入 Trace 分开显示。
 - 在时间线中查看用户输入、System 摘要、Tools、Tool calls、Tool results、Response、token 统计和 Raw JSON。
+- 大型工具结果和图片输入在详情中先显示一行大小/MIME/hash 占位；只有点击后才从本地 Viewer 加载，安全 raster base64 图片可原地还原预览。
 - 识别并展示 Claude Code 子 Agent 请求流。
 - 在 Claude Code 内通过 `/peekmyagent` 打开 dashboard。
 - 暂停、恢复、停止或清理当前捕获。

@@ -3,6 +3,7 @@ import {
   assertTraceRequestDetailResponse,
   assertTraceTimelineResponse,
 } from "../contracts/viewer-api.mjs";
+import { assertLazyPayloadResponse } from "../contracts/lazy-payload.mjs";
 
 export class ViewerApiClient {
   constructor({ fetchImpl = globalThis.fetch, fetchContext = globalThis, origin = globalThis.location?.origin || "http://127.0.0.1" } = {}) {
@@ -33,6 +34,14 @@ export class ViewerApiClient {
     return assertTraceRequestDetailResponse(
       await this.getJson(`/api/request?source=${encodeURIComponent(sourceId)}&request=${encodeURIComponent(requestId)}`),
     );
+  }
+
+  async requestPayload(sourceId, requestId, ref) {
+    const url = new URL("/api/request/payload", this.origin);
+    url.searchParams.set("source", sourceId);
+    url.searchParams.set("request", requestId);
+    url.searchParams.set("ref", ref);
+    return assertLazyPayloadResponse(await this.getJson(`${url.pathname}${url.search}`));
   }
 
   translations(agent, targetLanguage) {

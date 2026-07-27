@@ -53,6 +53,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/core/redaction.mjs` | Trace 导出等路径使用的敏感内容脱敏 |
 | `src/server/http.mjs` | Viewer method/intent/body/loopback 安全边界与统一 HTTP 响应 |
 | `src/contracts/viewer-api.mjs` | 浏览器与 Server 共用的 Viewer API pathname/method、lookup/分页上限、`SourceSummary` 和 `TraceRequestDetail` 运行时契约 |
+| `src/contracts/lazy-payload.mjs` | 浏览器与 Server 共用的字段级占位、payload response 校验和 Client 水合原语 |
 | `src/server/viewer-router.mjs` | HTTP URL/query/body/intent/响应适配；通过显式 operations 调用业务能力 |
 | `src/server/viewer-translation-adapter.mjs` | Viewer Source/Request 到翻译材料的适配、Harness 注入提取与 TranslationService 装配 |
 | `src/server/agent-send-service.mjs` | 页面独立发送的输入限制、Claude/OpenClaw 命令、跨平台执行、临时配置清理与脱敏响应 |
@@ -68,6 +69,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/server/timeline-view-projector.mjs` | 完整 Viewer Trace DTO 到首屏/时间线轻量 DTO 的纯投影、截断和遗漏元数据契约 |
 | `src/server/timeline-cursor-service.mjs` | Source 绑定不透明 cursor、TTL/session 上限、分页 reader 生命周期和 live tail 续读 |
 | `src/server/timeline-page-assembler.mjs` | 跨页 Context/Agent 状态、compact request、Turn patch 和 Agent entity delta 组装 |
+| `src/server/lazy-payload-service.mjs` | 单请求图片/大型工具结果的占位投影、引用验证、大小/hash/图片尺寸元数据与按字段读取 |
 | `src/server/viewer-trace-projector.mjs` | Capture 到 Viewer request/Turn/Agent/stats/workbench DTO 的无 I/O 单一投影边界 |
 | `src/trace/content-parts.mjs` | 上行/下行共用的 content、thinking、tool use 与 tool result 最小协议原语 |
 | `src/trace/tool-call-semantics.mjs` | 从已捕获工具名和参数中提取高置信嵌套工具派发与 Skill 指令读取证据；不改写原始调用 |
@@ -300,6 +302,8 @@ sequenceDiagram
 cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 session 数量上限；它不是持久化 id，也不向浏览器暴露 SQLite 或文件 offset。file/import Source 的原始 Trace 保持只读，私有 sidecar 只保存对象 byte range 并由源文件指纹自动失效。完整/compact snapshot 和 cursor delta 的 envelope 由共享 `TraceTimelineResponse` 契约约束，内部 Turn/Agent 实体仍由领域协议拥有。完整协议和失效回退见 [Viewer API DTO 契约](viewer-api-dto-contract.md)、[Timeline Cursor 分页契约](timeline-pagination-contract.md)与 [JSON Array File Index 契约](json-array-file-index-contract.md)。旧 `/api/view?compact=1` 完整响应继续保留兼容。
 
 `compact=1` 的 DTO 由 `timeline-view-projector.mjs` 从完整 Viewer Trace DTO 纯投影得到。它集中管理预览长度、历史/Raw/完整 Response 的省略规则和 `*_omitted` 元数据，不拥有 Trace 语义、Source 读取或 HTTP 生命周期；完整详情仍以 `/api/request` 为事实源。详细边界见 [Timeline 轻量投影契约](timeline-view-projection-contract.md)。
+
+`/api/request` 的详情还会经过第二级字段投影：图片 data URL/带明确 MIME 的 base64，以及达到门限的大型工具结果，被替换为带大小、hash、MIME 和可得尺寸的一行占位。用户点击后，浏览器才通过 `/api/request/payload` 读取同 source/request 下的单个合格字段；Server 会重新验证引用路径和字段资格，Client 只水合 `RequestDetailCache` 中的 marker 并局部刷新 Raw。图片仅允许受限 raster MIME，并在本地还原为 `data:` URL，不上传、不在未点击时进入 DOM。当前仍会在 Server 语义投影阶段短暂重建完整 request window，节省的是详情传输、浏览器解析和 DOM 成本；更深的 blob skeleton 直读尚未实现。完整边界见 [Viewer 字段级懒加载契约](lazy-payload-contract.md)。
 
 浏览器中的 Source 数据生命周期由 `SourceTimelineController` 所有。它为每次 Source 加载分配 generation token，在持久的 `TimelineEntityStore` 上合并首屏、cursor page 和详情覆盖，并在临时 Store 中完成 live refresh 或过期 cursor 回建后原子提交。旧 Source/旧 cursor 的迟到结果会被拒绝；progressive cursor 工作期间自动刷新会跳过该周期，避免两个异步写入者竞争同一 Store。DOM、URL、滚动、翻译和活动选择仍由 `client.js` 装配。完整边界见 [Source Timeline Controller 契约](source-timeline-controller-contract.md)。
 

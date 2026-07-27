@@ -357,6 +357,8 @@ Useful buttons:
 - `Response`: inspect captured model responses.
 - `Raw`: inspect the original captured JSON.
 
+Large tool results and image inputs appear as compact size/MIME/hash placeholders inside request detail. They are fetched from the loopback Viewer only after an explicit click; supported raster base64 images can then be restored in place.
+
 If the source is a live Claude Code or OpenClaw watch, the bottom composer can send a message to the watched Agent:
 
 - Press `Enter` to send.

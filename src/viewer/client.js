@@ -17,6 +17,7 @@ import { ViewerClientStore } from "./client-store.js";
 import { buildAgentGraphView } from "./agent-graph-model.js";
 import { renderAgentGraph as renderAgentGraphView } from "./agent-graph-renderer.js";
 import { RequestDetailCache, requestNeedsDetail } from "./request-detail-cache.js";
+import { hydrateLazyPayload, isLazyPayload } from "../contracts/lazy-payload.mjs";
 import { SourceTimelineController } from "./source-timeline-controller.js";
 import { ActiveSourceController } from "./active-source-controller.js";
 import {
@@ -155,6 +156,7 @@ const CURSOR_PAGE_REQUEST_LIMIT = 100;
 const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
 let toolOriginIndex = new Map();
 let translationLookupRefreshTimer = 0;
+const lazyPayloadPromises = new Map();
 const els = {
   appShell: document.querySelector(".app-shell"),
   toggleSidebar: document.querySelector("#toggleSidebar"),
@@ -558,6 +560,13 @@ async function init() {
   rawSearchController.bind();
   traceTimelineController.bind();
   els.rawTree.addEventListener("click", (event) => {
+    const lazyPayloadButton = event.target.closest("[data-lazy-payload-ref]");
+    if (lazyPayloadButton && els.rawTree.contains(lazyPayloadButton)) {
+      event.preventDefault();
+      event.stopPropagation();
+      loadLazyPayloadForButton(lazyPayloadButton);
+      return;
+    }
     const retranslateButton = event.target.closest("[data-translation-retranslate]");
     if (retranslateButton && els.rawTree.contains(retranslateButton)) {
       event.preventDefault();
@@ -728,6 +737,35 @@ async function ensureRequestDetailLoaded(requestId) {
   if (!request) return null;
   const sourceId = state.data?.source?.id || state.activeSourceId || "";
   return requestDetailCache.ensure(sourceId, request);
+}
+
+async function loadLazyPayloadForButton(button) {
+  const ref = button?.dataset?.lazyPayloadRef || "";
+  const requestId = state.activeRequestId || "";
+  const sourceId = state.data?.source?.id || state.activeSourceId || "";
+  if (!ref || !requestId || !sourceId) return;
+  const status = button.closest(".lazy-payload-placeholder")?.querySelector("[data-lazy-payload-status]");
+  button.disabled = true;
+  button.textContent = t("lazyPayloadLoading");
+  if (status) status.textContent = "";
+  const key = `${sourceId}\n${requestId}\n${ref}`;
+  let promise = lazyPayloadPromises.get(key);
+  if (!promise) {
+    promise = api.requestPayload(sourceId, requestId, ref).finally(() => lazyPayloadPromises.delete(key));
+    lazyPayloadPromises.set(key, promise);
+  }
+  try {
+    const response = await promise;
+    if ((state.data?.source?.id || state.activeSourceId || "") !== sourceId) return;
+    const updated = requestDetailCache.update(requestId, (detail) => hydrateLazyPayload(detail, ref, response.payload));
+    if (!updated) throw new Error(t("lazyPayloadDetailUnavailable"));
+    rawSearchController.contextChanged();
+    await rawInspectorController.refresh();
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = t("lazyPayloadRetry");
+    if (status) status.textContent = t("lazyPayloadLoadFailed", { message: error.message });
+  }
 }
 
 async function ensureDetailsForRawSection(request, section) {
@@ -2541,6 +2579,7 @@ async function materialHash(kind, sourceText) {
 }
 
 function renderJson(value, key) {
+  if (isLazyPayload(value)) return renderLazyPayload(value, key);
   if (Array.isArray(value)) {
     const summary = `[${value.length}]`;
     return `<details open><summary>${key ? `<span class="json-key">${escapeHtml(key)}</span>: ` : ""}${summary}</summary><div class="json-node">${value.map((item, index) => renderJson(item, String(index))).join("")}</div></details>`;
@@ -2550,6 +2589,49 @@ function renderJson(value, key) {
     return `<details open><summary>${key ? `<span class="json-key">${escapeHtml(key)}</span>: ` : ""}{${keys.length}}</summary><div class="json-node">${keys.map((itemKey) => renderJson(value[itemKey], itemKey)).join("")}</div></details>`;
   }
   return `<div>${key ? `<span class="json-key">${escapeHtml(key)}</span>: ` : ""}${renderPrimitive(value)}</div>`;
+}
+
+function renderLazyPayload(payload, key) {
+  const kindLabel = payload.kind === "image" ? t("lazyPayloadImage") : payload.kind === "json" ? t("lazyPayloadJson") : t("lazyPayloadText");
+  const metadata = [kindLabel, payload.mime_type, formatByteSize(payload.byte_size)];
+  if (payload.width && payload.height) metadata.push(`${payload.width}×${payload.height}`);
+  if (payload.token_estimate) metadata.push(t("lazyPayloadTokens", { count: formatCompactNumber(payload.token_estimate) }));
+  if (payload.sha256) metadata.push(`sha256:${String(payload.sha256).slice(0, 12)}`);
+  const prefix = key ? `<span class="json-key">${escapeHtml(key)}</span>: ` : "";
+  if (payload.load_state === "loaded") {
+    const loaded = payload.kind === "image" ? renderLoadedLazyImage(payload) : renderLoadedLazyText(payload);
+    return `<div class="lazy-payload loaded">${prefix}<span class="lazy-payload-meta">${escapeHtml(metadata.filter(Boolean).join(" · "))}</span>${loaded}</div>`;
+  }
+  const action = payload.kind === "image" ? t("lazyPayloadViewImage") : t("lazyPayloadLoadContent");
+  return `<div class="lazy-payload-placeholder">${prefix}<span class="lazy-payload-meta">${escapeHtml(metadata.filter(Boolean).join(" · "))}</span><button type="button" data-lazy-payload-ref="${escapeHtml(payload.ref)}">${escapeHtml(action)}</button><span class="lazy-payload-status" data-lazy-payload-status aria-live="polite"></span></div>`;
+}
+
+function renderLoadedLazyImage(payload) {
+  const source = lazyImageSource(payload);
+  if (!source) return `<p class="lazy-payload-error">${escapeHtml(t("lazyPayloadUnsafeImage"))}</p>`;
+  return `<figure class="lazy-payload-image"><img src="${escapeHtml(source)}" alt="${escapeHtml(t("lazyPayloadImageAlt"))}" loading="lazy" decoding="async" /></figure>`;
+}
+
+function renderLoadedLazyText(payload) {
+  return `<pre class="lazy-payload-content">${escapeHtml(payload.loaded_value || "")}</pre>`;
+}
+
+function lazyImageSource(payload) {
+  const mimeType = String(payload.mime_type || "").toLowerCase();
+  if (!["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"].includes(mimeType)) return "";
+  const value = String(payload.loaded_value || "");
+  if (payload.encoding === "data_url") {
+    return new RegExp(`^data:${mimeType.replace("+", "\\+")};base64,`, "i").test(value) ? value : "";
+  }
+  if (payload.encoding !== "base64" || !/^[A-Za-z0-9+/=\s]+$/.test(value)) return "";
+  return `data:${mimeType};base64,${value.replace(/\s+/g, "")}`;
+}
+
+function formatByteSize(value) {
+  const bytes = Number(value) || 0;
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
 }
 
 function renderPrimitive(value) {

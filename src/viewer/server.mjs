@@ -54,6 +54,7 @@ import { SOURCE_TEXT_LIMITS, sanitizeSourceText } from "../server/source-text.mj
 import { TraceBundleService } from "../server/trace-bundle-service.mjs";
 import { TimelineCursorService } from "../server/timeline-cursor-service.mjs";
 import { TimelinePageAssembler } from "../server/timeline-page-assembler.mjs";
+import { loadLazyPayload, projectLazyPayloads } from "../server/lazy-payload-service.mjs";
 import { resolveViewerStaticAsset } from "../server/viewer-static-assets.mjs";
 import { createViewerTranslationAdapter } from "../server/viewer-translation-adapter.mjs";
 import {
@@ -241,6 +242,8 @@ function viewerRouterOperations(options) {
     startTimeline: ({ sourceId, limit }) => timelineCursorService(options).start({ sourceId, limit }),
     nextTimeline: ({ sourceId, cursor, limit }) => timelineCursorService(options).next({ sourceId, cursor, limit }),
     loadRequestDetail: ({ sourceId, requestId, requireSource }) => loadViewerRequestDetail(sourceId, requestId, options, { requireSource }),
+    loadRequestPayload: ({ sourceId, requestId, ref, requireSource }) =>
+      loadViewerRequestPayload(sourceId, requestId, ref, options, { requireSource }),
   };
 }
 
@@ -248,7 +251,7 @@ function viewerTranslationAdapter(options) {
   return createViewerTranslationAdapter({
     projectRoot,
     loadViewerData: ({ sourceId, requireSource }) => loadViewerData(sourceId, options, { requireSource }),
-    loadRequestDetail: ({ sourceId, requestId, requireSource }) => loadViewerRequestDetail(sourceId, requestId, options, { requireSource }),
+    loadRequestDetail: ({ sourceId, requestId, requireSource }) => loadViewerRequestDetailFull(sourceId, requestId, options, { requireSource }),
     sanitize: {
       agent: (value) => sanitizeSourceMetadataText(value, { fallback: "Claude Code", limit: MAX_SOURCE_AGENT_CHARS }),
       targetLanguage: (value) => normalizePathBackedLabel(value, "target_language"),
@@ -382,6 +385,14 @@ function loadViewerData(sourceId, options, { requireSource = false, initialLimit
 }
 
 function loadViewerRequestDetail(sourceId, requestId, options, { requireSource = false } = {}) {
+  return projectLazyPayloads(loadViewerRequestDetailFull(sourceId, requestId, options, { requireSource }));
+}
+
+function loadViewerRequestPayload(sourceId, requestId, ref, options, { requireSource = false } = {}) {
+  return loadLazyPayload(loadViewerRequestDetailFull(sourceId, requestId, options, { requireSource }), ref);
+}
+
+function loadViewerRequestDetailFull(sourceId, requestId, options, { requireSource = false } = {}) {
   requestId = sanitizeApiLookupId(requestId, { limit: MAX_API_REQUEST_ID_CHARS });
   if (!requestId) throw httpError(400, "Missing request id");
   const repository = viewerSourceRepository(options);
