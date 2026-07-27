@@ -89,7 +89,15 @@ export function translationMaterialMatchesQuery(item, { query = "", translatedTe
   const translated = translatedTextFor(item?.kind, item?.source_text) || "";
   const metadata = item?.metadata || {};
   const displayedText = translated || item?.source_text || "";
-  return [extraText, metadata.tool_name, metadata.field_name, metadata.label, displayedText]
+  return [
+    extraText,
+    metadata.tool_name,
+    metadata.tool_leaf_name,
+    metadata.tool_namespace,
+    metadata.field_name,
+    metadata.label,
+    displayedText,
+  ]
     .filter(Boolean)
     .join("\n")
     .toLowerCase()
@@ -100,7 +108,15 @@ export function groupToolTranslationMaterials(materials) {
   const groups = new Map();
   for (const item of Array.isArray(materials) ? materials : []) {
     const toolName = item?.metadata?.tool_name || "unknown";
-    if (!groups.has(toolName)) groups.set(toolName, { toolName, description: null, parameters: [] });
+    if (!groups.has(toolName)) {
+      groups.set(toolName, {
+        toolName,
+        toolDisplayName: item?.metadata?.tool_leaf_name || toolName,
+        namespace: item?.metadata?.tool_namespace || "",
+        description: null,
+        parameters: [],
+      });
+    }
     const group = groups.get(toolName);
     if (item?.kind === "tool_description" && !group.description) group.description = item;
     else group.parameters.push(item);
@@ -114,8 +130,10 @@ export function filterToolTranslationGroups(groups, { query = "", translatedText
   if (!normalizedQuery) return sourceGroups;
   return sourceGroups
     .map((group, index) => {
-      const lowerName = String(group.toolName || "").toLowerCase();
-      const nameMatch = lowerName.includes(normalizedQuery);
+      const names = [group.toolName, group.toolDisplayName, group.namespace]
+        .filter(Boolean)
+        .map((name) => String(name).toLowerCase());
+      const nameMatch = names.some((name) => name.includes(normalizedQuery));
       const contentMatch = [group.description, ...(group.parameters || [])]
         .filter(Boolean)
         .some((item) =>
@@ -128,7 +146,7 @@ export function filterToolTranslationGroups(groups, { query = "", translatedText
       return {
         group,
         index,
-        rank: lowerName === normalizedQuery ? 0 : nameMatch ? 1 : 2,
+        rank: names.includes(normalizedQuery) ? 0 : nameMatch ? 1 : 2,
         matches: nameMatch || contentMatch,
       };
     })
@@ -146,7 +164,11 @@ export function filterToolTranslationGroupsByName(groups, toolNames = null) {
       .filter(Boolean),
   );
   if (!names.size) return sourceGroups;
-  return sourceGroups.filter((group) => names.has(String(group?.toolName || "")));
+  return sourceGroups.filter((group) => {
+    const qualifiedName = String(group?.toolName || "");
+    const leafName = String(group?.toolDisplayName || "");
+    return names.has(qualifiedName) || names.has(leafName);
+  });
 }
 
 export function responseInvokedToolNames(response) {
@@ -166,6 +188,9 @@ export function translationKindClass(kind) {
   if (kind === "system_prompt") return "system-prompt";
   if (kind === "system_injected_context") return "system-injected";
   if (kind === "assistant_thinking") return "assistant-thinking-kind";
+  if (kind === "assistant_reasoning") return "assistant-reasoning-kind";
+  if (kind === "assistant_response") return "assistant-response-kind";
+  if (kind === "developer_instruction") return "developer-instruction-kind";
   if (kind?.startsWith("harness_")) return "harness-kind";
   return "other-kind";
 }
@@ -194,6 +219,8 @@ function toolTranslationGroupView(group, { translatedTextFor, labelForKind, disp
   const hit = [description, ...parameters].filter((item) => item?.hit).length;
   return {
     toolName: group.toolName,
+    toolDisplayName: group.toolDisplayName,
+    namespace: group.namespace,
     description: description
       ? { ...description, displayText: displaySource ? description.sourceText : description.displayText }
       : null,

@@ -6,7 +6,7 @@
 
 Store 只管理以下可序列化状态：
 
-- source、Turn 和 request 选择：`activeSourceId`、`activeId`、`activeRequestId`；
+- source、Turn、Raw request 与 Timeline request 选择：`activeSourceId`、`activeId`、`activeRequestId`、`activeTimelineRequestId`；
 - Raw Inspector：`activeRawSection`、`activeRawMode`、`rawMessagesMode`；
 - 语言与翻译视图：`uiLanguage`、`targetTranslationLanguage`、`translationMode`；
 - 三栏布局：`rawOpen`、`rawWidth`、`sidebarOpen`、`sidebarWidth`；
@@ -19,11 +19,12 @@ Store 只管理以下可序列化状态：
 - `update()` 接收一个 patch，并在全部字段更新后最多通知一次。
 - 领域方法 `setSelection()`、`setRawView()`、`setLanguage()`、`setLayout()`、`setTimeline()` 只能修改自己拥有的字段。
 - `setRawContext()` 将活动 request、Raw section 和请求/响应模式作为一个原子动作更新。
+- `activeRequestId` 只表示 Raw Inspector 证据上下文；`activeTimelineRequestId` 只表示中栏滚动/导航高亮。两者可以不同，避免自动滚动让一次尚未提交的详情加载被误判为过期。
 - 值未变化时不通知订阅者，避免后续局部 renderer 重复工作。
 - 通知包含 `changedKeys`、旧值 `previous`、动作 `reason` 和只读 snapshot；订阅者不需要重新比较整个应用状态。
 - 初始化读取浏览器偏好时允许 `silent` hydration，持久化本身仍由应用层负责。
 
-Store 不调用 `renderAll()`，不访问 `window`、`document`、`fetch` 或 `localStorage`。当前应用层已经订阅 `activeId` 与 `activeRequestId`，统一同步活动 Turn、请求卡片和 Turn Rail；其他 feature 仍应按 `changedKeys` 逐步订阅自己拥有的视图更新，而不是把 Store 变成新的全局副作用中心。
+Store 不调用 `renderAll()`，不访问 `window`、`document`、`fetch` 或 `localStorage`。当前应用层订阅 `activeId` 与 `activeTimelineRequestId`，统一同步活动 Turn、请求卡片和两级导航；Raw Controller 独立消费 `activeRequestId`。其他 feature 仍应按 `changedKeys` 逐步订阅自己拥有的视图更新，而不是把 Store 变成新的全局副作用中心。
 
 ## 回归要求
 

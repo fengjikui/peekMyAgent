@@ -17,19 +17,22 @@ const selectionChange = store.setSelection(
     activeSourceId: "source-1",
     activeId: "turn-2",
     activeRequestId: "request-3",
+    activeTimelineRequestId: "request-3",
   },
   { reason: "load-source" },
 );
 assert.equal(selectionChange.changed, true);
-assert.deepEqual(selectionChange.changedKeys, ["activeSourceId", "activeId", "activeRequestId"]);
+assert.deepEqual(selectionChange.changedKeys, ["activeSourceId", "activeId", "activeRequestId", "activeTimelineRequestId"]);
 assert.deepEqual(selectionChange.previous, {
   activeSourceId: null,
   activeId: null,
   activeRequestId: null,
+  activeTimelineRequestId: null,
 });
 assert.equal(selectionChange.reason, "load-source");
 assert.equal(changes.length, 1, "one user action should emit one atomic store notification");
 assert.equal(changes[0].state.activeRequestId, "request-3");
+assert.equal(changes[0].state.activeTimelineRequestId, "request-3");
 
 const noChange = store.setSelection({ activeId: "turn-2" }, { reason: "same-turn" });
 assert.equal(noChange.changed, false);
@@ -46,6 +49,11 @@ const rawContext = store.setRawContext(
 assert.deepEqual(rawContext.changedKeys, ["activeRequestId", "activeRawSection"]);
 assert.equal(changes.length, 2, "Raw selection and view mode should change atomically");
 assert.equal(changes[1].state.activeRequestId, "request-4");
+assert.equal(
+  changes[1].state.activeTimelineRequestId,
+  "request-3",
+  "Raw detail selection must not be invalidated when scroll navigation activates another request",
+);
 assert.equal(changes[1].state.activeRawSection, "messages");
 
 assert.throws(

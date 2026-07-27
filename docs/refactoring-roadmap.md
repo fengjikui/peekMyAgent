@@ -1,6 +1,6 @@
 # peekMyAgent 重构路线图
 
-更新时间：2026-07-15
+更新时间：2026-07-27
 
 这份路线图的目标不是“大改得更漂亮”，而是在不破坏现有用户闭环的前提下，让 peekMyAgent 能长期演进、方便外部贡献，并为更多 Agent 适配建立稳定边界。当前系统事实见 [架构文档](architecture.md)。
 
@@ -21,7 +21,7 @@
 | Server | `src/viewer/server.mjs` 同时负责 HTTP、安全、repository、Trace domain、翻译、bundle 和 Agent send | 很难局部测试和分配代码所有权 |
 | Client | `src/viewer/client.js` 同时负责 store、fetch、协议解释和所有视图 | 小交互容易触发全量渲染，贡献者难定位 |
 | CLI | `bin/peekmyagent.mjs` 包含命令解析和几乎全部命令实现 | 新命令继续扩大入口文件，wrapper 生命周期难单测 |
-| 协议 | provenance、translation block、`SourceSummary`、单请求 `TraceRequestDetail` 与完整/compact/cursor Timeline envelope 已有共享契约；其余 operation 响应仍由各层分别解释 | 高频读取 DTO 已阻断漂移，写操作与控制面接口仍需按功能逐条迁移 |
+| 协议 | provenance、translation block、`SourceSummary`、单请求 `TraceRequestDetail`、完整/compact/cursor Timeline envelope 和 `protocol_exchange` 已有共享契约；Responses/Chat/Messages/GenerateContent 的常用上下行结构由协议 adapter 投影，其余 operation 响应仍由各层分别解释 | 高频读取 DTO 与常用模型交换已阻断漂移；未知协议、写操作和控制面接口仍需按真实证据逐条迁移 |
 | 数据库 | 内容寻址和 migration runner 已落地；Capture 读取 repository 已抽离，Watch/Capture 写入、维护与连接生命周期仍集中在 `PersistenceStore` | 写路径继续受单体 store 约束，但读取查询和水合已有独立可测边界 |
 | 性能 | live/SQLite/file/import 已使用 cursor 增量读取和实体 delta；文件后端使用私有 sidecar byte range；System diff 已有精确门限和块级退化；Client/Server 仍累计 compact 实体 | 首屏网络、文件 hydrate 和大 System diff 成本已受控，但超长会话的常驻 compact 实体仍随会话增长 |
 | 测试 | smoke 丰富，但基础设施重复，部分 UI 仅正则检查源码 | 维护成本高，真实交互回归覆盖不足 |
@@ -127,7 +127,7 @@ src/
 - 已建立 SQLite migration baseline：`PRAGMA user_version=1`、顺序事务 runner、旧库认领、未来版本保护和 schema shape 校验。
 - 已抽离 `SqliteCaptureReadRepository`：完整/首屏/分页/单请求窗口、request tree 重建和 response blob 水合不再由单体 `PersistenceStore` 实现；Store 保留兼容 facade，连接、migration、写事务和 GC 所有权不变。
 - 已建立共享 translation block contract：Server、Client、提取脚本和 worker 统一规范化、lookup key、schema description 和 marker 解析，缓存 hash 保持兼容。
-- 已建立共享 request translation material projector：System parts、Tools schema descriptions 与 Harness 注入只提取一次，Node Collector 与浏览器展示复用同一纯模块；服务端继续独占 hash、occurrence、限额和缓存写入。
+- 已建立共享 request translation material projector：System parts、Tools schema descriptions 与 Harness 注入只提取一次，Node Collector 与浏览器展示复用同一纯模块；Tools 同时复用共享递归目录解析顶层声明、中途追加、动态加载和任意深度 namespace，容器与限定名叶子不再混淆；服务端继续独占 hash、occurrence、限额和缓存写入。
 - 已建立共享 Viewer API DTO contract：`SourceSummary` 与单请求 `TraceRequestDetail` 具有版本、运行时 schema 和 Node/浏览器双端断言，SourceRepository、Viewer Server 与 API Client 共用同一事实源。
 - 已将 provenance v1 接入 Capture Proxy、OpenClaw normalizer 和 portable Trace import：区分 artifact fidelity 与关联 confidence，保留合法原始来源，旧导入采用保守回退。
 - file/demo/debug 等尚未形成 CaptureRecord 的 source 仍需在后续 source repository 阶段建立统一 DTO；阶段 1 的共享地基已经完成，可以进入 Viewer Server 拆分。
@@ -169,6 +169,7 @@ src/
 - 已建立 Trace Content Parts 原语层：上行与下行共用可见文本、thinking、Anthropic/OpenAI tool call 和 tool result 提取，避免协议块解释分叉。
 - 已迁移 Trace 消息语义：真实用户输入、slash command、compact/Skill/framework/suggestion 注入、混合工具结果与 task notification 由单一纯模块解释，Turn、标题和翻译层复用显式端口。
 - 已迁移 Trace 请求画像：System 位置、Anthropic/OpenAI/Gemini 协议、provider/reasoning 扩展及 main/subagent/parent-spawn/metadata 来源提示由单一纯模块解释；metadata 优先级与 provenance 概念边界由直接契约锁定。
+- 已建立 Protocol Exchange v1（2026-07-27）：OpenAI Responses/Chat、Anthropic Messages 和 Google GenerateContent 的指令、message、工具声明/追加/加载、调用/结果、推理与回复由独立纯 adapter 投影；完整详情保留条目、递归 namespace 工具目录和 Raw JSONPath，compact Timeline 只保留卡片所需计数与状态。协议事实与 Agent 归因继续分层，未知字段不做跨厂商猜测。
 - 已迁移 Trace 请求构成分析：System、Tools、参数、历史消息、当前用户、工具交互及回复规模由纯模块输出兼容 DTO；字符近似、包含关系与上/下行展示边界由直接契约说明。
 - 已迁移 Timeline 轻量投影：完整 Viewer Trace DTO 到 compact 首屏/时间线 DTO 的截断、Raw/Response 省略和遗漏计数由独立纯模块管理；HTTP route 只选择完整或 compact 表示，直接契约与大 Trace 性能 smoke 共同锁定边界。
 - 已迁移 Viewer Trace 投影：Capture 到 request/Turn/Agent graph/stats/workbench DTO 的组合成为无 I/O `ViewerTraceProjector`；完整加载、单请求详情和 cursor 分页共享同一组消息、Context Delta、Turn、子 Agent 与 response 语义端口，HTTP route 不再拥有该组装实现。
@@ -180,21 +181,23 @@ src/
 - 已迁移 Agent Send Service：页面消息限制、Claude/OpenClaw detached 命令、workspace 回退、跨平台进程执行、诊断参数脱敏和临时 settings 清理不再由 Viewer Server 所有；active/persisted watch 恢复继续通过显式端口注入。
 - 已迁移 Watch Runtime Service：active registry、new/reuse/restore、pause/resume/stop、共享/独立代理、稳定 Agent route、Capture 回调和幂等关闭不再由 Viewer Server 所有；Source Reader/Lifecycle 与 Agent Send 通过窄 runtime 端口协作。
 - Watch 生命周期扩展字段持久化、persisted-only 控制面、shared per-watch cache 清理和大 watch 流式恢复仍需独立 schema/proxy 协议阶段，不属于本次抽离的已实现行为。
-- 已迁移首个 Viewer Client feature：Turn Rail 的窗口策略、悬停、点击跳转和滚动激活由独立控制器管理，并有直接契约测试。
+- 已迁移 Viewer 两级导航 feature：Turn Rail 管全局 Turn，Request Rail 只在长 active Turn 中出现；二者的窗口策略、点击跳转和滚动激活由独立控制器管理，并有直接契约测试。
 - 已建立 Viewer API Client：source/view/request/translation/import/export/send/watch 的浏览器协议与错误处理不再散落在全局脚本。
+- 已建立字段级 lazy payload API：单请求详情中的安全 raster base64/data URL 与大型工具结果先返回大小/hash/尺寸占位，显式点击后才按 source/request/ref 读取并局部水合；普通用户/System/Tools/翻译材料保持既有语义，Server 零水合仍是后续优化。
 - 已建立共享 Viewer API 读取 DTO：SourceSummary、单请求窗口以及完整/compact/cursor Timeline 的身份、信封和分页不变量在 Server 序列化前与 API Client 解析后双向执行；领域实体内部字段继续由 Trace Domain 和 normalized Store 所有。
 - 已迁移 request-detail cache：compact request 的详情判定、并发去重、错误重试和 source 生命周期由独立对象管理。
 - 已建立 Raw Inspector View Model：上行请求、下行 Response、Harness 和 Metadata 的方向约束由纯模块统一。
 - 已迁移 Raw Search Model：递归条目、过滤、摘要命中分段和循环导航索引不再依赖 DOM 或全局状态。
 - 已迁移 Raw Search Controller：查询、IME 组合态、延迟重绘、清空、当前命中和滚动高亮不再由全局 client state 所有。
 - 已迁移 Raw Inspector 基础 Renderer：请求/响应导航、搜索控件与结果、详情状态和来源提示只依赖显式 DTO 与渲染依赖。
+- 已建立 Raw Protocol 视图（2026-07-27）：纯 View Model/Renderer 消费 `protocol_exchange`，展示上下行顺序和工具生命周期并跳回 Raw；Developer instruction 与 Assistant reasoning/response 接入显式翻译材料，用户/历史消息和工具结果保持原文，打开视图本身不触发外发。
 - 已迁移 Message View Model 与 Renderer：role/content/block 规范化、结构化判定、长文本截断、原文/整理切换与安全 Markdown 不再由全局 client 所有。
 - 已迁移 Translation View Model 与 Renderer：工具分组、译文搜索排序、命中统计、System/Harness 块、工具说明与参数汇总不再直接读取全局 client state；缓存 key 继续复用共享 translation block contract，动作注册通过显式依赖留在应用层。
-- 最小 client store 已建立：source/Turn/request selection、Raw/messages mode、UI/翻译语言、pane layout 与 latest-only 已有单一写入边界和原子变更通知；大 Trace cursor、Client entity store 与 file/imported sidecar 已在阶段 4 落地，page eviction/细粒度订阅继续演进。
+- 最小 client store 已建立：source/Turn/Raw request/Timeline request selection、Raw/messages mode、UI/翻译语言、pane layout 与 latest-only 已有单一写入边界和原子变更通知；Raw 证据上下文已与滚动高亮分离，避免首击详情被自动滚动误判为过期。大 Trace cursor、Client entity store 与 file/imported sidecar 已在阶段 4 落地，page eviction/细粒度订阅继续演进。
 - 已迁移 Trace Timeline View Model：查询分类、命中 Turn、结果上限、latest-only、lead request 与窗口策略成为无 DOM 纯模块；Header、Timeline、Composer 已形成局部渲染表面，Timeline 内部交互和 Thinking 块翻译不再默认触发整页 `renderAll()`，活动选择由 Store 通知统一同步 DOM。
 - 已迁移 Trace Timeline Renderer/Controller：查询、空状态和窗口 HTML 使用显式 DTO；IME、筛选、Raw/Agent 动作和活动态通过长生命周期控制器做单次事件委派，不再在每次 Timeline 重绘后逐按钮重新绑定。
-- 已迁移 Request Card Renderer：请求卡外壳、上行标题与快捷动作、当前工具交换、Thinking 和 Assistant 回复 HTML 只消费显式 View DTO；详情读取、请求分类、翻译动作注册和响应折叠状态继续由应用层所有。
-- 已迁移 Agent Graph View：Turn 内分支选择、稳定编号/颜色、状态筛选、分页和交错事件流成为纯 View Model；看板 HTML 成为纯 Renderer，展开/跳转等动作仍由 Timeline Controller 和应用状态所有。
+- 已迁移 Request Card Renderer：请求卡外壳、上行标题与快捷动作、当前工具交换、历史调用来源、Thinking 和 Assistant 回复 HTML 只消费显式 View DTO；冗余工具活动标题已移除，来源跳转/返回、详情读取、翻译动作注册和响应折叠状态继续由应用层所有。
+- 已迁移 Agent Graph View：Turn 内分支选择、真实昵称、稳定身份颜色/glyph、折叠状态和关联证据成为纯 View Model；看板紧跟发起请求并默认折叠，收起时不构建 child request-card DOM，展开后以“glyph + 名称”的 child tabs 和单一选中完整 timeline 呈现，状态进入选中分支详情行；选中 timeline 复用普通 Request Card Renderer，tab/折叠切换只原位替换分支区域，child request 不再重复进入主/幕后时间线；Trace Domain 同时用精确 nested tool dispatch/result JSON 闭合经 `exec` 派发的 Codex child 生命周期。
 - 已迁移 Upstream Detail View：System/Tools、历史消息、当前新增消息/子 Agent 回流和 provider token 口径成为纯 View Model；上行详情 HTML 成为纯 Renderer，compact detail 懒加载、缓存与展开状态仍由应用层所有；同时删除已无调用方的旧 context/badge/structure 渲染分支。
 - 已迁移 Agent Composer View：source 能力、发送目标/警示与结果文案成为纯 View Model，表单成为纯 Renderer；长生命周期 Controller 按 source 隔离草稿和发送状态，并管理 Enter/IME、detached resume 与 source 刷新，不再依赖全局 client state 或逐次事件绑定。
 - 已迁移 Session Navigator View：Source 的 Agent/项目分组、跨平台项目名、活动/可用状态成为纯 View Model，项目组和会话菜单成为纯 Renderer；长生命周期 Controller 管理根事件委派、菜单互斥和折叠持久化，归档/删除等副作用继续由应用层编排。
@@ -217,12 +220,13 @@ src/
 当前进展（2026-07-14）：
 
 - 已抽出 `RawInspectorController`：request/section/mode 选择、右栏打开、compact detail 懒加载、loading/error/content 提交与搜索装饰由单一生命周期控制器串联。
-- Raw 异步渲染增加 operation id 与 Store context 双重失效检查，快速切换请求或区块时，旧详情和旧错误不能覆盖当前面板。
+- Raw 异步渲染增加 operation id 与 Store Raw context 双重失效检查，快速切换请求或区块时，旧详情和旧错误不能覆盖当前面板；Timeline 滚动使用独立选择态，详情首屏也不再等待整条 Source 的翻译 lookup 重建。
 - 已抽出 `TranslationCacheController`：Source/目标语言缓存身份、Agent 候选探测、lookup dirty 重建、自动刷新 timer/attempt 去重和异步失效成为独立生命周期；request detail 即使在 hash 计算期间补载也会在提交前重算，生成副作用通过 operation token 拒绝旧 Source/语言，旧上下文结果不能覆盖当前缓存或 UI。
 - 已抽出 `TranslationActionController` 与纯 Action Model：翻译生成、块/整段复制、工具参数整组重译、action registry 和 Source/语言切换后的 stale 副作用拒绝通过显式端口协作；剪贴板格式与完成文案不再由 `client.js` 所有，Cache Controller、Renderer 和搜索 Controller 仍保持独立。
 - 已抽出翻译语言目录与 `LanguagePreferencesController`：完整目标语言 catalog、alias/系统语言推荐、偏好水合与持久化、选择器绑定、静态 i18n 和切换副作用顺序不再散落在 `client.js`；Cache/Action/Renderer/Raw 搜索仍保持各自边界。
 - 已抽出 `ActiveSourceController`：Source catalog、首屏与后台 page、live polling、snapshot 翻译、catalog version 和 token-gated UI continuation 形成应用级生命周期；`SourceTimelineController` 仍独占 generation/cursor/normalized store，DOM/selection/URL/滚动仍由装配端口所有。
-- 已抽出 `request-card-model.js`：请求身份、上行类别/标签/预览、快捷 section、工具事件配对和 Assistant response metadata/折叠成为可直接验证的纯 View Model；`client.js` 只注入当前展开状态、格式化依赖和 Thinking 翻译动作，`request-card-renderer.js` 只生成安全 HTML。
+- 已抽出 `request-card-model.js`：请求身份、上行类别/标签/预览、快捷 section、工具事件配对、历史 tool origin 和 Assistant response metadata/折叠成为可直接验证的纯 View Model；`client.js` 只注入当前展开状态、格式化依赖、来源返回上下文和 Thinking 翻译动作，`request-card-renderer.js` 只生成安全 HTML。
+- 历史 tool origin 从“每张 request 卡扫描全部前序请求”改为 Source/cursor 数据快照进入 Viewer 时建立一次线性索引；后续卡片渲染和详情点击只按 request id 读取，5,000-request 契约 fixture 锁定大 Trace 退化。
 
 验收：
 
@@ -257,6 +261,7 @@ src/
 - Context Delta 与 body-only 子 Agent lineage 已支持显式跨页状态，不再错误地按全局上一行比较或丢失早页 spawn。
 - 已建立 `TimelinePageAssembler`：首屏返回 compact 基线，后续只返回 request patch、Turn entity update 和 Agent graph entity delta。
 - Client 已由持久的 `TimelineEntityStore` 按稳定 id 管理 request/Turn/Agent map，页面合并不再从完整数组重建临时 map；完整 detail 覆盖也统一经过该边界。大 Source 首屏后不再请求完整 compact Trace，live 自动刷新优先从 refresh cursor 续读。
+- 单 request 的图片输入和大型工具结果已从详情响应与初始 DOM 中移出，使用可验证引用按字段读取；SQLite blob skeleton/file byte-range 的零整包 Server 水合尚未完成。
 - Source 加载、progressive cursor、live refresh、过期回建和 normalized Store 已由 `SourceTimelineController` 统一管理 generation 与提交；旧 Source/page 不再能迟到覆盖，后台续读与自动刷新不再并发写同一个 Store，Viewer 应用层只保留 DOM、选择、滚动、URL 和翻译副作用。边界见 [Source Timeline Controller 契约](source-timeline-controller-contract.md)。
 - 420-request 性能 fixture 已验证分页覆盖所有请求、Client normalized merge、累计网络载荷保持线性；真实 HTTP smoke 覆盖跨页父/子 Agent/回流和 live 增量。
 - System diff 已迁移为纯 Model/Renderer：小输入运行有矩阵/字符上限的精确行级 LCS，大输入退化为共同前后缀加至多 256 个动态内容块的指纹摘要，不再在主线程创建无界二维数组。

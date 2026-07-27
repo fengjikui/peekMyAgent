@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import {
   buildTimelineAssistantResponseView,
+  buildTimelineToolOriginIndex,
   buildTimelineResponseToolCalls,
   buildTimelineRequestIdentity,
   buildTimelineSemanticEventView,
@@ -420,6 +421,16 @@ const subagentRequest = {
 assert.equal(buildTimelineRequestIdentity(subagentRequest, commonOptions).title, "Subagent request");
 assert.equal(timelineUpstreamEntryLabel(subagentRequest, commonOptions), "Subagent input");
 assert.equal(shouldShowTimelineRequestContent(subagentRequest, { cleanText }), false);
+assert.equal(
+  shouldShowTimelineRequestContent(subagentRequest, { cleanText, includeSubagentContent: true }),
+  true,
+  "the selected child Agent timeline should expose its upstream message like the main timeline",
+);
+assert.equal(
+  buildTimelineUpstreamView(subagentRequest, { ...commonOptions, includeSubagentContent: true }).compact,
+  false,
+  "the selected child Agent timeline should render the full upstream card rather than a thumbnail",
+);
 assert.equal(isPrimaryTimelineRequest(subagentRequest, { cleanText }), false);
 assert.equal(isTimelineResponseRequest(subagentRequest), false);
 
@@ -466,6 +477,88 @@ assert.deepEqual(
     },
   ],
 );
+assert.deepEqual(
+  pairTimelineToolEvents([], [{ id: "call-history", content: "done" }], {
+    priorToolCalls: [
+      {
+        call: { id: "call-history", name: "Bash", arguments: { command: "pwd" } },
+        requestId: "request-origin",
+        requestIndex: 12,
+      },
+    ],
+  }),
+  [
+    {
+      call: { id: "call-history", name: "Bash", arguments: { command: "pwd" } },
+      result: { id: "call-history", content: "done" },
+      confidence: "historical_id",
+      origin: { requestId: "request-origin", requestIndex: 12, callId: "call-history" },
+    },
+  ],
+  "matched historical results retain the exact originating request without changing bare-call compatibility",
+);
+assert.deepEqual(
+  pairTimelineToolEvents([{ id: "call-current", name: "Bash" }], [{ id: "call-current", content: "done" }], {
+    priorToolCalls: [
+      {
+        call: { id: "call-current", name: "older call" },
+        requestId: "request-older",
+        requestIndex: 3,
+      },
+    ],
+  }),
+  [
+    {
+      call: { id: "call-current", name: "Bash" },
+      result: { id: "call-current", content: "done" },
+      confidence: "id",
+    },
+  ],
+  "a result paired to a current call never receives a stale historical origin",
+);
+
+const originRequests = [
+  {
+    id: "request-origin-index",
+    request_index: 21,
+    summary: {
+      current_tool_calls: [],
+      current_tool_results: [],
+      response: { tool_calls: [{ id: "call-indexed", name: "Bash", arguments: { command: "pwd" } }] },
+    },
+  },
+  {
+    id: "request-result-index",
+    request_index: 22,
+    summary: {
+      current_tool_calls: [],
+      current_tool_results: [{ id: "call-indexed", content: "/tmp" }],
+      response: { tool_calls: [] },
+    },
+  },
+];
+assert.deepEqual(buildTimelineToolOriginIndex(originRequests).get("request-result-index"), [
+  {
+    call: { id: "call-indexed", name: "Bash", arguments: { command: "pwd" } },
+    requestId: "request-origin-index",
+    requestIndex: 21,
+  },
+]);
+
+const largeOriginTrace = Array.from({ length: 5000 }, (_, index) => ({
+  id: `request-linear-${index}`,
+  request_index: index + 1,
+  summary: {
+    current_tool_calls: index % 2 === 0 ? [{ id: `call-linear-${index}`, name: "exec" }] : [],
+    current_tool_results: index % 2 === 1 ? [{ id: `call-linear-${index - 1}`, content: "done" }] : [],
+    response: { tool_calls: [] },
+  },
+}));
+const originIndexStartedAt = performance.now();
+const largeOriginIndex = buildTimelineToolOriginIndex(largeOriginTrace);
+const originIndexElapsedMs = performance.now() - originIndexStartedAt;
+assert.equal(largeOriginIndex.size, largeOriginTrace.length);
+assert.ok(originIndexElapsedMs < 500, `tool origin indexing should stay linear; observed ${originIndexElapsedMs.toFixed(1)}ms`);
 
 assert.equal(timelineMessageKindLabel("framework_reminder", "system", translate), "Framework reminder");
 assert.equal(timelineMessageKindLabel("custom", "user", translate), "user");

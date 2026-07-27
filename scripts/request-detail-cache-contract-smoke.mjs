@@ -69,6 +69,15 @@ assert.equal(cachedCount, 1);
 assert.equal(loadCount, 1);
 assert.equal(cache.detailFor("request-1").raw.body.system, "full");
 assert.equal(cache.detailFor("missing"), null);
+const updated = cache.update("request-1", (detail) => ({
+  ...detail,
+  raw: { ...detail.raw, body: { ...detail.raw.body, system: "hydrated" } },
+}));
+assert.equal(updated.raw.body.system, "hydrated");
+assert.equal(updated.merged, "cache-hit");
+assert.equal(cache.detailFor("request-1").raw.body.system, "hydrated");
+assert.equal(cache.update("missing", (detail) => detail), null);
+assert.throws(() => cache.update("request-1", null), /updateDetail must be a function/);
 
 let failCount = 0;
 const failure = new Error("detail unavailable");

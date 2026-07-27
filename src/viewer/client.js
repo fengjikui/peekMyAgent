@@ -14,9 +14,10 @@ import { messageTimelineRequestIndexes, responseConversationMessages } from "./m
 import { renderOrganizedToolCalls as renderOrganizedToolCallsView } from "./tool-call-renderer.js";
 import { ViewerApiClient } from "./api-client.js";
 import { ViewerClientStore } from "./client-store.js";
-import { AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView } from "./agent-graph-model.js";
+import { buildAgentGraphView } from "./agent-graph-model.js";
 import { renderAgentGraph as renderAgentGraphView } from "./agent-graph-renderer.js";
 import { RequestDetailCache, requestNeedsDetail } from "./request-detail-cache.js";
+import { hydrateLazyPayload, isLazyPayload } from "../contracts/lazy-payload.mjs";
 import { SourceTimelineController } from "./source-timeline-controller.js";
 import { ActiveSourceController } from "./active-source-controller.js";
 import {
@@ -35,6 +36,7 @@ import {
 import {
   buildTimelineAssistantResponseView,
   buildTimelineRequestIdentity,
+  buildTimelineToolOriginIndex,
   buildTimelineToolExchangeView,
   buildTimelineTurnInputView,
   buildTimelineUpstreamView,
@@ -92,6 +94,7 @@ import {
   translationSectionStats as summarizeTranslationSection,
 } from "./translation-view-model.js";
 import { TurnRailController } from "./turn-rail.js";
+import { RequestRailController } from "./request-rail.js";
 import { buildTurnStoryView } from "./turn-story-model.js";
 import { renderTurnStory as renderTurnStoryView } from "./turn-story-renderer.js";
 import {
@@ -109,6 +112,8 @@ import {
 } from "./trace-timeline-renderer.js";
 import { buildUpstreamDetailView } from "./upstream-detail-model.js";
 import { renderUpstreamDetail as renderUpstreamDetailView } from "./upstream-detail-renderer.js";
+import { buildProtocolExchangeView } from "./protocol-exchange-view-model.js";
+import { renderProtocolExchange as renderProtocolExchangeView } from "./protocol-exchange-renderer.js";
 import {
   normalizeTranslationSourceText as normalizeTranslationText,
   sanitizeTranslationOutput,
@@ -118,6 +123,7 @@ import { extractRequestMessages } from "../shared/request-payload.mjs";
 import {
   extractContentText,
   extractHarnessTranslationParts,
+  translatedTextForKind,
   translationMaterialsForRequest,
 } from "./translation-materials.js";
 
@@ -131,11 +137,10 @@ const state = Object.assign(clientStore.state, {
   upstreamExpanded: new Set(),
   expandedThinking: new Set(),
   translationGenerate: { loading: false, error: "", message: "" },
-  expandedAgentBranches: new Set(),
+  selectedAgentBranches: new Map(),
   openAgentDashboards: new Set(),
   openSupportingTimelines: new Set(),
-  agentBranchLimits: new Map(),
-  agentBranchFilters: new Map(),
+  toolOriginReturnContext: null,
   traceQuery: "",
   traceFilter: "all",
   traceResultLimit: 24,
@@ -149,6 +154,9 @@ const RAW_METADATA_MODE_KEY = "peekmyagent.rawMetadataMode";
 const INITIAL_SOURCE_REQUEST_LIMIT = 32;
 const CURSOR_PAGE_REQUEST_LIMIT = 100;
 const PROGRESSIVE_SOURCE_MIN_REQUESTS = 72;
+let toolOriginIndex = new Map();
+let translationLookupRefreshTimer = 0;
+const lazyPayloadPromises = new Map();
 const els = {
   appShell: document.querySelector(".app-shell"),
   toggleSidebar: document.querySelector("#toggleSidebar"),
@@ -171,6 +179,7 @@ const els = {
   timeline: document.querySelector("#timeline"),
   agentComposer: document.querySelector("#agentComposer"),
   turnRail: document.querySelector("#turnRail"),
+  requestRail: document.querySelector("#requestRail"),
   sessionInfoModal: document.querySelector("#sessionInfoModal"),
   sessionInfoBody: document.querySelector("#sessionInfoBody"),
   rawPanel: document.querySelector("#rawPanel"),
@@ -220,12 +229,23 @@ const turnRailController = new TurnRailController({
   getTurns: () => railTurnUniverse(),
   getActiveId: () => state.activeId,
   hasData: () => Boolean(state.data?.requests?.length),
-  titleFor: turnTitleText,
-  excerptFor: turnExcerptText,
+  promptFor: turnNavigationPrompt,
   translate: t,
   escapeHtml,
   onJump: jumpToTurn,
   onActiveChange: markActiveTurn,
+});
+const requestRailController = new RequestRailController({
+  element: els.requestRail,
+  mainPanel: els.mainPanel,
+  getRequests: () => activeTurnRequestUniverse(),
+  getActiveId: () => state.activeTimelineRequestId,
+  getActiveTurnId: () => state.activeId,
+  promptFor: requestNavigationPrompt,
+  translate: t,
+  escapeHtml,
+  onJump: jumpToRequest,
+  onActiveChange: markActiveTimelineRequest,
 });
 const traceTimelineController = new TraceTimelineController({
   queryElement: els.traceQueryBar,
@@ -262,29 +282,18 @@ const traceTimelineController = new TraceTimelineController({
     jumpToTurn(turnId, true);
   },
   onRaw({ requestId, section, mode }) {
+    state.toolOriginReturnContext = null;
+    markActiveTimelineRequest(requestId, false);
     rawInspectorController.show(requestId, section, { mode });
   },
+  onToolOriginJump: showToolOrigin,
   onRequestJump: jumpToRequest,
   onAgentBranchJump: jumpToAgentBranch,
-  onAgentBranchToggle: toggleAgentBranch,
+  onAgentBranchSelect: selectAgentBranch,
+  onAgentDashboardToggle: toggleAgentDashboard,
   onSupportingTimelineToggle(turnId) {
     if (state.openSupportingTimelines.has(turnId)) state.openSupportingTimelines.delete(turnId);
     else state.openSupportingTimelines.add(turnId);
-    renderTimelineSurface();
-  },
-  onAgentDashboardToggle(turnId) {
-    if (state.openAgentDashboards.has(turnId)) state.openAgentDashboards.delete(turnId);
-    else state.openAgentDashboards.add(turnId);
-    renderTimelineSurface();
-  },
-  onAgentBranchMore(turnId) {
-    const current = state.agentBranchLimits.get(turnId) || AGENT_BRANCH_PAGE_SIZE;
-    state.agentBranchLimits.set(turnId, current + AGENT_BRANCH_PAGE_SIZE);
-    renderTimelineSurface();
-  },
-  onAgentStatusFilter({ turnId, filter }) {
-    state.agentBranchFilters.set(turnId, filter);
-    state.agentBranchLimits.set(turnId, AGENT_BRANCH_PAGE_SIZE);
     renderTimelineSurface();
   },
   onSystemDiff: showSystemDiff,
@@ -322,10 +331,10 @@ const translationCacheController = new TranslationCacheController({
 });
 requestDetailCache = new RequestDetailCache({
   loadDetail: async (sourceId, requestId) => (await api.requestDetail(sourceId, requestId)).request,
-  onLoaded: async (fullRequest) => {
+  onLoaded: (fullRequest) => {
     const { request, data } = sourceTimelineController.mergeRequestDetail(fullRequest);
     if (data) state.data = data;
-    await rebuildTranslationLookupForCurrentData();
+    scheduleTranslationLookupRefresh();
     return request;
   },
   onCached: (fullRequest) => {
@@ -432,8 +441,11 @@ const paneLayoutController = new PaneLayoutController({
   getLayoutState: () => state,
   setLayout: (patch, options) => clientStore.setLayout(patch, options),
   translate: t,
-  onLayoutChanged: () => turnRailController.scheduleActiveSync(),
-  onWindowResize: renderTurnRail,
+  onLayoutChanged: () => {
+    turnRailController.scheduleActiveSync();
+    requestRailController.scheduleActiveSync();
+  },
+  onWindowResize: renderNavigationRails,
 });
 const rawInspectorController = new RawInspectorController({
   root: els.rawTree,
@@ -477,6 +489,7 @@ const activeSourceController = new ActiveSourceController({
   captureScroll: captureMainPanelScroll,
   setData(data) {
     state.data = data;
+    rebuildTimelineToolOriginIndex(data);
   },
   presentLoadedData: applyLoadedSourceData,
   presentRefreshedData: applyRefreshedSourceData,
@@ -493,7 +506,9 @@ const activeSourceController = new ActiveSourceController({
 });
 clientStore.subscribe((change) => {
   if (change.changedKeys.includes("activeId")) syncActiveTurnDom(change.state.activeId);
-  if (change.changedKeys.includes("activeRequestId")) syncActiveRequestDom(change.state.activeRequestId);
+  if (change.changedKeys.includes("activeTimelineRequestId")) {
+    syncActiveRequestDom(change.state.activeTimelineRequestId);
+  }
 });
 
 init();
@@ -545,6 +560,13 @@ async function init() {
   rawSearchController.bind();
   traceTimelineController.bind();
   els.rawTree.addEventListener("click", (event) => {
+    const lazyPayloadButton = event.target.closest("[data-lazy-payload-ref]");
+    if (lazyPayloadButton && els.rawTree.contains(lazyPayloadButton)) {
+      event.preventDefault();
+      event.stopPropagation();
+      loadLazyPayloadForButton(lazyPayloadButton);
+      return;
+    }
     const retranslateButton = event.target.closest("[data-translation-retranslate]");
     if (retranslateButton && els.rawTree.contains(retranslateButton)) {
       event.preventDefault();
@@ -593,6 +615,13 @@ async function init() {
       translationActionController.copySection(copyAllButton.dataset.translationCopyAll, copyAllButton);
       return;
     }
+    const toolOriginReturn = event.target.closest("[data-tool-origin-return]");
+    if (toolOriginReturn && els.rawTree.contains(toolOriginReturn)) {
+      event.preventDefault();
+      event.stopPropagation();
+      restoreToolOriginResult();
+      return;
+    }
     const button = event.target.closest("[data-raw]");
     if (!button || !els.rawTree.contains(button)) return;
     rawInspectorController.show(button.dataset.raw, button.dataset.rawSection || "full", { mode: button.dataset.rawMode || "request" });
@@ -613,6 +642,7 @@ async function init() {
     });
   });
   turnRailController.bind();
+  requestRailController.bind();
   paneLayoutController.bind();
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) activeSourceController.refreshLiveData({ force: true });
@@ -627,14 +657,16 @@ function loadSource(sourceId, options = {}) {
 function resetActiveSourceContext() {
   rawInspectorController.invalidate();
   requestDetailCache.clear();
+  if (translationLookupRefreshTimer) window.clearTimeout(translationLookupRefreshTimer);
+  translationLookupRefreshTimer = 0;
+  toolOriginIndex = new Map();
   translationActionController.invalidate();
   translationCacheController.invalidate();
   state.openSupportingTimelines.clear();
-  state.openAgentDashboards.clear();
   state.expandedThinking.clear();
-  state.expandedAgentBranches.clear();
-  state.agentBranchLimits.clear();
-  state.agentBranchFilters.clear();
+  state.selectedAgentBranches.clear();
+  state.openAgentDashboards.clear();
+  state.toolOriginReturnContext = null;
   state.traceQuery = "";
   state.traceFilter = "all";
   state.traceResultLimit = TRACE_RESULT_PAGE_SIZE;
@@ -654,8 +686,11 @@ function applyRefreshedSourceData(data, { wasNearBottom = false, scrollTop = 0 }
   const activeRequestId = data.requests.some((request) => request.id === state.activeRequestId)
     ? state.activeRequestId
     : data.requests.at(-1)?.id || data.requests[0]?.id || null;
+  const activeTimelineRequestId = data.requests.some((request) => request.id === state.activeTimelineRequestId)
+    ? state.activeTimelineRequestId
+    : activeRequestId;
   clientStore.setSelection(
-    { activeSourceId: data.source.id, activeId, activeRequestId },
+    { activeSourceId: data.source.id, activeId, activeRequestId, activeTimelineRequestId },
     { reason: "refresh-source" },
   );
   renderAll();
@@ -669,14 +704,19 @@ function applyRefreshedSourceData(data, { wasNearBottom = false, scrollTop = 0 }
 
 function applyLoadedSourceData(data, { preserveScroll = false, scrollTop = 0 } = {}) {
   state.data = data;
+  rebuildTimelineToolOriginIndex(data);
   const turnIds = activeTurnIds(data);
   const activeId = preserveScroll && turnIds.includes(state.activeId) ? state.activeId : turnIds[0] || null;
   const activeRequestId =
     preserveScroll && data.requests.some((request) => request.id === state.activeRequestId)
       ? state.activeRequestId
       : data.requests[0]?.id || null;
+  const activeTimelineRequestId =
+    preserveScroll && data.requests.some((request) => request.id === state.activeTimelineRequestId)
+      ? state.activeTimelineRequestId
+      : activeRequestId;
   clientStore.setSelection(
-    { activeSourceId: data.source.id, activeId, activeRequestId },
+    { activeSourceId: data.source.id, activeId, activeRequestId, activeTimelineRequestId },
     { reason: "load-source" },
   );
   const url = new URL(window.location.href);
@@ -699,6 +739,35 @@ async function ensureRequestDetailLoaded(requestId) {
   return requestDetailCache.ensure(sourceId, request);
 }
 
+async function loadLazyPayloadForButton(button) {
+  const ref = button?.dataset?.lazyPayloadRef || "";
+  const requestId = state.activeRequestId || "";
+  const sourceId = state.data?.source?.id || state.activeSourceId || "";
+  if (!ref || !requestId || !sourceId) return;
+  const status = button.closest(".lazy-payload-placeholder")?.querySelector("[data-lazy-payload-status]");
+  button.disabled = true;
+  button.textContent = t("lazyPayloadLoading");
+  if (status) status.textContent = "";
+  const key = `${sourceId}\n${requestId}\n${ref}`;
+  let promise = lazyPayloadPromises.get(key);
+  if (!promise) {
+    promise = api.requestPayload(sourceId, requestId, ref).finally(() => lazyPayloadPromises.delete(key));
+    lazyPayloadPromises.set(key, promise);
+  }
+  try {
+    const response = await promise;
+    if ((state.data?.source?.id || state.activeSourceId || "") !== sourceId) return;
+    const updated = requestDetailCache.update(requestId, (detail) => hydrateLazyPayload(detail, ref, response.payload));
+    if (!updated) throw new Error(t("lazyPayloadDetailUnavailable"));
+    rawSearchController.contextChanged();
+    await rawInspectorController.refresh();
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = t("lazyPayloadRetry");
+    if (status) status.textContent = t("lazyPayloadLoadFailed", { message: error.message });
+  }
+}
+
 async function ensureDetailsForRawSection(request, section) {
   await ensureRequestDetailLoaded(request.id);
   if (section === "system_diff") {
@@ -710,6 +779,21 @@ async function ensureDetailsForRawSection(request, section) {
 
 async function rebuildTranslationLookupForCurrentData() {
   await translationCacheController.refreshLookup(state.data?.requests || []);
+}
+
+function scheduleTranslationLookupRefresh() {
+  if (translationLookupRefreshTimer) return;
+  translationLookupRefreshTimer = window.setTimeout(async () => {
+    translationLookupRefreshTimer = 0;
+    try {
+      await rebuildTranslationLookupForCurrentData();
+      if (state.activeRequestId && !els.rawTree.classList.contains("empty")) {
+        await rawInspectorController.refresh();
+      }
+    } catch (error) {
+      console.warn("peekMyAgent detail translation lookup refresh failed", error);
+    }
+  }, 0);
 }
 
 async function loadTranslationsForActiveSource({ autoRefresh = true, data = state.data } = {}) {
@@ -759,7 +843,7 @@ async function writeClipboard(text, button) {
 }
 
 function sectionTranslationMaterials(request, section) {
-  if (!["system", "tools", "harness"].includes(section)) return [];
+  if (!["system", "developer", "tools", "harness", "response"].includes(section)) return [];
   return translationMaterialsForRequest(request, {
     section,
     extractHarnessParts: extractClientHarnessTranslationParts,
@@ -1028,8 +1112,9 @@ function renderTimelineSurface({ updateViewControls = true } = {}) {
         : renderTraceNoResultsView({ translate: t, escapeHtml })
       : renderEmptyTimelineView({ summary: source.workbench, translate: t, escapeHtml }),
     activeTurnId: state.activeId,
-    activeRequestId: state.activeRequestId,
+    activeRequestId: state.activeTimelineRequestId,
   });
+  renderNavigationRails();
 }
 
 function renderComposerSurface() {
@@ -1251,8 +1336,25 @@ function renderTurnRail() {
   turnRailController.render();
 }
 
+function renderRequestRail() {
+  requestRailController.render();
+}
+
+function renderNavigationRails() {
+  renderTurnRail();
+  renderRequestRail();
+}
+
 function railTurnUniverse(data = state.data) {
   return currentTimelineView(data).railTurns.filter((turn) => turn.kind !== "independent_background");
+}
+
+function activeTurnRequestUniverse() {
+  const timelineView = currentTimelineView();
+  const turn = [...(timelineView.turnWindow?.turns || []), ...(timelineView.filteredTurns || [])]
+    .find((item) => item.id === state.activeId);
+  if (!turn) return [];
+  return mainTimelineRequestsForTurn(turn, new Map((state.data?.requests || []).map((request) => [request.id, request])));
 }
 
 function activeTurnIds(data = state.data) {
@@ -1264,15 +1366,21 @@ function turnTitleText(turn) {
   return cleanDisplayText(turn.user_input || turn.title || `#${turn.first_request_index || ""}-${turn.last_request_index || ""}`) || `Turn ${turn.index}`;
 }
 
-function turnExcerptText(turn) {
-  const parts = [
-    turn.command_message ? commandMessagePreview(turn.command_message) : turn.user_input ? shortPreview(cleanDisplayText(turn.user_input), 150) : "",
-    t("turnRequests", { count: turn.request_count || turn.request_ids?.length || 0 }),
-    turn.internal_request_count ? t("turnInternal", { count: turn.internal_request_count }) : "",
-    turn.tool_call_count || turn.tool_result_count ? t("turnTools", { calls: turn.tool_call_count || 0, results: turn.tool_result_count || 0 }) : "",
-    `#${turn.first_request_index || ""}-${turn.last_request_index || ""}`,
-  ].filter(Boolean);
-  return parts.join(" · ");
+function turnNavigationPrompt(turn) {
+  return turn.command_message
+    ? commandMessagePreview(turn.command_message)
+    : cleanDisplayText(turn.user_input || turn.title || "");
+}
+
+function requestNavigationPrompt(request) {
+  const turn = state.data?.turns?.find((item) => item.id === request.turn_id);
+  const entry = request.summary?.entry;
+  if (request.summary?.command_message) return commandMessagePreview(request.summary.command_message);
+  return cleanDisplayText(
+    request.summary?.current_user ||
+      (entry?.kind === "user_input" ? entry.text : "") ||
+      turnNavigationPrompt(turn || {}),
+  );
 }
 
 function renderNavItem(request) {
@@ -1292,7 +1400,7 @@ function renderNavItem(request) {
 }
 
 function renderTurnGroup(turn, requestMap) {
-  const requests = turn.request_ids.map((id) => requestMap.get(id)).filter(Boolean);
+  const requests = mainTimelineRequestsForTurn(turn, requestMap);
   if (turn.kind === "independent_background") return renderIndependentBackgroundGroup(turn, requests);
   if (turn.trace_filter_active) {
     return `
@@ -1304,7 +1412,7 @@ function renderTurnGroup(turn, requestMap) {
           </div>
         </header>
         ${traceFilterShowsMechanismStory(turn.trace_filter) ? renderTurnStoryForTurn(turn, requestMap) : ""}
-        ${turn.trace_filter === "subagents" ? renderAgentBranchesForTurn(turn) : ""}
+        ${(turn.agent_branches || []).length ? renderAgentBranchesForTurn(turn) : ""}
         <div class="turn-request-list trace-match-requests">${requests.map(renderTurnRequest).join("")}</div>
       </section>
     `;
@@ -1326,16 +1434,42 @@ function renderTurnGroup(turn, requestMap) {
         </div>
       </header>
       ${renderTurnStoryForTurn(turn, requestMap)}
-      ${
-        primaryRequests.length
-          ? `<div class="turn-request-list primary-requests">${primaryRequests.map((request) => renderTurnRequest(request, request.id === lead?.id ? turn : null)).join("")}</div>`
-          : ""
-      }
-      ${renderAgentBranchesForTurn(turn)}
+      ${renderPrimaryRequestsWithAgentDashboard(primaryRequests, lead, turn)}
       ${responseRequests.length ? `<div class="turn-request-list response-requests">${responseRequests.map(renderTurnRequest).join("")}</div>` : ""}
       ${renderSupportingRequests(supportingRequests, turn.id)}
     </section>
   `;
+}
+
+function renderPrimaryRequestsWithAgentDashboard(primaryRequests, lead, turn) {
+  const hasAgents = Boolean((turn.agent_branches || []).length);
+  if (!primaryRequests.length) return hasAgents ? renderAgentBranchesForTurn(turn) : "";
+  if (!hasAgents) {
+    return `<div class="turn-request-list primary-requests">${primaryRequests.map((request) => renderTurnRequest(request, request.id === lead?.id ? turn : null)).join("")}</div>`;
+  }
+  const [firstRequest, ...remainingRequests] = primaryRequests;
+  return `
+    <div class="turn-request-list primary-requests">${renderTurnRequest(firstRequest, firstRequest.id === lead?.id ? turn : null)}</div>
+    ${renderAgentBranchesForTurn(turn)}
+    ${remainingRequests.length ? `<div class="turn-request-list primary-requests">${remainingRequests.map(renderTurnRequest).join("")}</div>` : ""}
+  `;
+}
+
+function mainTimelineRequestsForTurn(turn, requestMap) {
+  const childRequestIds = childRequestIdsForTurn(turn);
+  return (turn.request_ids || [])
+    .map((id) => requestMap.get(id))
+    .filter((request) => request && !childRequestIds.has(request.id));
+}
+
+function childRequestIdsForTurn(turn) {
+  const branchIds = new Set(turn?.agent_branches || []);
+  const ids = new Set();
+  for (const branch of state.data?.agent_trace?.branches || []) {
+    if (!branchIds.has(branch.id)) continue;
+    for (const requestId of branch.request_ids || []) ids.add(requestId);
+  }
+  return ids;
 }
 
 function renderIndependentBackgroundGroup(turn, requests) {
@@ -1396,17 +1530,37 @@ function renderAgentBranchesForTurn(turn) {
   const view = buildAgentGraphView({
     turn,
     trace,
+    selectedBranchId: state.selectedAgentBranches.get(turn.id) || null,
     dashboardOpen: state.openAgentDashboards.has(turn.id),
-    activeFilter: state.agentBranchFilters.get(turn.id) || "all",
-    branchLimit: state.agentBranchLimits.get(turn.id) || AGENT_BRANCH_PAGE_SIZE,
-    expandedBranchIds: state.expandedAgentBranches,
   });
+  const selectedRequestIds = view?.selectedBranch?.branch?.request_ids || [];
+  const selectedTimelineHtml = view?.dashboardOpen ? selectedRequestIds
+    .map((requestId) => currentRequestById(requestId))
+    .filter(Boolean)
+    .map((request) => renderRequestCard(request, { includeSubagentContent: true }))
+    .join("") || "" : "";
   return renderAgentGraphView(view, {
     translate: t,
     escapeHtml,
-    shortId,
     shortPreview,
+    selectedTimelineHtml,
   });
+}
+
+function renderAgentBranchesForTurnInPlace(turn) {
+  const current = els.timeline.querySelector(`[data-agent-dashboard="${cssEscape(turn.id)}"]`);
+  if (!current) return false;
+  current.outerHTML = renderAgentBranchesForTurn(turn);
+  traceTimelineController.syncActiveRequest(state.activeTimelineRequestId);
+  return true;
+}
+
+function toggleAgentDashboard(turnId) {
+  if (!turnId) return;
+  if (state.openAgentDashboards.has(turnId)) state.openAgentDashboards.delete(turnId);
+  else state.openAgentDashboards.add(turnId);
+  const turn = state.data?.turns?.find((item) => item.id === turnId);
+  if (!turn || !renderAgentBranchesForTurnInPlace(turn)) renderTimelineSurface();
 }
 
 function requestAgentBranchStatusLabel(status) {
@@ -1424,7 +1578,8 @@ function renderRequestAgentBranchStat(request) {
   const branch = request.trace?.agent_branch;
   const agentId = branch?.agent_id || request.trace?.agent_instance_id || request.trace?.claude_agent_id || null;
   if (!agentId && !request.is_subagent) return "";
-  const label = branch?.index ? `${t("subagentShort")}${branch.index}` : t("subagentShort");
+  const fallbackLabel = branch?.index ? `${t("subagentShort")}${branch.index}` : t("subagentShort");
+  const label = cleanDisplayText(branch?.label || "") ? shortPreview(cleanDisplayText(branch.label), 28) : fallbackLabel;
   const titleParts = [
     branch?.label ? t("branchTooltipLabel", { label: branch.label }) : "",
     branch?.agent_type ? t("typeTooltipLabel", { type: branch.agent_type }) : "",
@@ -1439,7 +1594,11 @@ function renderRequestAgentBranchStat(request) {
   return `<span class="stat-chip subagent" title="${title}">${text}</span>`;
 }
 
-function renderUpstreamEntry(request, evidenceView = buildRequestEvidenceView(request, { translate: t })) {
+function renderUpstreamEntry(
+  request,
+  evidenceView = buildRequestEvidenceView(request, { translate: t }),
+  { includeSubagentContent = false } = {},
+) {
   const expanded = !isTimelineSemanticEvent(request) && state.upstreamExpanded.has(request.id);
   const meta = renderProviderUsageStats(request);
   const view = buildTimelineUpstreamView(request, {
@@ -1448,6 +1607,7 @@ function renderUpstreamEntry(request, evidenceView = buildRequestEvidenceView(re
     preview: shortPreview,
     serialize: stableJson,
     formatCompactNumber,
+    includeSubagentContent,
   });
   return renderTimelineUpstreamEntryView({
     entry: {
@@ -1495,7 +1655,9 @@ function renderRequestCard(request, options = {}) {
     upstreamOpen,
     upstreamEntryHtml: options.turnInput
       ? renderTurnInputEntry(request, options.turnInput, evidenceView)
-      : renderUpstreamEntry(request, evidenceView),
+      : renderUpstreamEntry(request, evidenceView, {
+          includeSubagentContent: Boolean(options.includeSubagentContent),
+        }),
     upstreamBodyHtml: upstreamOpen ? renderUpstreamDetailsBody(request) : renderCollapsedUpstreamPlaceholder(request),
     toolExchangeHtml: toolExchange,
     assistantResponseHtml: assistantResponse,
@@ -1579,27 +1741,19 @@ function renderToolExchange(request) {
   if (!view) return "";
   return renderTimelineToolExchangeView({
     requestId: request.id,
+    requestIndex: request.request_index,
     pairs: view.pairs,
-    counts: view.counts,
     translate: t,
     escapeHtml,
   });
 }
 
 function priorTimelineToolCalls(request) {
-  const requestIndex = Number(request?.request_index || 0);
-  const callsById = new Map();
-  for (const candidate of state.data?.requests || []) {
-    if (Number(candidate?.request_index || 0) >= requestIndex) continue;
-    const calls = [
-      ...(candidate?.summary?.current_tool_calls || []),
-      ...(candidate?.summary?.response?.tool_calls || []),
-    ];
-    for (const call of calls) {
-      if (call?.id) callsById.set(call.id, call);
-    }
-  }
-  return [...callsById.values()];
+  return toolOriginIndex.get(request?.id) || [];
+}
+
+function rebuildTimelineToolOriginIndex(data = state.data) {
+  toolOriginIndex = buildTimelineToolOriginIndex(data?.requests || []);
 }
 
 function renderAssistantResponse(request) {
@@ -1628,7 +1782,7 @@ function renderAssistantResponse(request) {
 
 function buildAssistantThinkingView(thinking, request) {
   if (!thinking?.text) return null;
-  const translation = translatedTextFor("assistant_thinking", thinking.text);
+  const translation = translatedTextForKind(translatedTextFor, "assistant_thinking", thinking.text);
   const actionId = translationActionController.registerAction({
     kind: "assistant_thinking",
     sourceText: thinking.text,
@@ -1685,35 +1839,71 @@ function jumpToRequest(requestId) {
   if (!requestId) return;
   const request = state.data?.requests?.find((item) => item.id === requestId);
   if (!request) return;
-  if (request.turn_id && request.turn_id !== state.activeId) jumpToTurn(request.turn_id, false);
-  if (!els.timeline.querySelector(`[data-card="${cssEscape(requestId)}"]`) && request.turn_id) {
-    state.openSupportingTimelines.add(request.turn_id);
-    renderTimelineSurface();
+  let needsRender = false;
+  if (request.turn_id && request.turn_id !== state.activeId) {
+    clientStore.setSelection({ activeId: request.turn_id }, { reason: "jump-to-request-turn" });
+    needsRender = true;
   }
-  markActiveRequest(requestId, true);
+  const agentBranch = agentBranchForRequest(requestId);
+  if (agentBranch && request.turn_id) {
+    if (!state.openAgentDashboards.has(request.turn_id)) {
+      state.openAgentDashboards.add(request.turn_id);
+      needsRender = true;
+    }
+    if (state.selectedAgentBranches.get(request.turn_id) !== agentBranch.id) {
+      state.selectedAgentBranches.set(request.turn_id, agentBranch.id);
+      needsRender = true;
+    }
+  }
+  if (!needsRender && !els.timeline.querySelector(`[data-card="${cssEscape(requestId)}"]`) && request.turn_id) {
+    state.openSupportingTimelines.add(request.turn_id);
+    needsRender = true;
+  }
+  if (needsRender) renderTimelineSurface();
+  markActiveTimelineRequest(requestId, true);
+}
+
+function agentBranchForRequest(requestId) {
+  return (state.data?.agent_trace?.branches || []).find((branch) => (branch.request_ids || []).includes(requestId)) || null;
+}
+
+function showToolOrigin({ originRequestId, resultRequestId, resultRequestIndex, callId } = {}) {
+  if (!originRequestId || !resultRequestId) return;
+  const originRequest = currentRequestById(originRequestId);
+  const resultRequest = currentRequestById(resultRequestId);
+  if (!originRequest || !resultRequest) return;
+  state.toolOriginReturnContext = {
+    originRequestId,
+    resultRequestId,
+    resultRequestIndex: Number(resultRequestIndex || resultRequest.request_index || 0),
+    callId: callId || "",
+  };
+  jumpToRequest(originRequestId);
+  rawInspectorController.show(originRequestId, "tool_calls", { mode: "response" });
+}
+
+function restoreToolOriginResult() {
+  const context = state.toolOriginReturnContext;
+  if (!context?.resultRequestId) return;
+  state.toolOriginReturnContext = null;
+  jumpToRequest(context.resultRequestId);
+  rawInspectorController.show(context.resultRequestId, "tool_results", { mode: "request" });
 }
 
 function jumpToAgentBranch(branchId) {
   if (!branchId) return;
   const turn = state.data?.turns?.find((item) => (item.agent_branches || []).includes(branchId));
+  let needsRender = false;
   if (turn) {
-    clientStore.setSelection({ activeId: turn.id }, { reason: "jump-to-agent-branch" });
-    state.openAgentDashboards.add(turn.id);
-    state.agentBranchFilters.set(turn.id, "all");
-    const sortedBranchIds = (state.data?.agent_trace?.branches || [])
-      .filter((item) => (turn.agent_branches || []).includes(item.id))
-      .sort((left, right) => Number(left.first_request_index || 0) - Number(right.first_request_index || 0))
-      .map((item) => item.id);
-    const branchIndex = sortedBranchIds.indexOf(branchId);
-    if (branchIndex >= 0) {
-      state.agentBranchLimits.set(turn.id, Math.max(AGENT_BRANCH_PAGE_SIZE, Math.ceil((branchIndex + 1) / AGENT_BRANCH_PAGE_SIZE) * AGENT_BRANCH_PAGE_SIZE));
+    if (state.activeId !== turn.id) {
+      clientStore.setSelection({ activeId: turn.id }, { reason: "jump-to-agent-branch" });
+      needsRender = true;
     }
+    state.selectedAgentBranches.set(turn.id, branchId);
+    state.openAgentDashboards.add(turn.id);
   }
-  if (!state.expandedAgentBranches.has(branchId)) {
-    state.expandedAgentBranches.add(branchId);
-  }
-  renderTimelineSurface();
-  const target = document.querySelector(`[data-branch="${cssEscape(branchId)}"]`);
+  if (needsRender || !turn || !renderAgentBranchesForTurnInPlace(turn)) renderTimelineSurface();
+  const target = document.querySelector(`[data-agent-selected-branch="${cssEscape(branchId)}"]`);
   if (!target) return;
   const turnElement = target.closest("[data-turn-group]");
   if (turnElement?.dataset.turnGroup && turnElement.dataset.turnGroup !== state.activeId) markActiveTurn(turnElement.dataset.turnGroup, false);
@@ -1722,11 +1912,13 @@ function jumpToAgentBranch(branchId) {
   setTimeout(() => target.classList.remove("focus"), 1800);
 }
 
-function toggleAgentBranch(branchId) {
+function selectAgentBranch(branchId) {
   if (!branchId) return;
-  if (state.expandedAgentBranches.has(branchId)) state.expandedAgentBranches.delete(branchId);
-  else state.expandedAgentBranches.add(branchId);
-  renderTimelineSurface();
+  const turn = state.data?.turns?.find((item) => (item.agent_branches || []).includes(branchId));
+  if (!turn) return;
+  state.selectedAgentBranches.set(turn.id, branchId);
+  state.openAgentDashboards.add(turn.id);
+  if (!renderAgentBranchesForTurnInPlace(turn)) renderTimelineSurface();
 }
 
 function scrollElementIntoView(target, { blockOffset = 0 } = {}) {
@@ -1828,26 +2020,28 @@ function toggleResponseExpansion(requestId) {
 function markActiveTurn(id, scroll) {
   clientStore.setSelection({ activeId: id }, { reason: "mark-active-turn" });
   const target = document.getElementById(id);
-  if (scroll) target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (scroll) target?.scrollIntoView({ behavior: "auto", block: "start" });
 }
 
 function syncActiveTurnDom(id) {
-  renderTurnRail();
+  renderNavigationRails();
   els.turnRail.querySelectorAll("[data-turn]").forEach((button) => button.classList.toggle("active", button.dataset.turn === id));
   traceTimelineController.syncActiveTurn(id);
 }
 
-function markActiveRequest(id, scroll) {
-  clientStore.setSelection({ activeRequestId: id }, { reason: "mark-active-request" });
+function markActiveTimelineRequest(id, scroll) {
+  clientStore.setSelection({ activeTimelineRequestId: id }, { reason: "mark-active-timeline-request" });
   const target = document.getElementById(id);
-  if (scroll) target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (scroll) target?.scrollIntoView({ behavior: "auto", block: "start" });
 }
 
 function syncActiveRequestDom(id) {
   traceTimelineController.syncActiveRequest(id);
+  requestRailController.syncActiveRequest(id);
 }
 
 function showSystemDiff(id) {
+  markActiveTimelineRequest(id, false);
   rawInspectorController.show(id, "system_diff");
 }
 
@@ -1932,13 +2126,25 @@ function renderRawStickyControls(request, section, mode = "request") {
       ? renderResponseRawNavigation({ request, activeSection: section, translate: t, escapeHtml })
       : renderRequestRawNavigation({ request, activeSection: section, hasPrevious: Boolean(previousRequest(request)), translate: t, escapeHtml });
   return renderRawStickyControlsView({
-    navigation,
+    navigation: `${renderToolOriginReturnAction(request)}${navigation}`,
     searchControls: renderRawSearchControls(request, section, mode),
-    viewControls:
-      renderTranslationControls(request, section) ||
-      renderMessagesControls(section) ||
+    viewControls: [
+      renderTranslationControls(request, section),
+      renderMessagesControls(section),
       renderMetadataControls(section),
+    ].filter(Boolean).join(""),
   });
+}
+
+function renderToolOriginReturnAction(request) {
+  const context = state.toolOriginReturnContext;
+  if (!context || request?.id !== context.originRequestId) return "";
+  return `
+    <div class="tool-origin-return-context">
+      <span>${escapeHtml(t("toolOriginContext", { callId: context.callId || t("emptyNotRecorded") }))}</span>
+      <button type="button" data-tool-origin-return="${escapeHtml(context.resultRequestId)}">${escapeHtml(t("toolOriginReturn", { index: context.resultRequestIndex || "?" }))}</button>
+    </div>
+  `;
 }
 
 function renderResponseOnlyToolsSchemaSection(request) {
@@ -2039,6 +2245,14 @@ function highlightSearchSnippet(text, query) {
 
 function renderRawSectionContent(request, section, sectionData) {
   if (section === "metadata") return renderMetadataSection(request, sectionData);
+  if (section === "protocol") {
+    if (normalizedRawSearchQuery()) return renderRawSearchResults(request, section, state.activeRawMode || "request");
+    return renderProtocolExchangeView(buildProtocolExchangeView(request), {
+      translate: t,
+      escapeHtml,
+      formatNumber: formatCompactNumber,
+    });
+  }
   if (["developer", "history", "message", "messages", "tool_results"].includes(section)) {
     return renderMessagesSection(request, section, sectionData.value);
   }
@@ -2099,6 +2313,7 @@ function renderMessagesSection(request, section, messagesValue) {
         ? [request.request_index]
         : requestIndexes;
   return renderMessagesSectionView({
+    section,
     messagesValue,
     timelineRequestIndexes,
     preserveHarnessText: section === "developer",
@@ -2111,6 +2326,7 @@ function renderMessagesSection(request, section, messagesValue) {
     renderJson,
     formatNumber: formatCompactNumber,
     translatedTextFor,
+    displayTranslation: state.translationMode === currentTargetLanguage(),
     targetLanguageLabel: currentTargetLanguageLabel(),
     translationLoading: Boolean(state.translationGenerate.loading),
     registerTranslationAction: (action) =>
@@ -2226,6 +2442,9 @@ function translationKindLabel(kind) {
   if (kind === "system_prompt") return "System";
   if (kind === "system_injected_context") return t("systemInjectedContext");
   if (kind === "assistant_thinking") return "Thinking";
+  if (kind === "assistant_reasoning") return t("protocolSemanticReasoning");
+  if (kind === "assistant_response") return t("messageModelResponse");
+  if (kind === "developer_instruction") return t("protocolSemanticInstruction");
   if (kind === "harness_reminder") return t("harnessReminder");
   if (kind === "harness_compact") return t("harnessCompact");
   if (kind === "harness_command") return t("harnessCommand");
@@ -2267,6 +2486,7 @@ function rawSectionLabel(section, request = null) {
   if (requestHasSemanticEvent(request)) return section === "metadata" ? t("rawEventMetadata") : t("rawEventSource");
   const labels = {
     full: t(requestUsesReconstructedUpstream(request) ? "rawReconstructedRequest" : "rawFull"),
+    protocol: t("rawProtocol"),
     system: "System",
     developer: t("rawDeveloper"),
     system_diff: "System diff",
@@ -2331,24 +2551,9 @@ function systemTextFromRequest(request) {
 }
 
 function collectTranslationMaterials(request) {
-  return [
-    ...translationMaterialsForRequest(request, {
-      extractHarnessParts: extractClientHarnessTranslationParts,
-    }),
-    ...collectResponseTranslationMaterials(request),
-  ];
-}
-
-function collectResponseTranslationMaterials(request) {
-  const thinking = normalizeTranslationText(request.summary?.response?.thinking || "");
-  if (!thinking) return [];
-  return [
-    {
-      kind: "assistant_thinking",
-      source_text: thinking,
-      metadata: { source: "response.thinking" },
-    },
-  ];
+  return translationMaterialsForRequest(request, {
+    extractHarnessParts: extractClientHarnessTranslationParts,
+  });
 }
 
 function extractClientHarnessTranslationParts(messages, context = {}) {
@@ -2374,6 +2579,7 @@ async function materialHash(kind, sourceText) {
 }
 
 function renderJson(value, key) {
+  if (isLazyPayload(value)) return renderLazyPayload(value, key);
   if (Array.isArray(value)) {
     const summary = `[${value.length}]`;
     return `<details open><summary>${key ? `<span class="json-key">${escapeHtml(key)}</span>: ` : ""}${summary}</summary><div class="json-node">${value.map((item, index) => renderJson(item, String(index))).join("")}</div></details>`;
@@ -2383,6 +2589,49 @@ function renderJson(value, key) {
     return `<details open><summary>${key ? `<span class="json-key">${escapeHtml(key)}</span>: ` : ""}{${keys.length}}</summary><div class="json-node">${keys.map((itemKey) => renderJson(value[itemKey], itemKey)).join("")}</div></details>`;
   }
   return `<div>${key ? `<span class="json-key">${escapeHtml(key)}</span>: ` : ""}${renderPrimitive(value)}</div>`;
+}
+
+function renderLazyPayload(payload, key) {
+  const kindLabel = payload.kind === "image" ? t("lazyPayloadImage") : payload.kind === "json" ? t("lazyPayloadJson") : t("lazyPayloadText");
+  const metadata = [kindLabel, payload.mime_type, formatByteSize(payload.byte_size)];
+  if (payload.width && payload.height) metadata.push(`${payload.width}×${payload.height}`);
+  if (payload.token_estimate) metadata.push(t("lazyPayloadTokens", { count: formatCompactNumber(payload.token_estimate) }));
+  if (payload.sha256) metadata.push(`sha256:${String(payload.sha256).slice(0, 12)}`);
+  const prefix = key ? `<span class="json-key">${escapeHtml(key)}</span>: ` : "";
+  if (payload.load_state === "loaded") {
+    const loaded = payload.kind === "image" ? renderLoadedLazyImage(payload) : renderLoadedLazyText(payload);
+    return `<div class="lazy-payload loaded">${prefix}<span class="lazy-payload-meta">${escapeHtml(metadata.filter(Boolean).join(" · "))}</span>${loaded}</div>`;
+  }
+  const action = payload.kind === "image" ? t("lazyPayloadViewImage") : t("lazyPayloadLoadContent");
+  return `<div class="lazy-payload-placeholder">${prefix}<span class="lazy-payload-meta">${escapeHtml(metadata.filter(Boolean).join(" · "))}</span><button type="button" data-lazy-payload-ref="${escapeHtml(payload.ref)}">${escapeHtml(action)}</button><span class="lazy-payload-status" data-lazy-payload-status aria-live="polite"></span></div>`;
+}
+
+function renderLoadedLazyImage(payload) {
+  const source = lazyImageSource(payload);
+  if (!source) return `<p class="lazy-payload-error">${escapeHtml(t("lazyPayloadUnsafeImage"))}</p>`;
+  return `<figure class="lazy-payload-image"><img src="${escapeHtml(source)}" alt="${escapeHtml(t("lazyPayloadImageAlt"))}" loading="lazy" decoding="async" /></figure>`;
+}
+
+function renderLoadedLazyText(payload) {
+  return `<pre class="lazy-payload-content">${escapeHtml(payload.loaded_value || "")}</pre>`;
+}
+
+function lazyImageSource(payload) {
+  const mimeType = String(payload.mime_type || "").toLowerCase();
+  if (!["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"].includes(mimeType)) return "";
+  const value = String(payload.loaded_value || "");
+  if (payload.encoding === "data_url") {
+    return new RegExp(`^data:${mimeType.replace("+", "\\+")};base64,`, "i").test(value) ? value : "";
+  }
+  if (payload.encoding !== "base64" || !/^[A-Za-z0-9+/=\s]+$/.test(value)) return "";
+  return `data:${mimeType};base64,${value.replace(/\s+/g, "")}`;
+}
+
+function formatByteSize(value) {
+  const bytes = Number(value) || 0;
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
 }
 
 function renderPrimitive(value) {

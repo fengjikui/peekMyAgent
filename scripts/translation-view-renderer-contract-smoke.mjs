@@ -161,6 +161,30 @@ assert.match(toolbar, /2\/3 cached zh-CN/);
 assert.match(toolbar, /class="active" data-translation-mode="zh-CN"/);
 assert.match(toolbar, /data-translation-copy-all="tools"/);
 assert.match(toolbar, /data-tools-schema-filter="invoked"/);
+assert.match(renderTranslationControls({
+  section: "developer",
+  stats: { total: 1, hit: 0, missing: 1 },
+  cacheAvailable: false,
+  generating: false,
+  targetLanguage: "zh-CN",
+  languageLabel: "中文",
+  translationMode: "source",
+  sectionLabel: "Developer",
+  translate,
+  escapeHtml,
+}), /data-translation-section="developer"/);
+assert.match(renderTranslationControls({
+  section: "response",
+  stats: { total: 2, hit: 1, missing: 1 },
+  cacheAvailable: true,
+  generating: false,
+  targetLanguage: "zh-CN",
+  languageLabel: "中文",
+  translationMode: "zh-CN",
+  sectionLabel: "Response",
+  translate,
+  escapeHtml,
+}), /data-translation-section="response"/);
 
 const toolsHtml = renderTranslationSection({ view: toolsView, emptyText: "empty", ...dependencies });
 assert.match(toolsHtml, /tool-translation-group/);
@@ -181,6 +205,74 @@ assert.equal(actionDescriptors[0].materials[1].metadata.field_name, "prompt");
 const sourceToolsHtml = renderTranslationSection({ view: invokedToolsView, emptyText: "empty", ...dependencies });
 assert.match(sourceToolsHtml, /Run a shell command\./);
 assert.doesNotMatch(sourceToolsHtml, /tool-translation-source/);
+
+const namespaceMaterials = [
+  {
+    kind: "tool_description",
+    source_text: "Send a follow-up task.",
+    metadata: {
+      tool_name: "collaboration.followup_task",
+      tool_leaf_name: "followup_task",
+      tool_namespace: "collaboration",
+      tool_namespace_tool_count: 2,
+    },
+  },
+  {
+    kind: "tool_parameter_description",
+    source_text: "Target agent.",
+    metadata: {
+      tool_name: "collaboration.followup_task",
+      tool_leaf_name: "followup_task",
+      tool_namespace: "collaboration",
+      tool_namespace_tool_count: 2,
+      field_name: "target",
+    },
+  },
+  {
+    kind: "tool_description",
+    source_text: "Send a message.",
+    metadata: {
+      tool_name: "collaboration.send_message",
+      tool_leaf_name: "send_message",
+      tool_namespace: "collaboration",
+      tool_namespace_tool_count: 2,
+    },
+  },
+];
+const namespaceView = buildTranslationSectionView({
+  section: "tools",
+  materials: namespaceMaterials,
+  translatedTextFor: () => "",
+  labelForKind: (kind) => kind,
+});
+assert.deepEqual(namespaceView.groups.map((group) => group.toolName), [
+  "collaboration.followup_task",
+  "collaboration.send_message",
+]);
+assert.deepEqual(namespaceView.groups.map((group) => group.toolDisplayName), ["followup_task", "send_message"]);
+assert.equal(namespaceView.groups[0].namespace, "collaboration");
+assert.deepEqual(
+  filterToolTranslationGroupsByName(groupToolTranslationMaterials(namespaceMaterials), new Set(["followup_task"]))
+    .map((group) => group.toolName),
+  ["collaboration.followup_task"],
+  "response tool names can select a qualified namespace leaf by its callable name",
+);
+const namespaceActions = [];
+const namespaceHtml = renderTranslationSection({
+  view: namespaceView,
+  emptyText: "empty",
+  ...dependencies,
+  registerAction: (descriptor) => {
+    namespaceActions.push(descriptor);
+    return `namespace-action-${namespaceActions.length}`;
+  },
+});
+assert.equal((namespaceHtml.match(/class="tool-translation-group"/g) || []).length, 2);
+assert.match(namespaceHtml, /collaboration ·/);
+assert.match(namespaceHtml, />followup_task<\/strong>/);
+assert.match(namespaceHtml, />send_message<\/strong>/);
+assert.doesNotMatch(namespaceHtml, />collaboration\.followup_task<\/strong>/);
+assert.equal(namespaceActions[0].metadata.tool_name, "collaboration.followup_task");
 
 const unsafeHtml = renderTranslationBlock({ block, ...dependencies });
 assert.doesNotMatch(unsafeHtml, /<script>/);

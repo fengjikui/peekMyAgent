@@ -2,6 +2,7 @@ export const VIEWER_CLIENT_STATE_DEFAULTS = Object.freeze({
   activeSourceId: null,
   activeId: null,
   activeRequestId: null,
+  activeTimelineRequestId: null,
   activeRawSection: "full",
   activeRawMode: "request",
   rawMessagesMode: "organized",
@@ -18,7 +19,7 @@ export const VIEWER_CLIENT_STATE_DEFAULTS = Object.freeze({
 });
 
 const DOMAIN_KEYS = Object.freeze({
-  selection: new Set(["activeSourceId", "activeId", "activeRequestId"]),
+  selection: new Set(["activeSourceId", "activeId", "activeRequestId", "activeTimelineRequestId"]),
   rawView: new Set(["activeRawSection", "activeRawMode", "rawMessagesMode", "rawMetadataMode"]),
   appearance: new Set(["theme"]),
   language: new Set(["uiLanguage", "targetTranslationLanguage", "translationMode"]),

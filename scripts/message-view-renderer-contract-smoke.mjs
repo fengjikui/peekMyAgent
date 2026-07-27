@@ -69,6 +69,7 @@ assert.doesNotMatch(dedupedHarness, /permissions instructions|environment_contex
 assert.match(dedupedHarness, /<md>\*\*真实用户消息\*\*<\/md>/);
 
 const developerView = renderMessagesSection({
+  section: "developer",
   messagesValue: [
     { role: "developer", content: [{ type: "input_text", text: "<permissions instructions>Full access.</permissions instructions>" }] },
   ],
@@ -78,6 +79,32 @@ const developerView = renderMessagesSection({
 });
 assert.match(developerView, /role-developer/);
 assert.match(developerView, /permissions instructions/);
+assert.match(developerView, /data-translation-retranslate="translate-developer_instruction"/);
+
+const translatedDeveloperView = renderMessagesSection({
+  section: "developer",
+  messagesValue: [{ role: "developer", content: "Follow repository evidence." }],
+  mode: "organized",
+  preserveHarnessText: true,
+  displayTranslation: true,
+  ...dependencies,
+  translatedTextFor: (kind, sourceText) =>
+    kind === "developer_instruction" && sourceText === "Follow repository evidence." ? "遵循仓库证据。" : "",
+});
+assert.match(translatedDeveloperView, /遵循仓库证据。/);
+assert.match(translatedDeveloperView, /messageTranslatedText/);
+assert.match(translatedDeveloperView, /<summary>source<\/summary>/);
+
+const sourceOnlyHistory = renderMessagesSection({
+  section: "history",
+  messagesValue: [{ role: "user", content: "Do not translate this history item." }],
+  mode: "organized",
+  displayTranslation: true,
+  ...dependencies,
+  translatedTextFor: () => "不应显示",
+});
+assert.match(sourceOnlyHistory, /Do not translate this history item/);
+assert.doesNotMatch(sourceOnlyHistory, /不应显示|data-translation-retranslate/);
 
 const codexCompactHandoff = `Another language model started to solve this problem and produced a summary of its thinking process. You also have access to the state of the tools that were used by that language model. Use this to build on the work that has already been done and avoid duplicating work. Here is the summary produced by the other language model, use the information in this summary to assist with your own analysis:
 **Handoff Summary**
@@ -96,6 +123,23 @@ assert.match(structured, /Bash/);
 assert.match(structured, /call-1/);
 assert.match(structured, /messageParameters/);
 assert.match(structured, /<json>/);
+
+const lazyMarker = {
+  __peekmyagent_lazy_payload__: "peekmyagent.lazy_payload.v1",
+  ref: "payload-ref",
+  kind: "text",
+  encoding: "utf8",
+  byte_size: 8192,
+  sha256: "hash",
+};
+const lazyToolResult = renderMessagesSection({
+  messagesValue: [{ type: "function_call_output", call_id: "call-lazy", output: lazyMarker }],
+  mode: "organized",
+  ...dependencies,
+});
+assert.match(lazyToolResult, /payload-ref/);
+assert.match(lazyToolResult, /<json>/, "organized tool results preserve interactive lazy payload markers");
+assert.doesNotMatch(lazyToolResult, /messageTextFallback/);
 
 const responsesMessages = [
   { type: "message", role: "user", content: [{ type: "input_text", text: "question one" }] },
@@ -155,6 +199,12 @@ const toolSearchMessages = [
             },
           },
           { type: "function", name: "wait_agent", description: "Wait for an agent" },
+          {
+            type: "namespace",
+            name: "mailbox",
+            defer_loading: true,
+            tools: [{ type: "function", name: "send_message", description: "Send a message to an agent" }],
+          },
         ],
       },
     ],
@@ -182,14 +232,16 @@ const toolSearchGroups = organizedMessagesViewModel(toolSearchMessages, { timeli
 assert.equal(toolSearchGroups[0].blocks[0].toolCall.name, "tool_search");
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.name, "tool_search");
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.namespaceCount, 1);
-assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.toolCount, 2);
+assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.toolCount, 3);
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools[0].description, "Spawn an agent with a bounded task.");
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools[0].parameters.required[0], "message");
 assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools[0].parameterDescriptions[0].field_name, "message");
 assert.deepEqual(
   toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools.map((tool) => tool.name),
-  ["spawn_agent", "wait_agent"],
+  ["spawn_agent", "wait_agent", "mailbox.send_message"],
+  "nested namespaces flatten to callable leaves without becoming fake tools",
 );
+assert.equal(toolSearchGroups[1].blocks[0].toolResult.toolSearch.groups[0].tools[2].deferLoading, true);
 const renderedToolSearch = renderMessagesSection({
   messagesValue: toolSearchMessages,
   timelineRequestIndexes: [11, 12],
@@ -328,12 +380,37 @@ assert.equal(normalizeMessageBlocks(responseMessages[0])[0].text, "summarize the
 assert.equal(responseMessages[0].content[1].text, "**Done.**");
 assert.match(
   renderMessagesSection({
+    section: "response",
     messagesValue: responseMessages,
     mode: "organized",
     ...dependencies,
   }),
   /summarize the outputs/,
 );
+
+const translatedResponseHtml = renderMessagesSection({
+  section: "response",
+  messagesValue: responseMessages,
+  mode: "organized",
+  displayTranslation: true,
+  ...dependencies,
+  translatedTextFor: (kind) =>
+    kind === "assistant_reasoning" ? "总结工具输出。" : kind === "assistant_response" ? "完成。" : "",
+});
+assert.match(translatedResponseHtml, /总结工具输出。/);
+assert.match(translatedResponseHtml, /完成。/);
+assert.match(translatedResponseHtml, /translate-assistant_reasoning/);
+assert.match(translatedResponseHtml, /translate-assistant_response/);
+
+const legacyThinkingCacheHtml = renderMessagesSection({
+  section: "response",
+  messagesValue: responseMessages,
+  mode: "organized",
+  displayTranslation: true,
+  ...dependencies,
+  translatedTextFor: (kind) => kind === "assistant_thinking" ? "兼容旧 Thinking 缓存。" : "",
+});
+assert.match(legacyThinkingCacheHtml, /兼容旧 Thinking 缓存。/);
 
 const opaqueReasoningMessages = responseConversationMessages({
   summary: {

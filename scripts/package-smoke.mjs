@@ -63,6 +63,8 @@ for (const required of [
   "src/viewer/metadata-view-model.js",
   "src/viewer/pane-layout-controller.js",
   "src/viewer/pane-layout-model.js",
+  "src/viewer/protocol-exchange-renderer.js",
+  "src/viewer/protocol-exchange-view-model.js",
   "src/viewer/raw-inspector-controller.js",
   "src/viewer/raw-inspector-renderer.js",
   "src/viewer/raw-search-controller.js",
@@ -70,6 +72,7 @@ for (const required of [
   "src/viewer/raw-view-model.js",
   "src/viewer/request-card-model.js",
   "src/viewer/request-card-renderer.js",
+  "src/viewer/request-rail.js",
   "src/viewer/request-detail-cache.js",
   "src/viewer/source-timeline-controller.js",
   "src/viewer/timeline-entity-store.js",
@@ -106,7 +109,9 @@ for (const required of [
   "src/adapters/codex-desktop-managed-session.mjs",
   "src/adapters/codex-desktop-session.mjs",
   "src/server/http.mjs",
+  "src/contracts/lazy-payload.mjs",
   "src/contracts/viewer-api.mjs",
+  "src/server/lazy-payload-service.mjs",
   "src/server/viewer-router.mjs",
   "src/server/viewer-translation-adapter.mjs",
   "src/server/watch-runtime-service.mjs",
@@ -139,6 +144,7 @@ for (const required of [
   "src/trace/request-profile.mjs",
   "src/trace/request-attribution.mjs",
   "src/trace/request-composition.mjs",
+  "src/trace/protocol-exchange.mjs",
   "src/trace/model-response-normalizer.mjs",
   "src/trace/turn-timeline.mjs",
   "src/trace/subagent-graph.mjs",
@@ -199,12 +205,12 @@ const allowedPatterns = [
 const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);
 
-const MAX_PACKAGE_ENTRIES = 148;
-// These limits include the shipped request-attribution runtime and leave less
-// than 0.5% headroom. The entry cap and allowlist remain the primary guards
-// against captures, fixtures, or design documents leaking into the package.
-const MAX_PACKED_BYTES = 357_900;
-const MAX_UNPACKED_BYTES = 1_566_000;
+const MAX_PACKAGE_ENTRIES = 154;
+// These limits include Protocol Exchange, OpenCode continuation identity, and
+// the two explicitly required lazy-payload runtime modules. They leave less
+// than 0.5% headroom; allowlist and denied patterns remain unchanged.
+const MAX_PACKED_BYTES = 383_500;
+const MAX_UNPACKED_BYTES = 1_689_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);
 assert.ok(

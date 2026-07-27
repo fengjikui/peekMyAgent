@@ -47,6 +47,29 @@ Provider 结果在 `SourceRepository` 汇聚后验证；浏览器 `ViewerApiClie
 
 `ViewerTraceProjector` 负责构造请求，Viewer Server 在序列化前验证，`ViewerApiClient.requestDetail()` 在浏览器边界再次验证。契约只约束跨层身份和水合范围，不重复定义 request 内部的 Trace/Response/Raw 语义。
 
+完整详情内部允许出现 `peekmyagent.lazy_payload.v1` marker。其跨端结构和水合规则由[字段级懒加载契约](lazy-payload-contract.md)拥有，不改变 `TraceRequestDetail` 的 request 身份与窗口范围。
+
+## LazyPayloadResponse
+
+`GET /api/request/payload` 要求 `source`、`request` 和服务端签发的 `ref`，返回：
+
+```text
+{
+  request_id: non-empty string,
+  ref: non-empty string,
+  payload: {
+    kind: "image" | "text" | "json",
+    encoding: "base64" | "data_url" | "utf8",
+    mime_type: string | null,
+    byte_size: non-negative integer,
+    sha256: non-empty string,
+    value: string
+  }
+}
+```
+
+Server 不能把 `ref` 当作无条件 JSON path；只有重新投影后仍符合 lazy 资格的字段才能返回。浏览器 `ViewerApiClient.requestPayload()` 在水合缓存前执行共享断言。
+
 ## TraceTimelineResponse
 
 `GET /api/view` 的完整、compact 与 cursor 响应共用一个 envelope 契约：
@@ -71,6 +94,7 @@ Provider 结果在 `SourceRepository` 汇聚后验证；浏览器 `ViewerApiClie
 npm run smoke:viewer-api-dto-contract
 npm run smoke:source-repository-contract
 npm run smoke:viewer-api-client-contract
+npm run smoke:lazy-payload-contract
 npm run smoke:viewer-http-contract
 npm run smoke:timeline-cursor-http
 npm run smoke:trace-bundle

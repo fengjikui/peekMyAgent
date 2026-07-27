@@ -294,6 +294,78 @@ assert.equal(compactCurrentCodexGraph.branch_count, 1);
 assert.equal(compactCurrentCodexGraph.return_count, 1, "truncated wait_agent output retains enough lifecycle evidence");
 assert.deepEqual(compactCurrentCodexGraph.branches[0].request_indexes, [24, 25]);
 
+const nestedSpawnDispatch = toolCall("nested-spawn-dispatch", "exec", "spawn two agents through the nested tool runtime");
+nestedSpawnDispatch.semantic = {
+  kind: "nested_tool_dispatch",
+  nested_tool_names: ["multi_agent_v1__spawn_agent"],
+};
+const nestedWaitDispatch = toolCall("nested-wait-dispatch", "exec", "wait for both nested agents");
+nestedWaitDispatch.semantic = {
+  kind: "nested_tool_dispatch",
+  nested_tool_names: ["multi_agent_v1__wait_agent"],
+};
+const nestedCodexRequests = [
+  request(41, {
+    response: response("nested-parent-spawn", "completed", { tool_calls: [nestedSpawnDispatch] }),
+  }),
+  request(42, {
+    currentToolResults: [
+      {
+        id: nestedSpawnDispatch.id,
+        content:
+          'Script completed\r\nWall time 0.2 seconds\r\nOutput:\r\n{"page":{"agent_id":"nested-page-id","nickname":"Hilbert"},"runtime":{"agent_id":"nested-runtime-id","nickname":"Chandrasekhar"}}',
+      },
+    ],
+    response: response("nested-parent-wait", "completed", { tool_calls: [nestedWaitDispatch] }),
+  }),
+  request(43, {
+    agentInstanceId: "nested-page-id",
+    agentIdentitySource: "client_metadata",
+    messages: [{ role: "user", content: "Inspect index.html without changing it." }],
+    response: response("nested-page-response", "completed", { text: "Page structure inspected." }),
+  }),
+  request(44, {
+    agentInstanceId: "nested-runtime-id",
+    agentIdentitySource: "client_metadata",
+    messages: [{ role: "user", content: "Inspect game.js without changing it." }],
+    response: response("nested-runtime-response", "completed", { text: "Runtime inspected." }),
+  }),
+  request(45, {
+    currentToolResults: [
+      {
+        id: nestedWaitDispatch.id,
+        content:
+          'Script completed\nWall time 0.4 seconds\nOutput:\n{"status":{"nested-page-id":{"completed":"Page structure inspected."},"nested-runtime-id":{"completed":"Runtime inspected."}},"timed_out":false}',
+      },
+    ],
+    response: response("nested-parent-done", "completed", { text: "Both nested agents returned." }),
+  }),
+];
+const nestedCodexGraph = buildSubagentGraph(nestedCodexRequests, semantics);
+assert.equal(nestedCodexGraph.spawn_count, 2, "each exact nested spawn result becomes one observed spawn");
+assert.equal(nestedCodexGraph.branch_count, 2);
+assert.equal(nestedCodexGraph.return_count, 2);
+assert.deepEqual(nestedCodexGraph.branches.map((branch) => branch.label), ["Hilbert", "Chandrasekhar"]);
+assert.deepEqual(nestedCodexGraph.branches.map((branch) => branch.status), ["returned", "returned"]);
+assert.deepEqual(nestedCodexGraph.branches.map((branch) => branch.spawn.parent_request_index), [41, 41]);
+assert.deepEqual(nestedCodexGraph.branches.map((branch) => branch.launch.parent_request_index), [42, 42]);
+assert.deepEqual(nestedCodexGraph.branches.map((branch) => branch.return.parent_request_index), [45, 45]);
+assert.ok(nestedCodexGraph.branches.every((branch) => branch.spawn.evidence === "nested_tool_dispatch"));
+assert.ok(nestedCodexGraph.branches.every((branch) => branch.spawn.task_message_visibility == null));
+assert.ok(nestedCodexGraph.branches.every((branch) => branch.launch.evidence === "nested_tool_result"));
+assert.ok(nestedCodexGraph.branches.every((branch) => branch.return.evidence === "nested_wait_agent"));
+assert.ok(nestedCodexGraph.branches.every((branch) => branch.confidence === "high_agent_id"));
+assert.match(nestedCodexGraph.branches[0].linkage_note, /exec.*spawn_agent/);
+assert.match(nestedCodexGraph.signals.parent_spawn, /exec nested spawn_agent/);
+assert.match(nestedCodexGraph.signals.parent_return, /exec nested wait_agent/);
+assert.deepEqual(nestedCodexRequests[0].trace.spawn_branch_ids, nestedCodexGraph.branches.map((branch) => branch.id));
+assert.deepEqual(nestedCodexRequests[1].trace.launch_branch_ids, nestedCodexGraph.branches.map((branch) => branch.id));
+assert.deepEqual(nestedCodexRequests[4].trace.returned_branch_ids, nestedCodexGraph.branches.map((branch) => branch.id));
+
+const compactNestedCodexGraph = buildSubagentGraph(nestedCodexRequests.map(projectTimelineRequest), semantics);
+assert.deepEqual(compactNestedCodexGraph.branches.map((branch) => branch.label), ["Hilbert", "Chandrasekhar"]);
+assert.deepEqual(compactNestedCodexGraph.branches.map((branch) => branch.status), ["returned", "returned"]);
+
 console.log("subagent graph contract smoke passed");
 
 function request(index, options = {}) {

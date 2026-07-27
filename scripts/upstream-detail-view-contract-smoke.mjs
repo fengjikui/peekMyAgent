@@ -17,6 +17,12 @@ const request = {
     ],
   },
   summary: {
+    protocol_exchange: {
+      protocol: "openai_responses",
+      protocol_label: "OpenAI Responses",
+      request: { counts: { input_items: 8, instruction_blocks: 2, tools: 20, tool_stages: 2 } },
+      response: { counts: { output_items: 3, tool_calls: 1 } },
+    },
     system_preview: "System <contract>",
     tool_names: Array.from({ length: 20 }, (_, index) => `Tool${index + 1}`),
     roles: ["user", "assistant", "user"],
@@ -58,6 +64,16 @@ const request = {
 
 const view = buildUpstreamDetailView(request, { cleanText: (value) => String(value || "").trim() });
 assert.equal(view.requestId, "request-7");
+assert.deepEqual(view.protocol, {
+  id: "openai_responses",
+  label: "OpenAI Responses",
+  upstreamItems: 8,
+  instructionBlocks: 2,
+  tools: 20,
+  toolStages: 2,
+  downstreamItems: 3,
+  toolCalls: 1,
+});
 assert.deepEqual(view.system, { count: 4, preview: "System <contract>", composition: { key: "system", ratio: 0.1, chars: 1200 } });
 assert.equal(view.tools.names.length, 18);
 assert.equal(view.tools.hiddenCount, 2);
@@ -169,6 +185,9 @@ const dependencies = {
 };
 
 const html = renderUpstreamDetail(view, dependencies);
+assert.match(html, /upstream-protocol-summary/);
+assert.match(html, /OpenAI Responses/);
+assert.match(html, /data-raw-section="protocol"/);
 assert.match(html, /systemSummary:count=4/);
 assert.match(html, /System &lt;contract&gt;/);
 assert.match(html, /toolsCount:count=20/);

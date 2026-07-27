@@ -14,7 +14,7 @@ export function renderTranslationControls({
   translate,
   escapeHtml,
 }) {
-  if (!["system", "tools", "harness"].includes(section)) return "";
+  if (!["system", "developer", "tools", "harness", "response"].includes(section)) return "";
   const statusText = cacheAvailable
     ? translate("translationCacheHit", {
         hit: stats.hit,
@@ -54,18 +54,16 @@ export function renderTranslationSection({
     return `
       <section class="tool-translation-list">
         ${view.groups
-          .map((group) =>
-            renderToolTranslationGroup(group, {
-              searchTarget: Boolean(view.query),
-              generating,
-              targetLanguageLabel,
-              translate,
-              escapeHtml,
-              renderMarkdown,
-              renderPre,
-              registerAction,
-            }),
-          )
+          .map((group) => renderToolTranslationGroup(group, {
+            searchTarget: Boolean(view.query),
+            generating,
+            targetLanguageLabel,
+            translate,
+            escapeHtml,
+            renderMarkdown,
+            renderPre,
+            registerAction,
+          }))
           .join("")}
       </section>
     `;
@@ -142,8 +140,8 @@ function renderToolTranslationGroup(group, dependencies) {
     <section class="tool-translation-group" ${searchTarget ? 'data-raw-search-target="true"' : ""}>
       <header class="tool-translation-group-header">
         <div class="tool-translation-group-identity">
-          <strong>${escapeHtml(group.toolName)}</strong>
-          <span>${escapeHtml(group.description ? translate("toolDescriptionCount") : translate("noToolDescription"))} · ${escapeHtml(translate("parameterCount", { count: group.parameters.total }))}</span>
+          <strong title="${escapeHtml(group.toolName)}">${escapeHtml(group.toolDisplayName || group.toolName)}</strong>
+          <span>${group.namespace ? `${escapeHtml(group.namespace)} · ` : ""}${escapeHtml(group.description ? translate("toolDescriptionCount") : translate("noToolDescription"))} · ${escapeHtml(translate("parameterCount", { count: group.parameters.total }))}</span>
         </div>
         <div class="tool-translation-group-actions">
           <span class="translation-cache-state">${escapeHtml(

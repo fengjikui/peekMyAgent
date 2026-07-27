@@ -1,5 +1,7 @@
 import { organizedMessagesViewModel } from "./message-view-model.js";
 
+import { translatedTextForKind } from "./translation-materials.js";
+
 export function renderMessagesControls({ section, mode, translate, escapeHtml }) {
   if (!["developer", "history", "message", "messages", "response", "tool_calls", "tool_results"].includes(section)) return "";
   return `
@@ -13,6 +15,7 @@ export function renderMessagesControls({ section, mode, translate, escapeHtml })
 }
 
 export function renderMessagesSection({
+  section = "",
   messagesValue,
   mode,
   preserveHarnessText = false,
@@ -25,6 +28,7 @@ export function renderMessagesSection({
   renderJson,
   formatNumber,
   translatedTextFor,
+  displayTranslation = false,
   targetLanguageLabel,
   translationLoading,
   registerTranslationAction,
@@ -43,6 +47,8 @@ export function renderMessagesSection({
         renderJson,
         formatNumber,
         translatedTextFor,
+        displayTranslation,
+        section,
         targetLanguageLabel,
         translationLoading,
         registerTranslationAction,
@@ -111,8 +117,38 @@ function renderMessageBlockBody(block, dependencies) {
   )}</summary><div class="json-node">${dependencies.renderJson(block.raw)}</div></details>`;
 }
 
-function renderMessageText(block, { translate, escapeHtml, renderMarkdown, formatNumber }) {
-  return `<div class="raw-message-markdown">${renderMarkdown(block.textPreview.text)}</div>
+function renderMessageText(block, dependencies) {
+  const {
+    translate,
+    escapeHtml,
+    renderMarkdown,
+    formatNumber,
+    translatedTextFor,
+    displayTranslation,
+    targetLanguageLabel,
+    translationLoading,
+    registerTranslationAction,
+    section,
+  } = dependencies;
+  if (block.hasLazyPayload) {
+    return `<div class="json-node raw-message-tool-json">${dependencies.renderJson(block.raw)}</div>`;
+  }
+  const translationKind = messageTranslationKind(block, section);
+  const translatedText = translationKind
+    ? translatedTextForKind(translatedTextFor, translationKind, block.text)
+    : "";
+  const actionId = translationKind && typeof registerTranslationAction === "function"
+    ? registerTranslationAction({
+        kind: translationKind,
+        sourceText: block.text,
+        metadata: { role: block.role, type: block.type, label: `${block.role} · ${block.type}` },
+      })
+    : "";
+  const translatedPreview = translatedText ? previewMessageTranslation(translatedText) : null;
+  const shownTranslation = Boolean(displayTranslation && translatedPreview);
+  const displayed = shownTranslation ? translatedPreview : block.textPreview;
+  if (!translationKind) {
+    return `<div class="raw-message-markdown">${renderMarkdown(block.textPreview.text)}</div>
     ${
       block.textPreview.truncated
         ? `<p class="raw-message-truncation">${escapeHtml(
@@ -123,6 +159,55 @@ function renderMessageText(block, { translate, escapeHtml, renderMarkdown, forma
           )}</p>`
         : ""
     }`;
+  }
+  return `
+    <section class="raw-message-text-translation ${translatedText ? "translated" : "source-only"}">
+      <header>
+        <span>${escapeHtml(
+          shownTranslation && targetLanguageLabel
+            ? translate("messageTranslatedText", { language: targetLanguageLabel })
+            : translate("messageSourceText"),
+        )}</span>
+        ${
+          actionId
+            ? `<button type="button" class="translation-inline-button" data-translation-retranslate="${escapeHtml(actionId)}" ${translationLoading ? "disabled" : ""}>${escapeHtml(translatedText ? translate("retranslate") : translate("translate"))}</button>`
+            : ""
+        }
+      </header>
+      <div class="raw-message-markdown">${renderMarkdown(displayed.text)}</div>
+      ${
+        displayed.truncated
+          ? `<p class="raw-message-truncation">${escapeHtml(
+              translate("messageTextTruncated", {
+                shown: formatNumber(displayed.text.length),
+                total: formatNumber(displayed.originalLength),
+              }),
+            )}</p>`
+          : ""
+      }
+      ${
+        shownTranslation
+          ? `<details><summary>${escapeHtml(translate("source"))}</summary><div class="raw-message-markdown">${renderMarkdown(block.textPreview.text)}</div></details>`
+          : translatedText
+            ? `<p class="raw-message-translation-ready">${escapeHtml(translate("messageTranslationReady", { language: targetLanguageLabel }))}</p>`
+            : ""
+      }
+    </section>
+  `;
+}
+
+function messageTranslationKind(block, section) {
+  if (section === "developer" && block.role === "developer" && block.kind === "text") return "developer_instruction";
+  if (section !== "response" || block.role !== "assistant") return "";
+  if (block.kind === "reasoning") return "assistant_reasoning";
+  if (block.kind === "text") return "assistant_response";
+  return "";
+}
+
+function previewMessageTranslation(text, limit = 5000) {
+  const value = String(text || "");
+  if (value.length <= limit) return { text: value, originalLength: value.length, truncated: false };
+  return { text: `${value.slice(0, limit).trimEnd()}\n\n...`, originalLength: value.length, truncated: true };
 }
 
 function renderToolCall(block, { translate, escapeHtml, renderJson }) {
@@ -140,7 +225,7 @@ function renderToolCall(block, { translate, escapeHtml, renderJson }) {
 }
 
 function renderToolResult(block, dependencies) {
-  const { translate, escapeHtml } = dependencies;
+  const { translate, escapeHtml, renderJson } = dependencies;
   const result = block.toolResult || {};
   return `
     ${
@@ -154,7 +239,9 @@ function renderToolResult(block, dependencies) {
     <div class="raw-message-tool-field">
       <span>${escapeHtml(translate("messageOutput"))}</span>
       ${
-        result.toolSearch
+        result.hasLazyPayload
+          ? `<div class="json-node raw-message-tool-json">${renderJson(block.raw)}</div>`
+          : result.toolSearch
           ? renderToolSearchResult(result.toolSearch, dependencies)
           : `<pre class="raw-message-tool-output">${escapeHtml(result.output || translate("messageTextFallback"))}</pre>`
       }

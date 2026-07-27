@@ -104,6 +104,14 @@ assert.deepEqual(lastCall(calls, "loadRequestDetail").input, {
   requireSource: true,
 });
 
+await route(router, requestCase("/api/request/payload?source=source-a&request=request-9&ref=payload-ref", "GET"));
+assert.deepEqual(lastCall(calls, "loadRequestPayload").input, {
+  sourceId: "source-a",
+  requestId: "request-9",
+  ref: "payload-ref",
+  requireSource: true,
+});
+
 await route(
   router,
   requestCase("/api/capture/otel/events?watch_id=query-watch", "POST", {
@@ -181,6 +189,11 @@ function operationFixture(log, onShutdown) {
     startTimeline: operation("startTimeline", timelineCursorPage("demo-source", { initial: true })),
     nextTimeline: operation("nextTimeline", timelineCursorPage("source-a")),
     loadRequestDetail: operation("loadRequestDetail", { request: { capture_id: "request-9" } }),
+    loadRequestPayload: operation("loadRequestPayload", {
+      request_id: "request-9",
+      ref: "payload-ref",
+      payload: { kind: "text", encoding: "utf8", byte_size: 1, sha256: "hash", value: "x" },
+    }),
   };
 }
 

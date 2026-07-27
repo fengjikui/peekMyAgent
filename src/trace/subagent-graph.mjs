@@ -64,8 +64,9 @@ export function buildSubagentGraph(requests, semantics = {}) {
     }
   }
 
-  const { returns, launches, failedSpawnIds } = collectParentReturnEvidence(requests, spawnCalls, semantics);
-  const spawnCallById = new Map(spawnCalls.map((spawn) => [spawn.id, spawn]));
+  const { returns, launches, nestedSpawns, failedSpawnIds } = collectParentReturnEvidence(requests, spawnCalls, semantics);
+  const allSpawnCalls = [...spawnCalls, ...nestedSpawns];
+  const spawnCallById = new Map(allSpawnCalls.map((spawn) => [spawn.id, spawn]));
   const returnBySpawnId = new Map(returns.map((item) => [item.spawn_id, item]));
   const launchBySpawnId = new Map(launches.map((item) => [item.spawn_id, item]));
   const spawnByLaunchAgentId = new Map(
@@ -73,7 +74,7 @@ export function buildSubagentGraph(requests, semantics = {}) {
       .map((launch) => [launch.agent_id, spawnCallById.get(launch.spawn_id) || null])
       .filter(([, spawn]) => spawn),
   );
-  const viableSpawnCalls = spawnCalls.filter((spawn) => !failedSpawnIds.has(spawn.id));
+  const viableSpawnCalls = allSpawnCalls.filter((spawn) => !failedSpawnIds.has(spawn.id));
   const agentMessages = collectAgentMessages(requests, semantics);
   const sortedChildGroups = [...childGroups.entries()]
     .map(([agentId, group]) => [agentId, [...group].sort(compareRequestsByIndex)])
@@ -99,7 +100,7 @@ export function buildSubagentGraph(requests, semantics = {}) {
   });
   const usedSpawnIds = new Set(branches.map((branch) => branch.spawn?.id).filter(Boolean));
   const usedAgentIds = new Set(branches.map((branch) => branch.agent_id).filter(Boolean));
-  for (const spawn of spawnCalls) {
+  for (const spawn of allSpawnCalls) {
     if (usedSpawnIds.has(spawn.id) || failedSpawnIds.has(spawn.id) || !isCodexAgentSpawn(spawn)) continue;
     const launch = launchBySpawnId.get(spawn.id) || null;
     const matchingMessages = agentMessages.filter((item) => messageMatchesSpawn(item, spawn, launch));
@@ -136,13 +137,14 @@ export function buildSubagentGraph(requests, semantics = {}) {
   }
 
   const graphReturns = branches.map((branch) => branch.return).filter(Boolean);
-  const hasCodexSpawns = spawnCalls.some(isCodexAgentSpawn);
+  const hasCodexSpawns = allSpawnCalls.some(isCodexAgentSpawn);
+  const hasNestedCodexSpawns = nestedSpawns.length > 0;
 
   annotateRequestsWithBranches(branches, requestById);
   return {
     version: 2,
     branch_count: branches.length,
-    spawn_count: spawnCalls.length,
+    spawn_count: allSpawnCalls.length,
     failed_spawn_count: failedSpawnIds.size,
     return_count: graphReturns.length,
     confidence: branches.length
@@ -163,18 +165,22 @@ export function buildSubagentGraph(requests, semantics = {}) {
           : "debug source agent:*",
       request_response_pair: "capture_id/request_index",
       parent_spawn: hasCodexSpawns
-        ? "response spawn_agent function call"
+        ? hasNestedCodexSpawns
+          ? "response spawn_agent function call / exec nested spawn_agent dispatch"
+          : "response spawn_agent function call"
         : agentMessages.length
           ? "response spawn_agent tool call"
           : "response Agent tool_use",
-      parent_return: returns.some((item) => item.evidence === "wait_agent")
-        ? "wait_agent function_call_output"
+      parent_return: returns.some((item) => ["wait_agent", "nested_wait_agent"].includes(item.evidence))
+        ? returns.some((item) => item.evidence === "nested_wait_agent")
+          ? "wait_agent function_call_output / exec nested wait_agent result"
+          : "wait_agent function_call_output"
         : agentMessages.length
           ? "upstream agent_message author/recipient"
           : "request Agent tool_result",
     },
     branches,
-    spawns: spawnCalls.map(publicSpawn),
+    spawns: allSpawnCalls.map(publicSpawn),
     returns: graphReturns,
   };
 }
@@ -231,19 +237,20 @@ function collectSpawnPrompts(requests, semantics) {
 function collectParentReturnEvidence(requests, spawnCalls, semantics) {
   const returns = [];
   const launches = [];
+  const nestedSpawns = [];
   const failedSpawnIds = new Set();
   const spawnById = new Map(spawnCalls.map((call) => [call.id, call]));
   const toolCallById = new Map();
   for (const request of requests || []) {
     for (const call of responseToolCalls(request)) {
-      if (call?.id) toolCallById.set(call.id, call);
+      if (call?.id) toolCallById.set(call.id, { call, request });
     }
   }
   for (const request of requests || []) {
     for (const result of request.summary?.current_tool_results || []) {
       const spawn = result.id ? spawnById.get(result.id) : null;
-      if (!spawn) continue;
-      if (isCodexAgentSpawn(spawn)) {
+      const callRecord = result.id ? toolCallById.get(result.id) : null;
+      if (spawn && isCodexAgentSpawn(spawn)) {
         const payload = parseToolResultPayload(result.content);
         const agentId = payload?.agent_id || payload?.task_name || null;
         if (!agentId) {
@@ -260,20 +267,53 @@ function collectParentReturnEvidence(requests, spawnCalls, semantics) {
         });
         continue;
       }
-      returns.push({
-        spawn_id: spawn.id,
-        parent_request_id: request.id,
-        parent_request_index: request.request_index,
-        result_preview: semantics.previewText(result.content, 260),
-      });
+      if (spawn) {
+        returns.push({
+          spawn_id: spawn.id,
+          parent_request_id: request.id,
+          parent_request_index: request.request_index,
+          result_preview: semantics.previewText(result.content, 260),
+        });
+        continue;
+      }
+      if (!isNestedAgentToolCall(callRecord?.call, "spawn_agent")) continue;
+      const payload = parseToolResultPayload(result.content);
+      for (const launched of collectCodexLaunchPayloads(payload)) {
+        if (launches.some((item) => item.agent_id === launched.agent_id)) continue;
+        const spawnId = `nested:${result.id}:${launched.agent_id}`;
+        nestedSpawns.push({
+          id: spawnId,
+          name: "spawn_agent",
+          parent_request_id: callRecord.request.id,
+          parent_request_index: callRecord.request.request_index,
+          order: spawnCalls.length + nestedSpawns.length,
+          label: launched.nickname || "spawn_agent",
+          description: "",
+          prompt_preview: "",
+          subagent_type: null,
+          context_mode: null,
+          task_message_visibility: null,
+          raw_arguments: null,
+          evidence: "nested_tool_dispatch",
+        });
+        launches.push({
+          spawn_id: spawnId,
+          parent_request_id: request.id,
+          parent_request_index: request.request_index,
+          agent_id: launched.agent_id,
+          nickname: launched.nickname,
+          result_preview: semantics.previewText(result.content, 260),
+          evidence: "nested_tool_result",
+        });
+      }
     }
   }
 
   const launchByAgentId = new Map(launches.map((launch) => [launch.agent_id, launch]));
   for (const request of requests || []) {
     for (const result of request.summary?.current_tool_results || []) {
-      const call = result.id ? toolCallById.get(result.id) : null;
-      if (String(call?.name || "").toLowerCase() !== "wait_agent") continue;
+      const call = result.id ? toolCallById.get(result.id)?.call : null;
+      if (!isAgentWaitCall(call)) continue;
       for (const completed of parseCodexWaitResults(result.content)) {
         const launch = launchByAgentId.get(completed.agent_id);
         if (!launch) continue;
@@ -284,7 +324,7 @@ function collectParentReturnEvidence(requests, spawnCalls, semantics) {
           agent_id: completed.agent_id,
           result_status: completed.status,
           result_preview: semantics.previewText(completed.result || result.content, 260),
-          evidence: "wait_agent",
+          evidence: String(call?.name || "").toLowerCase() === "wait_agent" ? "wait_agent" : "nested_wait_agent",
         });
       }
     }
@@ -311,6 +351,7 @@ function collectParentReturnEvidence(requests, spawnCalls, semantics) {
   return {
     returns: [...new Map(returns.map((item) => [item.spawn_id, item])).values()],
     launches,
+    nestedSpawns,
     failedSpawnIds,
   };
 }
@@ -351,14 +392,17 @@ function spawnRecord(call, request, order, semantics) {
 function buildBranch({ agentId, group, index, spawn, launch, returned, semantics }) {
   const identitySource = group[0]?.trace?.agent_identity_source || null;
   const exactCodexIdentity = identitySource === "client_metadata" && launch?.agent_id === agentId;
+  const nestedCodexIdentity = exactCodexIdentity && launch?.evidence === "nested_tool_result";
   return {
     id: `branch-${index + 1}-${agentId}`,
     label: launch?.nickname || spawn?.description || spawn?.subagent_type || `子 Agent ${index + 1}`,
     agent_id: agentId,
     agent_type: semantics.childAgentType(group[0], spawn),
     confidence: exactCodexIdentity ? "high_agent_id" : spawn ? "high_ordered" : "high_agent_id",
-    linkage_note: exactCodexIdentity
-      ? "通过父级 spawn_agent 回执的 agent_id 与子请求 client_metadata.thread_id 强关联；结果由 wait_agent 回流闭合。"
+    linkage_note: nestedCodexIdentity
+      ? "通过父级 exec 中已观测的 spawn_agent 派发、工具结果里的 agent_id/nickname 与子请求 client_metadata.thread_id 强关联；结果由嵌套 wait_agent 回流闭合。"
+      : exactCodexIdentity
+        ? "通过父级 spawn_agent 回执的 agent_id 与子请求 client_metadata.thread_id 强关联；结果由 wait_agent 回流闭合。"
       : spawn
         ? "通过子 Agent 实例顺序与父级 Agent tool_use 顺序关联；子分支内部由 x-claude-code-agent-id 强关联。"
         : "通过稳定子 Agent 实例 ID 强关联；未找到可配对的父级启动调用。",
@@ -518,6 +562,7 @@ function publicSpawn(spawn) {
     subagent_type: spawn.subagent_type,
     context_mode: spawn.context_mode || null,
     task_message_visibility: spawn.task_message_visibility || null,
+    evidence: spawn.evidence || null,
   };
 }
 
@@ -603,12 +648,51 @@ function codexAgentIdFromSpawn(spawn) {
 
 function parseToolResultPayload(content) {
   if (content && typeof content === "object") return content;
-  try {
-    const parsed = JSON.parse(String(content || ""));
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
+  const text = String(content || "").replace(/\r\n/g, "\n").trim();
+  const candidates = [text];
+  const outputMarker = "\nOutput:\n";
+  const outputIndex = text.lastIndexOf(outputMarker);
+  if (outputIndex >= 0) candidates.push(text.slice(outputIndex + outputMarker.length).trim());
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {
+      // Keep looking for a complete, explicitly delimited JSON payload.
+    }
   }
+  return null;
+}
+
+function collectCodexLaunchPayloads(payload) {
+  const output = [];
+  let visited = 0;
+  const visit = (value, depth) => {
+    if (!value || typeof value !== "object" || depth > 4 || visited >= 32) return;
+    visited += 1;
+    if (!Array.isArray(value) && typeof value.agent_id === "string" && value.agent_id.trim()) {
+      output.push({
+        agent_id: value.agent_id.trim(),
+        nickname: typeof value.nickname === "string" && value.nickname.trim() ? value.nickname.trim() : null,
+      });
+      return;
+    }
+    const children = Array.isArray(value) ? value : Object.values(value);
+    for (const child of children) visit(child, depth + 1);
+  };
+  visit(payload, 0);
+  return output;
+}
+
+function isNestedAgentToolCall(call, expectedName) {
+  if (call?.semantic?.kind !== "nested_tool_dispatch") return false;
+  return (call.semantic.nested_tool_names || []).some((name) =>
+    String(name || "").toLowerCase().endsWith(expectedName.toLowerCase()),
+  );
+}
+
+function isAgentWaitCall(call) {
+  return String(call?.name || "").toLowerCase() === "wait_agent" || isNestedAgentToolCall(call, "wait_agent");
 }
 
 function parseCodexWaitResults(content) {

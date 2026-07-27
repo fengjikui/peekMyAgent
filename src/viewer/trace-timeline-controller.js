@@ -12,14 +12,13 @@ export class TraceTimelineController {
     onThinkingToggle = () => {},
     onTurnWindowJump,
     onRaw,
+    onToolOriginJump = () => {},
     onRequestJump,
     onAgentJump,
     onAgentBranchJump,
-    onAgentBranchToggle,
+    onAgentBranchSelect = () => {},
+    onAgentDashboardToggle = () => {},
     onSupportingTimelineToggle,
-    onAgentDashboardToggle,
-    onAgentBranchMore,
-    onAgentStatusFilter,
     onSystemDiff,
     searchDelay = 160,
     windowRef = globalThis.window,
@@ -36,13 +35,12 @@ export class TraceTimelineController {
     this.onThinkingToggle = requiredFunction(onThinkingToggle, "onThinkingToggle");
     this.onTurnWindowJump = requiredFunction(onTurnWindowJump, "onTurnWindowJump");
     this.onRaw = requiredFunction(onRaw, "onRaw");
+    this.onToolOriginJump = requiredFunction(onToolOriginJump, "onToolOriginJump");
     this.onRequestJump = requiredFunction(onRequestJump || onAgentJump, "onRequestJump");
     this.onAgentBranchJump = requiredFunction(onAgentBranchJump, "onAgentBranchJump");
-    this.onAgentBranchToggle = requiredFunction(onAgentBranchToggle, "onAgentBranchToggle");
-    this.onSupportingTimelineToggle = requiredFunction(onSupportingTimelineToggle, "onSupportingTimelineToggle");
+    this.onAgentBranchSelect = requiredFunction(onAgentBranchSelect, "onAgentBranchSelect");
     this.onAgentDashboardToggle = requiredFunction(onAgentDashboardToggle, "onAgentDashboardToggle");
-    this.onAgentBranchMore = requiredFunction(onAgentBranchMore, "onAgentBranchMore");
-    this.onAgentStatusFilter = requiredFunction(onAgentStatusFilter, "onAgentStatusFilter");
+    this.onSupportingTimelineToggle = requiredFunction(onSupportingTimelineToggle, "onSupportingTimelineToggle");
     this.onSystemDiff = requiredFunction(onSystemDiff, "onSystemDiff");
     this.searchDelay = searchDelay;
     this.window = windowRef || globalThis;
@@ -130,13 +128,12 @@ export class TraceTimelineController {
     else if (action.type === "upstream-toggle") this.onUpstreamToggle(action.requestId);
     else if (action.type === "turn-window-jump") this.onTurnWindowJump(action.turnId);
     else if (action.type === "raw") this.onRaw(action);
+    else if (action.type === "tool-origin-jump") this.onToolOriginJump(action);
     else if (action.type === "request-jump") this.onRequestJump(action.requestId);
     else if (action.type === "agent-branch-jump") this.onAgentBranchJump(action.branchId);
-    else if (action.type === "agent-branch-toggle") this.onAgentBranchToggle(action.branchId);
-    else if (action.type === "supporting-timeline-toggle") this.onSupportingTimelineToggle(action.turnId);
+    else if (action.type === "agent-branch-select") this.onAgentBranchSelect(action.branchId);
     else if (action.type === "agent-dashboard-toggle") this.onAgentDashboardToggle(action.turnId);
-    else if (action.type === "agent-branch-more") this.onAgentBranchMore(action.turnId);
-    else if (action.type === "agent-status-filter") this.onAgentStatusFilter(action);
+    else if (action.type === "supporting-timeline-toggle") this.onSupportingTimelineToggle(action.turnId);
     else if (action.type === "system-diff") this.onSystemDiff(action.requestId);
   }
 
@@ -185,6 +182,16 @@ export function timelineAction(target, root) {
     ["[data-upstream-toggle]", (element) => ({ type: "upstream-toggle", requestId: element.dataset.upstreamToggle })],
     ["[data-turn-window-jump]", (element) => ({ type: "turn-window-jump", turnId: element.dataset.turnWindowJump })],
     [
+      "[data-tool-origin-jump]",
+      (element) => ({
+        type: "tool-origin-jump",
+        originRequestId: element.dataset.toolOriginJump,
+        resultRequestId: element.dataset.toolResultRequest,
+        resultRequestIndex: element.dataset.toolResultIndex,
+        callId: element.dataset.toolCallId || "",
+      }),
+    ],
+    [
       "[data-raw]",
       (element) => ({
         type: "raw",
@@ -196,20 +203,11 @@ export function timelineAction(target, root) {
     ["[data-request-jump]", (element) => ({ type: "request-jump", requestId: element.dataset.requestJump })],
     ["[data-agent-jump]", (element) => ({ type: "request-jump", requestId: element.dataset.agentJump })],
     ["[data-agent-branch-jump]", (element) => ({ type: "agent-branch-jump", branchId: element.dataset.agentBranchJump })],
-    ["[data-agent-branch-toggle]", (element) => ({ type: "agent-branch-toggle", branchId: element.dataset.agentBranchToggle })],
+    ["[data-agent-branch-select]", (element) => ({ type: "agent-branch-select", branchId: element.dataset.agentBranchSelect })],
+    ["[data-agent-dashboard-toggle]", (element) => ({ type: "agent-dashboard-toggle", turnId: element.dataset.agentDashboardToggle })],
     [
       "[data-supporting-timeline-toggle]",
       (element) => ({ type: "supporting-timeline-toggle", turnId: element.dataset.supportingTimelineToggle }),
-    ],
-    ["[data-agent-dashboard-toggle]", (element) => ({ type: "agent-dashboard-toggle", turnId: element.dataset.agentDashboardToggle })],
-    ["[data-agent-branch-more]", (element) => ({ type: "agent-branch-more", turnId: element.dataset.agentBranchMore })],
-    [
-      "[data-agent-status-filter]",
-      (element) => ({
-        type: "agent-status-filter",
-        turnId: element.dataset.agentStatusFilter,
-        filter: element.dataset.agentFilterValue || "all",
-      }),
     ],
     ["[data-system-diff]", (element) => ({ type: "system-diff", requestId: element.dataset.systemDiff })],
   ];

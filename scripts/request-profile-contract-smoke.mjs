@@ -58,6 +58,31 @@ assert.equal(responsesMessages[3].tool_call_id, "call-codex");
 assert.deepEqual(extractRequestTools(responsesBody).map((tool) => tool.name), ["read_file", "exec"]);
 assert.deepEqual(extractSystemParts(responsesBody), [{ source: "body.instructions", text: "Codex system contract" }]);
 
+const codexAdditionalToolsInput = {
+  input: [
+    {
+      type: "additional_tools",
+      role: "developer",
+      tools: [
+        { type: "custom", name: "exec" },
+        { type: "custom", name: "wait" },
+      ],
+    },
+    { type: "message", role: "developer", content: [{ type: "input_text", text: "Actual developer instruction" }] },
+    { type: "message", role: "user", content: [{ type: "input_text", text: "Hello" }] },
+  ],
+};
+assert.deepEqual(
+  extractRequestTools(codexAdditionalToolsInput).map((tool) => tool.name),
+  ["exec", "wait"],
+  "Responses additional_tools inside input are protocol tool declarations",
+);
+assert.deepEqual(
+  extractRequestMessages(codexAdditionalToolsInput).map((message) => message.role),
+  ["developer", "user"],
+  "additional_tools must not become a fake empty Developer message",
+);
+
 assert.equal(isContextTokenCountingRequest({ path: "/v1/messages/count_tokens?beta=1" }), true);
 assert.equal(isContextTokenCountingRequest({ original_url: "https://api.example/v1/messages/count_tokens" }), true);
 assert.equal(isContextTokenCountingRequest({ path: "/v1/messages" }), false);

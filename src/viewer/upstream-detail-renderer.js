@@ -3,6 +3,7 @@ export function renderUpstreamDetail(view, dependencies) {
   const { translate, escapeHtml, renderPre } = dependencies;
   return `
     <div class="request-body">
+      ${renderProtocolSummary(view, dependencies)}
       <details>
         <summary class="metric-summary">
           <span>${escapeHtml(translate("systemSummary", { count: view.system.count }))}</span>
@@ -27,6 +28,26 @@ export function renderUpstreamDetail(view, dependencies) {
       ${renderCurrentMessage(view.currentMessage, dependencies)}
       ${renderProviderStats(view.providerStats, dependencies)}
     </div>
+  `;
+}
+
+function renderProtocolSummary(view, { translate, escapeHtml, formatCompactNumber }) {
+  const protocol = view.protocol;
+  if (!protocol) return "";
+  return `
+    <section class="upstream-protocol-summary">
+      <div>
+        <span>${escapeHtml(translate("protocolExchangeTitle"))}</span>
+        <strong>${escapeHtml(protocol.label)}</strong>
+        <code>${escapeHtml(protocol.id)}</code>
+      </div>
+      <div class="upstream-protocol-metrics">
+        <span><strong>${escapeHtml(formatCompactNumber(protocol.upstreamItems))}</strong>${escapeHtml(translate("protocolInputItems"))}</span>
+        <span><strong>${escapeHtml(formatCompactNumber(protocol.tools))}</strong>${escapeHtml(translate("protocolEffectiveTools"))}</span>
+        <span><strong>${escapeHtml(formatCompactNumber(protocol.downstreamItems))}</strong>${escapeHtml(translate("protocolOutputItems"))}</span>
+      </div>
+      <button type="button" data-raw="${escapeHtml(view.requestId)}" data-raw-section="protocol">${escapeHtml(translate("protocolInspectExchange"))}</button>
+    </section>
   `;
 }
 

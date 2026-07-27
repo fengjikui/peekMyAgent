@@ -12,6 +12,9 @@ const hiddenTail = "UNIQUE_COMPACT_DETAIL_TAIL_0d6f5e9e";
 const largeText = `${"large context ".repeat(800)}${hiddenTail}`;
 const responseHiddenTail = "UNIQUE_RESPONSE_TOOL_ARGUMENT_TAIL_7b8e4d1c";
 const responseToolArgument = `${"response tool argument ".repeat(800)}${responseHiddenTail}`;
+const toolResultHiddenTail = "UNIQUE_LAZY_TOOL_RESULT_TAIL_6fb83b0a";
+const toolResultText = `${"large extracted tool result ".repeat(600)}${toolResultHiddenTail}`;
+const imageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
 const upstream = http.createServer(async (req, res) => {
   await readBody(req);
@@ -62,7 +65,14 @@ try {
       messages: [
         { role: "user", content: `older user ${largeText}` },
         { role: "assistant", content: `older assistant ${largeText}` },
-        { role: "user", content: `current user ${largeText}` },
+        {
+          role: "user",
+          content: [
+            { type: "tool_result", tool_use_id: "toolu_previous", content: toolResultText },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: imageBase64 } },
+            { type: "text", text: `current user ${largeText}` },
+          ],
+        },
       ],
     });
 
@@ -95,10 +105,26 @@ try {
     const detail = await getJson(`${viewer.url}/api/request?source=${encodeURIComponent(sourceId)}&request=${encodeURIComponent(compactRequest.id)}`);
     assert.equal(JSON.stringify(detail.request).includes(hiddenTail), true, "detail endpoint restores complete raw request data");
     assert.equal(JSON.stringify(detail.request).includes(responseHiddenTail), true, "detail endpoint restores complete response tool arguments");
+    assert.equal(JSON.stringify(detail.request).includes(toolResultHiddenTail), false, "detail endpoint leaves large tool results lazy");
+    assert.equal(JSON.stringify(detail.request).includes(imageBase64), false, "detail endpoint leaves image bytes lazy");
     assert.equal(detail.request.raw.body.messages.length, 3);
     assert.equal(detail.request.raw.body.tools.length, 1);
     assert.equal(detail.request.summary.history_stack.length, compactRequest.summary.history_stack_omitted.count);
     assert.equal(detail.request.summary.response.complete_response.content.some((part) => part.type === "tool_use"), true);
+    const toolResultMarker = detail.request.raw.body.messages[2].content[0].content;
+    const imageMarker = detail.request.raw.body.messages[2].content[1].source.data;
+    assert.equal(toolResultMarker.__peekmyagent_lazy_payload__, "peekmyagent.lazy_payload.v1");
+    assert.equal(imageMarker.kind, "image");
+    assert.deepEqual([imageMarker.width, imageMarker.height], [1, 1]);
+
+    const toolPayload = await getJson(
+      `${viewer.url}/api/request/payload?source=${encodeURIComponent(sourceId)}&request=${encodeURIComponent(compactRequest.id)}&ref=${encodeURIComponent(toolResultMarker.ref)}`,
+    );
+    assert.equal(toolPayload.payload.value, toolResultText);
+    const imagePayload = await getJson(
+      `${viewer.url}/api/request/payload?source=${encodeURIComponent(sourceId)}&request=${encodeURIComponent(compactRequest.id)}&ref=${encodeURIComponent(imageMarker.ref)}`,
+    );
+    assert.equal(imagePayload.payload.value, imageBase64);
   } finally {
     await viewer.close();
   }

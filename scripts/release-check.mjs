@@ -40,6 +40,7 @@ const coreCommands = [
   ["npm", "run", "smoke:tool-call-semantics-contract"],
   ["npm", "run", "smoke:message-semantics-contract"],
   ["npm", "run", "smoke:request-profile-contract"],
+  ["npm", "run", "smoke:protocol-exchange-contract"],
   ["npm", "run", "smoke:request-composition-contract"],
   ["npm", "run", "smoke:timeline-view-projector-contract"],
   ["npm", "run", "smoke:viewer-trace-projector-contract"],
@@ -80,6 +81,7 @@ const coreCommands = [
   ["npm", "run", "smoke:governance"],
 ];
 const viewerCommands = [
+  ["npm", "run", "smoke:lazy-payload-contract"],
   ["npm", "run", "smoke:viewer-api-client-contract"],
   ["npm", "run", "smoke:timeline-entity-store-contract"],
   ["npm", "run", "smoke:viewer-client-store-contract"],
@@ -117,6 +119,7 @@ const viewerCommands = [
   ["npm", "run", "smoke:request-card-renderer-contract"],
   ["npm", "run", "smoke:agent-graph-view-contract"],
   ["npm", "run", "smoke:upstream-detail-view-contract"],
+  ["npm", "run", "smoke:protocol-exchange-view-contract"],
   ["npm", "run", "smoke:agent-composer-view-contract"],
   ["npm", "run", "smoke:session-navigator-view-contract"],
   ["npm", "run", "smoke:viewer-i18n-contract"],

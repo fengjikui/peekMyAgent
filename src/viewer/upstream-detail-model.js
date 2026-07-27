@@ -11,6 +11,7 @@ export function buildUpstreamDetailView(request = {}, { cleanText = defaultClean
   return {
     requestId: request.id || "",
     requestIndex: request.request_index || "",
+    protocol: buildProtocolSummary(summary.protocol_exchange, request.protocol),
     system: {
       count: counts.system || 0,
       preview: summary.system_preview || "",
@@ -40,6 +41,20 @@ export function buildUpstreamDetailView(request = {}, { cleanText = defaultClean
         ? null
         : buildCurrentMessage(request, summary, cleanText),
     providerStats: buildProviderStats(summary),
+  };
+}
+
+function buildProtocolSummary(exchange, fallbackProtocol) {
+  if (!exchange || typeof exchange !== "object") return null;
+  return {
+    id: exchange.protocol || fallbackProtocol || "unknown",
+    label: exchange.protocol_label || exchange.protocol || fallbackProtocol || "Unknown protocol",
+    upstreamItems: Number(exchange.request?.counts?.input_items || 0),
+    instructionBlocks: Number(exchange.request?.counts?.instruction_blocks || 0),
+    tools: Number(exchange.request?.counts?.tools || 0),
+    toolStages: Number(exchange.request?.counts?.tool_stages || 0),
+    downstreamItems: Number(exchange.response?.counts?.output_items || 0),
+    toolCalls: Number(exchange.response?.counts?.tool_calls || 0),
   };
 }
 

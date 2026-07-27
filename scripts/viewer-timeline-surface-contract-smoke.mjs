@@ -96,7 +96,7 @@ assert.match(
   source,
   /buildTimelineAssistantResponseView,[\s\S]*?buildTimelineRequestIdentity,[\s\S]*?buildTimelineToolExchangeView,[\s\S]*?buildTimelineTurnInputView,[\s\S]*?buildTimelineUpstreamView,[\s\S]*?from "\.\/request-card-model\.js";/,
 );
-assert.match(source, /import \{ AGENT_BRANCH_PAGE_SIZE, buildAgentGraphView \} from "\.\/agent-graph-model\.js";/);
+assert.match(source, /import \{ buildAgentGraphView \} from "\.\/agent-graph-model\.js";/);
 assert.match(source, /import \{ renderAgentGraph as renderAgentGraphView \} from "\.\/agent-graph-renderer\.js";/);
 assert.match(source, /import \{ buildTurnStoryView \} from "\.\/turn-story-model\.js";/);
 assert.match(source, /import \{ renderTurnStory as renderTurnStoryView \} from "\.\/turn-story-renderer\.js";/);
@@ -192,7 +192,7 @@ assert.doesNotMatch(sessionNavigatorControllerSource, /\bwindow\b|\blocalStorage
 for (const functionName of [
   "jumpToTurn",
   "jumpToAgentBranch",
-  "toggleAgentBranch",
+  "selectAgentBranch",
   "toggleUpstreamDetails",
   "syncUpstreamDetailsState",
   "toggleLatestOnly",
@@ -206,13 +206,13 @@ for (const functionName of [
 assert.doesNotMatch(translationActionControllerSource, /renderAll\s*\(/, "block translation should not rebuild the Viewer");
 assert.match(
   source,
-  /clientStore\.subscribe\(\(change\) => \{[\s\S]*?syncActiveTurnDom\(change\.state\.activeId\)[\s\S]*?syncActiveRequestDom\(change\.state\.activeRequestId\)/,
+  /clientStore\.subscribe\(\(change\) => \{[\s\S]*?syncActiveTurnDom\(change\.state\.activeId\)[\s\S]*?syncActiveRequestDom\(change\.state\.activeTimelineRequestId\)/,
   "Client Store selection notifications should own active DOM synchronization",
 );
 assert.match(functionSource("markActiveTurn"), /clientStore\.setSelection/);
 assert.doesNotMatch(functionSource("markActiveTurn"), /querySelectorAll/);
-assert.match(functionSource("markActiveRequest"), /clientStore\.setSelection/);
-assert.doesNotMatch(functionSource("markActiveRequest"), /querySelectorAll/);
+assert.match(functionSource("markActiveTimelineRequest"), /activeTimelineRequestId/);
+assert.doesNotMatch(functionSource("markActiveTimelineRequest"), /querySelectorAll/);
 assert.doesNotMatch(functionSource("syncActiveTurnDom"), /document\.querySelectorAll/);
 assert.doesNotMatch(functionSource("syncActiveRequestDom"), /document\.querySelectorAll/);
 assert.match(functionSource("syncActiveTurnDom"), /traceTimelineController\.syncActiveTurn/);

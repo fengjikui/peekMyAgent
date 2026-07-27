@@ -169,6 +169,11 @@ assert.deepEqual(rawSectionData(request, "system").value, {
   message_system: [{ role: "system", content: "message system" }],
 });
 assert.deepEqual(rawSectionData(request, "tools").value, [{ name: "Bash" }]);
+const protocolSection = rawSectionData(request, "protocol", { translate: () => "Protocol" });
+assert.equal(protocolSection.title, "Protocol");
+assert.equal(protocolSection.value.protocol, "anthropic_messages");
+assert.equal(protocolSection.value.request.counts.instruction_blocks, 1);
+assert.equal(protocolSection.value.request.tool_stages[0].tools[0].name, "Bash");
 assert.deepEqual(rawSectionData(request, "developer", { translate: () => "Developer" }), {
   title: "Developer",
   value: [],

@@ -5,10 +5,9 @@ import {
   systemTranslationKind,
   translationLookupKey,
   translationToolDescription,
-  translationToolName,
 } from "./blocks.mjs";
 import { extractContentText } from "../trace/content-parts.mjs";
-import { extractRequestMessages, extractRequestTools } from "../shared/request-payload.mjs";
+import { extractRequestMessages, extractRequestToolCatalog } from "../shared/request-payload.mjs";
 import {
   classifyCodexDeveloperInstruction,
   codexSlashCommandInjection,
@@ -60,31 +59,53 @@ export function projectTranslationBodyMaterials(
     }
   }
 
+  if (!section || section === "developer") {
+    messages.forEach((message, messageIndex) => {
+      if (message?.role !== "developer") return;
+      const text = contentText(message.content);
+      if (!text) return;
+      materials.push({
+        kind: "developer_instruction",
+        source_text: text,
+        source_language: "en",
+        metadata: { source: "messages.developer", index: messageIndex },
+      });
+    });
+  }
+
   if (!section || section === "tools") {
-    const tools = extractRequestTools(source);
-    tools.forEach((tool, toolIndex) => {
-      const toolName = translationToolName(tool);
-      const description = translationToolDescription(tool);
+    const catalog = extractRequestToolCatalog(source, { includeDefinitions: true });
+    for (const tool of catalog.tools) {
+      const definition = tool.definition || {};
+      const metadata = {
+        tool_name: tool.qualified_name,
+        tool_leaf_name: tool.name,
+        tool_namespace: tool.namespace,
+      };
+      const description = translationToolDescription(definition);
       if (description) {
         materials.push({
           kind: "tool_description",
           source_text: description,
           source_language: "en",
-          metadata: { tool_name: toolName, path: `tools[${toolIndex}].description` },
+          metadata: {
+            ...metadata,
+            path: toolDescriptionPath(definition, tool.source_path),
+          },
         });
       }
-      const schema = tool.input_schema || tool.function?.parameters || tool.parameters || null;
+      const { schema, path } = toolSchema(definition, tool.source_path);
       for (const item of extractTranslationSchemaDescriptions(schema, {
-        rootPath: `tools[${toolIndex}].input_schema`,
+        rootPath: path,
       })) {
         materials.push({
           kind: "tool_parameter_description",
           source_text: item.description,
           source_language: "en",
-          metadata: { tool_name: toolName, path: item.path, field_name: item.field_name },
+          metadata: { ...metadata, path: item.path, field_name: item.field_name },
         });
       }
-    });
+    }
   }
 
   return materials;
@@ -99,9 +120,14 @@ export function translationMaterialsForRequest(
   if (!section) {
     return [
       ...translationMaterialsForRequest(request, { section: "system", contentText, extractHarnessParts }),
+      ...translationMaterialsForRequest(request, { section: "developer", contentText, extractHarnessParts }),
       ...translationMaterialsForRequest(request, { section: "tools", contentText, extractHarnessParts }),
       ...translationMaterialsForRequest(request, { section: "harness", contentText, extractHarnessParts }),
+      ...translationMaterialsForRequest(request, { section: "response", contentText, extractHarnessParts }),
     ];
+  }
+  if (section === "response") {
+    return dedupeTranslationMaterials(projectTranslationResponseMaterials(request, { contentText }));
   }
   const materials = projectTranslationBodyMaterials(body, {
     section,
@@ -112,6 +138,51 @@ export function translationMaterialsForRequest(
   return section === "tools"
     ? dedupeToolTranslationMaterials(materials)
     : dedupeTranslationMaterials(materials);
+}
+
+export function projectTranslationResponseMaterials(request, { contentText = extractContentText } = {}) {
+  const extract = requiredFunction(contentText, "contentText");
+  const summary = request?.summary?.response || {};
+  const output = [];
+  appendResponseTranslation(output, "assistant_reasoning", summary.thinking, "summary.response.thinking");
+  appendResponseTranslation(output, "assistant_response", summary.text, "summary.response.text");
+
+  const response =
+    summary.complete_response ||
+    request?.raw?.response?.body_json ||
+    request?.response?.body_json ||
+    request?.response ||
+    null;
+  for (const [index, item] of (Array.isArray(response?.output) ? response.output : []).entries()) {
+    const type = String(item?.type || "").toLowerCase();
+    if (type === "reasoning") {
+      appendResponseTranslation(output, "assistant_reasoning", extract(item.summary), `response.output[${index}].summary`);
+    } else if (type === "message") {
+      appendResponseTranslation(output, "assistant_response", extract(item.content), `response.output[${index}].content`);
+    }
+  }
+  if (Array.isArray(response?.content)) {
+    response.content.forEach((item, index) => {
+      const type = String(item?.type || "").toLowerCase();
+      if (["thinking", "reasoning"].includes(type)) {
+        appendResponseTranslation(output, "assistant_reasoning", extract(item), `response.content[${index}]`);
+      } else if (["text", "output_text"].includes(type)) {
+        appendResponseTranslation(output, "assistant_response", extract(item), `response.content[${index}]`);
+      }
+    });
+  }
+  return output;
+}
+
+function appendResponseTranslation(output, kind, value, source) {
+  const text = normalizeTranslationSourceText(value);
+  if (!text) return;
+  output.push({
+    kind,
+    source_text: text,
+    source_language: "en",
+    metadata: { source },
+  });
 }
 
 export function extractTranslationSystemParts(body, messages, contentText = extractContentText) {
@@ -250,6 +321,32 @@ export function dedupeToolTranslationMaterials(materials) {
       }),
     ).values(),
   ].filter((item) => item.source_text && !isSkippableTranslationMaterial(item.kind, item.source_text));
+}
+
+function toolDescriptionPath(definition, sourcePath) {
+  if (definition?.function?.description != null && definition?.description == null) {
+    return `${sourcePath}.function.description`;
+  }
+  return `${sourcePath}.description`;
+}
+
+function toolSchema(definition, sourcePath) {
+  if (definition?.input_schema != null) {
+    return { schema: definition.input_schema, path: `${sourcePath}.input_schema` };
+  }
+  if (definition?.function?.parameters != null) {
+    return { schema: definition.function.parameters, path: `${sourcePath}.function.parameters` };
+  }
+  if (definition?.parameters != null) {
+    return { schema: definition.parameters, path: `${sourcePath}.parameters` };
+  }
+  if (definition?.parametersJsonSchema != null) {
+    return { schema: definition.parametersJsonSchema, path: `${sourcePath}.parametersJsonSchema` };
+  }
+  if (definition?.parameters_json_schema != null) {
+    return { schema: definition.parameters_json_schema, path: `${sourcePath}.parameters_json_schema` };
+  }
+  return { schema: null, path: `${sourcePath}.parameters` };
 }
 
 function harnessPart(kind, text, messageIndex, labelForPart, details = {}) {

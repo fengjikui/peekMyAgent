@@ -17,6 +17,10 @@ const VIEWER_STATIC_ASSETS = new Map([
     "/contracts/viewer-api.mjs",
     { base: "project", file: path.join("src", "contracts", "viewer-api.mjs"), contentType: "text/javascript; charset=utf-8" },
   ],
+  [
+    "/contracts/lazy-payload.mjs",
+    { base: "project", file: path.join("src", "contracts", "lazy-payload.mjs"), contentType: "text/javascript; charset=utf-8" },
+  ],
   ["/language-preferences-controller.js", javascriptAsset("language-preferences-controller.js")],
   ["/markdown.js", javascriptAsset("markdown.js")],
   ["/message-view-model.js", javascriptAsset("message-view-model.js")],
@@ -25,6 +29,8 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/messages-renderer.js", javascriptAsset("messages-renderer.js")],
   ["/pane-layout-controller.js", javascriptAsset("pane-layout-controller.js")],
   ["/pane-layout-model.js", javascriptAsset("pane-layout-model.js")],
+  ["/protocol-exchange-renderer.js", javascriptAsset("protocol-exchange-renderer.js")],
+  ["/protocol-exchange-view-model.js", javascriptAsset("protocol-exchange-view-model.js")],
   ["/raw-inspector-controller.js", javascriptAsset("raw-inspector-controller.js")],
   ["/raw-inspector-renderer.js", javascriptAsset("raw-inspector-renderer.js")],
   ["/raw-search-controller.js", javascriptAsset("raw-search-controller.js")],
@@ -32,6 +38,7 @@ const VIEWER_STATIC_ASSETS = new Map([
   ["/raw-view-model.js", javascriptAsset("raw-view-model.js")],
   ["/request-card-renderer.js", javascriptAsset("request-card-renderer.js")],
   ["/request-card-model.js", javascriptAsset("request-card-model.js")],
+  ["/request-rail.js", javascriptAsset("request-rail.js")],
   ["/request-detail-cache.js", javascriptAsset("request-detail-cache.js")],
   ["/session-navigator-controller.js", javascriptAsset("session-navigator-controller.js")],
   ["/session-navigator-model.js", javascriptAsset("session-navigator-model.js")],
@@ -79,6 +86,10 @@ const VIEWER_STATIC_ASSETS = new Map([
   [
     "/trace/message-semantics.mjs",
     { base: "project", file: path.join("src", "trace", "message-semantics.mjs"), contentType: "text/javascript; charset=utf-8" },
+  ],
+  [
+    "/trace/protocol-exchange.mjs",
+    { base: "project", file: path.join("src", "trace", "protocol-exchange.mjs"), contentType: "text/javascript; charset=utf-8" },
   ],
   [
     "/shared/request-payload.mjs",

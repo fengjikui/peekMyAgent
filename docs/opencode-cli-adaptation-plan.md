@@ -2,7 +2,7 @@
 
 更新时间：2026-07-24
 
-状态：**候选实现已完成，等待发布门禁**。当前分支已经具备 `pma opencode`、进程级 exact proxy、OpenCode 配置 adapter、原生 session 归属、标题/command/compact 分类、同 Harness 翻译、确定性 wrapper/tool-loop smoke，以及真实普通多轮、工具、Skill、自定义 command、子 Agent 和 summarize 压缩证据。当前已验证的真实 provider driver 是 `@ai-sdk/openai-compatible`；其他 driver、三平台实机和最终发布门禁仍是合入/发布前工作。通用流程和验收门槛见 [新 Harness 适配工作手册](new-harness-adaptation-playbook.md)。
+状态：**候选实现已完成，等待发布门禁**。当前分支已经具备 `pma opencode`、进程级 exact proxy、OpenCode 配置 adapter、continue/session 对既有 watch 的精确选择与复用、原生 session 归属、标题/command/compact 分类、同 Harness 翻译、确定性 wrapper/tool-loop smoke，以及真实普通多轮、工具、Skill、自定义 command、子 Agent 和 summarize 压缩证据。当前已验证的真实 provider driver 是 `@ai-sdk/openai-compatible`；其他 driver、三平台实机和最终发布门禁仍是合入/发布前工作。通用流程和验收门槛见 [新 Harness 适配工作手册](new-harness-adaptation-playbook.md)。
 
 ## 1. 产品目标
 

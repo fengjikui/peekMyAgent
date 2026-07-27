@@ -253,6 +253,78 @@ assert.equal(codexSpecialOperations.turns[1].kind, "independent_background");
 assert.equal(codexSpecialOperations.turns[1].index, null, "background side channels never consume a user Turn number");
 assert.deepEqual(codexSpecialOperations.turns[1].request_ids, ["codex-memory"]);
 
+const codexAdditionalToolsData = projector.buildData({
+  source: {
+    ...source,
+    id: "codex-additional-tools",
+    agent: "Codex",
+    kind: "codex_proxy_exact",
+    request_count: 1,
+    response_count: 1,
+  },
+  captures: [
+    {
+      capture_id: "codex-request-65-shape",
+      request_index: 65,
+      method: "POST",
+      path: "/v1/responses",
+      capture_adapter: "codex_responses_v1",
+      headers: {},
+      body: {
+        model: "gpt-5.6-terra",
+        input: [
+          {
+            type: "additional_tools",
+            role: "developer",
+            tools: [
+              { type: "custom", name: "exec" },
+              { type: "custom", name: "wait" },
+              { type: "function", name: "request_user_input" },
+              {
+                type: "namespace",
+                name: "collaboration",
+                tools: [{ type: "function", name: "followup_task" }],
+              },
+            ],
+          },
+          { type: "message", role: "developer", content: [{ type: "input_text", text: "You are Codex." }] },
+          { type: "message", role: "user", content: [{ type: "input_text", text: "Inspect request 65." }] },
+        ],
+      },
+      response: {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body_json: {
+          id: "response-65",
+          status: "completed",
+          output: [
+            { type: "reasoning", summary: [{ type: "summary_text", text: "Inspect it." }] },
+            { type: "custom_tool_call", call_id: "call-65", name: "exec", input: "status" },
+          ],
+        },
+      },
+    },
+  ],
+});
+const codexRequest65 = codexAdditionalToolsData.requests[0];
+assert.equal(codexRequest65.protocol, "openai_responses");
+assert.equal(codexRequest65.counts.tools, 4, "input additional_tools counts callable leaves instead of namespace containers");
+assert.deepEqual(codexRequest65.summary.tool_names, [
+  "exec",
+  "wait",
+  "request_user_input",
+  "collaboration.followup_task",
+]);
+assert.deepEqual(codexRequest65.summary.roles, ["developer", "user"], "additional_tools is not shown as an empty Developer message");
+assert.equal(codexRequest65.summary.protocol_exchange.request.counts.instruction_blocks, 1);
+assert.equal(codexRequest65.summary.protocol_exchange.request.tool_stages[0].kind, "added");
+assert.equal(codexRequest65.summary.protocol_exchange.request.tool_stages[0].source_path, "$.input[0].tools");
+assert.deepEqual(
+  codexRequest65.summary.protocol_exchange.response.output_items.map((item) => item.semantic),
+  ["reasoning", "tool_call"],
+);
+assert.equal(codexRequest65.summary.protocol_exchange.response.output_items[1].name, "exec");
+
 const detail = projector.projectRequestDetailWindow(captures, source, "capture-2", { startIndex: 0 });
 assert.equal(detail.id, "capture-2");
 assert.equal(detail.detail_scope, "request_window");

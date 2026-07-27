@@ -27,6 +27,16 @@ export class RequestDetailCache {
     return this.details.get(requestId) || null;
   }
 
+  update(requestId, updateDetail) {
+    if (typeof updateDetail !== "function") throw new Error("updateDetail must be a function");
+    const current = this.details.get(requestId);
+    if (!current) return null;
+    const next = normalizeRequestDetail(updateDetail(current));
+    this.details.set(requestId, next);
+    this.errors.delete(requestId);
+    return this.onCached(next);
+  }
+
   ensure(sourceId, request) {
     if (!request) return Promise.resolve(null);
     if (!requestNeedsDetail(request)) return Promise.resolve(request);

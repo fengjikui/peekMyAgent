@@ -3,7 +3,10 @@ import {
   normalizeTranslationSourceText,
 } from "./blocks.mjs";
 import { translationMaterialHash } from "./hash.mjs";
-import { projectTranslationBodyMaterials } from "./request-materials.mjs";
+import {
+  projectTranslationBodyMaterials,
+  projectTranslationResponseMaterials,
+} from "./request-materials.mjs";
 import { extractRequestMessages } from "../shared/request-payload.mjs";
 
 export { extractTranslationSystemParts } from "./request-materials.mjs";
@@ -28,17 +31,25 @@ export class TranslationMaterialCollector {
 
   collectRequest(request, source, { section = "" } = {}) {
     const body = request.raw?.body || {};
-    return this.collectBody(body, requestOccurrence(request, source), {
+    const occurrence = requestOccurrence(request, source);
+    this.collectBody(body, occurrence, {
       section,
       harnessContext: { request },
     });
+    if (!section || section === "response") this.collectResponse(request, occurrence);
+    return this;
   }
 
   collectCapture(capture, source, { section = "" } = {}) {
-    return this.collectBody(capture?.body || {}, captureOccurrence(capture, source), {
+    const occurrence = captureOccurrence(capture, source);
+    this.collectBody(capture?.body || {}, occurrence, {
       section,
       harnessContext: { request: { raw: capture } },
     });
+    if (!section || section === "response") {
+      this.collectResponse({ raw: capture, response: capture?.response }, occurrence);
+    }
+    return this;
   }
 
   collectInput(inputMaterials, occurrence = {}) {
@@ -57,6 +68,7 @@ export class TranslationMaterialCollector {
   collectBody(body, occurrence, { section = "", harnessContext = {} } = {}) {
     const messages = extractRequestMessages(body || {});
     if (!section || section === "system") this.collectSystem(body || {}, messages, occurrence);
+    if (!section || section === "developer") this.collectDeveloper(body || {}, occurrence);
     if (!section || section === "harness") this.collectHarness(messages, occurrence, harnessContext);
     if (!section || section === "tools") this.collectTools(body || {}, occurrence);
     return this;
@@ -65,6 +77,20 @@ export class TranslationMaterialCollector {
   collectSystem(body, messages, occurrence) {
     this.collectProjected(
       projectTranslationBodyMaterials({ ...body, messages }, { section: "system", contentText: this.contentText }),
+      occurrence,
+    );
+  }
+
+  collectDeveloper(body, occurrence) {
+    this.collectProjected(
+      projectTranslationBodyMaterials(body, { section: "developer", contentText: this.contentText }),
+      occurrence,
+    );
+  }
+
+  collectResponse(request, occurrence) {
+    this.collectProjected(
+      projectTranslationResponseMaterials(request, { contentText: this.contentText }),
       occurrence,
     );
   }

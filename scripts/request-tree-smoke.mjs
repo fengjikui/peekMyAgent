@@ -66,6 +66,26 @@ const responsesRequest = {
   model: "gpt-codex-test",
   instructions: "Stable Codex instructions.",
   input: [
+    {
+      type: "additional_tools",
+      role: "developer",
+      tools: [
+        { type: "custom", name: "exec", description: "Run a command." },
+        { type: "custom", name: "wait", description: "Wait for a command." },
+        {
+          type: "namespace",
+          name: "collaboration",
+          tools: [
+            { type: "function", name: "followup_task", parameters: { type: "object" } },
+            {
+              type: "namespace",
+              name: "mailbox",
+              tools: [{ type: "function", name: "send_message", parameters: { type: "object" } }],
+            },
+          ],
+        },
+      ],
+    },
     { type: "message", role: "user", content: [{ type: "input_text", text: "Inspect one file." }] },
     { type: "function_call", call_id: "call-1", name: "read_file", arguments: "{\"path\":\"README.md\"}" },
     { type: "function_call_output", call_id: "call-1", output: "peekMyAgent" },
@@ -87,13 +107,34 @@ assert.deepEqual(reconstructFromRequestTree(responsesTree), responsesRequest);
 assert.deepEqual(reconstructFromRequestTree(changedResponsesTree), changedResponsesRequest);
 assert.equal(blobsByKind(responsesTree, "system_block").length, 1);
 assert.equal(blobsByKind(responsesTree, "system_block")[0].hash, blobsByKind(changedResponsesTree, "system_block")[0].hash);
-assert.equal(blobsByKind(responsesTree, "tool_schema").length, 2);
+assert.equal(blobsByKind(responsesTree, "tool_schema").length, 6);
 assert.deepEqual(
   blobsByKind(responsesTree, "tool_schema").map((blob) => blob.hash),
   blobsByKind(changedResponsesTree, "tool_schema").map((blob) => blob.hash),
 );
-assert.equal(blobsByKind(responsesTree, "message").length, 2);
+assert.equal(blobsByKind(responsesTree, "message").length, 2, "additional_tools remains a container, not a message blob");
 assert.equal(blobsByKind(responsesTree, "tool_result").length, 1);
+assert.deepEqual(
+  responsesTree.nodes
+    .filter((node) => node.blob_hash && node.json_path?.startsWith("$.input[0].tools["))
+    .map((node) => node.json_path),
+  [
+    "$.input[0].tools[0]",
+    "$.input[0].tools[1]",
+    "$.input[0].tools[2].tools[0]",
+    "$.input[0].tools[2].tools[1].tools[0]",
+  ],
+);
+assert.equal(
+  responsesTree.nodes.find((node) => node.json_path === "$.input[0].tools[2]")?.node_type,
+  "object",
+  "namespace remains an inspectable container instead of swallowing nested tool schemas",
+);
+assert.equal(
+  responsesTree.nodes.find((node) => node.json_path === "$.input[0].tools[2].tools[1]")?.node_type,
+  "object",
+  "nested namespaces remain recursively inspectable",
+);
 assert.deepEqual(
   blobsByKind(responsesTree, "message").map((blob) => blob.hash),
   blobsByKind(changedResponsesTree, "message").slice(0, 2).map((blob) => blob.hash),

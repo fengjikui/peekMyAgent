@@ -237,6 +237,8 @@ pma opencode --model <provider/model>
 
 PMA only overrides the wrapped process's `baseURL`; it does not change config, read `auth.json`, or capture other sessions. An explicit `baseURL` is required.
 
+For `-c/--continue` and `-s/--session`, PMA resolves OpenCode's public session identity and offers to append to the matching existing recording. Press Enter to reuse it, choose option 2 for a separate recording, or use `pma --reuse opencode -c` to skip the prompt. `--fork` always starts a new recording because OpenCode creates a new session identity.
+
 ## Resume A Claude Code Session
 
 Resume a specific Claude Code session:
@@ -354,6 +356,8 @@ Useful buttons:
 - `Tool results`: inspect tool results returned to the model.
 - `Response`: inspect captured model responses.
 - `Raw`: inspect the original captured JSON.
+
+Large tool results and image inputs appear as compact size/MIME/hash placeholders inside request detail. They are fetched from the loopback Viewer only after an explicit click; supported raster base64 images can then be restored in place.
 
 If the source is a live Claude Code or OpenClaw watch, the bottom composer can send a message to the watched Agent:
 

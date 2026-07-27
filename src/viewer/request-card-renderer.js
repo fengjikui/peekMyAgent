@@ -124,20 +124,14 @@ export function renderTimelineUpstreamQuickActions({
   `;
 }
 
-export function renderTimelineToolExchange({ requestId, pairs = [], counts = {}, translate, escapeHtml }) {
+export function renderTimelineToolExchange({ requestId, requestIndex, pairs = [], translate, escapeHtml }) {
   if (!pairs.length) return "";
   return `
-    <section class="summary-block tool-exchange-summary">
-      <div class="block-title-row">
-        <p class="block-title">${escapeHtml(translate("currentToolExchange", { calls: counts.calls || 0, results: counts.results || 0 }))}</p>
-        <button class="mini-raw-button" type="button" data-raw="${escapeHtml(requestId)}" data-raw-section="${counts.results ? "tool_results" : "upstream_tool_calls"}">${escapeHtml(translate("inspectDetails"))}</button>
-      </div>
-      <div class="tool-exchange-list">
-        ${pairs
-          .map((pair) => renderTimelineToolExchangeItem({ requestId, pair, translate, escapeHtml }))
-          .join("")}
-      </div>
-    </section>
+    <div class="tool-exchange-list">
+      ${pairs
+        .map((pair) => renderTimelineToolExchangeItem({ requestId, requestIndex, pair, translate, escapeHtml }))
+        .join("")}
+    </div>
   `;
 }
 
@@ -179,8 +173,8 @@ export function renderTimelineAssistantResponse({ view, translate, escapeHtml, r
   `;
 }
 
-function renderTimelineToolExchangeItem({ requestId, pair, translate, escapeHtml }) {
-  const { call, result, confidence } = pair;
+function renderTimelineToolExchangeItem({ requestId, requestIndex, pair, translate, escapeHtml }) {
+  const { call, result, confidence, origin } = pair;
   const title = call?.displayName || call?.name || result?.name || result?.id || "tool_result";
   const confidenceLabel = ["id", "historical_id"].includes(confidence)
     ? translate("pairedById")
@@ -190,14 +184,21 @@ function renderTimelineToolExchangeItem({ requestId, pair, translate, escapeHtml
   const kindLabel = result ? translate("toolResultSummary") : translate("toolCallSummary");
   const section = result ? "tool_results" : "upstream_tool_calls";
   return `
-    <button class="tool-exchange" type="button" data-raw="${escapeHtml(requestId)}" data-raw-section="${section}">
-      <span class="tool-exchange-kind">${escapeHtml(kindLabel)}</span>
-      <span class="tool-exchange-identity">
-        <strong>${escapeHtml(title)}</strong>
-        <em>${escapeHtml(confidenceLabel)}</em>
-      </span>
-      <span class="tool-exchange-open" aria-hidden="true">&#8250;</span>
-    </button>
+    <div class="tool-exchange-row">
+      <button class="tool-exchange" type="button" data-raw="${escapeHtml(requestId)}" data-raw-section="${section}">
+        <span class="tool-exchange-kind">${escapeHtml(kindLabel)}</span>
+        <span class="tool-exchange-identity">
+          <strong>${escapeHtml(title)}</strong>
+          <em>${escapeHtml(confidenceLabel)}</em>
+        </span>
+        <span class="tool-exchange-open" aria-hidden="true">&#8250;</span>
+      </button>
+      ${
+        result && origin?.requestId && origin?.requestIndex != null
+          ? `<button class="tool-origin-link" type="button" data-tool-origin-jump="${escapeHtml(origin.requestId)}" data-tool-result-request="${escapeHtml(requestId)}" data-tool-result-index="${escapeHtml(requestIndex ?? "")}" data-tool-call-id="${escapeHtml(origin.callId || result.id || "")}" aria-label="${escapeHtml(translate("toolOriginSourceAria", { index: origin.requestIndex, callId: origin.callId || result.id || "" }))}">${escapeHtml(translate("toolOriginSource", { index: origin.requestIndex }))}</button>`
+          : ""
+      }
+    </div>
   `;
 }
 

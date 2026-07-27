@@ -38,9 +38,10 @@ export function buildTimelineUpstreamView(
     preview = defaultPreview,
     serialize = stableSerialize,
     formatCompactNumber = defaultNumberFormat,
+    includeSubagentContent = false,
   } = {},
 ) {
-  const showInlineContent = shouldShowTimelineRequestContent(request, { cleanText });
+  const showInlineContent = shouldShowTimelineRequestContent(request, { cleanText, includeSubagentContent });
   const entryPreview = cleanText(request.summary?.entry?.text || "");
   const semanticEvent = buildTimelineSemanticEventView(request, { translate, formatCompactNumber });
   return {
@@ -214,10 +215,13 @@ function describeObservedToolSemantics(call = {}, translate = identityTranslate)
   };
 }
 
-export function shouldShowTimelineRequestContent(request = {}, { cleanText = defaultCleanText } = {}) {
+export function shouldShowTimelineRequestContent(
+  request = {},
+  { cleanText = defaultCleanText, includeSubagentContent = false } = {},
+) {
   if (request.source_hint?.type === "metadata" || request.source_hint?.type === "background") return false;
   if (request.summary?.command_message) return false;
-  if (request.is_subagent) return false;
+  if (request.is_subagent && !includeSubagentContent) return false;
   if (request.source_hint?.type === "parent_spawn") return false;
   if ((request.summary?.current_tool_results?.length || 0) > 0) return false;
   if ((request.summary?.current_tool_calls?.length || 0) > 0) return false;
@@ -402,6 +406,7 @@ export function formatTimelineResponseUsageMeta(usage, { formatCompactNumber = d
 }
 
 export function pairTimelineToolEvents(calls = [], results = [], { priorToolCalls = [] } = {}) {
+  const priorEvidence = priorToolCalls.map(normalizePriorToolCall).filter(({ call }) => call);
   const remainingResults = [...results];
   const pairs = calls.map((call) => {
     const matchIndex = remainingResults.findIndex((result) => result.id && call.id && result.id === call.id);
@@ -409,10 +414,67 @@ export function pairTimelineToolEvents(calls = [], results = [], { priorToolCall
     return { call, result, confidence: result ? "id" : "call_only" };
   });
   for (const result of remainingResults) {
-    const historicalCall = priorToolCalls.find((call) => result.id && call?.id && result.id === call.id) || null;
-    pairs.push({ call: historicalCall, result, confidence: historicalCall ? "historical_id" : "result_only" });
+    const historical = findPriorToolCall(priorEvidence, result.id);
+    pairs.push({
+      call: historical?.call || null,
+      result,
+      confidence: historical ? "historical_id" : "result_only",
+      ...(historical?.requestId ? { origin: toolCallOrigin(historical) } : {}),
+    });
   }
   return pairs;
+}
+
+export function buildTimelineToolOriginIndex(requests = []) {
+  const latestCallsById = new Map();
+  const originsByRequestId = new Map();
+  for (const request of requests || []) {
+    const origins = [];
+    const seenResultIds = new Set();
+    for (const result of request?.summary?.current_tool_results || []) {
+      if (!result?.id || seenResultIds.has(result.id)) continue;
+      seenResultIds.add(result.id);
+      const origin = latestCallsById.get(result.id);
+      if (origin) origins.push(origin);
+    }
+    originsByRequestId.set(request?.id, origins);
+    for (const call of [
+      ...(request?.summary?.current_tool_calls || []),
+      ...(request?.summary?.response?.tool_calls || []),
+    ]) {
+      if (!call?.id) continue;
+      latestCallsById.set(call.id, {
+        call,
+        requestId: request.id,
+        requestIndex: request.request_index,
+      });
+    }
+  }
+  return originsByRequestId;
+}
+
+function normalizePriorToolCall(value) {
+  if (value?.call && typeof value.call === "object") {
+    return {
+      call: value.call,
+      requestId: value.requestId || null,
+      requestIndex: value.requestIndex ?? null,
+    };
+  }
+  return { call: value, requestId: null, requestIndex: null };
+}
+
+function findPriorToolCall(priorEvidence, callId) {
+  if (!callId) return null;
+  return [...priorEvidence].reverse().find(({ call }) => call?.id === callId) || null;
+}
+
+function toolCallOrigin(evidence) {
+  return {
+    requestId: evidence.requestId,
+    requestIndex: evidence.requestIndex,
+    callId: evidence.call?.id || null,
+  };
 }
 
 function localizedTimelineEntryLabel(entry, translate) {

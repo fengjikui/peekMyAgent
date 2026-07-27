@@ -39,6 +39,7 @@ Controller 负责：
 
 - 中文、日文等 IME composition 生命周期与延迟搜索刷新；
 - filter/show-more、Raw、窗口跳转、Agent 分支、System diff 等动作分发；
+- tool result 来源跳转与 Agent tab 选择动作分发；
 - `<details>` 上行展开状态回调；
 - 活动 Turn/request 的局部 DOM class 同步。
 
@@ -52,7 +53,16 @@ Controller 不拥有业务状态，不发网络请求，不解释 Trace DTO。�
 - Timeline：搜索、筛选、Turn 卡片、多 Agent 展示和 Turn Rail；
 - Composer：当前 Agent 发送框。
 
-`renderAll()` 只用于 source 初次装载、完整 source 刷新、全局错误状态和 UI/目标翻译语言变化。Timeline 内部的搜索、筛选、分页、Turn 跳转、展开上行、展开回复和多 Agent 面板只调用 `renderTimelineSurface()`，不得重建 Header、Source 导航、Composer 或 Raw Inspector。
+`renderAll()` 只用于 source 初次装载、完整 source 刷新、全局错误状态和 UI/目标翻译语言变化。Timeline 内部的搜索、筛选、分页、Turn 跳转、展开上行和展开回复只调用 `renderTimelineSurface()`，不得重建 Header、Source 导航、Composer 或 Raw Inspector；同一 Turn 内的 Agent tab 切换进一步只替换对应 Agent 分支区域。
+
+## 两级导航 rail
+
+- `turn-rail.js` 导航当前 Trace 的 Turn。
+- `request-rail.js` 只在 active Turn 至少有 5 条主线 request 时出现；它位于中栏标题与 Timeline 之间，使用横向 sticky 上下文条显示“当前 / 总数”和可读 request 编号，不再与 Turn rail 并排悬浮。
+- request rail 的点击和滚动只写 Store 的 `activeTimelineRequestId`；Raw Inspector 使用独立的 `activeRequestId`。滚动激活不能让正在加载的 Raw 详情失效。
+- 横向窗口最多保留 18 个 request 按钮，并按中栏实际宽度收缩；child Agent request 不进入主线 request rail。
+- 已进入 child Agent tab timeline 的 request id 不进入 request rail。切换 active Turn、筛选窗口、pane 几何或活动 request 时，两个 rail 由应用装配层同步刷新。
+- Turn rail 的滚动激活线越过下一 Turn 起点后才切换，避免超长 Turn 在后半段提前失去 request rail。
 
 翻译单块时：
 
@@ -62,7 +72,7 @@ Controller 不拥有业务状态，不发网络请求，不解释 Trace DTO。�
 
 ## Store 通知
 
-`ViewerClientStore` 的 `activeId` 和 `activeRequestId` 通知驱动活动 Turn、请求卡片和 Turn Rail 的 DOM 同步。Timeline class 同步由 Controller 在自己的根节点内完成；动作函数只写 Store 和处理明确的滚动意图，不再各自复制活动态 querySelector 逻辑。
+`ViewerClientStore` 的 `activeId` 与 `activeTimelineRequestId` 通知驱动活动 Turn、请求卡片、Turn Rail 和 Request Rail 的 DOM 同步；`activeRequestId` 仅表示 Raw Inspector 当前证据上下文。Timeline class 同步由 Controller 在自己的根节点内完成；动作函数只写 Store 和处理明确的滚动意图，不再各自复制活动态 querySelector 逻辑。
 
 这仍是阶段性边界：Turn request、Assistant response、多 Agent graph 的领域 renderer，以及展开集合和动作实现仍在 `client.js`。后续应保持 model/renderer/controller 的单向依赖，逐个迁移这些领域卡片；真正的大 Trace 分页和 normalized entity store 属于阶段 4。
 
@@ -72,5 +82,6 @@ Controller 不拥有业务状态，不发网络请求，不解释 Trace DTO。�
 - `trace-timeline-renderer-contract-smoke.mjs` 直接验证查询 HTML、转义、空状态、窗口边界和旧 Trace fallback。
 - `trace-timeline-controller-contract-smoke.mjs` 模拟 IME、延迟刷新、单次事件委派、Raw/Agent 动作和活动态同步。
 - `viewer-timeline-surface-contract-smoke.mjs` 锁定应用装配、局部表面、Controller 归属和 Store 通知边界。
-- `timeline-window-smoke.mjs` 继续覆盖 Timeline、Turn Rail、多 Agent 折叠和容器响应式集成约束。
+- `timeline-window-smoke.mjs` 继续覆盖 Timeline、Turn Rail、常驻多 Agent tabs、Raw/滚动选择隔离和容器响应式集成约束。
+- `turn-rail-contract-smoke.mjs` 同时覆盖 request rail 的 threshold、活动请求滚动同步和底部吸附。
 - 真实浏览器验证必须覆盖 source 切换、搜索/筛选、Turn Rail、Raw tab、回复展开和三栏布局。
