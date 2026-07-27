@@ -13,24 +13,24 @@ peekMyAgent is not meant to "steal hidden prompts". It is an observability tool 
 ![peekMyAgent dashboard feature tour](assets/demo/dashboard-overview-tour.gif)
 
 <p>
-  <strong>Upstream Context Walkthrough</strong><br>
-  Inspect the exact System, Tools, Messages, and Response slices sent around a normal chat request.
+  <strong>Protocol &amp; Namespace Walkthrough</strong><br>
+  Preserve provider wire order, distinguish declared/added/loaded tools, and expand namespace containers into qualified callable leaves.
 </p>
 
 <p>
-  <img src="assets/demo/chat-upstream-context.gif" alt="Upstream context walkthrough" width="960">
+  <img src="assets/demo/chat-upstream-context.gif" alt="Protocol and namespace walkthrough" width="960">
 </p>
 
 <p>
-  <strong>Tool Call Loop Walkthrough</strong><br>
-  Follow a basic <code>tool_use</code> -> <code>tool_result</code> -> final answer loop from the model request timeline.
+  <strong>Tool Loop &amp; Lazy Payload Walkthrough</strong><br>
+  Follow the user -> tool call -> result -> final answer loop while large tool results and images stay local placeholders until opened.
 </p>
 
 <p>
-  <img src="assets/demo/tool-call-loop.gif" alt="Tool call loop walkthrough" width="960">
+  <img src="assets/demo/tool-call-loop.gif" alt="Tool loop and lazy payload walkthrough" width="960">
 </p>
 
-See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated screenshot, upstream-context walkthrough, tool-call loop walkthrough, and README recording plan.
+See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated screenshot, protocol/namespace walkthrough, lazy-payload walkthrough, and reproducible media workflow.
 
 ## What You Can Do Today
 
@@ -41,6 +41,8 @@ See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated
 - Start OpenClaw through `pma openclaw ...` and capture its model requests.
 - Switch the sidebar's observed Agent so Codex, Claude Code, OpenCode, OpenClaw, and imported traces stay separate.
 - Inspect requests as a timeline with user input, system summaries, tools, tool calls, tool results, responses, token usage, and raw JSON.
+- Inspect a provider-first Protocol Exchange for OpenAI Responses/Chat, Anthropic Messages, and Google GenerateContent, with ordered instructions, messages, tool stages, calls/results, reasoning, responses, and links back to Raw evidence.
+- Expand recursively nested `namespace` tool catalogs into qualified callable leaves such as `collaboration.followup_task`; namespace containers remain visible structure and are not counted as callable tools.
 - Inspect Claude Code subagent traffic and group child-agent requests.
 - Open the dashboard from inside Claude Code with `/peekmyagent`.
 - Pause, resume, stop, or clear a current recording from Claude Code slash commands.
@@ -351,13 +353,16 @@ Useful buttons:
 
 - `展开上行`: show the full upstream request area for one request.
 - `System`: inspect system prompt blocks.
-- `Tools`: inspect tool descriptions and schemas.
+- `Tools`: inspect callable-leaf descriptions and schemas; nested namespace containers remain visible as hierarchy instead of appearing as zero-parameter tools.
+- `Protocol`: inspect the provider-native request/response sequence and `declared` / `added` / `loaded` tool stages, with each item linked back to its Raw evidence.
 - `Tool calls`: inspect tool calls sent by the model.
 - `Tool results`: inspect tool results returned to the model.
 - `Response`: inspect captured model responses.
 - `Raw`: inspect the original captured JSON.
 
 Large tool results and image inputs appear as compact size/MIME/hash placeholders inside request detail. They are fetched from the loopback Viewer only after an explicit click; supported raster base64 images can then be restored in place.
+
+Raw remains the source of truth. The Protocol view organizes captured facts without rewriting one provider into another or inferring protocol semantics from the Agent name.
 
 If the source is a live Claude Code or OpenClaw watch, the bottom composer can send a message to the watched Agent:
 
@@ -546,6 +551,8 @@ node --check src/viewer/client.js
 - [User guide](docs/user-guide.md)
 - [Visual usage guide](docs/visual-usage-guide.zh-CN.md)
 - [Current architecture](docs/architecture.md)
+- [Protocol Exchange and recursive tool-catalog contract](docs/protocol-exchange-contract.md)
+- [Field-level lazy payload contract](docs/lazy-payload-contract.md)
 - [Refactoring roadmap](docs/refactoring-roadmap.md)
 - [Roadmap](docs/roadmap.md)
 - [Privacy and retention strategy](docs/privacy-retention-strategy.md)

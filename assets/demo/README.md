@@ -4,27 +4,39 @@ This directory stores public-facing README and launch media.
 
 Current files:
 
-- `dashboard-overview.png`: clean static screenshot for documentation.
-- `dashboard-overview-annotated.png`: annotated dashboard map used by the README and visual guide.
-- `dashboard-overview-tour.gif`: lightweight animated feature tour generated from the annotated screenshot.
-- `chat-upstream-context.gif`: wide-screen walkthrough of a normal chat request, upstream context, System, Tools, and Response slices.
-- `chat-upstream-context.png`: poster frame for the upstream-context walkthrough.
-- `tool-call-loop.gif`: wide-screen walkthrough of a basic `tool_use` -> `tool_result` -> final response loop.
-- `tool-call-loop.png`: poster frame for the tool-call-loop walkthrough.
+- `dashboard-overview.png`: clean latest-UI screenshot with a provider-native Protocol view open.
+- `dashboard-overview-annotated.png`: annotated map of sessions, the tool loop, Protocol evidence, and qualified namespace leaves.
+- `dashboard-overview-tour.gif`: latest-UI tour of navigation, tool flow, Protocol, namespace expansion, and lazy payloads.
+- `chat-upstream-context.gif`: Protocol-order and namespace-tool walkthrough.
+- `chat-upstream-context.png`: poster frame for the Protocol/namespace walkthrough.
+- `tool-call-loop.gif`: linked tool-call/result plus text/image lazy-loading walkthrough.
+- `tool-call-loop.png`: poster frame for the lazy-result walkthrough.
 
-Recommended files:
+Storyboards:
 
-- `hero-agent-trace.gif`: short hero demo for the top of README.
-- `raw-sections.gif`: System / Tools / Messages / Response / Raw panel walkthrough.
-- `subagent-flow.gif`: multi-agent grouping and result-return overview.
-- `translation-tools.gif`: tool description and parameter translation demo.
-- `share-trace.gif`: export/import trace bundle demo.
-- `cover.png`: static cover image for video posts.
+| Media | One question it answers | Ordered scenes | Total duration |
+| --- | --- | --- | --- |
+| `dashboard-overview-tour.gif` | What can I understand from one local trace? | Select a trace -> follow the tool loop -> inspect provider-native protocol -> expand namespace leaves -> keep large payloads lazy | 17 seconds |
+| `chat-upstream-context.gif` | How does PMA preserve and explain tool protocol? | Open Protocol -> compare declared/added stages -> distinguish containers from callable leaves -> inspect leaf schemas | 14 seconds |
+| `tool-call-loop.gif` | How can I inspect a large tool loop without loading everything? | Link calls and results -> read placeholder metadata -> load a result on demand -> keep images local until opened | 14 seconds |
+
+Reproduce the non-sensitive trace locally:
+
+```bash
+node scripts/readme-media-demo.mjs --port 43112
+```
+
+Capture the documented Browser states into `tmp/readme-media-frames/`, then rebuild annotations and GIFs:
+
+```bash
+python3 scripts/build-readme-media.py
+```
 
 Guidelines:
 
 - Use non-sensitive demo sessions only.
 - Keep each GIF focused on one workflow.
-- Prefer 8-15 seconds per GIF.
-- Prefer 960px width for README GIFs.
+- Prefer one clear claim per frame and 2.8-3.8 seconds per annotated state; reading frames need more time than navigation frames.
+- Keep each walkthrough between 12 and 18 seconds, with a single product question and a visible beginning-to-end story.
+- Keep the 1280×720 source ratio; README renders it responsively.
 - Try to keep each GIF under 8MB when practical.
