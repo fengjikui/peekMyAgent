@@ -241,6 +241,49 @@ PMA only overrides the wrapped process's `baseURL`; it does not change config, r
 
 For `-c/--continue` and `-s/--session`, PMA resolves OpenCode's public session identity and offers to append to the matching existing recording. Press Enter to reuse it, choose option 2 for a separate recording, or use `pma --reuse opencode -c` to skip the prompt. `--fork` always starts a new recording because OpenCode creates a new session identity.
 
+## Full-Permission Modes
+
+These switches and settings belong to the underlying harness. PMA passes them through or uses the named isolated OpenClaw profile; it does not grant itself additional permissions.
+
+Codex CLI can skip both approvals and its sandbox for one captured process:
+
+```bash
+pma codex --dangerously-bypass-approvals-and-sandbox
+```
+
+Claude Code can bypass its permission checks for one captured process:
+
+```bash
+pma claude -c --dangerously-skip-permissions
+```
+
+OpenCode can auto-approve requests that would otherwise ask:
+
+```bash
+pma opencode --auto
+```
+
+`--auto` does not override an explicit `deny`. If you intentionally need all OpenCode permissions allowed, put this in the trusted project's `opencode.json`, then run `pma opencode`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": "allow"
+}
+```
+
+OpenClaw uses PMA's isolated `peekmyagent` profile. Run and exit `pma openclaw chat` once so PMA can initialize that profile, then remove the tool-profile restriction and select OpenClaw's synchronized no-prompt host-exec preset:
+
+```bash
+openclaw --profile peekmyagent config set tools.profile full
+openclaw --profile peekmyagent exec-policy preset yolo
+pma openclaw chat
+```
+
+Managed settings, explicit `deny` rules, or per-agent policies can still restrict OpenCode and OpenClaw. Codex Desktop permissions are selected in the Desktop UI and are not changed by the Codex CLI flag.
+
+All of these modes can let an Agent modify files, execute commands, access configured tools, or send network requests without a confirmation prompt. Use them only in a trusted project, preferably inside an externally isolated or disposable environment.
+
 ## Resume A Claude Code Session
 
 Resume a specific Claude Code session:

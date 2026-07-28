@@ -19,6 +19,12 @@ assert.equal(quickHelp.status, 0, quickHelp.stderr);
 assert.match(quickHelp.stdout, /pma open/);
 assert.match(quickHelp.stdout, /pma claude -c/);
 assert.match(quickHelp.stdout, /--dangerously-skip-permissions/);
+assert.match(quickHelp.stdout, /--dangerously-bypass-approvals-and-sandbox/);
+assert.match(quickHelp.stdout, /pma opencode --auto/);
+assert.match(quickHelp.stdout, /config set tools\.profile full/);
+assert.match(quickHelp.stdout, /exec-policy preset yolo/);
+assert.match(quickHelp.stdout, /explicit deny rules still apply/);
+assert.match(quickHelp.stdout, /Codex Desktop permissions are selected in Desktop/);
 assert.doesNotMatch(quickHelp.stdout, /normalize openclaw-capture/);
 assert.doesNotMatch(quickHelp.stdout, /pma daemon/);
 
@@ -26,6 +32,9 @@ const advancedHelp = spawnSync(process.execPath, [bin, "help", "--all"], { encod
 assert.equal(advancedHelp.status, 0, advancedHelp.stderr);
 assert.match(advancedHelp.stdout, /normalize openclaw-capture/);
 assert.match(advancedHelp.stdout, /pma daemon/);
+assert.match(advancedHelp.stdout, /Full-permission modes \(dangerous\)/);
+assert.match(advancedHelp.stdout, /pma opencode --auto/);
+assert.match(advancedHelp.stdout, /exec-policy preset yolo/);
 assert.doesNotMatch(advancedHelp.stdout, /pma \[--reuse\|--new/);
 
 const removedNewShortcut = spawnSync(process.execPath, [bin, "--new", "claude"], { encoding: "utf8" });

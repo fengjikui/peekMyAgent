@@ -152,6 +152,12 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `integrations/` | Claude Code slash command 和 OpenClaw plugin 集成 |
 | `scripts/` | 安装、卸载、确定性 smoke、真实集成实验、翻译与发布门禁 |
 
+## Harness 权限模式边界
+
+PMA 不定义一套跨 Harness 的虚拟权限，也不会因为开始捕获而提升自身或 Agent 的权限。`pma codex`、`pma claude` 和 `pma opencode` 将原生 Harness 参数交给对应子进程；完全权限、自动审批和显式 deny 的最终语义仍由该 Harness 的当前版本决定。OpenClaw 的完整工具 profile 与 host exec policy 写入 PMA 明确命名的 `peekmyagent` 隔离 profile，不改写默认 profile。Codex Desktop 的权限由 Desktop UI 管理，CLI 的 bypass 参数不会跨到 Desktop。
+
+快速和高级 CLI help 都必须同时给出各 Harness 的原生命令、不能被 bypass 覆盖的策略边界，以及仅在受信任外部隔离环境中使用的风险提示。该 help 由 `scripts/cli-smoke.mjs` 固定为发布契约。
+
 ## Claude Code 捕获路径
 
 ### Proxy 模式
