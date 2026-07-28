@@ -5,8 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { canConnect, listeningPidsForPort, terminatePids } from "../src/core/process-tools.mjs";
+import { clearViewerRegistry } from "../src/core/viewer-registry.mjs";
 
 const cwd = process.cwd();
+const viewerServerSource = fs.readFileSync(new URL("../src/viewer/server.mjs", import.meta.url), "utf8");
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peek-dashboard-open-"));
 const stateDir = path.join(tmpDir, "state");
 const storePath = path.join(tmpDir, "store.sqlite");
@@ -99,6 +101,24 @@ try {
   assert.equal(finalShutdown.status, 0, finalShutdown.stderr);
   assert.equal(JSON.parse(finalShutdown.stdout).status, "stopped");
   assert.equal(fs.existsSync(path.join(stateDir, "viewer.json")), false);
+
+  assert.match(
+    viewerServerSource,
+    /server\.close\(\(error\) => \{\s*clearViewerRegistry\(url, process\.pid\);/,
+    "a closing daemon must identify its own registry entry by URL and PID",
+  );
+  const originalStateDir = process.env.PEEKMYAGENT_STATE_DIR;
+  try {
+    process.env.PEEKMYAGENT_STATE_DIR = stateDir;
+    writeViewerRegistry({ url: dashboardUrl, pid: 22222 });
+    clearViewerRegistry(dashboardUrl, 11111);
+    assert.equal(fs.existsSync(path.join(stateDir, "viewer.json")), true, "an old daemon PID must not remove the current registry");
+    clearViewerRegistry(dashboardUrl, 22222);
+    assert.equal(fs.existsSync(path.join(stateDir, "viewer.json")), false, "the matching daemon may remove its registry");
+  } finally {
+    if (originalStateDir === undefined) delete process.env.PEEKMYAGENT_STATE_DIR;
+    else process.env.PEEKMYAGENT_STATE_DIR = originalStateDir;
+  }
 
   const staleServer = await startStaleDaemonServer(apiPort);
   try {

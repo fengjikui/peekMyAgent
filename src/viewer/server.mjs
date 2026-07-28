@@ -197,7 +197,7 @@ export async function startViewerServer({ cwd = safeProcessCwd(), host = "127.0.
     closePromise = new Promise((resolve, reject) => {
       Promise.allSettled(closers).finally(() => {
         server.close((error) => {
-          clearViewerRegistry(url);
+          clearViewerRegistry(url, process.pid);
           if (closeStore) store.close();
           return error ? reject(error) : resolve();
         });
