@@ -140,4 +140,51 @@ requestPanel.scrollTop = 680;
 requestController.syncActiveFromScroll();
 assert.deepEqual(requestChanges.at(-1), { id: "request-e", scroll: false }, "request rail should snap to the final request at the bottom");
 
+const requestRailListeners = new Map();
+const requestRailButton = {
+  dataset: { request: "request-child" },
+  closest: () => requestRailButton,
+};
+const requestRailElement = {
+  addEventListener(type, listener) {
+    requestRailListeners.set(type, listener);
+  },
+  contains: (element) => element === requestRailButton,
+  querySelectorAll: () => [],
+};
+const requestRailJumps = [];
+const requestRailTimers = [];
+new RequestRailController({
+  element: requestRailElement,
+  mainPanel: { addEventListener() {} },
+  getRequests: () => activeTurnRequests,
+  getActiveId: () => "request-a",
+  getActiveTurnId: () => "turn-active",
+  promptFor: () => "",
+  translate: (key) => key,
+  escapeHtml: String,
+  onJump: (id) => requestRailJumps.push(id),
+  onActiveChange() {},
+  documentRef: { querySelectorAll: () => [] },
+  windowRef: {
+    innerHeight: 800,
+    requestAnimationFrame: (callback) => callback(),
+    setTimeout: (callback) => requestRailTimers.push(callback),
+  },
+}).bind();
+let focusScrollPrevented = false;
+requestRailListeners.get("mousedown")({
+  button: 0,
+  target: requestRailButton,
+  preventDefault() {
+    focusScrollPrevented = true;
+  },
+});
+requestRailListeners.get("click")({ detail: 1, target: requestRailButton });
+assert.equal(focusScrollPrevented, true, "mouse focus scrolling must not replace a request marker before click");
+assert.deepEqual(requestRailJumps, ["request-child"], "mousedown should jump before focus scrolling can redraw the rail");
+requestRailListeners.get("click")({ detail: 0, target: requestRailButton });
+assert.deepEqual(requestRailJumps, ["request-child", "request-child"], "keyboard activation should continue to use the click path");
+requestRailTimers.forEach((callback) => callback());
+
 console.log("turn rail contract smoke passed");

@@ -35,15 +35,32 @@ export class RequestRailController {
     this.window = windowRef;
     this.threshold = Math.max(1, Math.floor(Number(threshold) || REQUEST_RAIL_THRESHOLD));
     this.scrollRaf = 0;
+    this.pointerJumpRequestId = null;
     this.bound = false;
   }
 
   bind() {
     if (this.bound || !this.element || !this.mainPanel) return;
     this.bound = true;
+    this.element.addEventListener("mousedown", (event) => {
+      if (event.button !== 0) return;
+      const button = event.target.closest("[data-request]");
+      if (!button || !this.element.contains(button)) return;
+      // Run before focus scrolling can redraw and replace the pressed marker.
+      event.preventDefault();
+      this.pointerJumpRequestId = button.dataset.request;
+      this.onJump(button.dataset.request);
+      this.window.setTimeout?.(() => {
+        if (this.pointerJumpRequestId === button.dataset.request) this.pointerJumpRequestId = null;
+      }, 0);
+    });
     this.element.addEventListener("click", (event) => {
       const button = event.target.closest("[data-request]");
       if (!button || !this.element.contains(button)) return;
+      if (event.detail > 0 && this.pointerJumpRequestId === button.dataset.request) {
+        this.pointerJumpRequestId = null;
+        return;
+      }
       this.onJump(button.dataset.request);
     });
     const updateHover = (event) => {
