@@ -30,10 +30,20 @@
   --syntax-string: oklch(42% 0.12 150);
   --syntax-number: oklch(46% 0.17 260);
   --inline-code-ink: oklch(43% 0.105 48);
-  --user-bubble: oklch(96% 0.018 255);
-  --user-bubble-line: oklch(84% 0.035 255);
+  --user-bubble: oklch(97% 0.01 255);
+  --user-bubble-line: oklch(88% 0.026 255);
   --rail-mark: oklch(59% 0.05 255);
   --rail-subagent: oklch(56% 0.13 298);
+  --branch-surface: oklch(97.1% 0.01 255);
+  --branch-line: oklch(89.5% 0.012 255);
+  --branch-1: var(--accent);
+  --branch-2: var(--green);
+  --branch-3: var(--violet);
+  --branch-4: var(--amber);
+  --branch-5: var(--red);
+  --branch-6: color-mix(in oklch, var(--accent) 54%, var(--green));
+  --branch-7: color-mix(in oklch, var(--violet) 58%, var(--red));
+  --branch-8: color-mix(in oklch, var(--green) 58%, var(--amber));
   --bg: var(--canvas);
   --panel: var(--surface);
   --panel-soft: var(--surface-subtle);
@@ -79,10 +89,12 @@
   --syntax-string: oklch(75% 0.1 150);
   --syntax-number: oklch(75% 0.12 260);
   --inline-code-ink: oklch(82% 0.075 58);
-  --user-bubble: oklch(24% 0.022 255);
-  --user-bubble-line: oklch(38% 0.04 255);
+  --user-bubble: oklch(24% 0.016 255);
+  --user-bubble-line: oklch(36% 0.03 255);
   --rail-mark: oklch(70% 0.045 255);
   --rail-subagent: oklch(73% 0.12 298);
+  --branch-surface: oklch(18.2% 0.014 255);
+  --branch-line: oklch(31% 0.016 255);
   --shadow-float: 0 14px 34px oklch(5% 0.01 255 / 36%);
 }
 
@@ -117,10 +129,12 @@
   --syntax-string: oklch(39% 0.11 155);
   --syntax-number: oklch(44% 0.14 255);
   --inline-code-ink: oklch(42% 0.095 48);
-  --user-bubble: oklch(94.5% 0.026 215);
-  --user-bubble-line: oklch(81% 0.045 215);
+  --user-bubble: oklch(96.2% 0.018 215);
+  --user-bubble-line: oklch(84% 0.04 215);
   --rail-mark: oklch(57% 0.06 215);
   --rail-subagent: oklch(55% 0.12 305);
+  --branch-surface: oklch(95.3% 0.016 215);
+  --branch-line: oklch(87.5% 0.022 215);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -156,10 +170,12 @@
     --syntax-string: oklch(75% 0.1 150);
     --syntax-number: oklch(75% 0.12 260);
     --inline-code-ink: oklch(82% 0.075 58);
-    --user-bubble: oklch(24% 0.022 255);
-    --user-bubble-line: oklch(38% 0.04 255);
+    --user-bubble: oklch(24% 0.016 255);
+    --user-bubble-line: oklch(36% 0.03 255);
     --rail-mark: oklch(70% 0.045 255);
     --rail-subagent: oklch(73% 0.12 298);
+    --branch-surface: oklch(18.2% 0.014 255);
+    --branch-line: oklch(31% 0.016 255);
     --shadow-float: 0 14px 34px oklch(5% 0.01 255 / 36%);
   }
 }
@@ -261,7 +277,7 @@ textarea:focus-visible,
 .raw-panel {
   border-right: 0;
   border-left: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--panel);
   transition: opacity 160ms ease;
 }
 
@@ -358,7 +374,7 @@ textarea:focus-visible,
   overflow: auto;
   overflow-x: hidden;
   scrollbar-width: none;
-  background: var(--canvas);
+  background: var(--panel);
   container-name: trace-main;
   container-type: inline-size;
 }
@@ -638,7 +654,7 @@ textarea:focus-visible,
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 0;
+  padding: 9px 2px;
   list-style: none;
   cursor: pointer;
 }
@@ -686,6 +702,15 @@ textarea:focus-visible,
   opacity: 0.82;
 }
 
+.agent-branch-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  padding: 5px 10px 9px;
+  border-top: 1px solid var(--branch-line);
+  background: var(--branch-surface);
+}
+
 .agent-identity-glyph {
   display: inline-block;
   flex: 0 0 auto;
@@ -721,9 +746,9 @@ textarea:focus-visible,
 
 .agent-linkage-evidence {
   display: block;
-  padding: 8px 10px;
+  padding: 9px 0 1px;
   border: 0;
-  border-top: 1px solid var(--line-soft);
+  border-top: 1px solid var(--branch-line);
   border-radius: 0;
   background: transparent;
 }
@@ -745,7 +770,7 @@ textarea:focus-visible,
   content: "▸";
   display: inline-block;
   width: 12px;
-  color: #8190a8;
+  color: var(--faint);
 }
 
 .agent-linkage-evidence[open] > summary::before {
@@ -767,10 +792,10 @@ textarea:focus-visible,
 
 .agent-tab-list {
   display: flex;
-  gap: 3px;
+  gap: 12px;
   justify-content: flex-start;
   min-width: 0;
-  padding: 0 0 1px;
+  padding: 0;
   overflow-x: auto;
   scrollbar-width: thin;
 }
@@ -780,8 +805,8 @@ textarea:focus-visible,
   align-items: center;
   gap: 7px;
   flex: 0 0 auto;
-  min-height: 29px;
-  padding: 4px 1px;
+  min-height: 31px;
+  padding: 5px 1px 6px;
   border: 0;
   border-bottom: 2px solid transparent;
   border-radius: 0;
@@ -820,10 +845,10 @@ textarea:focus-visible,
 .agent-selected-branch {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
-  padding: 8px 0 10px;
-  border-top: 1px solid var(--line-soft);
+  padding: 10px 0 9px;
+  border-top: 1px solid var(--branch-line);
   scroll-margin-top: 96px;
 }
 
@@ -938,15 +963,15 @@ textarea:focus-visible,
 .agent-selected-timeline {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
-  padding: 8px 0 2px;
-  border-top: 1px solid var(--line-soft);
+  padding: 2px 0 4px;
+  border-top: 0;
 }
 
 .agent-branch-lineage {
-  padding: 7px 0 0;
-  border-top: 1px solid var(--line-soft);
+  padding: 2px 0 0;
+  border-top: 0;
   color: var(--muted);
 }
 
@@ -1204,7 +1229,7 @@ textarea:focus-visible,
   z-index: 2;
   min-height: 64px;
   border-bottom: 1px solid var(--line);
-  background: color-mix(in oklch, var(--surface) 97%, transparent);
+  background: var(--panel);
 }
 
 .topbar {
@@ -2171,7 +2196,7 @@ textarea:focus-visible,
   margin: 0 42px 0 20px;
   padding: 6px 8px 6px 10px;
   border-bottom: 1px solid var(--line);
-  background: color-mix(in oklch, var(--canvas) 97%, var(--surface));
+  background: var(--panel);
 }
 
 .request-rail[hidden] {
@@ -2253,21 +2278,22 @@ textarea:focus-visible,
 .request-mark.signal {
   display: flex;
   flex: 0 0 8px;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   min-width: 8px;
-  padding: 0;
+  padding: 5px 0 0;
   border-bottom-color: transparent;
 }
 
 .request-line {
   width: 1.5px;
-  height: 6px;
+  height: 18px;
   border-radius: 999px;
   background: var(--rail-mark);
   opacity: 0.88;
-  transform-origin: center;
-  transition: height 140ms ease, background-color 140ms ease, opacity 140ms ease;
+  transform: scaleY(0.333);
+  transform-origin: top center;
+  transition: transform 140ms ease, background-color 140ms ease, opacity 140ms ease;
 }
 
 .request-mark.signal .request-number {
@@ -2282,7 +2308,7 @@ textarea:focus-visible,
 .request-mark.signal:hover .request-line,
 .request-mark.signal:focus-visible .request-line,
 .request-mark.signal.active .request-line {
-  height: 14px;
+  transform: scaleY(0.778);
   background: var(--accent);
   opacity: 1;
 }
@@ -2300,36 +2326,43 @@ textarea:focus-visible,
 }
 
 .request-mark.signal.hover-near-3 .request-line {
-  height: 8px;
+  transform: scaleY(0.444);
   opacity: 0.78;
 }
 
 .request-mark.signal.hover-near-2 .request-line {
-  height: 10px;
+  transform: scaleY(0.556);
   opacity: 0.88;
 }
 
 .request-mark.signal.hover-near-1 .request-line {
-  height: 13px;
+  transform: scaleY(0.722);
   opacity: 0.96;
 }
 
 .request-mark.signal.hover-center .request-line {
-  height: 18px;
+  transform: scaleY(1);
   background: var(--accent);
   opacity: 1;
+}
+
+.request-mark.signal.active:hover .request-line,
+.request-mark.signal.active:focus-visible .request-line,
+.request-mark.signal.active.hover-center .request-line {
+  animation: none;
+  transform: scaleY(1);
 }
 
 @keyframes request-signal-breathe {
   0%,
   100% {
     opacity: 0.62;
-    transform: scaleY(0.76);
+    transform: scaleY(0.62);
   }
 
   50% {
     opacity: 1;
-    transform: scaleY(1);
+    transform: scaleY(0.778);
   }
 }
 
@@ -4721,7 +4754,7 @@ details .details-body {
   margin: -2px -2px 12px;
   padding: 5px 2px 9px;
   border-bottom: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--panel);
 }
 
 .tool-origin-return-context {

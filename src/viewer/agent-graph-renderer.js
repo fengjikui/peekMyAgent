@@ -11,7 +11,7 @@ export function renderAgentGraph(
         ${renderAgentSummaryGlyphs(view.branchEntries, escapeHtml)}
       </summary>
       ${view.dashboardOpen ? `
-        <div>
+        <div class="agent-branch-body">
           <div class="agent-tab-list" role="tablist" aria-label="${escapeHtml(translate("agentTabsAria"))}">
             ${view.branchEntries.map((entry) => renderAgentTab(entry, view.selectedBranch?.branch.id, dependencies)).join("")}
           </div>

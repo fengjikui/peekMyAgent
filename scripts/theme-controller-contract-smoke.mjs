@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { ViewerClientStore } from "../src/viewer/client-store.js";
 import {
   normalizeTheme,
@@ -72,5 +73,11 @@ select.dispatch("dark");
 assert.equal(store.state.theme, "dark");
 assert.equal(documentTarget.documentElement.dataset.theme, "dark");
 assert.equal(storage.getItem(THEME_STORAGE_KEY), "dark");
+
+const stylesSource = fs.readFileSync(new URL("../src/viewer/styles.css", import.meta.url), "utf8");
+assert.match(stylesSource, /\.main-panel\s*\{[\s\S]*?background:\s*var\(--panel\);/, "the timeline should use the shared workspace surface");
+assert.match(stylesSource, /\.raw-panel\s*\{[\s\S]*?background:\s*var\(--panel\);/, "the evidence pane should use the shared workspace surface");
+assert.match(stylesSource, /\.topbar,[\s\S]*?\.raw-header\s*\{[\s\S]*?background:\s*var\(--panel\);/, "both pane headers should share one surface token");
+assert.match(stylesSource, /--user-bubble:/, "every theme should expose a coordinated message-bubble surface");
 
 console.log("theme controller contract smoke passed");

@@ -129,6 +129,9 @@ assert.match(stylesSource, /\.agent-selected-timeline/, "the selected child time
 assert.match(stylesSource, /\.request-rail\s*\{[\s\S]*?position:\s*sticky/, "request navigation should live in the main reading flow instead of a second floating side rail");
 assert.match(stylesSource, /\.request-mark\.active\s*\{[\s\S]*?border-bottom-color:\s*var\(--accent\);[\s\S]*?background:\s*transparent;/, "short request navigation should use the same underline selection grammar as inspector tabs");
 assert.match(stylesSource, /@keyframes request-signal-breathe/, "dense request navigation should identify the active position with restrained breathing motion");
+assert.match(stylesSource, /\.request-line\s*\{[\s\S]*?transform-origin:\s*top center;/, "dense request marks should grow down from a fixed top edge");
+assert.match(stylesSource, /\.request-line\s*\{[\s\S]*?transition:\s*transform /, "dense request ripples should animate without changing layout height");
+assert.doesNotMatch(stylesSource, /\.request-line\s*\{[\s\S]*?transition:\s*height /, "dense request ripples should not grow in both directions through height animation");
 assert.match(requestRailSource, /hoverClassForDistance/, "dense request navigation should share the Turn rail ripple grammar");
 assert.doesNotMatch(stylesSource, /\.request-rail-track\.dense::before/, "dense request navigation should not add a baseline behind the fixed marks");
 assert.match(stylesSource, /\.raw-message-truncation/, "organized Messages truncation notice should be styled");
