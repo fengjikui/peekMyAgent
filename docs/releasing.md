@@ -58,8 +58,8 @@ npm 目前要求包已存在，之后才能为它配置 Trusted Publisher。因�
 
 1. 从最新 `origin/main` 创建发布分支，更新版本、锁文件和 `CHANGELOG.md`。
 2. 运行与改动风险匹配的聚焦测试；发布候选必须再运行当前主机完整 profile。
-3. 将候选提交推送到 `codex/**` 分支，等待 `.github/workflows/release-check.yml` 三平台通过；
-   工作流也会在 PR 和 `main` 推送时运行。
+3. 将候选提交推送到功能分支并创建或更新 PR，等待 `.github/workflows/release-check.yml` 三平台通过；
+   同仓功能分支由 PR 触发一次矩阵，合入后的 `main` push 再执行一次，不为功能分支额外配置 push 触发。
 4. 为这个精确提交创建 `v<version>` Tag，并创建 GitHub Release。Alpha/Beta 必须标记为 prerelease。
 5. 发布 Release 会触发 `.github/workflows/publish.yml`：
    - 再次从 Release Tag checkout；
