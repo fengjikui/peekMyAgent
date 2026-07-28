@@ -12,10 +12,12 @@ Raw Inspector 同时展示上行请求、模型下行、Harness 注入和捕获�
 - Developer 区块只投影上行 `role=developer` 的原始 message，并提供原文/整理切换；已识别的 Harness 子块可以额外出现在 Harness，但不得从 Developer 中删除。
 - `tool_result` 详情优先读取本轮原始 message 增量，不能复用为中间时间线裁剪过的 `summary.current_tool_results`；旧 Trace 缺失原始条目时才回退到摘要。
 
+Metadata 的“整理”View Model 可以从完整上行 body 提取 OpenAI Responses、OpenAI Chat Completions 与 Anthropic Messages 的短生成参数。每项必须保留原生字段名和 JSONPath；零值与 `false` 不得丢失。只允许有界标量和短标量数组进入整理 DTO，prompt、用户 metadata、大型 response schema、加密内容以及未知对象继续只在完整请求原文中查看。
+
 ## Section 约束
 
 View Model 统一生成 `system`、`developer`、`tools`、`harness`、`history`、`message`、上行 `tool_use`、`tool_result`、下行 `tool_use`、`response`、`metadata` 和完整请求的数据对象。文案翻译函数与 Harness 材料由应用层注入。
 
 ## 回归要求
 
-`scripts/raw-view-model-contract-smoke.mjs` 锁定请求/响应隔离、不可变 composition 过滤、System 双来源、Developer 原始角色、工具事件、Harness 来源以及完整 Response 的 stop reason、usage 和 capture facts。任何新增 Raw tab 都必须先明确属于上行、下行、注入信息还是捕获信息。
+`scripts/raw-view-model-contract-smoke.mjs` 锁定请求/响应隔离、不可变 composition 过滤、System 双来源、Developer 原始角色、工具事件、Harness 来源、OpenAI/Anthropic 生成参数白名单与大小门限，以及完整 Response 的 stop reason、usage 和 capture facts。任何新增 Raw tab 都必须先明确属于上行、下行、注入信息还是捕获信息。

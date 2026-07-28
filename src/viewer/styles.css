@@ -7207,6 +7207,45 @@ details .details-body {
   font-size: 11px;
 }
 
+.metadata-parameter-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.metadata-parameter-group h4 {
+  margin: 0 0 3px;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.metadata-parameter-list > div {
+  grid-template-columns: minmax(116px, max-content) minmax(0, 1fr);
+}
+
+.metadata-parameter-list dt {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.metadata-parameter-list dt code {
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.metadata-parameter-list dd > small {
+  display: block;
+  margin-top: 2px;
+  color: var(--faint);
+  font-family: var(--sans);
+  font-size: 9px;
+}
+
 .metadata-metric-strip,
 .metadata-composition-list {
   display: flex;

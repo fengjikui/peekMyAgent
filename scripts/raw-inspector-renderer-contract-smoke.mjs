@@ -183,6 +183,31 @@ const metadataSummary = renderOrganizedMetadata({
       cacheRatio: 2 / 3,
       actualRatio: 1 / 3,
     },
+    generationParameters: {
+      protocol: "openai_responses",
+      count: 5,
+      groups: [
+        {
+          key: "model",
+          facts: [{ key: "model", native_key: "model", source_path: "$.model", value: "gpt-5.4" }],
+        },
+        {
+          key: "reasoning",
+          facts: [{ key: "reasoning_effort", native_key: "reasoning.effort", source_path: "$.reasoning.effort", value: "high" }],
+        },
+        {
+          key: "sampling",
+          facts: [{ key: "temperature", native_key: "temperature", source_path: "$.temperature", value: 0 }],
+        },
+        {
+          key: "output",
+          facts: [
+            { key: "stop", native_key: "stop", source_path: "$.stop", value: ["END"], omitted_items: 2 },
+            { key: "response_schema", native_key: "text.format.name", source_path: "$.text.format.name", value: "safe<schema>" },
+          ],
+        },
+      ],
+    },
     composition: {
       unit: "chars",
       total: 1000,
@@ -218,6 +243,12 @@ const metadataSummary = renderOrganizedMetadata({
 assert.match(metadataSummary, /metadata-summary/);
 assert.match(metadataSummary, /metadataCapturedFact/);
 assert.match(metadataSummary, /metadataProviderFact/);
+assert.match(metadataSummary, /metadataGenerationParameters/);
+assert.match(metadataSummary, /metadataRequestFact/);
+assert.match(metadataSummary, /reasoning\.effort/);
+assert.match(metadataSummary, /title="\$\.reasoning\.effort"/);
+assert.match(metadataSummary, /metadataParameterMoreItems/);
+assert.doesNotMatch(metadataSummary, /safe<schema>/);
 assert.match(metadataSummary, /metadataCalculated/);
 assert.match(metadataSummary, /metadataAttribution/);
 assert.match(metadataSummary, /metadataAttributionEvidence/);

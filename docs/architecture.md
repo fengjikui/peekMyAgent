@@ -117,7 +117,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/viewer/session-navigator-renderer.js` | Session Navigator 项目组、会话项和动作菜单的纯 HTML renderer |
 | `src/viewer/session-navigator-controller.js` | 长期管理根事件委派、菜单互斥、外部关闭和项目折叠持久化 |
 | `src/viewer/raw-view-model.js` | Raw Inspector 上行、下行、Harness、Metadata 的纯 section 数据与方向约束 |
-| `src/viewer/metadata-view-model.js` | 请求身份、传输事实、厂商 usage、上行构成和捕获证据的纯 Metadata DTO |
+| `src/viewer/metadata-view-model.js` | 请求身份、传输事实、OpenAI/Anthropic 短生成参数、厂商 usage、上行构成和捕获证据的纯 Metadata DTO |
 | `src/viewer/metadata-renderer.js` | Metadata 原文/整理切换及分来源统计的纯 HTML renderer |
 | `src/viewer/raw-search-model.js` | Raw 搜索条目构建、过滤、摘要命中分段与导航索引的纯模型 |
 | `src/viewer/raw-search-controller.js` | Raw 搜索输入法生命周期、延迟重绘、当前命中、高亮和滚动控制器 |
@@ -357,7 +357,7 @@ Raw Inspector 的请求/响应方向由 `raw-view-model.js` 统一。它从完�
 
 Raw Inspector 按数据方向组织证据：请求卡和上行视图只展示 System、Tools、Harness、Messages、历史工具调用与回传结果；“完整请求”和“请求 Metadata”会从 capture 中剔除 response、响应状态以及 response 派生统计。请求侧标签保持单层排列，完整请求在首位、Metadata 在末位。完整 Response 与本次响应的协议原生调用条目只从 Assistant 回复进入“模型下行”视图。Assistant 视图保留独立的“上行参考”Tools schema，并明确它不是 response body 返回内容；当该响应包含工具调用时，可按下行的精确工具名一键过滤上行 schema，这只改变显示范围，不混淆证据方向。
 
-请求 Metadata 同时提供“原文”和“整理”两种视图。原文直接展示剔除下行派生字段后的上行 capture metadata；整理视图把请求身份和 HTTP 传输标为捕获事实，把 token usage 标为厂商返回，把 context delta 等证据标为 PMA 规范化，并把字符数和构成占比标为 PMA 计算。整理视图不得把计算结果伪装成协议字段，也不得覆盖原文。
+请求 Metadata 同时提供“原文”和“整理”两种视图。原文直接展示剔除下行派生字段后的上行 capture metadata；整理视图把请求身份和 HTTP 传输标为捕获事实，把 token usage 标为厂商返回，把 context delta 等证据标为 PMA 规范化，并把字符数和构成占比标为 PMA 计算。整理视图还按原生 JSONPath 展示 OpenAI Responses、OpenAI Chat Completions 与 Anthropic Messages 中影响单次生成的短请求字段，包括模型、推理/思考强度、temperature/top-p/top-k、token 上限、停止序列、输出格式、工具选择和执行选项；长字符串与长标量数组只显示有界预览，大型 Schema、prompt、用户 metadata 和加密内容仍只留在 Raw。该区段标为“上行请求字段”，不得把字段值伪装成厂商返回或 PMA 计算结果。整理视图不得覆盖原文。
 
 中间时间线与右侧 Inspector 使用不同的信息密度：时间线只消费有界摘要，右侧是完整证据与语义整理入口。右侧 `tool_result` 从本轮原始上行 message 增量读取完整条目，并提供原文/整理切换；例如 `tool_search_output` 会在整理视图中按命名空间展示完整工具描述、参数 schema、参数说明、原始定义与块级翻译操作，不受时间线 800 字预览限制。
 
