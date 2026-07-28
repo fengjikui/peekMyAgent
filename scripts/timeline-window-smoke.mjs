@@ -6,6 +6,7 @@ import {
   REQUEST_RAIL_DENSE_THRESHOLD,
   REQUEST_RAIL_THRESHOLD,
   requestRailMaxItems,
+  requestRailRequestsForTurn,
   visibleRequestWindow,
 } from "../src/viewer/request-rail.js";
 
@@ -51,6 +52,18 @@ assert.equal(requestRailMaxItems(2000), REQUEST_RAIL_MAX_ITEMS, "request rail de
 assert.equal(REQUEST_RAIL_DENSE_THRESHOLD, 18, "dozens of requests should switch to the complete signal rail");
 const railRequests = Array.from({ length: 60 }, (_, index) => ({ id: `request-${index + 1}` }));
 assert.deepEqual(visibleRequestWindow(railRequests, "request-30", 20), railRequests.slice(19, 39));
+assert.deepEqual(
+  requestRailRequestsForTurn(
+    { request_ids: ["request-main", "request-supporting", "request-child", "request-missing"] },
+    [
+      { id: "request-child", agent_id: "agent-child" },
+      { id: "request-main" },
+      { id: "request-supporting", timeline_role: "supporting" },
+    ],
+  ).map((request) => request.id),
+  ["request-main", "request-supporting", "request-child"],
+  "request navigation should preserve the complete Turn order, including supporting and child-Agent requests",
+);
 const denseRailElement = {
   hidden: false,
   innerHTML: "",
@@ -85,10 +98,11 @@ assert.equal((denseRailElement.innerHTML.match(/data-request=/g) || []).length, 
 assert.match(denseRailElement.innerHTML, /data-request="request-63"/, "the final request must remain directly reachable");
 assert.match(denseRailElement.innerHTML, /request-rail-track dense/, "dozens of requests should use the complete fixed-mark rail");
 assert.equal((denseRailElement.innerHTML.match(/class="request-line"/g) || []).length, 25, "dense navigation should use fixed rail marks for every request");
-assert.match(clientSource, /import \{ RequestRailController \} from "\.\/request-rail\.js";/, "long turns should use a dedicated request rail feature");
+assert.match(clientSource, /import \{ RequestRailController, requestRailRequestsForTurn \} from "\.\/request-rail\.js";/, "long turns should use a dedicated request rail feature");
 assert.match(clientSource, /function activeTurnRequestUniverse\(\)/, "request rail scope should be the active Turn");
-assert.match(clientSource, /function childRequestIdsForTurn\(turn\)/, "child requests should be removed from the main request universe");
-assert.match(requestRailSource, /allowedIds\.has\(card\.dataset\.card\)/, "scroll activation should ignore child-Agent cards excluded from the rail");
+assert.match(clientSource, /return requestRailRequestsForTurn\(turn, state\.data\?\.requests \|\| \[\]\);/, "request rail scope should include every request owned by the active Turn");
+assert.match(clientSource, /function childRequestIdsForTurn\(turn\)/, "child requests should still be removed from the duplicated main timeline rendering");
+assert.match(requestRailSource, /allowedIds\.has\(card\.dataset\.card\)/, "scroll activation should track the currently rendered cards from the complete request rail universe");
 assert.match(clientSource, /getActiveId: \(\) => state\.activeTimelineRequestId/, "scroll navigation should own a selection separate from Raw detail");
 assert.match(clientSource, /onActiveChange: markActiveTimelineRequest/, "request rail scrolling should never replace the Raw inspector context");
 assert.match(clientSource, /onLoaded: \(fullRequest\) => \{[\s\S]*?scheduleTranslationLookupRefresh\(\)/, "detail hydration should schedule translation indexing after first paint");

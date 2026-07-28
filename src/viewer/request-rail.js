@@ -215,6 +215,17 @@ export function visibleRequestWindow(requests, activeId, maxItems) {
   return allRequests.slice(start, start + limit);
 }
 
+export function requestRailRequestsForTurn(turn, requests = []) {
+  const requestById = new Map(
+    (Array.isArray(requests) ? requests : [])
+      .filter((request) => request?.id)
+      .map((request) => [request.id, request]),
+  );
+  return (Array.isArray(turn?.request_ids) ? turn.request_ids : [])
+    .map((requestId) => requestById.get(requestId))
+    .filter(Boolean);
+}
+
 export function requestRailMaxItems(viewportWidth) {
   const available = Math.max(260, Number(viewportWidth || 0) - 190);
   return Math.min(REQUEST_RAIL_MAX_ITEMS, Math.max(REQUEST_RAIL_THRESHOLD, Math.floor(available / REQUEST_RAIL_ITEM_PITCH)));

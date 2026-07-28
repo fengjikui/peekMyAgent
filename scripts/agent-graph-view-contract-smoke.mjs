@@ -7,6 +7,8 @@ import {
 } from "../src/viewer/agent-graph-model.js";
 import { renderAgentGraph } from "../src/viewer/agent-graph-renderer.js";
 
+const stylesSource = fs.readFileSync(new URL("../src/viewer/styles.css", import.meta.url), "utf8");
+
 const branches = [
   branch({
     id: "branch-euclid",
@@ -127,6 +129,11 @@ assert.match(html, /data-agent-branch-select="branch-euclid"[^>]*style=/);
 assert.match(html, /data-agent-branch-select="branch-euclid"[\s\S]*?class="agent-tab-name">Euclid<\/strong>/);
 assert.doesNotMatch(html, /childSeq:index=/, "Agent tabs should contain only their identity glyph and name");
 assert.match(html, /data-agent-selected-branch="branch-euclid"/);
+assert.match(
+  stylesSource,
+  /\.agent-branch-map\s*\{[^}]*background:\s*transparent;/,
+  "expanded child-Agent timelines should reuse the main timeline surface without a white details background",
+);
 assert.match(html, /data-card="request-14">trusted child timeline/);
 assert.match(html, /agentSelectedTimelineAria:name=Euclid/);
 assert.ok(

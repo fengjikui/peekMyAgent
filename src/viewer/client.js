@@ -94,7 +94,7 @@ import {
   translationSectionStats as summarizeTranslationSection,
 } from "./translation-view-model.js";
 import { TurnRailController } from "./turn-rail.js";
-import { RequestRailController } from "./request-rail.js";
+import { RequestRailController, requestRailRequestsForTurn } from "./request-rail.js";
 import { buildTurnStoryView } from "./turn-story-model.js";
 import { renderTurnStory as renderTurnStoryView } from "./turn-story-renderer.js";
 import {
@@ -1354,7 +1354,7 @@ function activeTurnRequestUniverse() {
   const turn = [...(timelineView.turnWindow?.turns || []), ...(timelineView.filteredTurns || [])]
     .find((item) => item.id === state.activeId);
   if (!turn) return [];
-  return mainTimelineRequestsForTurn(turn, new Map((state.data?.requests || []).map((request) => [request.id, request])));
+  return requestRailRequestsForTurn(turn, state.data?.requests || []);
 }
 
 function activeTurnIds(data = state.data) {
