@@ -243,21 +243,42 @@ async function clickSearchNavigation(browserPage, direction, expectedPosition, e
   assert.equal(state.activeTargets, 1);
 }
 
-async function waitForRawSearchInputToSettle(browserPage, { timeoutMs = 5_000, stableMs = 500 } = {}) {
+async function waitForRawSearchInputToSettle(browserPage, { timeoutMs = 8_000, stableMs = 1_800 } = {}) {
   const deadline = Date.now() + timeoutMs;
   let lastState = null;
-  while (Date.now() < deadline) {
-    await browserPage.evaluate(`window.__rawSearchSettleCandidate = document.querySelector('[data-raw-search]')`);
-    await delay(stableMs);
-    lastState = await browserPage.evaluate(`(() => {
-      const input = document.querySelector('[data-raw-search]');
-      return {
-        stable: Boolean(input) && input === window.__rawSearchSettleCandidate,
-        inputConnected: Boolean(input?.isConnected),
-        candidateConnected: Boolean(window.__rawSearchSettleCandidate?.isConnected),
-      };
-    })()`);
-    if (lastState.stable) return;
+  await browserPage.evaluate(`(() => {
+    window.__rawSearchSettleMutations = 0;
+    window.__rawSearchSettleObserver?.disconnect();
+    window.__rawSearchSettleObserver = new MutationObserver(() => {
+      window.__rawSearchSettleMutations += 1;
+    });
+    window.__rawSearchSettleObserver.observe(document.querySelector('#rawTree'), { childList: true, subtree: true });
+  })()`);
+  try {
+    while (Date.now() < deadline) {
+      await browserPage.evaluate(`(() => {
+        window.__rawSearchSettleCandidate = document.querySelector('[data-raw-search]');
+        window.__rawSearchSettleMutations = 0;
+      })()`);
+      await delay(stableMs);
+      lastState = await browserPage.evaluate(`(() => {
+        const input = document.querySelector('[data-raw-search]');
+        const activeSection = document.querySelector('.raw-section-nav [data-raw-section].active')?.dataset.rawSection || '';
+        return {
+          stable: Boolean(input) &&
+            input === window.__rawSearchSettleCandidate &&
+            window.__rawSearchSettleMutations === 0 &&
+            activeSection === 'system',
+          activeSection,
+          mutations: window.__rawSearchSettleMutations,
+          inputConnected: Boolean(input?.isConnected),
+          candidateConnected: Boolean(window.__rawSearchSettleCandidate?.isConnected),
+        };
+      })()`);
+      if (lastState.stable) return;
+    }
+  } finally {
+    await browserPage.evaluate(`window.__rawSearchSettleObserver?.disconnect()`);
   }
   throw new Error(`Raw search input did not settle before IME simulation: ${JSON.stringify(lastState)}`);
 }
