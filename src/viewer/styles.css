@@ -110,19 +110,19 @@
 
 :root[data-theme="studio"] {
   color-scheme: light;
-  --canvas: oklch(98.18% 0.0054 95.1);
-  --surface: oklch(99.48% 0.0011 17.2);
-  --surface-subtle: oklch(94.91% 0.0041 91.4);
-  --surface-raised: oklch(98.83% 0.0029 84.6);
-  --surface-sunken: oklch(94% 0.0042 91.4);
+  --canvas: rgb(249 249 247);
+  --surface: rgb(249 249 247);
+  --surface-subtle: rgb(244 244 242);
+  --surface-raised: rgb(253 253 252);
+  --surface-sunken: rgb(242 242 240);
   --ink: oklch(23.5% 0.018 55);
   --ink-soft: oklch(38% 0.021 58);
   --muted: oklch(52% 0.019 60);
   --muted-light: oklch(63% 0.016 62);
   --faint: oklch(70% 0.014 65);
-  --line: oklch(85.5% 0.008 91);
-  --line-soft: oklch(91% 0.006 91);
-  --pane-divider: oklch(82.5% 0.008 91);
+  --line: rgb(220 220 216);
+  --line-soft: rgb(234 234 231);
+  --pane-divider: rgb(211 211 207);
   --accent: oklch(66.7% 0.1081 42);
   --accent-strong: oklch(57.5% 0.12 38);
   --accent-soft: oklch(96.41% 0.0126 228.9);
@@ -135,23 +135,23 @@
   --violet: oklch(51% 0.13 305);
   --violet-soft: oklch(95% 0.025 305);
   --on-accent: oklch(99% 0.004 92);
-  --code-bg: oklch(95.2% 0.006 91);
+  --code-bg: rgb(244 244 241);
   --selection: oklch(93.5% 0.025 228.9);
   --syntax-key: oklch(41% 0.12 35);
   --syntax-string: oklch(39% 0.11 155);
   --syntax-number: oklch(44% 0.14 255);
   --inline-code-ink: oklch(42% 0.095 48);
-  --user-bubble: oklch(96.33% 0.004 106.5);
-  --user-bubble-line: oklch(90.59% 0.004 106.5);
+  --user-bubble: rgb(242 242 240);
+  --user-bubble-line: rgb(225 225 221);
   --rail-mark: oklch(57% 0.05 58);
   --rail-subagent: oklch(57% 0.11 32);
-  --branch-surface: oklch(95.4% 0.0053 106.5);
-  --branch-line: oklch(90.59% 0.004 106.5);
-  --tooltip-bg: oklch(29% 0.026 55);
-  --tooltip-ink: oklch(97% 0.008 88);
-  --tooltip-muted: oklch(83% 0.018 78);
-  --tooltip-line: oklch(43% 0.024 58);
-  --shadow-float: 0 10px 30px oklch(23.5% 0.018 55 / 10%);
+  --branch-surface: rgb(245 245 243);
+  --branch-line: rgb(225 225 221);
+  --tooltip-bg: rgb(47 46 43);
+  --tooltip-ink: rgb(248 248 245);
+  --tooltip-muted: rgb(207 206 199);
+  --tooltip-line: rgb(91 89 83);
+  --shadow-float: 0 10px 30px rgb(31 31 29 / 10%);
 }
 
 @media (prefers-color-scheme: dark) {
