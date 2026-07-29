@@ -131,6 +131,9 @@ assert.match(
   /grid-template-columns:\s*var\(--sidebar-width\)[\s\S]*?minmax\(520px, 1fr\)[\s\S]*?var\(--raw-width\);/,
   "CSS and pane geometry must agree on the 520px timeline minimum",
 );
+assert.match(stylesSource, /\.sidebar,\s*\n\.raw-panel\s*\{[\s\S]*?border:\s*0;/, "pane surfaces should not duplicate the resizer divider");
+assert.match(stylesSource, /\.sidebar-resizer::after,[\s\S]*?bottom:\s*0;[\s\S]*?width:\s*1px;[\s\S]*?background:\s*var\(--pane-divider\);/, "pane resizing should use one full-height hairline");
+assert.doesNotMatch(stylesSource, /\.sidebar-resizer::after,[\s\S]*?height:\s*36px;/, "pane dividers should not use a decorative short handle");
 
 controller.destroy();
 assert.equal(rawToggle.listenerCount("click"), 0);

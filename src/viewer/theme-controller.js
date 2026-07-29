@@ -1,5 +1,6 @@
 export const THEME_STORAGE_KEY = "peekmyagent.theme";
-export const SUPPORTED_THEMES = Object.freeze(["system", "light", "dark", "studio"]);
+// Keep the persisted ids stable: light = Codex, studio = Claude, dark = Dark.
+export const SUPPORTED_THEMES = Object.freeze(["system", "light", "studio", "dark"]);
 
 export class ThemeController {
   constructor({
