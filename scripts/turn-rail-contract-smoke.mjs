@@ -12,7 +12,6 @@ import {
 import {
   REQUEST_RAIL_THRESHOLD,
   RequestRailController,
-  visibleRequestWindow,
 } from "../src/viewer/request-rail.js";
 
 const turns = Array.from({ length: 100 }, (_, index) => ({ id: `turn-${index + 1}`, index: index + 1 }));
@@ -135,7 +134,6 @@ const requestController = new RequestRailController({
 });
 requestController.syncActiveFromScroll();
 assert.deepEqual(requestChanges, [{ id: "request-c", scroll: false }], "request rail should track the nearest main request in the active Turn");
-assert.deepEqual(visibleRequestWindow(activeTurnRequests, "request-c", 3), activeTurnRequests.slice(1, 4));
 requestPanel.scrollTop = 680;
 requestController.syncActiveFromScroll();
 assert.deepEqual(requestChanges.at(-1), { id: "request-e", scroll: false }, "request rail should snap to the final request at the bottom");

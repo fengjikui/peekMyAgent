@@ -2,11 +2,7 @@ import fs from "node:fs";
 import assert from "node:assert/strict";
 import {
   RequestRailController,
-  REQUEST_RAIL_MAX_ITEMS,
-  REQUEST_RAIL_DENSE_THRESHOLD,
   REQUEST_RAIL_THRESHOLD,
-  requestRailMaxItems,
-  visibleRequestWindow,
 } from "../src/viewer/request-rail.js";
 
 const clientSource = fs.readFileSync(new URL("../src/viewer/client.js", import.meta.url), "utf8");
@@ -46,11 +42,6 @@ assert.match(clientSource, /turnRailController\.bind\(\)/, "the turn rail contro
 assert.match(turnRailSource, /export function visibleTurnWindow\(/, "the turn rail window policy should be directly testable");
 assert.match(turnRailSource, /syncActiveFromScroll\(\)/, "the turn rail controller should own scroll activation");
 assert.equal(REQUEST_RAIL_THRESHOLD, 5, "short turns should not show a second navigation rail");
-assert.equal(requestRailMaxItems(400), REQUEST_RAIL_THRESHOLD, "narrow panes retain a usable horizontal request window");
-assert.equal(requestRailMaxItems(2000), REQUEST_RAIL_MAX_ITEMS, "request rail density stays bounded");
-assert.equal(REQUEST_RAIL_DENSE_THRESHOLD, 18, "dozens of requests should switch to the complete signal rail");
-const railRequests = Array.from({ length: 60 }, (_, index) => ({ id: `request-${index + 1}` }));
-assert.deepEqual(visibleRequestWindow(railRequests, "request-30", 20), railRequests.slice(19, 39));
 const denseRailElement = {
   hidden: false,
   innerHTML: "",
@@ -83,8 +74,28 @@ new RequestRailController({
 }).render();
 assert.equal((denseRailElement.innerHTML.match(/data-request=/g) || []).length, 25, "#39-#63 must all exist in the dense request rail");
 assert.match(denseRailElement.innerHTML, /data-request="request-63"/, "the final request must remain directly reachable");
-assert.match(denseRailElement.innerHTML, /request-rail-track dense/, "dozens of requests should use the complete fixed-mark rail");
-assert.equal((denseRailElement.innerHTML.match(/class="request-line"/g) || []).length, 25, "dense navigation should use fixed rail marks for every request");
+assert.match(denseRailElement.innerHTML, /request-rail-track/, "request navigation should use one shared fixed-mark rail");
+assert.equal((denseRailElement.innerHTML.match(/class="request-line"/g) || []).length, 25, "navigation should use fixed rail marks for every request");
+assert.doesNotMatch(denseRailElement.innerHTML, /request-number/, "request markers should never fall back to numbered buttons");
+assert.equal((denseRailElement.innerHTML.match(/id="requestRailTooltip"/g) || []).length, 1, "request navigation should render one shared tooltip outside marker buttons");
+assert.doesNotMatch(denseRailElement.innerHTML, /<button class="request-mark[^>]*>[\s\S]*?request-tooltip[\s\S]*?<\/button>/, "request markers must not own a tooltip that can be clipped by the scrolling track");
+const shortSignalRail = { ...denseRailElement, innerHTML: "", attributes: new Map() };
+new RequestRailController({
+  element: shortSignalRail,
+  mainPanel: { clientWidth: 480 },
+  getRequests: () => requests39To63.slice(0, REQUEST_RAIL_THRESHOLD),
+  getActiveId: () => "request-39",
+  getActiveTurnId: () => "turn-short",
+  promptFor: () => "user prompt",
+  translate: (key, values = {}) => `${key}:${Object.values(values).join("/")}`,
+  escapeHtml: (value) => String(value),
+  onJump: () => {},
+  onActiveChange: () => {},
+  documentRef: {},
+  windowRef: { innerWidth: 480 },
+}).render();
+assert.equal((shortSignalRail.innerHTML.match(/class="request-line"/g) || []).length, REQUEST_RAIL_THRESHOLD, "the first visible request rail should already use signal marks");
+assert.doesNotMatch(shortSignalRail.innerHTML, /request-number/, "short visible request rails should not render numbered buttons");
 assert.match(clientSource, /import \{ RequestRailController \} from "\.\/request-rail\.js";/, "long turns should use a dedicated request rail feature");
 assert.match(clientSource, /function activeTurnRequestUniverse\(\)/, "request rail scope should be the active Turn");
 assert.match(clientSource, /function childRequestIdsForTurn\(turn\)/, "child requests should be removed from the main request universe");
@@ -127,13 +138,14 @@ assert.match(stylesSource, /\.timeline-window-edge-card/, "window edge UI should
 assert.match(stylesSource, /\.agent-tab-list/, "child Agent tabs should use the shared product tab grammar");
 assert.match(stylesSource, /\.agent-selected-timeline/, "the selected child timeline should have a stable reading surface");
 assert.match(stylesSource, /\.request-rail\s*\{[\s\S]*?position:\s*sticky/, "request navigation should live in the main reading flow instead of a second floating side rail");
-assert.match(stylesSource, /\.request-mark\.active\s*\{[\s\S]*?border-bottom-color:\s*var\(--accent\);[\s\S]*?background:\s*transparent;/, "short request navigation should use the same underline selection grammar as inspector tabs");
-assert.match(stylesSource, /@keyframes request-signal-breathe/, "dense request navigation should identify the active position with restrained breathing motion");
-assert.match(stylesSource, /\.request-line\s*\{[\s\S]*?transform-origin:\s*top center;/, "dense request marks should grow down from a fixed top edge");
-assert.match(stylesSource, /\.request-line\s*\{[\s\S]*?transition:\s*transform /, "dense request ripples should animate without changing layout height");
-assert.doesNotMatch(stylesSource, /\.request-line\s*\{[\s\S]*?transition:\s*height /, "dense request ripples should not grow in both directions through height animation");
-assert.match(requestRailSource, /hoverClassForDistance/, "dense request navigation should share the Turn rail ripple grammar");
-assert.doesNotMatch(stylesSource, /\.request-rail-track\.dense::before/, "dense request navigation should not add a baseline behind the fixed marks");
+assert.match(stylesSource, /@keyframes request-signal-breathe/, "request navigation should identify the active position with restrained breathing motion");
+assert.match(stylesSource, /\.request-line\s*\{[\s\S]*?transform-origin:\s*top center;/, "request marks should grow down from a fixed top edge");
+assert.match(stylesSource, /\.request-line\s*\{[\s\S]*?transition:\s*transform /, "request ripples should animate without changing layout height");
+assert.doesNotMatch(stylesSource, /\.request-line\s*\{[\s\S]*?transition:\s*height /, "request ripples should not grow in both directions through height animation");
+assert.match(requestRailSource, /hoverClassForDistance/, "request navigation should share the Turn rail ripple grammar");
+assert.doesNotMatch(stylesSource, /\.request-rail-track::before/, "request navigation should not add a baseline behind the fixed marks");
+assert.match(requestRailSource, /this\.showTooltip\(button\.dataset\.request, button\)/, "request tooltip positioning should be owned by the rail controller");
+assert.match(stylesSource, /--tooltip-bg:/, "request tooltip background should use an explicit theme token");
 assert.match(stylesSource, /\.raw-message-truncation/, "organized Messages truncation notice should be styled");
 assert.match(stylesSource, /container-name:\s*trace-main/, "the main pane should expose its own responsive container");
 assert.match(stylesSource, /@container trace-main \(max-width: 720px\)/, "the topbar should adapt to the actual main-pane width");

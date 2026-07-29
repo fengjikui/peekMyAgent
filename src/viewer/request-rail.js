@@ -1,9 +1,6 @@
 import { hoverClassForDistance, truncateRailPrompt } from "./turn-rail.js";
 
 export const REQUEST_RAIL_THRESHOLD = 5;
-export const REQUEST_RAIL_MAX_ITEMS = 18;
-export const REQUEST_RAIL_DENSE_THRESHOLD = REQUEST_RAIL_MAX_ITEMS;
-export const REQUEST_RAIL_ITEM_PITCH = 52;
 
 export class RequestRailController {
   constructor({
@@ -48,11 +45,17 @@ export class RequestRailController {
     });
     const updateHover = (event) => {
       const button = event.target.closest("[data-request]");
-      if (button && this.element.contains(button)) this.updateHover(button.dataset.request);
+      if (!button || !this.element.contains(button)) return;
+      this.updateHover(button.dataset.request);
+      this.showTooltip(button.dataset.request, button);
     };
     this.element.addEventListener("pointerover", updateHover);
     this.element.addEventListener("pointermove", updateHover);
     this.element.addEventListener("pointerleave", () => this.clearHover());
+    this.element.addEventListener("focusin", updateHover);
+    this.element.addEventListener("focusout", (event) => {
+      if (!this.element.contains(event.relatedTarget)) this.clearHover();
+    });
     this.mainPanel.addEventListener("scroll", () => this.scheduleActiveSync(), { passive: true });
   }
 
@@ -67,14 +70,6 @@ export class RequestRailController {
     }
     const activeId = this.getActiveId();
     const activePosition = allRequests.findIndex((request) => request.id === activeId);
-    const dense = allRequests.length > REQUEST_RAIL_DENSE_THRESHOLD;
-    const requests = dense
-      ? allRequests
-      : visibleRequestWindow(
-          allRequests,
-          activeId,
-          requestRailMaxItems(this.mainPanel?.clientWidth || this.window.innerWidth),
-        );
     const activeRequest = activePosition >= 0 ? allRequests[activePosition] : allRequests[0];
     this.element.hidden = false;
     this.element.removeAttribute("aria-hidden");
@@ -87,7 +82,11 @@ export class RequestRailController {
           total: allRequests.length,
         }))}</span>
       </span>
-      <span class="request-rail-track ${dense ? "dense" : ""}">${requests.map((request) => this.renderItem(request, activeId, dense)).join("")}</span>
+      <span class="request-rail-track">${allRequests.map((request) => this.renderItem(request, activeId)).join("")}</span>
+      <span id="requestRailTooltip" class="request-tooltip" role="tooltip" data-request-tooltip aria-hidden="true">
+        <strong data-request-tooltip-index></strong>
+        <span data-request-tooltip-prompt></span>
+      </span>
     `;
     this.element.setAttribute(
       "aria-label",
@@ -97,16 +96,11 @@ export class RequestRailController {
     );
   }
 
-  renderItem(request, activeId, dense = false) {
+  renderItem(request, activeId) {
     const active = request.id === activeId;
     return `
-      <button class="request-mark ${dense ? "signal" : ""} ${active ? "active" : ""}" type="button" data-request="${this.escapeHtml(request.id)}" aria-label="${this.escapeHtml(this.translate("jumpToRequestAria", { index: request.request_index }))}" ${active ? 'aria-current="step"' : ""}>
-        ${dense ? '<span class="request-line"></span>' : ""}
-        <span class="request-number">#${this.escapeHtml(request.request_index)}</span>
-        <span class="request-tooltip">
-          <strong>#${this.escapeHtml(request.request_index)}</strong>
-          <span>${this.escapeHtml(truncateRailPrompt(this.promptFor(request)))}</span>
-        </span>
+      <button class="request-mark ${active ? "active" : ""}" type="button" data-request="${this.escapeHtml(request.id)}" aria-label="${this.escapeHtml(this.translate("jumpToRequestAria", { index: request.request_index }))}" aria-describedby="requestRailTooltip" ${active ? 'aria-current="step"' : ""}>
+        <span class="request-line"></span>
       </button>
     `;
   }
@@ -148,6 +142,34 @@ export class RequestRailController {
     this.element.querySelectorAll("[data-request]").forEach((button) => {
       button.classList.remove("hover-center", "hover-near-1", "hover-near-2", "hover-near-3");
     });
+    this.hideTooltip();
+  }
+
+  showTooltip(requestId, button) {
+    const request = (this.getRequests() || []).find((item) => item.id === requestId);
+    const tooltip = this.element.querySelector("[data-request-tooltip]");
+    if (!request || !tooltip || !button) return;
+    const index = tooltip.querySelector("[data-request-tooltip-index]");
+    const prompt = tooltip.querySelector("[data-request-tooltip-prompt]");
+    if (index) index.textContent = `#${request.request_index}`;
+    if (prompt) prompt.textContent = truncateRailPrompt(this.promptFor(request));
+    const railRect = this.element.getBoundingClientRect?.();
+    const buttonRect = button.getBoundingClientRect?.();
+    if (railRect && buttonRect) {
+      const tooltipHalfWidth = Math.min(130, Math.max(72, (railRect.width - 16) / 2));
+      const preferredLeft = buttonRect.left + buttonRect.width / 2 - railRect.left;
+      const left = Math.min(Math.max(preferredLeft, tooltipHalfWidth + 4), railRect.width - tooltipHalfWidth - 4);
+      tooltip.style.setProperty("--request-tooltip-left", `${left}px`);
+    }
+    tooltip.classList.add("visible");
+    tooltip.setAttribute("aria-hidden", "false");
+  }
+
+  hideTooltip() {
+    const tooltip = this.element.querySelector("[data-request-tooltip]");
+    if (!tooltip) return;
+    tooltip.classList.remove("visible");
+    tooltip.setAttribute("aria-hidden", "true");
   }
 
   syncActiveContext(id) {
@@ -203,21 +225,6 @@ export class RequestRailController {
     const id = candidate?.dataset.card;
     if (id && id !== this.getActiveId()) this.onActiveChange(id, false);
   }
-}
-
-export function visibleRequestWindow(requests, activeId, maxItems) {
-  const allRequests = Array.isArray(requests) ? requests : [];
-  const limit = Math.max(1, Math.floor(Number(maxItems) || REQUEST_RAIL_MAX_ITEMS));
-  if (allRequests.length <= limit) return allRequests;
-  const activeIndex = Math.max(0, allRequests.findIndex((request) => request.id === activeId));
-  const maxStart = Math.max(0, allRequests.length - limit);
-  const start = Math.min(Math.max(0, activeIndex - Math.floor(limit / 2)), maxStart);
-  return allRequests.slice(start, start + limit);
-}
-
-export function requestRailMaxItems(viewportWidth) {
-  const available = Math.max(260, Number(viewportWidth || 0) - 190);
-  return Math.min(REQUEST_RAIL_MAX_ITEMS, Math.max(REQUEST_RAIL_THRESHOLD, Math.floor(available / REQUEST_RAIL_ITEM_PITCH)));
 }
 
 function elementScrollTop(element, scroller) {
