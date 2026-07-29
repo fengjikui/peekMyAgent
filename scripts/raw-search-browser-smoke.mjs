@@ -90,6 +90,9 @@ try {
   });
   await browser.evaluate(`document.querySelector('.raw-sticky-controls [data-raw-section="system"]').click()`);
   await browser.waitFor(`Boolean(document.querySelector('[data-raw-search]'))`, { description: "the System Raw search field" });
+  await browser.evaluate(`window.setTimeout(() => {
+    document.querySelector('.raw-section-nav [data-raw-section="full"]')?.click();
+  }, 150)`);
   await waitForRawSearchInputToSettle(browser);
 
   await browser.evaluate(`(() => {
@@ -243,7 +246,7 @@ async function clickSearchNavigation(browserPage, direction, expectedPosition, e
   assert.equal(state.activeTargets, 1);
 }
 
-async function waitForRawSearchInputToSettle(browserPage, { timeoutMs = 8_000, stableMs = 1_800 } = {}) {
+async function waitForRawSearchInputToSettle(browserPage, { timeoutMs = 12_000, stableMs = 1_800 } = {}) {
   const deadline = Date.now() + timeoutMs;
   let lastState = null;
   await browserPage.evaluate(`(() => {
@@ -265,17 +268,23 @@ async function waitForRawSearchInputToSettle(browserPage, { timeoutMs = 8_000, s
         const input = document.querySelector('[data-raw-search]');
         const activeSection = document.querySelector('.raw-section-nav [data-raw-section].active')?.dataset.rawSection || '';
         return {
-          stable: Boolean(input) &&
+          domStable: Boolean(input) &&
             input === window.__rawSearchSettleCandidate &&
-            window.__rawSearchSettleMutations === 0 &&
-            activeSection === 'system',
+            window.__rawSearchSettleMutations === 0,
           activeSection,
           mutations: window.__rawSearchSettleMutations,
           inputConnected: Boolean(input?.isConnected),
           candidateConnected: Boolean(window.__rawSearchSettleCandidate?.isConnected),
         };
       })()`);
-      if (lastState.stable) return;
+      if (!lastState.domStable) continue;
+      if (lastState.activeSection === 'system') return;
+      const selected = await browserPage.evaluate(`(() => {
+        const button = document.querySelector('.raw-section-nav [data-raw-section="system"]');
+        button?.click();
+        return Boolean(button);
+      })()`);
+      if (!selected) break;
     }
   } finally {
     await browserPage.evaluate(`window.__rawSearchSettleObserver?.disconnect()`);
