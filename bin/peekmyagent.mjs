@@ -102,6 +102,7 @@ Usage:
   pma run claude [--watch ask|reuse|new] [peekMyAgent options] -- [claude args...]
   pma run opencode [--watch ask|reuse|new] [peekMyAgent options] -- [opencode args...]
   pma run openclaw [--watch reuse|new] [peekMyAgent options] -- [openclaw args...]
+  pma observe --name <label> --base-url-env <env> [--target-base-url <url>] [--conversation-id <id>] [--viewer-url <url>] [--open-viewer] [--mode <mode>] -- <command> [args...]
   pma watch-current [--agent claude-code|openclaw] [--mode next_request|single_session|privacy_guard] [--viewer-url <url>] [--json] [--open] [--pause] [--resume] [--stop] [--clear] [--session-key <key>] [--patch-openclaw] [--openclaw-profile <name>] [--provider <id>] [--model <id>] [--target-base-url <url>] [--refresh-profile]
   pma install-claude-skill [--scope user|project] [--commands] [--dest <claude-dir>] [--json]
   pma install-openclaw-skill [--agent <id>] [--global] [--force] [--json]
@@ -115,6 +116,7 @@ Notes:
   - claude-otel expects one Claude Code OTel .request.json file.
   - output is normalized JSON and does not print raw secrets beyond adapter redaction.
   - run is the advanced compatibility path. Starting an Agent through peekMyAgent is the user's explicit consent to capture that process. For Claude or OpenCode continue/resume, peekMyAgent asks where to write capture by default when a matching watch exists; use --reuse to reuse automatically or choose option 2 to start a separate recording. OpenCode --fork always starts a new recording.
+  - observe wraps any command that already reads an OpenAI- or Anthropic-compatible base URL from an environment variable. It changes only that child process, never prints child arguments, never changes API-key variables, and auto-detects the wire protocol. Harness-specific permissions, compaction, commands, and subagent semantics remain unknown until an adapter supplies evidence.
   - daemon starts the stable local API/dashboard plus fixed capture proxy. open opens that shared dashboard and starts the daemon if needed. shutdown stops it, and restart reloads it on the fixed ports.
   - doctor explains current paths, daemon status, installed helpers, and common cross-platform configuration issues. clear --all-sessions removes captured session storage after stopping the daemon. uninstall removes the CLI, peekMyAgent helpers, and optionally local data, but does not modify Agent provider configs unless a future restore adapter explicitly owns them.
   - compact stops the daemon, removes duplicated raw request bodies that can be rebuilt from content blocks, and VACUUMs the SQLite store unless --no-vacuum is set.
@@ -133,6 +135,7 @@ Usage:
   pma claude -r <session-id>
   pma opencode
   pma openclaw chat
+  pma observe --name my-agent --base-url-env OPENAI_BASE_URL -- my-agent
   pma doctor
 
 Common:
@@ -152,6 +155,8 @@ Common:
   pma opencode                     Start OpenCode with exact process-local proxy capture.
   pma opencode --continue          Continue OpenCode while capturing only this process.
   pma openclaw chat                Start OpenClaw and capture this session.
+  pma observe --name my-agent --base-url-env OPENAI_BASE_URL -- my-agent
+                                   Capture an OpenAI/Anthropic-compatible custom Harness without changing its config.
   pma doctor                       Check install, paths, daemon, and integrations.
   pma install-claude-skill --commands
                                    Install /peekmyagent slash commands for Claude Code.
@@ -354,6 +359,9 @@ try {
     process.exitCode = result.exit_code;
   } else if (command === "run") {
     const result = await runAgent();
+    process.exitCode = result.exit_code;
+  } else if (command === "observe") {
+    const result = await runObservedHarness();
     process.exitCode = result.exit_code;
   } else if (command === "daemon") {
     await startForegroundDaemon();
@@ -1181,6 +1189,48 @@ async function runAgent() {
   throw new Error(`Unsupported agent for run: ${parsed.agent}`);
 }
 
+async function runObservedHarness() {
+  if (!rest.length || ["--help", "-h"].includes(rest[0])) {
+    console.log(`Usage:
+  pma observe --name <label> --base-url-env <env> [--target-base-url <url>] [--conversation-id <id>] [--viewer-url <url>] [--open-viewer] [--mode <mode>] -- <command> [args...]
+
+Examples:
+  pma observe --name my-agent --base-url-env OPENAI_BASE_URL -- my-agent run
+  pma observe --name my-agent --base-url-env ANTHROPIC_BASE_URL --conversation-id debug-1 -- python agent.py
+
+The named base URL is read before launch, then overridden only for the child process. API keys and other environment variables are preserved. Child arguments are never echoed by PMA.`);
+    return { exit_code: 0 };
+  }
+
+  const parsed = parseObserveArgs(rest);
+  const targetBaseUrl = observedHarnessTargetBaseUrl(parsed);
+  const viewer = await ensureViewerForRun(parsed);
+  const workspace = safeProcessCwd();
+  const watch = await postJson(`${trimSlash(viewer.url)}/api/watch/start`, {
+    agent: parsed.name,
+    mode: parsed.mode,
+    workspace,
+    conversation_id: parsed.conversationId,
+    started_by: "peekmyagent-observe",
+    reuse: false,
+    target_base_url: targetBaseUrl,
+    kind: "protocol_proxy_exact",
+    confidence: "exact",
+    note: "Exact HTTP capture through a child-process-only base URL override. The wire protocol is auto-detected; Harness-specific semantics require separate evidence.",
+  }, { headers: { "x-peekmyagent-intent": "watch-start" } });
+  const dashboardUrl = `${trimSlash(viewer.url)}?source=${encodeURIComponent(watch.id)}`;
+  if (hasFlagIn(parsed.wrapperArgs, "--open-viewer")) launchBrowserUrl(dashboardUrl);
+  printObserveStarted({ dashboardUrl, watch, command: parsed.command, baseUrlEnv: parsed.baseUrlEnv });
+  return runChildWithWatchCleanup({
+    command: parsed.command,
+    args: parsed.childArgs,
+    env: { ...process.env, [parsed.baseUrlEnv]: watch.base_url },
+    viewerUrl: viewer.url,
+    watch,
+    openclawProfile: null,
+  });
+}
+
 async function runClaudeAgent(parsed, viewerUrl) {
   const workspace = safeProcessCwd();
   const targetBaseUrl = resolveClaudeCodeTargetBaseUrl({ cwd: workspace, env: process.env });
@@ -1417,6 +1467,75 @@ function parseRunArgs(values) {
   if (hasFlagIn(wrapperArgs, "--new")) throw new Error("The --new wrapper flag was removed. Use --watch new on the advanced run command.");
   const childArgs = separatorIndex === -1 ? stripRunWrapperArgs(runArgs) : runArgs.slice(separatorIndex + 1);
   return { agent, wrapperArgs, childArgs };
+}
+
+function parseObserveArgs(values) {
+  const separatorIndex = values.indexOf("--");
+  if (separatorIndex === -1) throw new Error('pma observe requires "--" before the child command.');
+  const wrapperArgs = values.slice(0, separatorIndex);
+  const child = values.slice(separatorIndex + 1);
+  if (!child.length) throw new Error("pma observe requires a child command after --.");
+
+  const valueOptions = new Set(["--name", "--base-url-env", "--target-base-url", "--conversation-id", "--viewer-url", "--mode"]);
+  const flagOptions = new Set(["--open-viewer"]);
+  for (let index = 0; index < wrapperArgs.length; index += 1) {
+    const value = wrapperArgs[index];
+    if (flagOptions.has(value)) continue;
+    const assignmentOption = [...valueOptions].find((option) => isOptionAssignment(value, option));
+    if (assignmentOption) {
+      optionValueIn([value], assignmentOption);
+      continue;
+    }
+    if (valueOptions.has(value)) {
+      if (!wrapperArgs[index + 1] || isFlagLike(wrapperArgs[index + 1])) throw new Error(`${value} requires a value.`);
+      index += 1;
+      continue;
+    }
+    throw new Error(`Unknown pma observe option before --: ${value}`);
+  }
+
+  const name = normalizeObservedHarnessName(optionValueIn(wrapperArgs, "--name"));
+  const baseUrlEnv = normalizeObservedHarnessEnvironmentName(optionValueIn(wrapperArgs, "--base-url-env"));
+  return {
+    wrapperArgs,
+    name,
+    baseUrlEnv,
+    targetBaseUrl: optionValueIn(wrapperArgs, "--target-base-url"),
+    conversationId: optionValueIn(wrapperArgs, "--conversation-id"),
+    mode: optionValueIn(wrapperArgs, "--mode") || "single_session",
+    command: child[0],
+    childArgs: child.slice(1),
+  };
+}
+
+function normalizeObservedHarnessName(value) {
+  const name = String(value || "").trim();
+  if (!name) throw new Error("pma observe requires --name <label>.");
+  if (name.length > 80 || /[\u0000-\u001f\u007f]/.test(name)) throw new Error("pma observe --name must be 1-80 printable characters.");
+  return name;
+}
+
+function normalizeObservedHarnessEnvironmentName(value) {
+  const name = String(value || "");
+  if (!name) throw new Error("pma observe requires --base-url-env <env>.");
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new Error(`Invalid base URL environment variable name: ${name}`);
+  return name;
+}
+
+function observedHarnessTargetBaseUrl(parsed) {
+  const value = parsed.targetBaseUrl || process.env[parsed.baseUrlEnv];
+  if (!value) throw new Error(`Missing upstream base URL. Set ${parsed.baseUrlEnv} or pass --target-base-url.`);
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`Invalid upstream base URL in ${parsed.targetBaseUrl ? "--target-base-url" : parsed.baseUrlEnv}.`);
+  }
+  if (!["http:", "https:"].includes(url.protocol)) throw new Error(`Unsupported upstream base URL protocol: ${url.protocol}`);
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("The upstream base URL must not contain credentials, query parameters, or a fragment.");
+  }
+  return url.toString().replace(/\/$/, "");
 }
 
 function stripRunWrapperArgs(values) {
@@ -2579,6 +2698,12 @@ function printRunStarted({ viewerUrl, watch, command, args }) {
   console.error(`peekMyAgent dashboard: ${trimSlash(viewerUrl)}?source=${encodeURIComponent(watch.id)}`);
   console.error(`peekMyAgent watch: ${watch.watch_id} (${watch.reused ? "reused" : "new"})`);
   console.error(`running: ${[command, ...args].join(" ")}`);
+}
+
+function printObserveStarted({ dashboardUrl, watch, command, baseUrlEnv }) {
+  console.error(`peekMyAgent dashboard: ${dashboardUrl}`);
+  console.error(`peekMyAgent watch: ${watch.watch_id} (new)`);
+  console.error(`observing: ${path.basename(command)} (arguments omitted; child-only ${baseUrlEnv} override)`);
 }
 
 function runChild(command, args, env) {

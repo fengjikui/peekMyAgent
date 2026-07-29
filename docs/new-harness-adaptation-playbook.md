@@ -272,6 +272,16 @@ cleanup
 
 ## 5. 实现顺序
 
+### 协议桥快速入口
+
+如果 Harness 已经支持通过环境变量覆写 OpenAI-compatible 或 Anthropic-compatible base URL，先用下面的最小入口验证共享协议能力：
+
+```bash
+pma observe --name <harness-name> --base-url-env OPENAI_BASE_URL -- <harness-command...>
+```
+
+该入口只覆写 child env、创建独立 exact watch、保留退出码并在退出后停止 watch；`--name` 不参与协议推断。它适合验证 System、Tools、Messages、Response、usage 和生成参数是否已经由共享协议层覆盖。它不代表 Harness 已完成适配，也不证明权限、命令、Skill、压缩、resume 或 subagent 生命周期；这些能力仍要继续执行阶段 A-F 的证据与 adapter 工作。
+
 ### 阶段 A：只读发现
 
 1. 发现可执行文件和版本；

@@ -18,6 +18,7 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 - `pma codex` now opens Codex Desktop for the current project, exposes a waiting Source immediately, and binds that stable Source to the next new workspace thread without copying rollout history into peekMyAgent SQLite.
 - Codex XML-like Harness blocks now use a conservative tag registry for runtime, capability, policy, lifecycle, internal, and subagent presentation, with multilingual block translation through the shared cache pipeline.
 - `pma opencode` now starts one OpenCode CLI/TUI process behind an exact, reversible proxy overlay, preserves native session attribution, and reuses the shared Trace, tool-loop, subagent, command-injection, compaction, and same-Harness translation pipeline.
+- `pma observe` now gives custom Harness authors a child-process-only OpenAI/Anthropic base-URL bridge with exact request/response capture, protocol auto-detection, redacted authentication evidence, direct Trace links, and deterministic cleanup without a Harness-specific adapter.
 
 ### Changed
 

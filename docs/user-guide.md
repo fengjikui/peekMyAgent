@@ -157,6 +157,39 @@ pma --ask claude -r <session-id>
 - 如果明确选择了复用，但目标监听已不存在，命令会报错而不是静默新建一条监听。
 - 非交互环境：默认新建监听，避免脚本卡住；需要复用时使用 `--reuse`。
 
+### 通过协议桥接入自研 Harness
+
+如果你的 Harness 已经通过某个环境变量读取 OpenAI-compatible 或 Anthropic-compatible 的 base URL，可以使用通用协议桥，不必先在 PMA 中新增 Agent 名称分支：
+
+```bash
+pma observe \
+  --name my-agent \
+  --base-url-env OPENAI_BASE_URL \
+  --conversation-id my-agent-debug-1 \
+  -- my-agent run
+```
+
+Anthropic-compatible 的写法相同，只需换成 Harness 实际读取的变量：
+
+```bash
+pma observe --name my-agent --base-url-env ANTHROPIC_BASE_URL -- python agent.py
+```
+
+运行契约：
+
+- `--` 是强制边界；前面只能放 PMA 的 observe 选项，后面是完整原始子命令。
+- `--name` 只是 Source 展示名，不参与协议判断。
+- PMA 在启动前读取指定变量作为真实上游，再只对该子进程写入 watch proxy URL；父进程和用户配置不变。
+- `--target-base-url` 可以显式提供真实上游，但仍必须用 `--base-url-env` 指明要给子进程覆写哪个变量。
+- 原上游的 path prefix 会保留；OpenAI 常见的 `/v1` 不会在代理时丢失。
+- API key、其他环境变量、stdin/stdout、SIGINT/SIGTERM 和退出码保持原样；PMA 自己的启动信息不打印子进程参数。
+- 子进程正常或异常退出后，watch 都会停止，但 Trace 保留在本地。
+- 只保证通用 OpenAI Responses/Chat 与 Anthropic Messages 的上行/下行解析；权限、命令、Skill、压缩和子 Agent 等 Harness 私有机制在没有证据时保持 unknown。
+
+安全边界：上游必须是 `http` 或 `https`，且 URL 中不能嵌入用户名/密码、query 或 fragment。Capture Proxy 继续只绑定 loopback，认证 header 在持久化前使用现有规则脱敏。请勿把 key 放在子进程参数中；即使 PMA 不打印参数，其他进程工具仍可能观察 argv。
+
+如果 Harness 不支持进程级 base URL 覆写，或者需要解释它的私有运行机制，请继续使用[新 Harness 适配工作手册](new-harness-adaptation-playbook.md)建立证据包和专用 adapter。
+
 ### 各 Harness 的完全权限模式
 
 下面的权限开关属于各 Harness 本身。peekMyAgent 只负责透传参数，或者使用明确命名的 OpenClaw 隔离 profile，不会给自身提升权限。
