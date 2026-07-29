@@ -122,6 +122,24 @@ node scripts/install.mjs --dry-run
 node bin/peekmyagent.mjs --help
 ```
 
+## 调试你自己的 Harness
+
+如果自研 Harness 已经从环境变量读取 OpenAI-compatible 或 Anthropic-compatible 的 base URL，不需要先开发专用 adapter，也可以直接接入 PMA：
+
+```bash
+# OPENAI_BASE_URL 保存真实上游地址，通常以 /v1 结尾。
+pma observe --name my-agent --base-url-env OPENAI_BASE_URL -- my-agent run
+
+# Anthropic-compatible 示例。
+pma observe --name my-agent --base-url-env ANTHROPIC_BASE_URL -- python agent.py
+```
+
+`pma observe` 会在启动前读取真实上游，创建一条新的精确捕获 watch，然后只在被包装的子进程中覆写指定环境变量。API key 环境变量、认证 header、stdin/stdout、信号和子进程退出码都保持不变。原始 base URL 的路径前缀也会保留，例如 OpenAI 的 `/v1` 加上子进程请求的 `/responses`，仍会转发到真实上游的 `/v1/responses`。PMA 会打印可直接打开的 Trace 链接，但不会回显任何子进程参数。
+
+可以用 `--conversation-id <id>` 写入一个不敏感的稳定测试标识；如果指定环境变量原本为空，也可以显式传入 `--target-base-url <url>`。带用户名/密码、query 或 fragment 的上游 URL 会被拒绝。
+
+通用桥会自动识别并整理 OpenAI Responses/Chat 和 Anthropic Messages 的协议字段，但不会猜测自研 Harness 的权限策略、命令、压缩或父子 Agent 关系；这些私有机制需要有真实 fixture 证据的专用 adapter。如果 Harness 不支持进程级 base URL 覆写，请按[新 Harness 适配工作手册](docs/new-harness-adaptation-playbook.md)继续接入。
+
 ## 快速开始：Claude Code
 
 先打开 dashboard：

@@ -158,6 +158,14 @@ PMA 不定义一套跨 Harness 的虚拟权限，也不会因为开始捕获而�
 
 快速和高级 CLI help 都必须同时给出各 Harness 的原生命令、不能被 bypass 覆盖的策略边界，以及仅在受信任外部隔离环境中使用的风险提示。该 help 由 `scripts/cli-smoke.mjs` 固定为发布契约。
 
+## 通用 Harness 协议桥
+
+`pma observe --name <label> --base-url-env <env> -- <command...>` 是不依赖 Harness 身份的精确协议入口。CLI 在启动前读取指定环境变量或显式 `--target-base-url`，调用 `WatchRuntimeService` 新建 `kind=protocol_proxy_exact` 的独立 watch，再只在 child env 中把该变量替换为 watch proxy URL。其他环境变量、认证 header、stdio、信号和退出码沿用共享 wrapper；正常退出、非零退出和 spawn error 都通过 `runChildWithWatchCleanup()` 停止 watch 并保留 Trace。该入口不写用户配置、不复用历史 watch，也不打印 child argv。
+
+目标 URL 必须是无 userinfo、query 和 fragment 的 HTTP(S) URL。Capture Proxy 的 path-prefix 保留逻辑负责把 OpenAI 常见的 `/v1` target 与 child 发出的 `/responses` 组合为 `/v1/responses`；认证 header 照常转发，但持久化副本继续脱敏。Viewer、Trace Domain 和 response normalizer 只根据 wire path/body 识别 OpenAI Responses/Chat 或 Anthropic Messages，不根据 `--name` 改写协议事实。
+
+通用桥只证明“这个子进程的模型 HTTP 交换被精确捕获”，不证明 Harness 的权限、命令、Skill、压缩、会话恢复或子 Agent 语义。只有真实 fixture 提供稳定证据时，这些信息才通过 `src/adapters/` 与共享 Trace contract 扩展。`scripts/observe-wrapper-smoke.mjs` 使用 loopback 假上游同时锁定两种优先协议、child-only env、认证透传/持久化脱敏、响应投影、隐私输出和失败清理。
+
 ## Claude Code 捕获路径
 
 ### Proxy 模式

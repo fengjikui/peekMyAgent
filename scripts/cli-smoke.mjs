@@ -21,6 +21,7 @@ assert.match(quickHelp.stdout, /pma claude -c/);
 assert.match(quickHelp.stdout, /--dangerously-skip-permissions/);
 assert.match(quickHelp.stdout, /--dangerously-bypass-approvals-and-sandbox/);
 assert.match(quickHelp.stdout, /pma opencode --auto/);
+assert.match(quickHelp.stdout, /pma observe --name my-agent --base-url-env OPENAI_BASE_URL -- my-agent/);
 assert.match(quickHelp.stdout, /config set tools\.profile full/);
 assert.match(quickHelp.stdout, /exec-policy preset yolo/);
 assert.match(quickHelp.stdout, /explicit deny rules still apply/);
@@ -34,6 +35,8 @@ assert.match(advancedHelp.stdout, /normalize openclaw-capture/);
 assert.match(advancedHelp.stdout, /pma daemon/);
 assert.match(advancedHelp.stdout, /Full-permission modes \(dangerous\)/);
 assert.match(advancedHelp.stdout, /pma opencode --auto/);
+assert.match(advancedHelp.stdout, /pma observe --name <label> --base-url-env <env>/);
+assert.match(advancedHelp.stdout, /never prints child arguments/);
 assert.match(advancedHelp.stdout, /exec-policy preset yolo/);
 assert.doesNotMatch(advancedHelp.stdout, /pma \[--reuse\|--new/);
 
@@ -46,6 +49,11 @@ assert.match(removedNewWrapperFlag.stderr, /--new wrapper flag was removed/);
 const removedWatchCurrentNewFlag = spawnSync(process.execPath, [bin, "watch-current", "--new"], { encoding: "utf8" });
 assert.equal(removedWatchCurrentNewFlag.status, 1);
 assert.match(removedWatchCurrentNewFlag.stderr, /--new flag was removed/);
+
+const observeHelp = spawnSync(process.execPath, [bin, "observe", "--help"], { encoding: "utf8" });
+assert.equal(observeHelp.status, 0, observeHelp.stderr);
+assert.match(observeHelp.stdout, /API keys and other environment variables are preserved/);
+assert.match(observeHelp.stdout, /Child arguments are never echoed/);
 
 run(["normalize", "openclaw-capture", path.join(root, "fixtures", "openclaw-chat-completions-capture.json"), "--out", openclawOut]);
 run(["normalize", "openclaw-capture", path.join(root, "fixtures", "openclaw-chat-completions-capture.json"), `--out=${openclawAssignmentOut}`]);

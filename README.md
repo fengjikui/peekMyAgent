@@ -117,6 +117,24 @@ node bin/peekmyagent.mjs --help
 
 All examples below use `pma`. The full `peekmyagent` command remains available and behaves the same.
 
+## Observe Your Own Harness
+
+If a custom Harness already reads an OpenAI- or Anthropic-compatible base URL from an environment variable, PMA can capture it without a Harness-specific adapter:
+
+```bash
+# OPENAI_BASE_URL should contain the real upstream URL, commonly ending in /v1.
+pma observe --name my-agent --base-url-env OPENAI_BASE_URL -- my-agent run
+
+# Anthropic-compatible example.
+pma observe --name my-agent --base-url-env ANTHROPIC_BASE_URL -- python agent.py
+```
+
+`pma observe` reads the original URL before launch, creates a fresh exact-capture watch, and overrides only the named variable in the child process. API-key variables, authentication headers, stdin/stdout, signals, and the child exit code are preserved. The original base path is retained, so an OpenAI `/v1` URL still forwards `/responses` to `/v1/responses`. PMA prints a direct Trace link but omits all child arguments from its own startup output.
+
+Use `--conversation-id <id>` to attach a stable non-secret test identity, or `--target-base-url <url>` when the named environment variable is intentionally unset. Upstream URLs containing credentials, query parameters, or fragments are rejected.
+
+This generic bridge auto-detects and organizes OpenAI Responses/Chat and Anthropic Messages fields. It does not infer private Harness behavior such as permission policy, commands, compaction, or parent/child Agent relationships; those require a fixture-backed adapter. If the Harness cannot override its base URL per process, follow the [new Harness adaptation playbook](docs/new-harness-adaptation-playbook.md) instead.
+
 ## Quick Start With Claude Code
 
 Open the dashboard:

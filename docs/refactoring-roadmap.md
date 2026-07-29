@@ -294,6 +294,8 @@ Codex Desktop 本地观察、CLI 精确代理、macOS 受管 Desktop 精确捕�
 
 新增 Harness 的适配流程、证据门槛和回归保护已经整理为[新 Harness 适配工作手册](new-harness-adaptation-playbook.md)。OpenCode CLI 已完成首轮候选实现：进程级可逆配置覆盖、exact proxy、原生 session 归属、共享 Trace/Viewer/翻译、command 与 compact Harness 分类，以及普通多轮、Read、Skill、Task 子 Agent 和 summarize 压缩证据均已落地；当前状态和未关闭项见 [OpenCode CLI 适配计划](opencode-cli-adaptation-plan.md)。发布前仍需 Level 2、hosted CI 和 Windows/Linux 实机验证；之后再用 Hermes 或 Pi 检查边界是否足够稳定，届时才决定是否固化为 Adapter SDK 或 Coding Agent Skill。
 
+通用 `pma observe` 协议桥已作为阶段 5 的最小接入面落地：任何支持 child-process base URL override 的 Harness 都可复用 OpenAI Responses/Chat 与 Anthropic Messages 的共享协议解析、Capture Proxy、持久化和 Viewer，而无需新增 renderer 分支。它刻意不声明权限、命令、压缩、resume 或子 Agent 私有语义；这些能力仍必须按 Evidence Pack 和 adapter 验收清单逐项证明。后续用第二个真实自研 Harness 验证重复边界后，再决定是否把 CLI 解析、capability descriptor 和 adapter 生命周期抽成稳定 SDK。
+
 ## 阶段 6：公开发布成熟度
 
 任务：
