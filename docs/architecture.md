@@ -117,7 +117,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/viewer/session-navigator-renderer.js` | Session Navigator 项目组、会话项和动作菜单的纯 HTML renderer |
 | `src/viewer/session-navigator-controller.js` | 长期管理根事件委派、菜单互斥、外部关闭和项目折叠持久化 |
 | `src/viewer/raw-view-model.js` | Raw Inspector 上行、下行、Harness、Metadata 的纯 section 数据与方向约束 |
-| `src/viewer/metadata-view-model.js` | 请求身份、传输事实、厂商 usage、上行构成和捕获证据的纯 Metadata DTO |
+| `src/viewer/metadata-view-model.js` | 请求身份、传输事实、OpenAI/Anthropic 短生成参数、厂商 usage、上行构成和捕获证据的纯 Metadata DTO |
 | `src/viewer/metadata-renderer.js` | Metadata 原文/整理切换及分来源统计的纯 HTML renderer |
 | `src/viewer/raw-search-model.js` | Raw 搜索条目构建、过滤、摘要命中分段与导航索引的纯模型 |
 | `src/viewer/raw-search-controller.js` | Raw 搜索输入法生命周期、延迟重绘、当前命中、高亮和滚动控制器 |
@@ -151,6 +151,12 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/viewer/styles.css` | 三栏应用和所有 Viewer 组件样式 |
 | `integrations/` | Claude Code slash command 和 OpenClaw plugin 集成 |
 | `scripts/` | 安装、卸载、确定性 smoke、真实集成实验、翻译与发布门禁 |
+
+## Harness 权限模式边界
+
+PMA 不定义一套跨 Harness 的虚拟权限，也不会因为开始捕获而提升自身或 Agent 的权限。`pma codex`、`pma claude` 和 `pma opencode` 将原生 Harness 参数交给对应子进程；完全权限、自动审批和显式 deny 的最终语义仍由该 Harness 的当前版本决定。OpenClaw 的完整工具 profile 与 host exec policy 写入 PMA 明确命名的 `peekmyagent` 隔离 profile，不改写默认 profile。Codex Desktop 的权限由 Desktop UI 管理，CLI 的 bypass 参数不会跨到 Desktop。
+
+快速和高级 CLI help 都必须同时给出各 Harness 的原生命令、不能被 bypass 覆盖的策略边界，以及仅在受信任外部隔离环境中使用的风险提示。该 help 由 `scripts/cli-smoke.mjs` 固定为发布契约。
 
 ## Claude Code 捕获路径
 
@@ -309,7 +315,7 @@ cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 ses
 
 折叠状态是实际渲染边界，而不只是 CSS 隐藏：幕后请求时间线和 multi-Agent 看板在展开前都不创建 request card。multi-Agent 看板显式展开后才显示 child tabs，并只为一个选中分支生成完整 request card timeline；从因果关系跳入 child 会自动展开。同一 Turn 内折叠看板或切换 child tab 只原位替换该 Agent 区域，不重建整条 Timeline，避免不可见子分支阻塞长 Trace 的主线程。
 
-多 Agent 看板紧跟 Turn 的发起请求，保持“原因在上、分支活动在下”的稳定阅读顺序。收起时只呈现聚合标题和 child 身份 glyph。展开后的第一行是一位 child Agent 一个 tab，tab 只显示稳定 glyph 和真实 spawn nickname/分支 label，选中态使用对应身份色文字与下划线；运行、完成、回流状态只放在选中分支详情行。颜色和几何 glyph 由稳定 `agent_id` 派生，不随显示顺序变化。选中 tab 后使用主 Agent 相同的 Request Card/Assistant/Thinking/工具语言展示该 child 的完整有序上行/下行 timeline，每张 request 保留 child owner 与右侧详情动作；parent spawn、启动确认、结果回流和 linkage confidence 放在 timeline 后的次级证据区。已进入 child panel 的 request id 从主请求、幕后请求和 request rail 中去除，避免同一请求出现两次；未捕获 child 模型请求时只显示诚实空态，不推断虚构步骤。Trace 顶层搜索索引派生摘要而不是 Raw body，可按异常、慢请求、工具和子 Agent 定位请求。结果以 Turn 为归属、以命中请求为证据，每次最多追加 24 条，避免搜索本身重新制造超大 DOM。主栏使用容器条件适配真实栏宽，三栏拖拽或折叠不会再把标题挤成竖排。
+多 Agent 看板紧跟 Turn 的发起请求，保持“原因在上、分支活动在下”的稳定阅读顺序。收起时只呈现聚合标题和 child 身份 glyph。展开后的第一行是一位 child Agent 一个 tab，tab 只显示稳定 glyph 和真实 spawn nickname/分支 label，选中态使用对应身份色文字与下划线；运行、完成、回流状态只放在选中分支详情行。颜色和几何 glyph 由稳定 `agent_id` 派生，不随显示顺序变化；颜色通过主题语义 token 解析，展开区使用低反差 branch surface，并只在 tab/内容和内容/证据边界保留分隔线，避免长子轨迹成为高反差嵌套卡片。选中 tab 后使用主 Agent 相同的 Request Card/Assistant/Thinking/工具语言展示该 child 的完整有序上行/下行 timeline，每张 request 保留 child owner 与右侧详情动作；parent spawn、启动确认、结果回流和 linkage confidence 放在 timeline 后的次级证据区。已进入 child panel 的 request id 从主请求、幕后请求和 request rail 中去除，避免同一请求出现两次；未捕获 child 模型请求时只显示诚实空态，不推断虚构步骤。Trace 顶层搜索索引派生摘要而不是 Raw body，可按异常、慢请求、工具和子 Agent 定位请求。结果以 Turn 为归属、以命中请求为证据，每次最多追加 24 条，避免搜索本身重新制造超大 DOM。主栏使用容器条件适配真实栏宽，三栏拖拽或折叠不会再把标题挤成竖排。
 
 Raw Inspector 的分类标签、当前区块搜索和原文/翻译操作组成同一个粘性控制区。`Protocol` 标签以协议原顺序呈现上下行、工具声明/追加/加载阶段和响应状态，每个条目只提供结构摘要及回到 Raw 证据的入口；它不复制正文，也不把 PMA 语义字段伪装成厂商字段。原文模式只搜索原始 JSON 路径和值；整理/翻译模式只搜索当前可见的结构化 system、developer、harness、工具或 response 文本，并筛选原有块和工具组。匹配计数以可见关键词的实际出现次数为准，上一个/下一个按钮逐词循环定位并强化当前高亮。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属；单个工具的说明、全部参数、合并原文、复制与重译作为一个视觉及动作单元，底层仍沿用既有块级 hash 缓存。
 
@@ -321,7 +327,7 @@ System diff 只在用户按需打开时计算。小输入由 `system-diff-model.
 
 顶部 Trace 搜索和 Raw 区块搜索均遵守浏览器 IME composition 生命周期：中文、日文、韩文等输入法组词期间不替换输入框 DOM，只有选词完成后才触发过滤和重绘。Trace 搜索与事件筛选是顶部主操作；界面语言、翻译语言和独立的 latest-only 图标保留在外层，会话请求数、回复数、子 Agent、工具事件、Raw 体积与捕获方式收进按需展开的会话概览，避免高频操作被低频数字挤出首屏。主题是跨会话外观偏好，以左栏紧凑图标选择器呈现，不占用 Trace 工作区。
 
-Turn Rail 已作为首个 Viewer Client feature 从全局脚本迁出。`client.js` 只注入当前 Turn 集合、active id、上行问题文案和状态回调；窗口密度、边缘提示、悬停层级、点击跳转与滚动激活由 `TurnRailController` 所有。滚动激活线必须真正越过下一 Turn 的起点才切换，不能在超长 Turn 两个起点的中点提前跳走。长 active Turn 另由 `RequestRailController` 提供视觉更安静的第二级 request 导航，主线 request 少于 5 条时不显示，并排除 child Agent panel 已拥有的 request id。18 条以内保留可读编号和下划线选中态；超过 18 条时显示本 Turn 全部 request，采用 Turn Rail 横置后的固定间距刻度，不绘制额外基线。悬停时相邻刻度形成涟漪，当前 request 使用着色与克制的呼吸动画并遵守 reduced-motion。Turn/Request tooltip 都只显示截断后的上行用户问题，不混入工具或 Assistant 摘要。滚动同步同时更新活动标记和当前位置文案。两个 rail 共用 Store selection 和滚动同步端口。纯窗口、悬停距离和滚动选择规则有独立契约测试，后续 feature 也应遵循“依赖注入、纯策略可测、应用层只装配”的边界。
+Turn Rail 已作为首个 Viewer Client feature 从全局脚本迁出。`client.js` 只注入当前 Turn 集合、active id、上行问题文案和状态回调；窗口密度、边缘提示、悬停层级、点击跳转与滚动激活由 `TurnRailController` 所有。滚动激活线必须真正越过下一 Turn 的起点才切换，不能在超长 Turn 两个起点的中点提前跳走。长 active Turn 另由 `RequestRailController` 提供视觉更安静的第二级 request 导航，主线 request 少于 5 条时不显示，并排除 child Agent panel 已拥有的 request id。Request Rail 从首次出现起就显示本 Turn 全部 request，并统一采用 Turn Rail 横置后的固定间距刻度，不绘制编号按钮或额外基线；精确编号继续保留在当前位置文案、无障碍标签和 tooltip 中。Tooltip 是 Request Rail 的单一浮层，由 Controller 定位到当前刻度，不嵌套在横向滚动轨道内；它使用各主题独立的背景、文字和边线 token，因此不会被轨道裁切，也不会在暗色主题中反向变成突兀的亮色块。悬停时相邻刻度形成涟漪，当前 request 使用着色与克制的呼吸动画并遵守 reduced-motion。Turn/Request tooltip 都只显示截断后的上行用户问题，不混入工具或 Assistant 摘要。滚动同步同时更新活动标记和当前位置文案。两个 rail 共用 Store selection 和滚动同步端口。纯窗口、悬停距离和滚动选择规则有独立契约测试，后续 feature 也应遵循“依赖注入、纯策略可测、应用层只装配”的边界。
 
 Viewer 的浏览器请求统一通过 `ViewerApiClient`。它集中定义 source/view/request/translation/import/export/send/watch API 的 URL 编码、method、Content-Type、intent 和错误传播；它不持有界面状态，也不操作 DOM。Server 继续承担最终的 loopback 与请求意图校验。
 
@@ -331,7 +337,7 @@ Source 数据层和应用生命周期现在分层：`SourceTimelineController` �
 
 语言目录和偏好生命周期不再由 `client.js` 维护。`translation-language-catalog.js` 纯粹规范化语言代码、alias 与系统推荐；`LanguagePreferencesController` 统一水合和持久化 UI/翻译目标语言，绑定选择器并通过注入端口协调翻译 operation 失效、cache reload 和可见 feature 刷新。它不拥有翻译 cache、provider、HTML 或 Source 数据。完整边界见 [Viewer 语言偏好契约](language-preferences-controller-contract.md)。
 
-外观偏好由 `ThemeController` 独立管理。控制器只负责从 `localStorage` 水合 `system/light/dark/studio`、写入 Store 的 appearance domain、设置根节点 `data-theme` 和刷新双语选择器；它不拥有 feature HTML，也不改变 Trace 数据。CSS 以 canvas、surface、ink、line、accent、status、code、用户消息气泡和行内代码等语义 token 定义主题，功能样式不得按主题复制分支。暗色主题使用低亮度石墨表面、可辨识细线与独立气泡/代码前景色，不复用只适合亮色背景的硬编码颜色。`system` 通过媒体查询复用亮色/暗色契约，用户显式选择则覆盖系统偏好。
+外观偏好由 `ThemeController` 独立管理。控制器只负责从 `localStorage` 水合 `system/light/dark/studio`、写入 Store 的 appearance domain、设置根节点 `data-theme` 和刷新双语选择器；它不拥有 feature HTML，也不改变 Trace 数据。为兼容已有偏好，持久化 id 保持稳定，但界面将 `light` 呈现为冷中性、蓝色强调的 Codex 主题，将 `studio` 呈现为以 `rgb(249 249 247)` 为主 surface、陶土橙为身份色的 Claude 主题，并将 `dark` 呈现为石墨暗夜主题。Claude 主题遵循其官方帮助界面的色彩分工：中栏与右栏共享近中性的暖灰主色，消息和子 Agent surface 仅用低色度明度差建立层级，陶土橙只承担身份与关键状态，轻量选中态使用低色度浅蓝。CSS 以 canvas、surface、ink、line、accent、status、code、用户消息气泡、子 Agent branch surface/identity 和行内代码等语义 token 定义主题，功能样式不得按主题复制分支。中栏时间线与右栏证据区共享同一 panel surface，左栏保留低一级 surface；两个可拖拽栏位边界由 resizer 唯一绘制全高 1px `pane-divider`，不再叠加面板边框或短装饰线。用户气泡只使用对应主题的低饱和主题层，不制造独立的高反差色块。悬停提示通过同一组主题 token 使用与各主题协调的背景、文字和边线。暗夜主题使用低亮度石墨表面、可辨识细线与独立气泡/代码前景色，不复用只适合亮色背景的硬编码颜色。`system` 通过媒体查询复用 Codex/暗夜契约，用户显式选择则覆盖系统偏好。
 
 三栏布局的状态仍由 `ViewerClientStore` 所有，宽度约束和内容占比由纯 `pane-layout-model.js` 计算，`PaneLayoutController` 只长期管理折叠按钮、resizer、ARIA、CSS 变量和 `localStorage` 偏好。应用层注入 Store 写入端口、翻译函数以及 Turn/Request rail 与窗口回调；Controller 不访问网络或全局 state。中栏继续承担因果时间线导航，右栏承担选中证据的主要阅读，因此默认布局让右栏约占可用内容区的 44%-46%，但不交换两栏；用户手动拖动后的宽度优先保留。折叠左栏时 Raw 栏按中间内容区占比重新分配，指针、鼠标和键盘调整共享同一宽度入口，窗口变化会重新钳制两侧宽度。详细边界见 [Viewer Pane Layout Controller 契约](pane-layout-controller-contract.md)。
 
@@ -357,7 +363,7 @@ Raw Inspector 的请求/响应方向由 `raw-view-model.js` 统一。它从完�
 
 Raw Inspector 按数据方向组织证据：请求卡和上行视图只展示 System、Tools、Harness、Messages、历史工具调用与回传结果；“完整请求”和“请求 Metadata”会从 capture 中剔除 response、响应状态以及 response 派生统计。请求侧标签保持单层排列，完整请求在首位、Metadata 在末位。完整 Response 与本次响应的协议原生调用条目只从 Assistant 回复进入“模型下行”视图。Assistant 视图保留独立的“上行参考”Tools schema，并明确它不是 response body 返回内容；当该响应包含工具调用时，可按下行的精确工具名一键过滤上行 schema，这只改变显示范围，不混淆证据方向。
 
-请求 Metadata 同时提供“原文”和“整理”两种视图。原文直接展示剔除下行派生字段后的上行 capture metadata；整理视图把请求身份和 HTTP 传输标为捕获事实，把 token usage 标为厂商返回，把 context delta 等证据标为 PMA 规范化，并把字符数和构成占比标为 PMA 计算。整理视图不得把计算结果伪装成协议字段，也不得覆盖原文。
+请求 Metadata 同时提供“原文”和“整理”两种视图。原文直接展示剔除下行派生字段后的上行 capture metadata；整理视图把请求身份和 HTTP 传输标为捕获事实，把 token usage 标为厂商返回，把 context delta 等证据标为 PMA 规范化，并把字符数和构成占比标为 PMA 计算。整理视图还按原生 JSONPath 展示 OpenAI Responses、OpenAI Chat Completions 与 Anthropic Messages 中影响单次生成的短请求字段，包括模型、推理/思考强度、temperature/top-p/top-k、token 上限、停止序列、输出格式、工具选择和执行选项；长字符串与长标量数组只显示有界预览，大型 Schema、prompt、用户 metadata 和加密内容仍只留在 Raw。该区段标为“上行请求字段”，不得把字段值伪装成厂商返回或 PMA 计算结果。整理视图不得覆盖原文。
 
 中间时间线与右侧 Inspector 使用不同的信息密度：时间线只消费有界摘要，右侧是完整证据与语义整理入口。右侧 `tool_result` 从本轮原始上行 message 增量读取完整条目，并提供原文/整理切换；例如 `tool_search_output` 会在整理视图中按命名空间展示完整工具描述、参数 schema、参数说明、原始定义与块级翻译操作，不受时间线 800 字预览限制。
 

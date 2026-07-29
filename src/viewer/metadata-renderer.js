@@ -28,12 +28,61 @@ export function renderOrganizedMetadata({ view, translate, escapeHtml, formatNum
         escapeHtml,
         formatNumber,
       })}
+      ${renderGenerationParameters(view.generationParameters, { translate, escapeHtml, formatNumber })}
       ${renderProviderUsage(view.providerUsage, { translate, escapeHtml, formatNumber })}
       ${renderComposition(view.composition, { translate, escapeHtml, formatNumber })}
       ${renderAttribution(view.attribution, { translate, escapeHtml, formatNumber })}
       ${renderEvidence(view.evidence, { translate, escapeHtml, formatNumber })}
     </section>
   `;
+}
+
+function renderGenerationParameters(parameters, { translate, escapeHtml, formatNumber }) {
+  if (!parameters?.count || !parameters.groups?.length) return "";
+  return `
+    <section class="metadata-summary-section metadata-parameters">
+      ${renderSectionHeading(translate("metadataGenerationParameters"), translate("metadataRequestFact"), escapeHtml)}
+      <div class="metadata-parameter-groups">
+        ${parameters.groups
+          .map(
+            (group) => `
+              <section class="metadata-parameter-group">
+                <h4>${escapeHtml(translate(`metadataParameterGroup_${group.key}`))}</h4>
+                <dl class="metadata-fact-list metadata-parameter-list">
+                  ${group.facts
+                    .map(
+                      (fact) => `
+                        <div title="${escapeHtml(fact.source_path)}">
+                          <dt>
+                            <span>${escapeHtml(metadataKeyLabel(fact.key, translate))}</span>
+                            <code>${escapeHtml(fact.native_key)}</code>
+                          </dt>
+                          <dd>
+                            <span>${escapeHtml(formatMetadataValue(fact.value, formatNumber))}</span>
+                            ${renderParameterOmission(fact, { translate, escapeHtml, formatNumber })}
+                          </dd>
+                        </div>
+                      `,
+                    )
+                    .join("")}
+                </dl>
+              </section>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderParameterOmission(fact, { translate, escapeHtml, formatNumber }) {
+  if (fact.omitted_items) {
+    return `<small>${escapeHtml(translate("metadataParameterMoreItems", { count: formatNumber(fact.omitted_items) }))}</small>`;
+  }
+  if (fact.truncated_chars) {
+    return `<small>${escapeHtml(translate("metadataParameterTruncatedChars", { count: formatNumber(fact.original_chars) }))}</small>`;
+  }
+  return "";
 }
 
 function renderAttribution(attribution, { translate, escapeHtml, formatNumber }) {

@@ -122,6 +122,7 @@ const html = renderAgentGraph(openView, rendererDependencies);
 
 assert.match(html, /<details class="agent-branch-map"[^>]*data-agent-dashboard="turn-7"[^>]*open/);
 assert.match(html, /role="tablist"/);
+assert.match(html, /class="agent-branch-body"/, "expanded dashboards should own a theme-aware branch surface");
 assert.equal((html.match(/data-agent-branch-select=/g) || []).length, 2, "every child Agent receives one tab");
 assert.match(html, /data-agent-branch-select="branch-euclid"[^>]*style=/);
 assert.match(html, /data-agent-branch-select="branch-euclid"[\s\S]*?class="agent-tab-name">Euclid<\/strong>/);
@@ -145,9 +146,13 @@ assert.match(html, /data-agent-dashboard-toggle="turn-7"/);
 
 const modelSource = fs.readFileSync(new URL("../src/viewer/agent-graph-model.js", import.meta.url), "utf8");
 const rendererSource = fs.readFileSync(new URL("../src/viewer/agent-graph-renderer.js", import.meta.url), "utf8");
+const stylesSource = fs.readFileSync(new URL("../src/viewer/styles.css", import.meta.url), "utf8");
 for (const source of [modelSource, rendererSource]) {
   assert.doesNotMatch(source, /\bdocument\b|\bwindow\b|\bfetch\s*\(|\bstate\./);
 }
+assert.match(modelSource, /"var\(--branch-1\)"/, "branch identity colors should resolve through theme tokens");
+assert.match(stylesSource, /--branch-surface:/, "themes should provide a restrained Agent branch surface");
+assert.match(stylesSource, /\.agent-selected-timeline\s*\{[\s\S]*?border-top:\s*0;/, "child timelines should not stack redundant separators");
 
 console.log("agent graph view contract smoke passed");
 

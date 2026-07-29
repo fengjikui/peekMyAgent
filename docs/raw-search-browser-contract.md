@@ -21,9 +21,9 @@ Raw Inspector 的搜索同时涉及完整 JSON 值、截断摘要、中文输入
 `scripts/raw-search-browser-smoke.mjs` 会在临时目录中：
 
 1. 启动隔离 Viewer、SQLite Store 和 mock Anthropic upstream；
-2. 通过真实 Capture Proxy 保存含 12 段长 System 文本的请求；
+2. 通过真实 Capture Proxy 保存含 12 段长 System 文本的请求，随后停止 watch，避免 live refresh 参与静态 UI 契约；
 3. 启动本机 Chrome、Chromium 或 Edge 的 headless DevTools 会话；
-4. 在真实 Viewer 中打开 System，模拟中文 IME 输入；
+4. 在真实 Viewer 中打开 System，并确定性模拟一次较慢的初始刷新把区块恢复为默认值；夹具跨过至少一次 Viewer 自动刷新周期，等待整个 Raw 树和输入 DOM 稳定，再重新选择并确认 System，随后模拟中文 IME 输入；
 5. 验证 13 个长文本命中、前后循环跳转、活动高亮和焦点；
 6. 滚动 Raw 面板并验证粘性控件；
 7. 切换 Tools/System 并验证查询和结果恢复；
@@ -45,6 +45,7 @@ Windows 默认优先使用 Edge 或 Chromium，再回退到 Google Chrome。三�
 
 - `collectRawSearchEntries()` 可以保留短预览用于非搜索展示，但 Renderer 的命中摘要必须基于完整 `entry.value`。
 - 搜索计数、导航和 active 状态以浏览器中可见的 `mark` 为事实源；关闭的 `<details>` 内命中不参与计数。
+- IME 浏览器契约开始输入前必须观察整个 Raw 树，并跨过自动刷新周期；只检查旧输入节点是否短暂存活不足以证明后台 detail/翻译刷新已经结束。慢速主机上的初始异步刷新可以恢复默认 Raw 区块，因此夹具必须在 DOM 稳定后重新确认目标区块，而不是把首次点击当作最终状态。
 - 修改搜索输入、摘要、高亮、Raw 区块导航或粘性布局时，必须同时运行纯模型、Controller、Renderer 和本浏览器 smoke。
 - 浏览器驱动不得依赖仓库外 npm 包；Node 24 的内置 `fetch`、`WebSocket` 和 CDP 足以完成该场景。
 - 新增浏览器路径时必须保持 macOS、Windows 和 Linux 发现逻辑集中在 `scripts/lib/chromium-cdp.mjs`。

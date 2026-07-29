@@ -1,12 +1,12 @@
 const AGENT_BRANCH_COLORS = [
-  "oklch(56% 0.2 258)",
-  "oklch(52% 0.12 155)",
-  "oklch(55% 0.13 302)",
-  "oklch(57% 0.13 75)",
-  "oklch(54% 0.19 27)",
-  "oklch(55% 0.11 210)",
-  "oklch(58% 0.14 340)",
-  "oklch(52% 0.12 125)",
+  "var(--branch-1)",
+  "var(--branch-2)",
+  "var(--branch-3)",
+  "var(--branch-4)",
+  "var(--branch-5)",
+  "var(--branch-6)",
+  "var(--branch-7)",
+  "var(--branch-8)",
 ];
 const AGENT_BRANCH_GLYPHS = ["circle", "square", "diamond", "triangle", "hexagon", "cross"];
 

@@ -51,6 +51,24 @@ const DEFAULT_DAEMON_API_PORT = 43110;
 const DEFAULT_DAEMON_CAPTURE_PORT = 43111;
 const MIN_NODE_MAJOR = 24;
 const MIN_NODE_VERSION = ">=24.0.0";
+const FULL_PERMISSION_HELP = `Full-permission modes (dangerous):
+  pma codex --dangerously-bypass-approvals-and-sandbox
+                                   Codex CLI: skip approvals and run without its sandbox.
+  pma claude -c --dangerously-skip-permissions
+                                   Claude Code: bypass all permission checks.
+  pma opencode --auto
+                                   OpenCode: auto-approve asks; explicit deny rules still apply.
+                                   For all-allow, set {"permission":"allow"} in a trusted project's opencode.json.
+  openclaw --profile peekmyagent config set tools.profile full
+  openclaw --profile peekmyagent exec-policy preset yolo
+  pma openclaw chat
+                                   OpenClaw: full tool profile plus no-prompt host exec in PMA's isolated profile.
+
+  - Use these modes only in a trusted project, preferably inside an external sandbox or disposable environment.
+  - Run and exit "pma openclaw chat" once before OpenClaw setup so PMA can initialize its isolated profile.
+  - Managed or explicit deny policies can still restrict OpenCode and OpenClaw; PMA never overrides them.
+  - Codex Desktop permissions are selected in Desktop; the Codex CLI bypass flag does not affect Desktop.
+`;
 
 function usage(exitCode = 0) {
   const showAll = args.includes("--all") || args.includes("--advanced");
@@ -88,6 +106,7 @@ Usage:
   pma install-claude-skill [--scope user|project] [--commands] [--dest <claude-dir>] [--json]
   pma install-openclaw-skill [--agent <id>] [--global] [--force] [--json]
 
+${FULL_PERMISSION_HELP}
 Notes:
   - The shortest daily path is to prefix the original Agent command: "pma claude -c", "pma opencode", or "pma openclaw chat".
   - Claude Code capture defaults to auto: proxy capture when a configurable upstream base URL exists, otherwise OTel raw-body capture for subscription/OAuth sessions. Use --capture proxy|otel, --proxy, or --otel to force a mode.
@@ -111,7 +130,6 @@ Usage:
   pma open
   pma codex
   pma claude -c
-  pma claude -c --dangerously-skip-permissions
   pma claude -r <session-id>
   pma opencode
   pma openclaw chat
@@ -131,8 +149,6 @@ Common:
   pma codex desktop --select --capture exact
                                    Restart once and exactly capture the selected thread on cold resume.
   pma claude -c                    Start Claude Code and capture this session.
-  pma claude -c --dangerously-skip-permissions
-                                   Start Claude Code without permission prompts in a trusted repo.
   pma opencode                     Start OpenCode with exact process-local proxy capture.
   pma opencode --continue          Continue OpenCode while capturing only this process.
   pma openclaw chat                Start OpenClaw and capture this session.
@@ -140,6 +156,7 @@ Common:
   pma install-claude-skill --commands
                                    Install /peekmyagent slash commands for Claude Code.
 
+${FULL_PERMISSION_HELP}
 Maintenance:
   pma restart                      Restart the local dashboard daemon.
   pma shutdown                     Stop the local dashboard daemon.

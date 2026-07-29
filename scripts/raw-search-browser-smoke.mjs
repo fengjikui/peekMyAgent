@@ -73,6 +73,10 @@ try {
     ],
     messages: [{ role: "user", content: `请检查${query}。` }],
   });
+  await postJson(`${viewer.url}/api/watch/stop`, {
+    id: watch.id,
+    clear: false,
+  });
 
   browser = await launchChromiumPage();
   await browser.navigate(`${viewer.url}/?source=${encodeURIComponent(watch.id)}`);
@@ -86,6 +90,10 @@ try {
   });
   await browser.evaluate(`document.querySelector('.raw-sticky-controls [data-raw-section="system"]').click()`);
   await browser.waitFor(`Boolean(document.querySelector('[data-raw-search]'))`, { description: "the System Raw search field" });
+  await browser.evaluate(`window.setTimeout(() => {
+    document.querySelector('.raw-section-nav [data-raw-section="full"]')?.click();
+  }, 150)`);
+  await waitForRawSearchInputToSettle(browser);
 
   await browser.evaluate(`(() => {
     const input = document.querySelector('[data-raw-search]');
@@ -236,6 +244,52 @@ async function clickSearchNavigation(browserPage, direction, expectedPosition, e
   assert.equal(state.position, expectedPosition);
   assert.equal(state.activeIndex, expectedActiveIndex);
   assert.equal(state.activeTargets, 1);
+}
+
+async function waitForRawSearchInputToSettle(browserPage, { timeoutMs = 12_000, stableMs = 1_800 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let lastState = null;
+  await browserPage.evaluate(`(() => {
+    window.__rawSearchSettleMutations = 0;
+    window.__rawSearchSettleObserver?.disconnect();
+    window.__rawSearchSettleObserver = new MutationObserver(() => {
+      window.__rawSearchSettleMutations += 1;
+    });
+    window.__rawSearchSettleObserver.observe(document.querySelector('#rawTree'), { childList: true, subtree: true });
+  })()`);
+  try {
+    while (Date.now() < deadline) {
+      await browserPage.evaluate(`(() => {
+        window.__rawSearchSettleCandidate = document.querySelector('[data-raw-search]');
+        window.__rawSearchSettleMutations = 0;
+      })()`);
+      await delay(stableMs);
+      lastState = await browserPage.evaluate(`(() => {
+        const input = document.querySelector('[data-raw-search]');
+        const activeSection = document.querySelector('.raw-section-nav [data-raw-section].active')?.dataset.rawSection || '';
+        return {
+          domStable: Boolean(input) &&
+            input === window.__rawSearchSettleCandidate &&
+            window.__rawSearchSettleMutations === 0,
+          activeSection,
+          mutations: window.__rawSearchSettleMutations,
+          inputConnected: Boolean(input?.isConnected),
+          candidateConnected: Boolean(window.__rawSearchSettleCandidate?.isConnected),
+        };
+      })()`);
+      if (!lastState.domStable) continue;
+      if (lastState.activeSection === 'system') return;
+      const selected = await browserPage.evaluate(`(() => {
+        const button = document.querySelector('.raw-section-nav [data-raw-section="system"]');
+        button?.click();
+        return Boolean(button);
+      })()`);
+      if (!selected) break;
+    }
+  } finally {
+    await browserPage.evaluate(`window.__rawSearchSettleObserver?.disconnect()`);
+  }
+  throw new Error(`Raw search input did not settle before IME simulation: ${JSON.stringify(lastState)}`);
 }
 
 function searchState(browserPage) {

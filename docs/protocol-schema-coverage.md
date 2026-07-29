@@ -26,7 +26,7 @@ PMA 的核心用户在研究 Coding Agent Harness 的内部机制，而不是只
 7. **运行代价与数据边界**：token/cache usage、远程 MCP/server tool、文件/图片/audio、持久化、后台执行和安全检查。
 8. **协议是否发生漂移**：出现了哪些 PMA 尚未认识的正式类型；未知类型必须保留路径并进入覆盖统计，而不是静默降级成普通消息。
 
-其中 1–6 是 P0 机制信息；7 是 P1 诊断与隐私信息；temperature、top_p、seed 等生成参数属于 P2 配置事实，保留在 Raw/Metadata 即可，不占用主协议时间线。
+其中 1–6 是 P0 机制信息；7 是 P1 诊断与隐私信息；temperature、top_p、seed 等生成参数属于 P2 配置事实，保留在 Raw，并以有界短字段进入 Metadata 整理视图，不占用主协议时间线。
 
 ## 三层覆盖策略
 
@@ -166,7 +166,7 @@ Anthropic 下行 `ContentBlock` 当前约 12 种：`text`、`thinking`、`redact
 
 ### P2：完整配置查阅
 
-- 生成参数与版本化工具的全部内部字段继续通过 Raw/Metadata 查看；
+- 常见且短小的生成参数按原生 JSONPath 进入 Metadata 整理视图；长值、prompt、用户 metadata、加密内容、大型 Schema 与版本化工具的全部内部字段继续通过 Raw 查看；
 - 只有真实用户反馈证明其影响 Harness 机制时，才升级为专用语义。
 
 每次官方 Schema 漂移更新至少需要：官方来源链接、受影响 union 清单、脱敏 fixture、直接 contract smoke、未知类型回退断言，以及对本文覆盖表的更新。

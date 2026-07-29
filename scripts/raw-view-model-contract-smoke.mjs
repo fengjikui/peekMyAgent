@@ -21,7 +21,10 @@ import {
   responseToolCallSectionLabel,
   responseUsesReconstructedDownstream,
 } from "../src/viewer/raw-view-model.js";
-import { buildMetadataView } from "../src/viewer/metadata-view-model.js";
+import {
+  buildMetadataView,
+  extractRequestGenerationParameters,
+} from "../src/viewer/metadata-view-model.js";
 
 const request = {
   id: "request-1",
@@ -118,12 +121,20 @@ assert.equal("status" in metadata, false);
 
 const metadataView = buildMetadataView({
   ...request,
+  protocol: "anthropic_messages",
   raw: {
     ...request.raw,
     conversation_id: "conversation-1",
     received_at: "2026-07-25T10:00:00.000Z",
     raw_body_length: 1000,
     body_source: "original",
+    body: {
+      ...request.raw.body,
+      model: "claude-sonnet-4-5",
+      max_tokens: 4096,
+      thinking: { type: "enabled", budget_tokens: 1200 },
+      temperature: 0,
+    },
   },
   summary: {
     ...request.summary,
@@ -151,6 +162,10 @@ const metadataView = buildMetadataView({
 assert.equal(metadataView.identity.find((fact) => fact.key === "capture_id").value, "capture-1");
 assert.equal(metadataView.providerUsage.cache, 80);
 assert.equal(metadataView.providerUsage.actualInput, 100);
+assert.equal(metadataView.generationParameters.protocol, "anthropic_messages");
+assert.equal(metadataParameter(metadataView.generationParameters, "model").value, "claude-sonnet-4-5");
+assert.equal(metadataParameter(metadataView.generationParameters, "thinking.budget_tokens").value, 1200);
+assert.equal(metadataParameter(metadataView.generationParameters, "temperature").value, 0, "zero-valued sampling parameters remain visible");
 assert.equal(metadataView.composition.total, 1000);
 assert.deepEqual(
   metadataView.attribution.facts.map((fact) => [fact.key, fact.value]),
@@ -167,6 +182,105 @@ assert.deepEqual(
   metadataView.composition.sections.map((section) => section.key),
   ["system", "tools", "history_context", "current_user"],
 );
+
+const responsesParameters = extractRequestGenerationParameters({
+  protocol: "openai_responses",
+  body: {
+    model: "gpt-5.4",
+    reasoning: { effort: "high", summary: "auto", encrypted_content: "must-not-copy" },
+    temperature: 0.2,
+    top_p: 0.9,
+    max_output_tokens: 8192,
+    text: { verbosity: "low", format: { type: "json_schema", name: "trace_result", schema: { private: "large" } } },
+    tool_choice: { type: "function", name: "inspect_trace" },
+    parallel_tool_calls: false,
+    stream: true,
+    background: false,
+    store: false,
+    truncation: "auto",
+    metadata: { user_id: "must-not-copy" },
+    instructions: "must-not-copy",
+  },
+});
+assert.equal(metadataParameter(responsesParameters, "reasoning.effort").value, "high");
+assert.equal(metadataParameter(responsesParameters, "text.verbosity").value, "low");
+assert.equal(metadataParameter(responsesParameters, "tool_choice.name").value, "inspect_trace");
+assert.equal(metadataParameter(responsesParameters, "parallel_tool_calls").value, false);
+assert.equal(metadataParameter(responsesParameters, "background").value, false);
+assert.equal(metadataParameter(responsesParameters, "text.format.name").value, "trace_result");
+assert.equal(metadataParameter(responsesParameters, "metadata.user_id"), null, "request metadata is not copied into the compact parameter view");
+assert.equal(metadataParameter(responsesParameters, "reasoning.encrypted_content"), null);
+assert.equal(metadataParameter(responsesParameters, "text.format.schema.private"), null, "large response schemas remain Raw-only");
+
+const chatParameters = extractRequestGenerationParameters({
+  protocol: "openai_chat_completions",
+  body: {
+    model: "mimo-v2.5",
+    reasoning_effort: "medium",
+    temperature: 0,
+    top_p: 1,
+    seed: 42,
+    frequency_penalty: -0.5,
+    presence_penalty: 0.25,
+    max_completion_tokens: 2048,
+    n: 2,
+    stop: ["one", "two", "three", "four", "five", "six", "seven"],
+    response_format: { type: "json_schema", json_schema: { name: "answer", schema: { hidden: true } } },
+    tool_choice: { type: "function", function: { name: "lookup" } },
+    parallel_tool_calls: true,
+    stream: true,
+  },
+});
+assert.equal(metadataParameter(chatParameters, "reasoning_effort").value, "medium");
+assert.equal(metadataParameter(chatParameters, "seed").value, 42);
+assert.equal(metadataParameter(chatParameters, "response_format.json_schema.name").value, "answer");
+assert.equal(metadataParameter(chatParameters, "tool_choice.function.name").value, "lookup");
+assert.equal(metadataParameter(chatParameters, "stop").value.length, 6);
+assert.equal(metadataParameter(chatParameters, "stop").omitted_items, 1, "long scalar arrays are summarized without entering the compact view in full");
+
+const anthropicParameters = extractRequestGenerationParameters({
+  protocol: "anthropic_messages",
+  body: {
+    model: "claude-opus-4-1",
+    max_tokens: 64000,
+    thinking: { type: "adaptive", budget_tokens: 12000 },
+    output_config: { effort: "high", format: { type: "json_schema", schema: { hidden: true } } },
+    temperature: 1,
+    top_p: 0.95,
+    top_k: 40,
+    stop_sequences: ["END"],
+    tool_choice: { type: "tool", name: "Bash", disable_parallel_tool_use: true },
+    service_tier: "auto",
+    stream: true,
+  },
+});
+assert.equal(metadataParameter(anthropicParameters, "thinking.type").value, "adaptive");
+assert.equal(metadataParameter(anthropicParameters, "output_config.effort").value, "high");
+assert.equal(metadataParameter(anthropicParameters, "top_k").value, 40);
+assert.equal(metadataParameter(anthropicParameters, "tool_choice.disable_parallel_tool_use").value, true);
+assert.equal(metadataParameter(anthropicParameters, "output_config.format.schema.hidden"), null);
+
+const unknownParameters = extractRequestGenerationParameters({
+  protocol: "future_protocol",
+  body: {
+    model: "future-model",
+    temperature: 0.5,
+    max_tokens: 100,
+    stop: [],
+    custom_payload: "x".repeat(1000),
+  },
+});
+assert.equal(unknownParameters.protocol, "unknown");
+assert.equal(metadataParameter(unknownParameters, "max_tokens").value, 100);
+assert.equal(metadataParameter(unknownParameters, "stop"), null, "empty parameter arrays do not create noise");
+assert.equal(metadataParameter(unknownParameters, "custom_payload"), null, "unknown large fields remain Raw-only");
+
+const boundedParameters = extractRequestGenerationParameters({
+  protocol: "unknown",
+  body: { model: "m".repeat(300) },
+});
+assert.equal(metadataParameter(boundedParameters, "model").value.length, 160);
+assert.equal(metadataParameter(boundedParameters, "model").original_chars, 300);
 
 assert.deepEqual(rawSectionData(request, "system").value, {
   body_system: "system prompt",
@@ -570,3 +684,7 @@ assert.doesNotMatch(
 );
 
 console.log("raw view model contract smoke passed");
+
+function metadataParameter(parameters, nativeKey) {
+  return parameters?.groups?.flatMap((group) => group.facts).find((fact) => fact.native_key === nativeKey) || null;
+}

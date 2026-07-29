@@ -157,6 +157,49 @@ pma --ask claude -r <session-id>
 - 如果明确选择了复用，但目标监听已不存在，命令会报错而不是静默新建一条监听。
 - 非交互环境：默认新建监听，避免脚本卡住；需要复用时使用 `--reuse`。
 
+### 各 Harness 的完全权限模式
+
+下面的权限开关属于各 Harness 本身。peekMyAgent 只负责透传参数，或者使用明确命名的 OpenClaw 隔离 profile，不会给自身提升权限。
+
+Codex CLI 单次跳过审批并关闭 Codex sandbox：
+
+```bash
+pma codex --dangerously-bypass-approvals-and-sandbox
+```
+
+Claude Code 单次绕过权限检查：
+
+```bash
+pma claude -c --dangerously-skip-permissions
+```
+
+OpenCode 自动批准原本会询问的权限：
+
+```bash
+pma opencode --auto
+```
+
+`--auto` 不会覆盖配置中的显式 `deny`。如果确实需要 OpenCode 全部允许，可以在受信任项目的 `opencode.json` 中配置，然后运行 `pma opencode`：
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": "allow"
+}
+```
+
+OpenClaw 使用 PMA 的 `peekmyagent` 隔离 profile。先正常运行并退出一次 `pma openclaw chat`，让 PMA 初始化该 profile；然后开放完整工具 profile，并把 host exec 切换为 OpenClaw 的同步无确认模式：
+
+```bash
+openclaw --profile peekmyagent config set tools.profile full
+openclaw --profile peekmyagent exec-policy preset yolo
+pma openclaw chat
+```
+
+组织托管配置、显式 `deny` 和 per-agent policy 仍可能限制 OpenCode 或 OpenClaw。Codex Desktop 的权限需要在 Desktop 界面中选择，Codex CLI 的绕过参数不会影响 Desktop。
+
+这些模式可能让 Agent 无需再次确认就修改文件、执行命令、调用已配置工具或访问网络。只应在受信任项目中使用，最好同时放在外部 sandbox 或一次性环境里。
+
 启动 OpenClaw：
 
 ```bash
