@@ -73,6 +73,10 @@ try {
     ],
     messages: [{ role: "user", content: `请检查${query}。` }],
   });
+  await postJson(`${viewer.url}/api/watch/stop`, {
+    id: watch.id,
+    clear: false,
+  });
 
   browser = await launchChromiumPage();
   await browser.navigate(`${viewer.url}/?source=${encodeURIComponent(watch.id)}`);
@@ -86,6 +90,7 @@ try {
   });
   await browser.evaluate(`document.querySelector('.raw-sticky-controls [data-raw-section="system"]').click()`);
   await browser.waitFor(`Boolean(document.querySelector('[data-raw-search]'))`, { description: "the System Raw search field" });
+  await waitForRawSearchInputToSettle(browser);
 
   await browser.evaluate(`(() => {
     const input = document.querySelector('[data-raw-search]');
@@ -236,6 +241,25 @@ async function clickSearchNavigation(browserPage, direction, expectedPosition, e
   assert.equal(state.position, expectedPosition);
   assert.equal(state.activeIndex, expectedActiveIndex);
   assert.equal(state.activeTargets, 1);
+}
+
+async function waitForRawSearchInputToSettle(browserPage, { timeoutMs = 5_000, stableMs = 500 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let lastState = null;
+  while (Date.now() < deadline) {
+    await browserPage.evaluate(`window.__rawSearchSettleCandidate = document.querySelector('[data-raw-search]')`);
+    await delay(stableMs);
+    lastState = await browserPage.evaluate(`(() => {
+      const input = document.querySelector('[data-raw-search]');
+      return {
+        stable: Boolean(input) && input === window.__rawSearchSettleCandidate,
+        inputConnected: Boolean(input?.isConnected),
+        candidateConnected: Boolean(window.__rawSearchSettleCandidate?.isConnected),
+      };
+    })()`);
+    if (lastState.stable) return;
+  }
+  throw new Error(`Raw search input did not settle before IME simulation: ${JSON.stringify(lastState)}`);
 }
 
 function searchState(browserPage) {

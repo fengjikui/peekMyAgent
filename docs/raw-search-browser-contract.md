@@ -21,9 +21,9 @@ Raw Inspector 的搜索同时涉及完整 JSON 值、截断摘要、中文输入
 `scripts/raw-search-browser-smoke.mjs` 会在临时目录中：
 
 1. 启动隔离 Viewer、SQLite Store 和 mock Anthropic upstream；
-2. 通过真实 Capture Proxy 保存含 12 段长 System 文本的请求；
+2. 通过真实 Capture Proxy 保存含 12 段长 System 文本的请求，随后停止 watch，避免 live refresh 参与静态 UI 契约；
 3. 启动本机 Chrome、Chromium 或 Edge 的 headless DevTools 会话；
-4. 在真实 Viewer 中打开 System，模拟中文 IME 输入；
+4. 在真实 Viewer 中打开 System，等待 detail/翻译刷新后的 Raw 输入 DOM 在有界窗口内稳定，再模拟中文 IME 输入；
 5. 验证 13 个长文本命中、前后循环跳转、活动高亮和焦点；
 6. 滚动 Raw 面板并验证粘性控件；
 7. 切换 Tools/System 并验证查询和结果恢复；
