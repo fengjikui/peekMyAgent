@@ -1,6 +1,6 @@
 # peekMyAgent 发布手册
 
-更新时间：2026-07-15
+更新时间：2026-07-30
 
 这份手册描述公开 npm 包和 GitHub Release 的发布流程。发布源必须是公开仓库
 `fengjikui/peekMyAgent`，正式工作流不保存长期 npm Token。
@@ -21,11 +21,11 @@ npm 目前要求包已存在，之后才能为它配置 Trusted Publisher。因�
 
 1. 在 npmjs.com 注册并启用双因素认证，确认 `peekmyagent` 名称仍可用。
 2. 在干净工作树的候选提交上完成本机发布门禁，并确认托管三平台 CI 全绿。
-3. 更新版本、锁文件和 Changelog；首次可使用当前的 `0.1.0-alpha.1`。
+3. 更新版本、锁文件和 Changelog；本仓库的首次引导版本使用 `0.1.0-alpha.2`。
 4. 创建并 checkout 对应 Tag，然后验证和预览包内容：
 
    ```bash
-   npm run release:verify-version -- --tag=v0.1.0-alpha.1
+   npm run release:verify-version -- --tag=v0.1.0-alpha.2
    npm run smoke:package
    npm pack --dry-run
    ```

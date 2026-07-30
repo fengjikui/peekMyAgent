@@ -5,6 +5,8 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2026-07-30
+
 ### Added
 
 - `pma codex` now opens Codex Desktop for the current project, exposes a waiting Source immediately, and binds that stable Source to the next new workspace thread without copying rollout history into peekMyAgent SQLite.
@@ -42,5 +44,6 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 - Node.js 24 or newer is required.
 - Claude Code and OpenClaw are the primary integrated Agents. Provider-specific model and reasoning options may still affect Agent behavior independently of capture fidelity.
 
-[Unreleased]: https://github.com/fengjikui/peekMyAgent/compare/v0.1.0-alpha.1...HEAD
+[Unreleased]: https://github.com/fengjikui/peekMyAgent/compare/v0.1.0-alpha.2...HEAD
+[0.1.0-alpha.2]: https://github.com/fengjikui/peekMyAgent/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/fengjikui/peekMyAgent/releases/tag/v0.1.0-alpha.1
