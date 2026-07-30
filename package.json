@@ -1,6 +1,6 @@
 {
   "name": "peekmyagent",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "description": "Local-first dashboard for inspecting coding-agent model requests.",
   "type": "module",
   "keywords": [
@@ -28,8 +28,8 @@
     "node": ">=24.0.0"
   },
   "bin": {
-    "peekmyagent": "./bin/peekmyagent.mjs",
-    "pma": "./bin/peekmyagent.mjs"
+    "peekmyagent": "bin/peekmyagent.mjs",
+    "pma": "bin/peekmyagent.mjs"
   },
   "files": [
     "CHANGELOG.md",

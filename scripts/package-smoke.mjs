@@ -11,6 +11,11 @@ const result = spawnSync(packConfig.command, packConfig.args, {
 });
 
 assert.equal(result.status, 0, result.stderr);
+assert.doesNotMatch(
+  result.stderr,
+  /auto-corrected|invalid and removed/i,
+  `npm must not rewrite or remove package metadata during publish:\n${result.stderr}`,
+);
 const packs = JSON.parse(result.stdout);
 assert.equal(packs.length, 1);
 const files = new Set(packs[0].files.map((file) => file.path));
@@ -35,8 +40,8 @@ assert.notEqual(packageJson.version, "0.0.0", "package must use a real release v
 assert.match(packageJson.version || "", /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
 assert.equal(packageJson.publishConfig?.access, "public");
 assert.equal(packageJson.publishConfig?.registry, "https://registry.npmjs.org/");
-assert.equal(packageJson.bin?.peekmyagent, "./bin/peekmyagent.mjs");
-assert.equal(packageJson.bin?.pma, "./bin/peekmyagent.mjs");
+assert.equal(packageJson.bin?.peekmyagent, "bin/peekmyagent.mjs");
+assert.equal(packageJson.bin?.pma, "bin/peekmyagent.mjs");
 
 for (const required of [
   "CHANGELOG.md",
