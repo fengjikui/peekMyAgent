@@ -13,7 +13,24 @@ const apiPort = await freePort();
 const capturePort = await freePort();
 
 try {
-  const installConfig = childProcessSpawnConfig("npm", ["install", "-g", ".", "--prefix", prefix]);
+  const packConfig = childProcessSpawnConfig("npm", ["pack", "--json", "--pack-destination", tmpDir]);
+  const pack = spawnSync(packConfig.command, packConfig.args, {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    ...packConfig.options,
+  });
+  assert.equal(pack.status, 0, pack.stderr || pack.stdout);
+  assert.doesNotMatch(
+    pack.stderr,
+    /auto-corrected|invalid and removed/i,
+    `npm must not rewrite or remove package metadata while packing:\n${pack.stderr}`,
+  );
+  const packed = JSON.parse(pack.stdout);
+  assert.equal(packed.length, 1);
+  const tarballPath = path.join(tmpDir, packed[0].filename);
+  assert.equal(fs.existsSync(tarballPath), true, `expected packed artifact at ${tarballPath}`);
+
+  const installConfig = childProcessSpawnConfig("npm", ["install", "-g", tarballPath, "--prefix", prefix]);
   const install = spawnSync(installConfig.command, installConfig.args, {
     cwd: process.cwd(),
     encoding: "utf8",

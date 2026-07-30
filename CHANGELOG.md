@@ -5,6 +5,12 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 
 ## [Unreleased]
 
+## [0.1.0-alpha.3] - 2026-07-30
+
+### Fixed
+
+- npm package CLI mappings now use registry-compatible relative paths, and the package smoke rejects npm metadata auto-corrections that would remove the `pma` and `peekmyagent` commands. `0.1.0-alpha.2` was stopped before registry publication after this warning was detected.
+
 ## [0.1.0-alpha.2] - 2026-07-30
 
 ### Added
@@ -44,6 +50,7 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 - Node.js 24 or newer is required.
 - Claude Code and OpenClaw are the primary integrated Agents. Provider-specific model and reasoning options may still affect Agent behavior independently of capture fidelity.
 
-[Unreleased]: https://github.com/fengjikui/peekMyAgent/compare/v0.1.0-alpha.2...HEAD
+[Unreleased]: https://github.com/fengjikui/peekMyAgent/compare/v0.1.0-alpha.3...HEAD
+[0.1.0-alpha.3]: https://github.com/fengjikui/peekMyAgent/compare/v0.1.0-alpha.2...v0.1.0-alpha.3
 [0.1.0-alpha.2]: https://github.com/fengjikui/peekMyAgent/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/fengjikui/peekMyAgent/releases/tag/v0.1.0-alpha.1
