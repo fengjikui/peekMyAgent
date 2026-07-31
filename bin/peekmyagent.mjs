@@ -87,6 +87,7 @@ function usage(exitCode = 0) {
     ? `pma advanced help (alias: peekmyagent)
 
 Usage:
+  pma --version
   pma [--reuse|--ask] [--open] claude [claude args...]
   pma [--reuse|--ask] [--open] opencode [opencode args...]
   pma [--reuse|--ask] [--open] codebuddy [codebuddy args...]
@@ -143,6 +144,7 @@ Notes:
     : `pma (alias: peekmyagent)
 
 Usage:
+  pma --version
   pma open
   pma codex
   pma claude -c
@@ -213,6 +215,11 @@ function writeOutput(value) {
 
 function readJson(path) {
   return JSON.parse(fs.readFileSync(path, "utf8"));
+}
+
+function printVersion() {
+  const packageJson = readJson(path.join(repoRoot, "package.json"));
+  process.stdout.write(`${packageJson.version}\n`);
 }
 
 function installClaudeSkill() {
@@ -366,6 +373,11 @@ function shortcutWrapperAssignmentOption(value) {
 
 function isShortcutWrapperFlag(value) {
   return ["--open-viewer", "--refresh-profile", "--otel", "--proxy"].includes(value);
+}
+
+if (["--version", "-v", "-V", "version"].includes(command)) {
+  printVersion();
+  process.exit(0);
 }
 
 try {
