@@ -1,29 +1,42 @@
 # peekMyAgent 用户使用手册
 
-peekMyAgent 是一个本地优先的 Agent 请求观察工具。它帮助你看到 Claude Code、OpenClaw 等本地 Agent 在调用模型前组装出来的请求结构，包括 system、messages、tools、tool results、模型参数和原始 JSON。
+peekMyAgent（PMA）是一个本地优先的 Agent 请求观察工作台。它帮助你检查 Codex、Claude Code、OpenCode、CodeBuddy、OpenClaw 和自研 Harness 实际发送的 System / Developer 指令、消息、工具定义、工具调用与结果、模型参数和原始 JSON。
 
-它不是用来“破解隐藏提示词”的工具，而是帮助开发者在自己授权的本地环境里调试、审计和理解 Agent 行为。
+它不是用来“破解隐藏提示词”的工具，只用于你自己授权的本地 Agent 会话。
+
+第一次使用请从[五分钟快速上手](quick-start.zh-CN.md)开始。那篇指南用一个无需项目背景的小例子走完安装、启动、观察、停止和清理。
+
+## 按任务查找
+
+| 我想做什么 | 从哪里开始 |
+| --- | --- |
+| 第一次成功观察一条会话 | [五分钟快速上手](quick-start.zh-CN.md) |
+| 打开 Viewer，切换 Source 与会话 | [打开 Dashboard](#打开-dashboard) |
+| 观察 Codex / Claude Code / OpenCode / CodeBuddy | [通过 PMA 启动 Agent](#推荐方式通过-peekmyagent-启动-agent) |
+| 观察 OpenClaw | [使用 OpenClaw 隔离 profile 捕获](#使用-openclaw-隔离-profile-捕获) |
+| 看懂请求、回复和工具闭环 | [图文与演示素材说明](visual-usage-guide.zh-CN.md) |
+| 用通用协议接入自研 Harness | [通过协议桥接入自研 Harness](#通过协议桥接入自研-harness) |
+| 暂停、停止、清空或卸载 | [诊断、清理与卸载](#诊断清理与卸载) |
+| 定位捕获不到、页面为空等问题 | [排障](#排障) |
+| 开发专用 Harness adapter | [新 Harness 适配工作手册](new-harness-adaptation-playbook.md) |
 
 ## 适合谁使用
 
-- 正在使用 Claude Code、OpenClaw 或类似 coding agent 的开发者。
-- 想知道 Agent 到底把哪些上下文、工具和历史消息发给模型的人。
-- 想检查子代理、多轮会话、工具调用结果是否被正确带入模型请求的人。
-- 想在复盘、调试或开源项目演示中展示 Agent 透明度工作流的人。
+- 第一次接触 PMA、想迅速理解它解决什么问题的 Agent / Harness 使用者。
+- 想观察 Codex、Claude Code、OpenCode、CodeBuddy 等 Harness 内部运行机制的开发者。
+- 正在开发自有 Agent，想检查上行上下文、工具定义、模型参数、工具结果和协议响应的人。
+- 想复盘子 Agent、多轮执行、上下文变化与异常行为的人。
 
 ## 当前可用能力
 
-当前版本已经支持：
+当前版本可以：
 
-- 打开本地 Web dashboard。
-- 查看内置 smoke 证据包，例如 OpenClaw 子代理、OpenClaw 多轮、Claude Code 子代理。
-- 通过 `pma claude ...` / `pma openclaw ...` 前缀式命令启动 Agent 并自动捕获。`pma` 是 `peekmyagent` 的短别名，两者行为相同。
-- 从 dashboard 页面查看 live watch。
-- 从 Claude Code 当前会话内部注册当前 session 的 watch。
-- 同一个 Claude Code session 重复执行 watch 命令时复用已有监听。
-- 停止监听但保留已捕获请求。
-- 停止并清空 live watch 条目。
-- 安装 Claude Code skill / slash command 模板。
+- 在本地 Web Viewer 中按 Source、项目和会话浏览 Capture。
+- 通过 `pma codex`、`pma claude -c`、`pma opencode`、`pma codebuddy` 和 `pma openclaw chat` 启动受支持 Harness 并捕获请求。
+- 通过 `pma observe ...` 观察读取 OpenAI-compatible 或 Anthropic-compatible base URL 环境变量的自研 Harness。
+- 按厂商原生顺序查看 OpenAI Responses / Chat、Anthropic Messages 和 Google GenerateContent 证据，并跳回 Raw JSON。
+- 关联工具调用与后续结果，查看子 Agent、翻译、上下文变化和大型载荷的按需内容。
+- 暂停、恢复、停止 watch；停止时保留 Trace，或在明确确认后永久清空所有会话。
 
 ## 准备工作
 
@@ -108,6 +121,32 @@ http://127.0.0.1:43110
 
 最推荐的使用方式不是先启动 Agent 再尝试接管，而是把 `pma` 放在原 Agent 命令前面。这个前缀本身就是用户的显式授权：从这个进程开始，peekMyAgent 可以捕获它发出的模型请求。
 
+### Codex CLI 与 Codex Desktop
+
+在当前项目中精确捕获 Codex CLI：
+
+```bash
+pma codex
+```
+
+Codex 原生命令可以直接放在后面，例如 `pma codex resume --last` 或 `pma codex exec "检查这个仓库"`。PMA 不改写 `~/.codex/config.toml`，捕获覆盖只对这次子进程生效。
+
+在受支持的 macOS 版本上观察 Codex Desktop：
+
+```bash
+pma codex desktop
+```
+
+默认尝试托管精确捕获；如果不希望重启 Desktop，或当前版本不支持，可以显式选择只读 rollout 观察：
+
+```bash
+pma codex desktop --capture rollout
+```
+
+rollout 不是完整网络请求，正文也不会复制进 PMA SQLite。精确捕获与 rollout 的选择、冷恢复限制和重启确认见[Codex Desktop 托管精确捕获设计](codex-desktop-managed-exact-capture.md)。
+
+### Claude Code
+
 启动 Claude Code：
 
 ```bash
@@ -156,6 +195,16 @@ pma --ask claude -r <session-id>
 - 上述复用规则同时适用于 proxy capture 和 OTel raw-body capture；两种模式都会在启动输出中明确标记 `(reused)` 或 `(new)`。
 - 如果明确选择了复用，但目标监听已不存在，命令会报错而不是静默新建一条监听。
 - 非交互环境：默认新建监听，避免脚本卡住；需要复用时使用 `--reuse`。
+
+### OpenCode
+
+在当前项目中启动 OpenCode：
+
+```bash
+pma opencode
+```
+
+PMA 只为这次 CLI / TUI 子进程注入临时 provider 覆盖，退出后自动撤销，不修改全局 OpenCode 配置。OpenCode 原生参数可以直接附在命令后；需要跳过可批准权限时见[各 Harness 的完全权限模式](#各-harness-的完全权限模式)。
 
 ### 通过协议桥接入自研 Harness
 

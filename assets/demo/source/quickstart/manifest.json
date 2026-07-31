@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "title": "中文快速上手：查看目录并读取 README",
+  "source_commit": "f1c63f1bbb3428af7b24ebfa287af6c8dfdbeafa",
+  "source_type": "deterministic_synthetic_openai_responses",
+  "workspace": "/demo/hello-agent",
+  "conversation_id": "quickstart-tool-loop",
+  "viewer": {
+    "viewport_css_pixels": {
+      "width": 1536,
+      "height": 792
+    },
+    "theme": "codex",
+    "ui_language": "zh-CN",
+    "capture_method": "Codex in-app Browser controlling the live PMA Viewer"
+  },
+  "scenario": {
+    "user_request": "请先查看当前文件夹有哪些内容，再读取 README.md 中的「项目目标」部分，最后用一句话说明这个项目是做什么的。",
+    "tools": [
+      "list_directory",
+      "read_file"
+    ],
+    "request_count": 3,
+    "external_requests": false
+  },
+  "privacy": {
+    "uses_user_capture": false,
+    "uses_user_files": false,
+    "uses_real_api_key": false,
+    "uses_real_local_path": false,
+    "authorization_header": "synthetic value; persisted form verified redacted",
+    "notes": "All prompts, paths, file names, tool results, model responses and token counts are deterministic public demo data."
+  },
+  "generator": {
+    "trace": "node scripts/readme-media-demo.mjs --port 43112",
+    "annotations": "python3 scripts/build-readme-media.py"
+  },
+  "frames": [
+    {
+      "file": "quickstart-overview-raw.png",
+      "duration_ms": 5200,
+      "focus": "完整机制流程"
+    },
+    {
+      "file": "quickstart-system-raw.png",
+      "duration_ms": 6500,
+      "focus": "System 指令"
+    },
+    {
+      "file": "quickstart-tool-result-raw.png",
+      "duration_ms": 7500,
+      "focus": "list_directory 工具结果"
+    },
+    {
+      "file": "quickstart-tool-origin-raw.png",
+      "duration_ms": 7500,
+      "focus": "工具结果与来源调用关联"
+    },
+    {
+      "file": "quickstart-final-raw.png",
+      "duration_ms": 6500,
+      "focus": "最终回答"
+    },
+    {
+      "file": "quickstart-protocol-raw.png",
+      "duration_ms": 9500,
+      "focus": "OpenAI Responses 原生协议"
+    }
+  ]
+}

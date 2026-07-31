@@ -1,166 +1,132 @@
-# peekMyAgent 图文使用说明
+# peekMyAgent 图文与演示素材说明
 
-这篇文档用于给第一次接触 peekMyAgent 的用户快速说明：它不是一个新的聊天客户端，而是一个本地优先的 Agent Trace 观察工具。你仍然在 Claude Code、OpenClaw 等工具里工作，peekMyAgent 负责把模型请求链路整理成可以复盘的时间线。
+这篇文档记录中文快速上手 v0.1 的演示设计、素材来源和重生成方式。它既是用户的图文导览，也是以后界面更新时重录素材的制作说明。
 
-## 一张图看懂
+## 这支主 GIF 只回答一个问题
 
-![peekMyAgent dashboard feature tour](../assets/demo/dashboard-overview-tour.gif)
+> PMA 如何让我从一条用户请求，一路追踪到工具调用、工具结果、最终回答和原始协议？
 
-静态标注图：
+![从用户请求追踪到原始协议](../assets/demo/quickstart-tool-loop.gif)
 
-![peekMyAgent dashboard overview](../assets/demo/dashboard-overview-annotated.png)
+静态首帧：
 
-## 两段核心流程
+![PMA 快速上手总览](../assets/demo/quickstart-overview-annotated.png)
 
-协议顺序与 namespace 工具目录：
+主 GIF 不承担安装、子 Agent、上下文压缩、翻译和所有 Harness 差异的讲解。把太多概念塞进一条演示，会迫使第一次使用者先理解项目背景，反而看不清 PMA 的核心价值。这些主题将使用各自独立的短素材逐步补充。
 
-![按厂商协议顺序查看 namespace 与可调用叶子](../assets/demo/chat-upstream-context.gif)
+## 演示场景
 
-工具调用闭环与懒加载：
-
-![工具调用、结果关联与大型载荷按需加载](../assets/demo/tool-call-loop.gif)
-
-图中 4 个标注区域对应当前最关键的观察动作：
-
-1. **Session / project**：左侧按项目和会话组织记录，并按 Agent 隔离观察对象。
-2. **Tool loop**：中间的机制流程与时间线把用户请求、工具调用、结果回传和最终回答串成一条可追溯链路。
-3. **Protocol evidence**：右侧按厂商 wire protocol 原顺序展示上行、下行、工具阶段及对应 Raw 路径。
-4. **Qualified namespace leaves**：namespace 容器保留层级身份，实际可调用叶子使用 `collaboration.followup_task` 这类限定名；容器不再被误算为零参数工具。
-
-第二段 GIF 还展示了大型结果和图片的按需加载：默认只进入浏览器一行 MIME、大小、token 估算、尺寸与 hash 占位，用户点击后才从本地 Viewer 读取正文或还原安全 raster 图片。
-
-## 最短使用路径
-
-安装并打开 dashboard：
-
-```bash
-git clone https://github.com/fengjikui/peekMyAgent.git
-cd peekMyAgent
-node scripts/install.mjs
-pma open
-```
-
-在你的项目目录里通过 peekMyAgent 启动 Claude Code：
-
-```bash
-cd <your-project>
-pma claude -c
-```
-
-如果你明确想跳过 Claude Code 权限确认，把 Claude Code 自己的参数放在 `claude` 后面：
-
-```bash
-pma claude -c --dangerously-skip-permissions
-```
-
-之后正常使用 Claude Code。每次模型请求都会出现在 dashboard 中：点击请求或回复旁的 `详情`，再从右侧选择 `协议视图`、`System`、`Developer`、`Tools`、`History`、`Message` 或 `Metadata`；也可以直接点时间线里的工具调用/工具结果行追踪关联关系。
-
-## 适合演示的 4 个场景
-
-### 1. 按真实协议顺序看清 Agent 发了什么
-
-推荐提示词：
+虚构测试目录：
 
 ```text
-请简单介绍一下这个项目，并列出你准备先查看哪些文件。
+/demo/hello-agent/
+├── README.md
+├── data/
+│   └── colors.json
+└── notes/
+    └── idea.md
 ```
 
-演示重点：
-
-- 中间时间线会出现用户输入和模型回复。
-- 点击用户请求旁的 `详情`，打开右侧 `协议视图`。
-- OpenAI Responses、OpenAI Chat、Anthropic Messages 和 Google GenerateContent 都按自己的原生顺序展示，不根据 Agent 名称猜测协议。
-- 每个条目都保留 Raw 路径；需要精确排查时可以直接跳回原始证据。
-
-### 2. 观察工具调用链路
-
-推荐提示词：
+用户请求：
 
 ```text
-请查看当前目录有哪些文件，并读取 README 的开头部分。
+请先查看当前文件夹有哪些内容，再读取 README.md 中的「项目目标」部分，最后用一句话说明这个项目是做什么的。
 ```
 
-演示重点：
+确定性假模型产生三次 OpenAI Responses 请求：
 
-- 模型回复中会出现工具调用，后续请求会出现结果回传。
-- 机制流程和“来源 #N”把调用、结果与最终回答串起来。
-- 大于阈值的结果先显示类型、大小、token 估算与 hash，只有点击 `加载内容` 才读取本地正文。
+1. 接收 System / Developer 指令、用户请求、模型参数和两项工具定义；调用 `list_directory({"path":"."})`。
+2. 接收目录结果；调用 `read_file({"path":"README.md","start_line":1,"end_line":12})`。
+3. 接收 README 内容；回答“这个最小项目用于演示 Agent 如何查看目录、读取文档，并依据真实工具结果回答问题。”
 
-### 3. 查看 System / Tools 的中文翻译
+这个场景的优势是用户不需要理解任何业务规则。目录、读文件、依据结果回答都是直觉动作，注意力可以完全放在 Harness 如何组织请求，以及 PMA 如何关联证据上。
 
-推荐操作：
+## 完整镜头脚本
 
-1. 在右侧 Raw 面板点击 `System` 或 `Tools`。
-2. 切换到 `中文`。
-3. 如缓存缺失，点击刷新当前区块。
+| 镜头 | 用户动作 | 画面重点 | 要证明的价值 | 标注 | 停留 |
+| --- | --- | --- | --- | --- | --- |
+| 1. 完整执行链 | 选择演示会话 | 用户请求、两次工具调用、两次结果回传和最终回答 | 一屏先理解 Agent 做了什么 | 先看完整执行链 | 5.2 秒 |
+| 2. System | 打开请求详情，选择 `System` | 模型实际收到的系统指令 | 摘要背后有可核对的上行上下文 | 查看模型实际收到的系统指令 | 6.5 秒 |
+| 3. 工具结果 | 点击 `list_directory` 结果 | 结果内容位于下一次模型请求 | 不只知道工具运行过，还能确认回传了什么 | 工具结果进入下一次模型请求 | 7.5 秒 |
+| 4. 来源调用 | 点击 `来源 #1` | 返回原始 `function_call` 和参数 | 长会话中也能快速关联调用与迟到结果 | 一键回到产生结果的工具调用 | 7.5 秒 |
+| 5. 最终回答 | 回到最终回复 | 回答与两项工具证据处于同一条链 | 用户可以检查回答是否真的基于文件内容 | 最终回答可以沿证据链复查 | 6.5 秒 |
+| 6. 协议 | 切换到 `协议视图` | 原生 input 顺序、工具、参数与回复 | 摘要不够时仍可核对完整上下行 | 按原生协议核对完整上下行 | 9.5 秒 |
 
-演示重点：
+总时长 42.7 秒。普通画面已超过 5 秒，复杂协议画面接近 10 秒；没有快速闪切，也没有无意义鼠标移动。
 
-- 翻译按块缓存，避免每次重新翻译整段大提示词。
-- 工具描述和参数描述分开展示，适合理解 Agent 能用哪些工具、每个工具的参数 schema 是什么。
-- 翻译用于阅读辅助，不替代原始 JSON；需要精确排查时仍可回到 `原文`。
+## 画面规范
 
-### 4. 展示子 Agent / 多 Agent 回流
+- 视口固定为 1536×792，接近常见全屏桌面浏览器的信息密度。
+- Codex 场景使用 Codex 主题；未来 Claude Code 场景使用 Claude 主题。
+- 暗夜主题只在主题切换说明中出现，不为每个教程重复录制一套。
+- 中文界面优先；英文和其他语言等中文版结构稳定后再翻译。
+- 每帧最多一个红框、一条箭头和一句短标注，不能遮住关键内容。
+- 主 GIF 是基于真实 Viewer 状态的慢速逐帧演示，不伪造产品中不存在的 UI。
 
-推荐提示词：
+## 素材与来源
 
-```text
-请同时启动两个子 Agent：一个统计当前目录文件，一个查看系统信息。完成后汇总结果。
-```
+发布素材：
 
-演示重点：
+- `assets/demo/quickstart-tool-loop.gif`：README 首屏主 GIF。
+- `assets/demo/quickstart-overview.png`：无标注静态总览。
+- `assets/demo/quickstart-overview-annotated.png`：带单一引导标注的静态总览。
+- `assets/demo/quickstart/01-trace.png` ～ `06-protocol.png`：快速上手章节图。
 
-- 时间线会标记子 Agent 请求、子 Agent 结果回流和主 Agent 后续总结。
-- 多 Agent 面板用于看整体信息流：哪个子 Agent 被启动、何时返回、返回后主 Agent 如何继续。
-- 这能帮助用户理解 Agent harness 的内部编排，而不只是看到最终自然语言答案。
+原始素材：
 
-## README 素材与复现方式
+- `assets/demo/source/quickstart/*-raw.png`：真实 Viewer 原始帧。
+- `assets/demo/source/quickstart/manifest.json`：源提交、视口、主题、场景、隐私检查、生成命令和帧时长。
 
-当前 README 使用 3 个短 GIF：
+旧版 `dashboard-overview-tour.gif`、`chat-upstream-context.gif` 和 `tool-call-loop.gif` 暂时保留，供比较与后续迁移；中文版 README 首屏已不再使用它们。
 
-- `dashboard-overview-tour.gif`：会话导航、工具闭环、Protocol、namespace 与懒加载总览。
-- `chat-upstream-context.gif`：协议顺序、工具阶段和限定名叶子。
-- `tool-call-loop.gif`：工具调用/结果关联、文本与图片按需加载。
+## 重生成演示轨迹
 
-制作前先固定“这支动图只回答什么问题”，再按下面的 storyboard 采集界面，不从一段长录屏里随机截取：
-
-| 动图 | 用户问题 | 叙事顺序 | 节奏 |
-| --- | --- | --- | --- |
-| 总览 | 一条本地 Trace 能让我看懂什么？ | 选择会话 -> 工具闭环 -> 厂商原生协议 -> namespace 叶子 -> 大载荷懒加载 | 5 帧，约 17 秒 |
-| 协议与 namespace | PMA 如何忠实解析不同协议和工具目录？ | 打开 Protocol -> declared/added/loaded 阶段 -> 容器不是工具 -> 叶子 schema | 4 帧，约 14 秒 |
-| 工具闭环与懒加载 | 大 Trace 如何既完整又不拖慢首屏？ | 调用/结果关联 -> 占位元数据 -> 按需加载正文 -> 图片保持本地 | 4 帧，约 14 秒 |
-
-每帧只保留一个红框和一句结论；导航帧至少停留 2.8 秒，需要阅读结构或字段的帧停留 3.4-3.8 秒。总时长控制在 12-18 秒，既能看清，也适合 README 自动循环播放。
-
-素材来自隔离、可复现的假 provider，不读取用户会话，也不向外部服务发请求：
+启动确定性假上游和 PMA：
 
 ```bash
 node scripts/readme-media-demo.mjs --port 43112
 ```
 
-随后用浏览器在 `http://127.0.0.1:43112` 操作真实 Viewer，把关键状态保存到 `tmp/readme-media-frames/`。完成截图后运行：
+然后用浏览器打开 `http://127.0.0.1:43112`，将视口设为 1536×792，切换中文与 Codex 主题，按镜头脚本操作真实 Viewer。把六个状态保存到：
+
+```text
+assets/demo/source/quickstart/quickstart-overview-raw.png
+assets/demo/source/quickstart/quickstart-system-raw.png
+assets/demo/source/quickstart/quickstart-tool-result-raw.png
+assets/demo/source/quickstart/quickstart-tool-origin-raw.png
+assets/demo/source/quickstart/quickstart-final-raw.png
+assets/demo/source/quickstart/quickstart-protocol-raw.png
+```
+
+重新生成标注图和 GIF：
 
 ```bash
 python3 scripts/build-readme-media.py
 ```
 
-脚本使用 Pillow 叠加确定性的红框、箭头、编号和说明，并按 storyboard 中的停留时间直接生成 `assets/demo/` 下的静态图与 GIF。当前输出为 1280×720，单个 GIF 控制在 1 MiB 内。
+脚本使用 Pillow 确定性添加红框、箭头、编号和中文字幕，没有新增产品运行依赖。需要发布视频时，可以直接复用这六个原始帧、镜头文案和时长，在 ffmpeg、剪映或其他剪辑工具中生成 MP4、字幕和配音，不必重新设计故事。
 
-## 素材制作工具链
+## 隐私边界
 
-- 截图与交互：使用 Codex 内置 Browser 控制真实本地 Viewer，不读取浏览器历史、Cookie 或用户会话。
-- 截图标注：`scripts/build-readme-media.py` 使用 Pillow `ImageDraw` 自动加红框、箭头、编号和标签。
-- GIF 输出：Pillow 自适应调色板；需要视频发布物时仍可用 ffmpeg / gifski 做二次转码。
+本次演示只使用：
 
-本次 README 素材使用浏览器真实截图与 Pillow 确定性标注生成，未新增产品运行依赖。
+- 虚构的 `/demo/hello-agent` 路径；
+- 虚构文件名和内容；
+- 确定性本地假上游；
+- 假认证值，且 Viewer 中显示为脱敏值；
+- 本地环回地址，不向外部模型或网络服务发送请求。
 
-## 分享前检查
+公开分享新素材前必须逐帧检查 Source 名称、System、Tools、Raw、路径、命令输出和历史消息。不要录制真实 API Key、真实提示词、用户源码、本地隐私路径或不可公开的 Capture。
 
-截图、GIF 和导出的 Trace 都可能包含：
+## 后续素材优先级
 
-- 私有源码、路径和文件名。
-- system prompt、工具 schema、模型参数。
-- 命令输出、工具结果和历史消息。
-- API key 或 token 的片段。
+在主 GIF 与五分钟快速上手通过用户审阅后，再独立制作：
 
-公开分享前请优先使用专门准备的 demo 项目，并检查右侧 Raw 面板和时间线中是否出现敏感内容。
+1. Claude Code 主题下的子 Agent 启动、结果回流与主 Agent 汇总；
+2. 上下文变化与压缩前后对比，并明确区分各 Harness 的真实实现；
+3. 异步工具结果跨多轮回传和来源定位；
+4. System / Tools 分块翻译；
+5. 自研 Harness 通过 OpenAI / Anthropic 通用桥接入；
+6. 一支可配字幕和旁白的中文视频。
+
+每个新主题仍只回答一个核心问题，并先用真实产品证据确认功能存在，不能把 roadmap 写成已实现。
