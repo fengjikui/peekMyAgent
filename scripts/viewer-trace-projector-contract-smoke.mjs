@@ -253,6 +253,104 @@ assert.equal(codexSpecialOperations.turns[1].kind, "independent_background");
 assert.equal(codexSpecialOperations.turns[1].index, null, "background side channels never consume a user Turn number");
 assert.deepEqual(codexSpecialOperations.turns[1].request_ids, ["codex-memory"]);
 
+const codeBuddyPurposeEvidence = projector.buildData({
+  source: {
+    ...source,
+    id: "codebuddy-purpose-evidence",
+    agent: "CodeBuddy Code",
+    kind: "codebuddy_proxy_exact",
+    request_count: 4,
+    response_count: 4,
+  },
+  captures: [
+    {
+      capture_id: "codebuddy-main",
+      agent_profile: "CodeBuddy Code",
+      request_index: 1,
+      method: "POST",
+      path: "/v1/chat/completions",
+      header_semantics: { codebuddy: { agent_purpose: "conversation" } },
+      body: {
+        model: "mimo-test",
+        messages: [
+          { role: "system", content: "You are CodeBuddy Code." },
+          { role: "user", content: "<user_query>Inspect the project.</user_query>" },
+        ],
+        tools: [{ type: "function", function: { name: "Read", parameters: { type: "object" } } }],
+      },
+    },
+    {
+      capture_id: "codebuddy-leaked-suggestion",
+      agent_profile: "CodeBuddy Code",
+      request_index: 2,
+      method: "POST",
+      path: "/v1/chat/completions",
+      header_semantics: { codebuddy: { agent_purpose: "prompt_suggestion" } },
+      body: {
+        model: "mimo-test",
+        messages: [
+          { role: "system", content: "You are CodeBuddy Code." },
+          { role: "user", content: "<user_query>Inspect the project.</user_query>" },
+          {
+            role: "assistant",
+            tool_calls: [{ id: "call-read", type: "function", function: { name: "Read", arguments: "{}" } }],
+          },
+          { role: "tool", tool_call_id: "call-read", content: "fixture result" },
+        ],
+        tools: [{ type: "function", function: { name: "Read", parameters: { type: "object" } } }],
+      },
+    },
+    {
+      capture_id: "codebuddy-real-suggestion",
+      agent_profile: "CodeBuddy Code",
+      request_index: 3,
+      method: "POST",
+      path: "/v1/chat/completions",
+      header_semantics: { codebuddy: { agent_purpose: "prompt_suggestion" } },
+      body: {
+        model: "mimo-test",
+        messages: [
+          {
+            role: "system",
+            content: "You are a prompt suggestion generator. Reply in 3-8 words with ONLY the suggestion.",
+          },
+          { role: "user", content: "[User Message]\nInspect the project.\n...\n[Assistant Response]\nDone." },
+        ],
+        tools: [],
+      },
+    },
+    {
+      capture_id: "codebuddy-subagent",
+      agent_profile: "CodeBuddy Code",
+      request_index: 4,
+      method: "POST",
+      path: "/v1/chat/completions",
+      header_semantics: { codebuddy: { agent_purpose: "subagent" } },
+      body: {
+        model: "mimo-test",
+        messages: [
+          { role: "system", content: "You are a CodeBuddy subagent." },
+          { role: "user", content: "[Subagent Context]\nInspect one file." },
+        ],
+        tools: [{ type: "function", function: { name: "Read", parameters: { type: "object" } } }],
+      },
+    },
+  ],
+});
+assert.equal(codeBuddyPurposeEvidence.requests[0].source_hint.type, "main");
+assert.equal(
+  codeBuddyPurposeEvidence.requests[1].source_hint.type,
+  "main",
+  "a leaked CodeBuddy suggestion header does not move an ordinary tool continuation behind the timeline",
+);
+assert.equal(codeBuddyPurposeEvidence.requests[2].source_hint.type, "metadata");
+assert.equal(codeBuddyPurposeEvidence.requests[2].source_hint.operation, "input_suggestion");
+assert.equal(codeBuddyPurposeEvidence.requests[2].source_hint.confidence, "high");
+assert.equal(codeBuddyPurposeEvidence.requests[3].source_hint.type, "subagent");
+assert.equal(codeBuddyPurposeEvidence.turns.length, 1);
+assert.equal(codeBuddyPurposeEvidence.turns[0].main_request_count, 2);
+assert.equal(codeBuddyPurposeEvidence.turns[0].internal_request_count, 2);
+
 const codexAdditionalToolsData = projector.buildData({
   source: {
     ...source,

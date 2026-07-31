@@ -39,7 +39,7 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
   }
   const codexOperation = classifyCodexRequestOperation(capture, body);
   if (codexOperation) return codexOperation;
-  const codeBuddyOperation = classifyCodeBuddyRequestOperation(capture);
+  const codeBuddyOperation = classifyCodeBuddyRequestOperation(capture, body);
   if (codeBuddyOperation) return codeBuddyOperation;
   if (isContextTokenCountingRequest(capture)) {
     return createRequestAttribution({
@@ -50,7 +50,8 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
       evidence: [requestAttributionEvidence("transport", "path", "/v1/messages/count_tokens")],
     });
   }
-  if (isSuggestionModeMessage(lastUser)) {
+  const terminalMessage = extractRequestMessages(body).at(-1);
+  if (lastUser === terminalMessage && isSuggestionModeMessage(lastUser)) {
     return createRequestAttribution({
       type: "metadata",
       label: "Agent 输入建议请求",
@@ -59,7 +60,7 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
       evidence: [requestAttributionEvidence("message", "semantic_marker", "suggestion_mode")],
     });
   }
-  if (isFrameworkReminderMessage(lastUser)) {
+  if (lastUser === terminalMessage && isFrameworkReminderMessage(lastUser)) {
     return createRequestAttribution({
       type: "metadata",
       label: "Harness 框架提醒",
@@ -163,7 +164,7 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
   });
 }
 
-export function classifyCodeBuddyRequestOperation(capture = {}) {
+export function classifyCodeBuddyRequestOperation(capture = {}, body = capture.body || {}) {
   const agentProfile = String(capture?.agent_profile || capture?.agentProfile || "").trim();
   if (!/^codebuddy(?:\s+code)?$/i.test(agentProfile)) return null;
   const purpose = String(capture?.header_semantics?.codebuddy?.agent_purpose || "").trim().toLowerCase();
@@ -179,7 +180,10 @@ export function classifyCodeBuddyRequestOperation(capture = {}) {
       evidence,
     });
   }
+  const primaryConversationEvidence = codeBuddyPrimaryConversationEvidence(body);
   if (purpose === "conversation_topic") {
+    if (primaryConversationEvidence.length) return null;
+    const verified = isTitleGenerationRequest(body, capture);
     return createRequestAttribution({
       type: "metadata",
       label: "CodeBuddy 会话标题请求",
@@ -187,21 +191,28 @@ export function classifyCodeBuddyRequestOperation(capture = {}) {
       operation: "session_title_generation",
       request_kind: purpose,
       turn_placement: "trigger_turn",
-      confidence: "high",
-      evidence,
+      confidence: verified ? "high" : "medium",
+      evidence: verified
+        ? [...evidence, requestAttributionEvidence("request_body", "semantic_shape", "codebuddy_title_generation")]
+        : evidence,
     });
   }
   if (purpose === "prompt_suggestion") {
+    if (primaryConversationEvidence.length) return null;
+    const verified = isCodeBuddyPromptSuggestionRequest(body);
     return createRequestAttribution({
       type: "metadata",
       label: "CodeBuddy 输入建议请求",
       label_key: "codebuddySuggestionRequest",
       operation: "input_suggestion",
       request_kind: purpose,
-      confidence: "high",
-      evidence,
+      confidence: verified ? "high" : "medium",
+      evidence: verified
+        ? [...evidence, requestAttributionEvidence("request_body", "semantic_shape", "codebuddy_prompt_suggestion")]
+        : evidence,
     });
   }
+  if (primaryConversationEvidence.length) return null;
   if (/^(?:context_compact|context_summary_)/.test(purpose)) {
     return createRequestAttribution({
       type: "metadata",
@@ -209,7 +220,7 @@ export function classifyCodeBuddyRequestOperation(capture = {}) {
       label_key: "codebuddyCompactionRequest",
       operation: "context_compaction",
       request_kind: purpose,
-      confidence: "high",
+      confidence: "medium",
       evidence,
     });
   }
@@ -230,9 +241,39 @@ export function classifyCodeBuddyRequestOperation(capture = {}) {
     label_key: knownBackground.has(purpose) ? "codebuddyBackgroundRequest" : "codebuddyHarnessRequest",
     operation: `codebuddy_${safeOperationToken(purpose)}`,
     request_kind: purpose,
-    confidence: "high",
+    confidence: "medium",
     evidence,
   });
+}
+
+export function isCodeBuddyPromptSuggestionRequest(body = {}) {
+  const messages = extractRequestMessages(body);
+  const tools = extractRequestTools(body);
+  if (
+    tools.length !== 0 ||
+    messages.length !== 2 ||
+    messages[0]?.role !== "system" ||
+    messages[1]?.role !== "user"
+  ) {
+    return false;
+  }
+  const systemText = extractContentText(messages[0]?.content);
+  const userText = extractContentText(messages[1]?.content);
+  return (
+    /prompt suggestion generator/i.test(systemText) &&
+    /3\s*[-–]\s*8 words/i.test(systemText) &&
+    /ONLY the suggestion/i.test(systemText) &&
+    /\[Assistant Response\]/i.test(userText)
+  );
+}
+
+function codeBuddyPrimaryConversationEvidence(body = {}) {
+  const wrappedUserQuery = extractRequestMessages(body).some((message) => {
+    if (message?.role !== "user") return false;
+    return /<user_query\b[^>]*>[\s\S]*?<\/user_query>/i.test(extractContentText(message.content));
+  });
+  if (!wrappedUserQuery) return [];
+  return [requestAttributionEvidence("request_body", "semantic_shape", "codebuddy_user_query")];
 }
 
 function titleGenerationTurnPlacement(capture = {}) {

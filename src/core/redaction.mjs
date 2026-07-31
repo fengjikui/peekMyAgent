@@ -5,6 +5,7 @@ const SENSITIVE_IDENTITY_HEADERS = new Set([
   "openai-project",
   "thread-id",
   "x-client-request-id",
+  "x-agent-purpose",
   "x-conversation-id",
   "x-conversation-message-id",
   "x-conversation-request-id",
@@ -35,7 +36,7 @@ export function redactHeaders(headers = {}) {
   return { headers: redacted, redactions };
 }
 
-export function extractSafeHeaderSemantics(headers = {}) {
+export function extractSafeHeaderSemantics(headers = {}, { agentProfile } = {}) {
   const normalized = Object.fromEntries(
     Object.entries(headers || {}).map(([key, value]) => [String(key || "").toLowerCase(), value]),
   );
@@ -49,9 +50,11 @@ export function extractSafeHeaderSemantics(headers = {}) {
   if (Object.keys(safeCodexTurnMetadata).length) semantics.codex_turn_metadata = safeCodexTurnMetadata;
   if (hasMeaningfulHeader(normalized["x-codex-parent-thread-id"])) semantics.codex_parent_thread = true;
   if (truthyMarker(normalized["x-openai-subagent"])) semantics.codex_subagent = true;
-  if (truthyMarker(normalized["x-codebuddy-request"])) {
+  const codeBuddyRequest =
+    truthyMarker(normalized["x-codebuddy-request"]) || /^codebuddy(?:\s+code)?$/i.test(String(agentProfile || "").trim());
+  if (codeBuddyRequest) {
     const codebuddy = {};
-    const purpose = safeHeaderEnum(normalized["x-agent-purpose"]);
+    const purpose = safeCodeBuddyPurpose(normalized["x-agent-purpose"]);
     const intent = safeHeaderEnum(normalized["x-agent-intent"]);
     const ideType = safeHeaderEnum(normalized["x-ide-type"]);
     const ideName = safeHeaderEnum(normalized["x-ide-name"]);
@@ -65,6 +68,13 @@ export function extractSafeHeaderSemantics(headers = {}) {
     if (Object.keys(codebuddy).length) semantics.codebuddy = codebuddy;
   }
   return Object.keys(semantics).length ? semantics : undefined;
+}
+
+function safeCodeBuddyPurpose(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (/^subagent(?::|\/)[^\s]{1,128}$/.test(text)) return "subagent";
+  if (/^custom_agent(?::|\/)[^\s]{1,128}$/.test(text)) return "custom_agent";
+  return safeHeaderEnum(text);
 }
 
 function isSensitiveHeader(key) {

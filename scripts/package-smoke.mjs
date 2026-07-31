@@ -217,9 +217,11 @@ const MAX_PACKAGE_ENTRIES = 156;
 // Protocol Exchange, OpenCode and CodeBuddy continuation identity, organized request
 // generation metadata, the two explicitly required lazy-payload runtime
 // modules, the generic child-process Observe bridge, and the required CodeBuddy
-// models.json process-local route hook. The allowlist and denied patterns remain strict.
-const MAX_PACKED_BYTES = 400_000;
-const MAX_UNPACKED_BYTES = 1_758_000;
+// models.json process-local route hook, corroborated CodeBuddy attribution, and
+// conversation-wide child-branch ownership. The rounded limits retain about 1%
+// growth headroom; the allowlist, denied patterns, and entry budget remain strict.
+const MAX_PACKED_BYTES = 405_000;
+const MAX_UNPACKED_BYTES = 1_780_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);
 assert.ok(packs[0].size <= MAX_PACKED_BYTES, `npm package is too large when packed: ${packs[0].size}/${MAX_PACKED_BYTES} bytes`);
 assert.ok(

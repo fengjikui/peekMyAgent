@@ -215,6 +215,20 @@ export function findTurnLeadRequest(requests, turn) {
   );
 }
 
+export function conversationTimelineRequestsForTurn({
+  turn,
+  requestMap,
+  agentTrace,
+  includeBranchRequests = false,
+} = {}) {
+  const requests = (turn?.request_ids || []).map((id) => requestMap?.get(id)).filter(Boolean);
+  if (includeBranchRequests) return requests;
+  const branchRequestIds = new Set(
+    (agentTrace?.branches || []).flatMap((branch) => Array.isArray(branch?.request_ids) ? branch.request_ids : []),
+  );
+  return requests.filter((request) => !branchRequestIds.has(request.id));
+}
+
 function traceMatchingRequestIdsForTurn(turn, turnRequests, filter, query) {
   const requestNumber = parseTraceRequestNumberQuery(query);
   const directMatches = turnRequests.filter(

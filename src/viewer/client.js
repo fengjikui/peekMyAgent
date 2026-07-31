@@ -99,6 +99,7 @@ import { buildTurnStoryView } from "./turn-story-model.js";
 import { renderTurnStory as renderTurnStoryView } from "./turn-story-renderer.js";
 import {
   buildTraceTimelineView,
+  conversationTimelineRequestsForTurn,
   findTurnLeadRequest,
   TRACE_RESULT_PAGE_SIZE,
   traceFilterShowsMechanismStory,
@@ -1354,7 +1355,12 @@ function activeTurnRequestUniverse() {
   const turn = [...(timelineView.turnWindow?.turns || []), ...(timelineView.filteredTurns || [])]
     .find((item) => item.id === state.activeId);
   if (!turn) return [];
-  return mainTimelineRequestsForTurn(turn, new Map((state.data?.requests || []).map((request) => [request.id, request])));
+  return conversationTimelineRequestsForTurn({
+    turn,
+    requestMap: new Map((state.data?.requests || []).map((request) => [request.id, request])),
+    agentTrace: state.data?.agent_trace,
+    includeBranchRequests: Boolean(turn.trace_filter_active),
+  });
 }
 
 function activeTurnIds(data = state.data) {
@@ -1400,7 +1406,12 @@ function renderNavItem(request) {
 }
 
 function renderTurnGroup(turn, requestMap) {
-  const requests = mainTimelineRequestsForTurn(turn, requestMap);
+  const requests = conversationTimelineRequestsForTurn({
+    turn,
+    requestMap,
+    agentTrace: state.data?.agent_trace,
+    includeBranchRequests: Boolean(turn.trace_filter_active),
+  });
   if (turn.kind === "independent_background") return renderIndependentBackgroundGroup(turn, requests);
   if (turn.trace_filter_active) {
     return `
@@ -1453,23 +1464,6 @@ function renderPrimaryRequestsWithAgentDashboard(primaryRequests, lead, turn) {
     ${renderAgentBranchesForTurn(turn)}
     ${remainingRequests.length ? `<div class="turn-request-list primary-requests">${remainingRequests.map(renderTurnRequest).join("")}</div>` : ""}
   `;
-}
-
-function mainTimelineRequestsForTurn(turn, requestMap) {
-  const childRequestIds = childRequestIdsForTurn(turn);
-  return (turn.request_ids || [])
-    .map((id) => requestMap.get(id))
-    .filter((request) => request && !childRequestIds.has(request.id));
-}
-
-function childRequestIdsForTurn(turn) {
-  const branchIds = new Set(turn?.agent_branches || []);
-  const ids = new Set();
-  for (const branch of state.data?.agent_trace?.branches || []) {
-    if (!branchIds.has(branch.id)) continue;
-    for (const requestId of branch.request_ids || []) ids.add(requestId);
-  }
-  return ids;
 }
 
 function renderIndependentBackgroundGroup(turn, requests) {

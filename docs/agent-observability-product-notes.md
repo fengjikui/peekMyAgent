@@ -34,7 +34,7 @@ PMA 近期可先补“本地单项目对比”：每个 Source 的模型、参�
 
 - 大型 tool output 可以外置，只在用户需要时读取；PMA 的 lazy payload 应继续覆盖图片、长文本和工具结果，并明确占位符与原始字节来源。
 - main、lite、reasoning、subagent 可以使用不同模型；PMA 应按请求记录“实际模型 + 用途”，而不是只给整个会话一个 model 标签。
-- `x-agent-purpose` 这类开发者提供的稳定 purpose/tag，比通过 prompt 猜后台任务更可靠；未来 Observer 协议可允许可选的 `trace/session/span/parent/purpose` 标记。
+- 开发者提供且按 request/span 固化的 purpose/tag，比通过 prompt 猜后台任务更可靠；未来 Observer 协议可允许可选的 `trace/session/span/parent/purpose` 标记。CodeBuddy 2.131.0 同时证明了反例：如果 `purpose` 只是共享 session 上会被异步任务临时改写的可变状态，它仍须与 body/span 证据交叉验证，不能直接作为绝对归属。
 - 自带 OTel 说明“标准 telemetry + wire capture”可以互补：前者提供本地生命周期，后者回答模型实际看到了什么。两类证据不应互相冒充。
 
 ## 优先级建议

@@ -220,9 +220,11 @@ OpenCode 的自定义 command 在 wire 上可能只表现为普通 user message�
 
 `pma codebuddy [CodeBuddy args...]` 创建 `codebuddy_proxy_exact` watch。默认读取 OpenCode effective config 中非敏感的 model/provider/base URL，并只在当前 CodeBuddy 子进程中设置 `CODEBUDDY_BASE_URL` 以及 main/lite/reasoning/subagent 四个模型环境变量。用户既可以使用环境认证，也可以把 provider URL 与凭据放在 CodeBuddy 原生用户级或项目级 `models.json` 中。
 
-CodeBuddy 2.130.0 对自定义 model 的完整 `url` 赋予高于 `CODEBUDDY_BASE_URL` 的优先级。为避免请求绕过 Capture Proxy，adapter 通过当前 CodeBuddy Node 子进程的静态 preload hook 拦截精确的两个 `models.json` 读取路径，只在返回的内存 JSON 中改写选中 model 的 URL；原文件、`apiKey`、其他模型字段和其他进程均不改变。PMA 不把文件凭据导出到父进程或持久化，不读取 OpenCode 认证文件，也不把密钥从一个 Harness 搬运到另一个 Harness。`CODEBUDDY_AUTH_TOKEN`、`apiKeyHelper`、文件 `apiKey` 与 `CODEBUDDY_API_KEY` 的优先级仍由 CodeBuddy 决定。
+CodeBuddy 2.131.0 对自定义 model 的完整 `url` 赋予高于 `CODEBUDDY_BASE_URL` 的优先级。为避免请求绕过 Capture Proxy，adapter 通过当前 CodeBuddy Node 子进程的静态 preload hook 拦截精确的两个 `models.json` 读取路径，只在返回的内存 JSON 中改写选中 model 的 URL；原文件、`apiKey`、其他模型字段和其他进程均不改变。PMA 不把文件凭据导出到父进程或持久化，不读取 OpenCode 认证文件，也不把密钥从一个 Harness 搬运到另一个 Harness。`CODEBUDDY_AUTH_TOKEN`、`apiKeyHelper`、文件 `apiKey` 与 `CODEBUDDY_API_KEY` 的优先级仍由 CodeBuddy 决定。
 
-CodeBuddy 2.130.0 的真实安装包与隔离假上游证明该路径使用 streaming OpenAI Chat Completions，并以 `x-conversation-id` 传递原生 session identity。该 identity 只在 effective Agent 明确为 CodeBuddy 时参与 watch 归属，原 header 在持久化前脱敏。`x-codebuddy-request` 打开受限的安全语义提取：经过枚举/token 白名单的 `x-agent-purpose`、intent 和 IDE 信息可用于主对话、子 Agent、标题、建议、压缩及后台请求分类；request/conversation/message id 只保留存在性或脱敏占位符。
+CodeBuddy 2.131.0 的真实安装包与隔离假上游证明该路径使用 streaming OpenAI Chat Completions，并以 `x-conversation-id` 传递原生 session identity；Read 工具循环、同步 Explore 子 Agent 和原生 resume 多轮均保持标准 Chat history。该 identity 只在 effective Agent 明确为 CodeBuddy 时参与 watch 归属，原 header 在持久化前脱敏。主请求通常带 `x-codebuddy-request`，真实子 Agent 请求可能不带该标记；因此受限语义提取由 effective CodeBuddy attribution 兜底限定。`subagent:<name>` / `custom_agent:<name>` 只保存类别，原始 `x-agent-purpose` 整项脱敏，request/conversation/message id 只保留存在性或脱敏占位符。
+
+CodeBuddy purpose 是观测到的 Header hint，不是脱离正文即可成立的归属事实。2.131.0 的异步 prompt suggestion 会暂时修改共享 session purpose，普通请求可能在竞态窗口内携带 `prompt_suggestion`。归属层因此使用 Header 与 body semantic shape 交叉验证：`<user_query>`、tool/result 和子 Agent 上下文等正文证据冲突时优先保留实际主/子 Agent 流程；真正 suggestion/title 才进入 Harness metadata；仅 Header 支持的后台推断标为 medium confidence。历史中的 reminder 也不会覆盖其后已经发生的 tool continuation。
 
 CodeBuddy 把当前用户内容包在顶层 `<user_query>` 中，并可能附加通用 `<system-reminder>`。共享 message semantics 只在精确匹配这两个已验证边界时剥离包装，原始 request 仍完整保留在 Raw。协议、response normalizer、Protocol Exchange、Metadata、工具循环和子 Agent 图继续走共享层，不增加 CodeBuddy 专用 renderer。未知 purpose 和其他 provider driver 保持 Harness/unknown；详细证据与限制见 [CodeBuddy Code 适配计划](codebuddy-code-adaptation-plan.md)。
 
@@ -334,7 +336,7 @@ cursor 是 daemon 内存中的 Source 绑定不透明 token，具有 TTL 和 ses
 
 折叠状态是实际渲染边界，而不只是 CSS 隐藏：幕后请求时间线和 multi-Agent 看板在展开前都不创建 request card。multi-Agent 看板显式展开后才显示 child tabs，并只为一个选中分支生成完整 request card timeline；从因果关系跳入 child 会自动展开。同一 Turn 内折叠看板或切换 child tab 只原位替换该 Agent 区域，不重建整条 Timeline，避免不可见子分支阻塞长 Trace 的主线程。
 
-多 Agent 看板紧跟 Turn 的发起请求，保持“原因在上、分支活动在下”的稳定阅读顺序。收起时只呈现聚合标题和 child 身份 glyph。展开后的第一行是一位 child Agent 一个 tab，tab 只显示稳定 glyph 和真实 spawn nickname/分支 label，选中态使用对应身份色文字与下划线；运行、完成、回流状态只放在选中分支详情行。颜色和几何 glyph 由稳定 `agent_id` 派生，不随显示顺序变化；颜色通过主题语义 token 解析，展开区使用低反差 branch surface，并只在 tab/内容和内容/证据边界保留分隔线，避免长子轨迹成为高反差嵌套卡片。选中 tab 后使用主 Agent 相同的 Request Card/Assistant/Thinking/工具语言展示该 child 的完整有序上行/下行 timeline，每张 request 保留 child owner 与右侧详情动作；parent spawn、启动确认、结果回流和 linkage confidence 放在 timeline 后的次级证据区。已进入 child panel 的 request id 从主请求、幕后请求和 request rail 中去除，避免同一请求出现两次；未捕获 child 模型请求时只显示诚实空态，不推断虚构步骤。Trace 顶层搜索索引派生摘要而不是 Raw body，可按异常、慢请求、工具和子 Agent 定位请求。结果以 Turn 为归属、以命中请求为证据，每次最多追加 24 条，避免搜索本身重新制造超大 DOM。主栏使用容器条件适配真实栏宽，三栏拖拽或折叠不会再把标题挤成竖排。
+多 Agent 看板紧跟 Turn 的发起请求，保持“原因在上、分支活动在下”的稳定阅读顺序。收起时只呈现聚合标题和 child 身份 glyph。展开后的第一行是一位 child Agent 一个 tab，tab 只显示稳定 glyph 和真实 spawn nickname/分支 label，选中态使用对应身份色文字与下划线；运行、完成、回流状态只放在选中分支详情行。颜色和几何 glyph 由稳定 `agent_id` 派生，不随显示顺序变化；颜色通过主题语义 token 解析，展开区使用低反差 branch surface，并只在 tab/内容和内容/证据边界保留分隔线，避免长子轨迹成为高反差嵌套卡片。选中 tab 后使用主 Agent 相同的 Request Card/Assistant/Thinking/工具语言展示该 child 的完整有序上行/下行 timeline，每张 request 保留 child owner 与右侧详情动作；parent spawn、启动确认、结果回流和 linkage confidence 放在 timeline 后的次级证据区。已进入 child panel 的 request id 按会话级分支归属从主请求、幕后请求和 request rail 中去除，即使一个 child 分支跨越后续父 Turn 也不会重复出现；显式 Trace 搜索/筛选仍可直接呈现命中的 child 请求。未捕获 child 模型请求时只显示诚实空态，不推断虚构步骤。Trace 顶层搜索索引派生摘要而不是 Raw body，可按异常、慢请求、工具和子 Agent 定位请求。结果以 Turn 为归属、以命中请求为证据，每次最多追加 24 条，避免搜索本身重新制造超大 DOM。主栏使用容器条件适配真实栏宽，三栏拖拽或折叠不会再把标题挤成竖排。
 
 Raw Inspector 的分类标签、当前区块搜索和原文/翻译操作组成同一个粘性控制区。`Protocol` 标签以协议原顺序呈现上下行、工具声明/追加/加载阶段和响应状态，每个条目只提供结构摘要及回到 Raw 证据的入口；它不复制正文，也不把 PMA 语义字段伪装成厂商字段。原文模式只搜索原始 JSON 路径和值；整理/翻译模式只搜索当前可见的结构化 system、developer、harness、工具或 response 文本，并筛选原有块和工具组。匹配计数以可见关键词的实际出现次数为准，上一个/下一个按钮逐词循环定位并强化当前高亮。Tools 的批量复制按工具分组，显式保留工具名、工具说明和参数名，避免脱离界面后失去 schema 归属；单个工具的说明、全部参数、合并原文、复制与重译作为一个视觉及动作单元，底层仍沿用既有块级 hash 缓存。
 
@@ -434,7 +436,7 @@ Server 的主要路由包括 source/view/request、translation、watch 控制、
 
 ## 测试与发布门禁
 
-`npm run release:check` 组合 140 余项确定性 smoke。每条命令使用隔离的 HOME、状态目录和端口；整套 profile 开始和结束时各做一次 tracked-worktree 快照，只有命令真正创建 Viewer registry 时才启动兜底清理，避免把重复 Git 扫描和空清理进程误当成质量证据。覆盖：
+`npm run release:check` 组合 140 余项确定性 smoke。每条命令使用隔离的 HOME、状态目录和端口；整套 profile 开始和结束时各做一次 tracked-worktree 快照，只有命令真正创建 Viewer registry 时才启动兜底清理，避免把重复 Git 扫描和空清理进程误当成质量证据。npm package 门禁继续使用严格 allowlist、敏感文件 denylist 与文件数上限；压缩/解压体积采用留有约 1% 正常功能增长空间的取整预算，避免把仅剩数十字节的阈值误当成质量信号。覆盖：
 
 - CLI、doctor、安装、卸载和维护。
 - proxy/OTel、watch、pause/resume、request tree 和 block cache。
