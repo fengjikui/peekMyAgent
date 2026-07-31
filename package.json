@@ -1,6 +1,6 @@
 {
   "name": "peekmyagent",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "description": "Local-first dashboard for inspecting coding-agent model requests.",
   "type": "module",
   "keywords": [
