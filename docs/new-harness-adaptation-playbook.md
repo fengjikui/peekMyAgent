@@ -227,6 +227,64 @@ OpenCode 验证了上述手册，也补充了几类只有进入真实协议后�
 3. **命令入口与模型请求入口不能混为一谈。** CLI command、TUI slash、server summarize 可能走完全不同的生命周期。
 4. **真实 Viewer 验收是协议实验的一部分。** 不允许只凭 HTTP request 数量、退出码或 JSON 字段宣布适配完成。
 
+### 3.7 CodeBuddy 首轮适配复盘
+
+CodeBuddy 2.131.0 暴露了一个比“协议是否成功转发”更隐蔽的问题：HTTP Capture、回复解析和小型 fixture 都可以全绿，但 Harness 私有用途、跨轮分支和 Viewer 信息归属仍可能整体错误。首轮适配遗漏及其可复用约束如下：
+
+| 现象 | 首轮遗漏的根因 | 可复用规则 | 必须具备的回归 |
+| --- | --- | --- | --- |
+| 大量普通请求进入幕后时间线 | 把 `x-agent-purpose` 当成逐请求稳定事实；实际异步 suggestion 会临时改写共享 session purpose | Harness purpose/header/tag 默认只是 hint；必须和当前 request body、消息角色、tools、上下文及生命周期交叉验证 | 真 suggestion 正例；普通 `<user_query>`、tool continuation、subagent 与其他 Harness 同名 Header 反例 |
+| 小样本正常，317-request 真实轨迹中误判 155 条 | 只验证精心构造的正例，没有对完整长会话做分类分布审计 | 适配验收必须统计真实长 Trace 的 main/metadata/parent/child 分布，并人工抽查每类边界样本 | 记录规则修改前后计数；随机抽样与已知边界请求必须能回到 Raw 证据 |
+| 真实 Explore 子 Agent 无法识别 | 假 wrapper 总会发送 `x-codebuddy-request`，真实 child 请求却可能省略该 marker | fake CLI 只能验证 PMA wrapper；还必须让真实安装二进制连接 loopback 假上游，观察它实际发出的 path/header/body | 普通、Read 工具闭环、Explore child、parent 回流和 resume；断言 child 缺 marker 仍受 effective Agent scope 约束 |
+| 私有子 Agent 名称可能进入持久化 Header semantics | 把 `subagent:<name>` 当普通安全枚举保存 | 只保存协议判断需要的最小类别；原 Header 脱敏，项目定义名称不得进入 safe semantics | `subagent:<private>`、`custom_agent:<private>` 只留下类别；完整序列化结果不含私有名称 |
+| 历史 reminder 把后续 tool result 误判为 Harness metadata | 分类器寻找“最后一个 user message”，却没有确认它是否是本次请求的终端消息 | 会改变整个 request 归属的 marker 必须位于已验证的当前边界；历史中的同类内容不能支配其后的 assistant/tool 事件 | terminal reminder 正例；reminder 后跟 assistant/tool result 的反例 |
+| 子 Agent 请求跨入后续父 Turn 后又出现在幕后时间线 | Viewer 只排除当前 Turn 绑定分支的 request id | child ownership 是会话级关系；默认主/幕后时间线按全部 branch request id 去重，显式 Trace 搜索才可直接显示命中的 child request | branch 跨 Turn 反例；默认视图不重复、Agent dashboard 保留完整 child、搜索模式仍可命中 |
+| 协议和 projector 测试通过，用户仍看到错误的 41 条幕后请求 | 只验证 DTO，没有在真实大 Trace 上展开折叠区和 Agent dashboard | Viewer 验收必须同时证明“错误内容消失”和“正确内容没有被隐藏” | 幕后计数/内容抽查、Agent dashboard request 数量、request rail、渐进加载完成后的最终 DOM |
+| 重构后发布门禁失败但产品行为正确 | smoke 用源码函数名正则锁死旧实现，而不是调用可测试契约 | 新规则应落在纯 Model/Domain helper，并以输入输出验证；源码结构断言只用于真正的架构边界 | 直接调用共享去重函数的行为测试；删除旧私有函数后 smoke 仍能验证同一不变量 |
+
+由此增加一份“宣布适配完成”前的最小反证流程：
+
+1. 用真实安装二进制连接无凭据 loopback 假上游，而不只运行 fake executable；
+2. 至少覆盖普通对话、工具闭环、原生 resume、子 Agent 和一个异步内部请求；
+3. 主动构造 purpose/tag 泄漏、marker 缺失、历史同名内容和其他 Harness 同名 Header；
+4. 在一条足够长的真实非敏感 Trace 上统计分类分布，并抽查 Raw 证据；
+5. 打开三栏 Viewer，分别验收主时间线、幕后时间线、Agent dashboard、request rail 和显式搜索；
+6. 对每个“被排除”的请求证明它在正确位置仍可见，禁止用隐藏数据伪装修复；
+7. 把稳定不变量下沉为纯契约测试，测试可观察行为而不是私有函数名称。
+
+### 3.8 标准化证据台账
+
+从 CodeBuddy 之后，每个新 Harness 的适配 PR 必须维护一份证据台账。台账中的一行只表达一个可证伪结论；“命令成功退出”“收到 HTTP 200”或“看起来与另一个 Agent 类似”不能代替具体能力证据。
+
+| 结论 | 证据来源与 fidelity | 真实正例 | 冲突/缺失反例 | 确定性回归 | Viewer 落点 | 状态 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 示例：原生 resume 复用同一会话 | 真实二进制 wire capture / exact | 第二次请求包含上一轮 history 与稳定 session id | 新会话、fork、未知 id | fake upstream resume smoke | 同一 Source 的下一 Turn | verified / partial / unknown / unsupported |
+
+填写规则：
+
+1. **结论必须原子化。** 协议捕获、会话归属、工具闭环、子 Agent、翻译和 Viewer 展示分别占行，不能用“已适配”一项概括。
+2. **来源与置信度必须分开。** 真实 wire、官方遥测、进程参数、配置和 PMA 派生推断分别标明；推断不能升级来源 fidelity。
+3. **正例和反例必须成对。** 至少包含一个正常命中、一个近似但不应命中的样本；依赖 Header/tag 时必须再包含缺失与冲突样本。
+4. **真实证据与确定性回归必须同时存在。** 真实二进制负责发现事实，fake upstream/fixture 负责稳定复现；任何一方都不能单独宣布完成。
+5. **Viewer 落点必须可观察。** 写清数据应进入主时间线、幕后时间线、Agent dashboard、Metadata、Protocol、Raw 或“不展示”；同时验证没有在其他位置重复。
+6. **未知必须诚实保留。** 没有证据的 ACP、IDE、provider、权限或后台机制写 `unknown`；确认不支持才写 `unsupported`。
+
+每个 Harness 至少填写以下场景矩阵：
+
+| 场景 | 必查内容 |
+| --- | --- |
+| 普通首轮 | provider/path、system/tools/messages、模型参数、下行文本与 Raw |
+| 普通多轮与 resume/fork | session identity、history 复用、Source 复用/新建、Turn 边界 |
+| 工具闭环 | assistant call、下一请求 result、call id 配对、错误结果与 Viewer 来源跳转 |
+| 子 Agent | parent spawn、child identity、并发/跨 Turn activity、回流、取消、marker 缺失 |
+| Harness 内部请求 | title、suggestion、compaction、memory、background 的正例与正文冲突反例 |
+| 配置与认证 | effective provider、用户/项目配置优先级、进程内覆写、文件逐字节不变、脱敏 |
+| 异常与生命周期 | 非 2xx、流中断、Harness 非零退出、signal、临时状态与进程清理 |
+| 长 Trace Viewer | 分类分布、渐进加载后最终状态、主/幕后/Agent 去重、搜索与 Raw 可达性 |
+| 其他 Harness 反例 | 同名 Header、标签、prompt 或 route 不得激活当前 Adapter 私有语义 |
+
+评审者不只看“是否有测试”，还要沿台账逐行确认：事实来自哪里、什么情况下不成立、测试锁定了哪个不变量、用户最终在哪里看到它。台账未完成的能力不得进入 README 的支持声明。
+
 ## 4. 适配器验收问题清单
 
 以下内容是评审时必须回答的问题，不是要求立即实现的 SDK 接口。首个 OpenCode 适配可以先用显式模块实现；只有第二个新 Harness 证明多个实现出现真实重复后，才抽取稳定接口。
