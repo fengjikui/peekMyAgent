@@ -6,7 +6,7 @@ peekMyAgent（PMA）是一个本地优先的 Agent 请求观察工作台。你�
 
 ![从一次用户请求追踪到工具结果、最终回答和原始协议](assets/demo/quickstart-tool-loop.gif)
 
-> 这张 GIF 使用 1536×792 的真实 PMA Viewer、Codex 主题和完全虚构的本地数据生成。关键画面停留 5.2～9.5 秒，可以慢慢看。
+> 这张 GIF 使用 2048×1056 的真实 PMA Viewer、Codex 主题和完全虚构的本地数据生成。关键画面停留 5.2～9.5 秒，可以慢慢看。
 
 ## 30 秒理解 PMA
 
@@ -83,7 +83,7 @@ pma observe --name my-agent --base-url-env ANTHROPIC_BASE_URL -- python agent.py
 
 | 区域 | 适合回答的问题 |
 | --- | --- |
-| 时间线 / 机制流程 | 这一轮先发生了什么，工具结果何时回到模型？ |
+| 时间线 / 机制流程 | 这一轮先发生了什么，工具结果何时回到模型？长会话可用 Turn / Request 两级导航。 |
 | 请求详情 | 模型、温度、推理强度、System、Tools、History 分别是什么？ |
 | 工具调用与结果 | 工具参数和返回值是什么，两者如何关联？ |
 | 子 Agent / 多 Agent | 谁启动了子 Agent，结果何时回流，主 Agent 如何继续？ |

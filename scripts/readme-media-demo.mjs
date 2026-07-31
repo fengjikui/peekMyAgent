@@ -85,6 +85,115 @@ const readResult = [
   "",
   "用一个最小项目演示 Agent 如何查看目录、读取文档，并根据工具结果回答。",
 ].join("\n");
+const colorsResult = JSON.stringify({ primary: "blue", accent: "violet", background: "paper" }, null, 2);
+const ideaResult = [
+  "# 演示想法",
+  "",
+  "先展示简单对话，再展示工具链，最后用两级导航快速定位。",
+].join("\n");
+
+const navigationTurns = [
+  {
+    user: "你好，请记住这个公开演示项目叫 hello-agent。",
+    steps: [],
+    final: { reasoning: "记录用户提供的公开项目名称。", text: "记住了：这个公开演示项目叫 hello-agent。" },
+  },
+  {
+    user: "先不读取文件，只复述你现在知道的信息。",
+    steps: [],
+    final: { reasoning: "只复述对话中已经明确的信息。", text: "目前只知道项目名是 hello-agent，其他内容还没有检查。" },
+  },
+  {
+    user: "现在请确认 README.md 中写的项目目标。",
+    steps: [
+      {
+        call: toolCall("call_nav_t3_list", "list_directory", { path: "." }),
+        result: listResult,
+        reasoning: "先确认 README.md 是否存在。",
+        text: "我先确认目录中有哪些文件。",
+      },
+      {
+        call: toolCall("call_nav_t3_readme", "read_file", { path: "README.md", start_line: 1, end_line: 12 }),
+        result: readResult,
+        reasoning: "README.md 存在，继续读取项目目标。",
+        text: "README.md 已找到，我继续读取目标部分。",
+      },
+    ],
+    final: {
+      reasoning: "根据 README 原文回答项目目标。",
+      text: "README 说明：这个项目用于演示 Agent 查看目录、读取文档并依据工具结果回答。",
+    },
+  },
+  {
+    user: "再看看 data/colors.json 使用了哪些演示颜色。",
+    steps: [
+      {
+        call: toolCall("call_nav_t4_colors", "read_file", { path: "data/colors.json", start_line: 1, end_line: 20 }),
+        result: colorsResult,
+        reasoning: "读取公开的颜色配置。",
+        text: "我读取一下颜色配置。",
+      },
+    ],
+    final: { reasoning: "概括工具返回的三个颜色字段。", text: "演示颜色是蓝色主色、紫色强调色和纸白背景。" },
+  },
+  {
+    user: "最后做一次完整检查：核对目录、README、颜色和 notes/idea.md，再给出总结。",
+    steps: [
+      {
+        call: toolCall("call_nav_t5_list", "list_directory", { path: "." }),
+        result: listResult,
+        reasoning: "先重新确认完整目录。",
+        text: "我先从目录清单开始核对。",
+      },
+      {
+        call: toolCall("call_nav_t5_readme", "read_file", { path: "README.md", start_line: 1, end_line: 12 }),
+        result: readResult,
+        reasoning: "目录已确认，继续核对 README。",
+        text: "接着核对 README 的项目目标。",
+      },
+      {
+        call: toolCall("call_nav_t5_colors", "read_file", { path: "data/colors.json", start_line: 1, end_line: 20 }),
+        result: colorsResult,
+        reasoning: "README 已确认，继续核对颜色配置。",
+        text: "现在核对颜色配置。",
+      },
+      {
+        call: toolCall("call_nav_t5_idea", "read_file", { path: "notes/idea.md", start_line: 1, end_line: 20 }),
+        result: ideaResult,
+        reasoning: "最后读取演示想法，再统一总结。",
+        text: "最后读取 notes/idea.md。",
+      },
+    ],
+    final: {
+      reasoning: "四项公开证据已经齐全，给出简洁总结。",
+      text: "检查完成：目录、项目目标、配色和演示思路相互一致，适合用于 PMA 的公开教学轨迹。",
+    },
+  },
+  {
+    user: "用三点概括我们刚才完成了什么。",
+    steps: [],
+    final: {
+      reasoning: "从完整对话历史提取三个阶段。",
+      text: "一、确认项目目标；二、核对配色与演示说明；三、形成了可沿工具证据复查的总结。",
+    },
+  },
+];
+const navigationResponses = navigationTurns.flatMap((turn, turnIndex) => [
+  ...turn.steps.map((step, stepIndex) => modelFixture(
+    `resp_navigation_${turnIndex + 1}_${stepIndex + 1}`,
+    step.reasoning,
+    step.text,
+    step.call,
+    360 + turnIndex * 180 + stepIndex * 120,
+  )),
+  modelFixture(
+    `resp_navigation_${turnIndex + 1}_final`,
+    turn.final.reasoning,
+    turn.final.text,
+    null,
+    420 + turnIndex * 240 + turn.steps.length * 120,
+  ),
+]);
 
 fs.rmSync(stateDir, { recursive: true, force: true });
 fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
@@ -125,8 +234,35 @@ await postResponses(watch.base_url, requestPayload([
   { type: "function_call_output", call_id: readCall.call_id, output: readResult },
 ]));
 
+const navigationWatch = await postJson(`${viewer.url}/api/watch/start`, {
+  agent: "Codex",
+  mode: "single_session",
+  workspace: "/demo/navigation-lab",
+  conversation_id: "navigation-long-trace",
+  target_base_url: upstreamUrl,
+  kind: "codex_proxy_exact",
+  confidence: "exact",
+  reuse: false,
+});
+const navigationHistory = [message("developer", "这是公开的长轨迹演示；只使用已提供的虚构文件内容。")];
+for (const turn of navigationTurns) {
+  const userMessage = message("user", turn.user);
+  const currentTurn = [...navigationHistory, userMessage];
+  for (const step of turn.steps) {
+    await postResponses(navigationWatch.base_url, requestPayload(currentTurn, "navigation"));
+    currentTurn.push(step.call, { type: "function_call_output", call_id: step.call.call_id, output: step.result });
+  }
+  await postResponses(navigationWatch.base_url, requestPayload(currentTurn, "navigation"));
+  navigationHistory.push(
+    userMessage,
+    ...currentTurn.slice(navigationHistory.length + 1),
+    message("assistant", turn.final.text),
+  );
+}
+
 console.log(`README media demo: ${viewer.url}`);
-console.log(`Source: ${viewer.url}/?source=${encodeURIComponent(watch.id)}`);
+console.log(`Quick-start source: ${viewer.url}/?source=${encodeURIComponent(watch.id)}`);
+console.log(`Navigation source: ${viewer.url}/?source=${encodeURIComponent(navigationWatch.id)}`);
 console.log("Deterministic synthetic provider; no external request or user file was used.");
 console.log("Press Ctrl-C to stop.");
 
@@ -138,7 +274,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   });
 }
 
-function requestPayload(input) {
+function requestPayload(input, demo = "quickstart") {
   return {
     model: "gpt-5.6",
     instructions,
@@ -148,7 +284,7 @@ function requestPayload(input) {
     parallel_tool_calls: true,
     reasoning: { effort: "medium", summary: "auto" },
     stream: true,
-    metadata: { demo: "quickstart", privacy: "synthetic" },
+    metadata: { demo, privacy: "synthetic" },
   };
 }
 
@@ -179,7 +315,7 @@ function demoResponse(index) {
       usage: { input_tokens: 538, output_tokens: 72, input_tokens_details: { cached_tokens: 320 } },
     };
   }
-  return {
+  if (index === 2) return {
     id: "resp_quickstart_3",
     model: "gpt-5.6",
     status: "completed",
@@ -198,6 +334,38 @@ function demoResponse(index) {
       },
     ],
     usage: { input_tokens: 704, output_tokens: 68, input_tokens_details: { cached_tokens: 448 } },
+  };
+  return navigationResponses[index - 3] ?? navigationResponses.at(-1);
+}
+
+function toolCall(callId, name, args) {
+  return { type: "function_call", call_id: callId, name, arguments: JSON.stringify(args) };
+}
+
+function message(role, text) {
+  return {
+    type: "message",
+    role,
+    content: [{ type: role === "assistant" ? "output_text" : "input_text", text }],
+  };
+}
+
+function modelFixture(id, reasoning, text, call = null, inputTokens = 400) {
+  const output = [
+    { type: "reasoning", summary: [{ type: "summary_text", text: reasoning }] },
+    message("assistant", text),
+  ];
+  if (call) output.push(call);
+  return {
+    id,
+    model: "gpt-5.6",
+    status: "completed",
+    output,
+    usage: {
+      input_tokens: inputTokens,
+      output_tokens: call ? 72 : 54,
+      input_tokens_details: { cached_tokens: Math.max(0, inputTokens - 260) },
+    },
   };
 }
 

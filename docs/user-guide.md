@@ -15,6 +15,7 @@ peekMyAgent（PMA）是一个本地优先的 Agent 请求观察工作台。它�
 | 观察 Codex / Claude Code / OpenCode / CodeBuddy | [通过 PMA 启动 Agent](#推荐方式通过-peekmyagent-启动-agent) |
 | 观察 OpenClaw | [使用 OpenClaw 隔离 profile 捕获](#使用-openclaw-隔离-profile-捕获) |
 | 看懂请求、回复和工具闭环 | [图文与演示素材说明](visual-usage-guide.zh-CN.md) |
+| 在长 Trace 中按 Turn / Request 定位 | [五分钟快速上手：两级导航](quick-start.zh-CN.md#6-长会话使用两级导航) |
 | 用通用协议接入自研 Harness | [通过协议桥接入自研 Harness](#通过协议桥接入自研-harness) |
 | 暂停、停止、清空或卸载 | [诊断、清理与卸载](#诊断清理与卸载) |
 | 定位捕获不到、页面为空等问题 | [排障](#排障) |
@@ -35,7 +36,7 @@ peekMyAgent（PMA）是一个本地优先的 Agent 请求观察工作台。它�
 - 通过 `pma codex`、`pma claude -c`、`pma opencode`、`pma codebuddy` 和 `pma openclaw chat` 启动受支持 Harness 并捕获请求。
 - 通过 `pma observe ...` 观察读取 OpenAI-compatible 或 Anthropic-compatible base URL 环境变量的自研 Harness。
 - 按厂商原生顺序查看 OpenAI Responses / Chat、Anthropic Messages 和 Google GenerateContent 证据，并跳回 Raw JSON。
-- 关联工具调用与后续结果，查看子 Agent、翻译、上下文变化和大型载荷的按需内容。
+- 关联工具调用与后续结果，使用 Turn / Request 两级导航浏览长 Trace，并查看子 Agent、翻译、上下文变化和大型载荷的按需内容。
 - 暂停、恢复、停止 watch；停止时保留 Trace，或在明确确认后永久清空所有会话。
 
 ## 准备工作

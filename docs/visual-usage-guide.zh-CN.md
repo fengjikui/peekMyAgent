@@ -54,9 +54,19 @@
 
 总时长 42.7 秒。普通画面已超过 5 秒，复杂协议画面接近 10 秒；没有快速闪切，也没有无意义鼠标移动。
 
+## 两级导航场景
+
+主 GIF 之外还有一条独立长轨迹，专门回答：
+
+> 当一次会话既有很多 Turn，某个 Turn 内又有很多 Request 时，怎样快速定位？
+
+![Turn / Request 两级导航](../assets/demo/two-level-navigation.gif)
+
+轨迹包含 6 个 Turn、13 个 Request，各轮请求数为 `1、1、3、2、5、1`。前两轮只做简单聊天，第三轮产生三次请求，第五轮连续核对四份公开证据并产生五次请求。镜头先标出右侧全局 Turn Rail，再标出中栏顶部只属于 Turn 5 的 Request Rail，每帧分别停留 6.5 秒和 7.5 秒。
+
 ## 画面规范
 
-- 视口固定为 1536×792，接近常见全屏桌面浏览器的信息密度。
+- 视口固定为 2048×1056。验收依据不是文件像素本身，而是三栏信息密度：右侧九个详情标签完整显示后仍保留明显空白，正文在 README 缩放后仍可辨认。
 - Codex 场景使用 Codex 主题；未来 Claude Code 场景使用 Claude 主题。
 - 暗夜主题只在主题切换说明中出现，不为每个教程重复录制一套。
 - 中文界面优先；英文和其他语言等中文版结构稳定后再翻译。
@@ -70,12 +80,15 @@
 - `assets/demo/quickstart-tool-loop.gif`：README 首屏主 GIF。
 - `assets/demo/quickstart-overview.png`：无标注静态总览。
 - `assets/demo/quickstart-overview-annotated.png`：带单一引导标注的静态总览。
-- `assets/demo/quickstart/01-trace.png` ～ `06-protocol.png`：快速上手章节图。
+- `assets/demo/quickstart/01-trace.png` ～ `06-protocol.png`：工具闭环章节图。
+- `assets/demo/two-level-navigation.gif`：Turn / Request 两级导航慢速说明。
+- `assets/demo/quickstart/07-two-level-navigation.png`：两级导航静态标注图。
 
 原始素材：
 
 - `assets/demo/source/quickstart/*-raw.png`：真实 Viewer 原始帧。
 - `assets/demo/source/quickstart/manifest.json`：源提交、视口、主题、场景、隐私检查、生成命令和帧时长。
+- `assets/demo/source/navigation/`：6 Turn / 13 Request 长轨迹的原始帧和 manifest。
 
 旧版 `dashboard-overview-tour.gif`、`chat-upstream-context.gif` 和 `tool-call-loop.gif` 暂时保留，供比较与后续迁移；中文版 README 首屏已不再使用它们。
 
@@ -87,7 +100,7 @@
 node scripts/readme-media-demo.mjs --port 43112
 ```
 
-然后用浏览器打开 `http://127.0.0.1:43112`，将视口设为 1536×792，切换中文与 Codex 主题，按镜头脚本操作真实 Viewer。把六个状态保存到：
+脚本会打印短轨迹和长轨迹两个 Source URL。用浏览器打开对应 URL，将视口设为 2048×1056，切换中文与 Codex 主题，按镜头脚本操作真实 Viewer。短轨迹的六个状态保存到：
 
 ```text
 assets/demo/source/quickstart/quickstart-overview-raw.png
@@ -98,13 +111,19 @@ assets/demo/source/quickstart/quickstart-final-raw.png
 assets/demo/source/quickstart/quickstart-protocol-raw.png
 ```
 
+长轨迹选择 Turn 5，确认 Request Rail 显示 `#8 · 1 / 5` 后，将状态保存为：
+
+```text
+assets/demo/source/navigation/two-level-navigation-raw.png
+```
+
 重新生成标注图和 GIF：
 
 ```bash
 python3 scripts/build-readme-media.py
 ```
 
-脚本使用 Pillow 确定性添加红框、箭头、编号和中文字幕，没有新增产品运行依赖。需要发布视频时，可以直接复用这六个原始帧、镜头文案和时长，在 ffmpeg、剪映或其他剪辑工具中生成 MP4、字幕和配音，不必重新设计故事。
+脚本使用 Pillow 确定性添加红框、箭头、编号和中文字幕，没有新增产品运行依赖。需要发布视频时，可以直接复用这些原始帧、镜头文案和时长，在 ffmpeg、剪映或其他剪辑工具中生成 MP4、字幕和配音，不必重新设计故事。
 
 ## 隐私边界
 

@@ -14,15 +14,15 @@ Turn Rail 是 Viewer Client 拆分出的第一个独立 feature。它只负责�
 
 控制器不导入 `client.js`，因此依赖方向始终是应用装配层指向 feature。
 
-## 规划中的二级 Request Rail
+## 二级 Request Rail
 
-以下是产品契约，尚未实现：当当前 Turn 包含至少 5 条上行请求时，在全局 Turn Rail 左侧显示一条更短、更弱的 Request Rail。它只导航当前 Turn 的请求，不展开整条 Trace 的所有 request。
+当当前 Turn 包含至少 5 条主线请求时，中栏标题与 Timeline 之间会显示一条更短、更弱的 Request Rail。它只导航当前 Turn 的请求，不展开整条 Trace 的所有 request。
 
 - Turn Rail 继续表达全局对话轮次，保留主题强调色；
 - Request Rail 使用更小的中性色标记，active request 最长、最清晰；
-- tooltip 显示 `#38 · Codex 后台任务`、`#39 · 工具结果回传` 等语义摘要；
-- 点击滚动到对应请求，并提供当前 Turn 内的上一条/下一条键盘行为；
-- 窄屏退化为紧凑的 `#n / m` stepper，不能挤压正文；
+- 顶部位置文案显示请求编号与当前进度，例如 `#38 · 1 / 5`；
+- tooltip 显示请求编号和截断后的上行问题；
+- 点击刻度滚动到对应请求，并与 Timeline 滚动保持同步；
 - 当前 Turn 少于 5 条请求时不显示，避免为普通会话增加视觉噪声。
 
 Request Rail 是当前 Turn 的局部导航，不属于左侧会话树，也不能取代右侧全局 Turn Rail。

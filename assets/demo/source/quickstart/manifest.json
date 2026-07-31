@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "title": "中文快速上手：查看目录并读取 README",
-  "source_commit": "f1c63f1bbb3428af7b24ebfa287af6c8dfdbeafa",
+  "viewer_source_commit": "fba47b2623224f9998437ce14fb03390d489dc9f",
   "source_type": "deterministic_synthetic_openai_responses",
   "workspace": "/demo/hello-agent",
   "conversation_id": "quickstart-tool-loop",
   "viewer": {
     "viewport_css_pixels": {
-      "width": 1536,
-      "height": 792
+      "width": 2048,
+      "height": 1056
     },
     "theme": "codex",
     "ui_language": "zh-CN",
