@@ -434,7 +434,7 @@ Server 的主要路由包括 source/view/request、translation、watch 控制、
 
 ## 测试与发布门禁
 
-`npm run release:check` 组合 70 余项确定性 smoke，使用隔离的 HOME、状态目录和端口，覆盖：
+`npm run release:check` 组合 140 余项确定性 smoke。每条命令使用隔离的 HOME、状态目录和端口；整套 profile 开始和结束时各做一次 tracked-worktree 快照，只有命令真正创建 Viewer registry 时才启动兜底清理，避免把重复 Git 扫描和空清理进程误当成质量证据。覆盖：
 
 - CLI、doctor、安装、卸载和维护。
 - proxy/OTel、watch、pause/resume、request tree 和 block cache。
@@ -444,7 +444,7 @@ Server 的主要路由包括 source/view/request、translation、watch 控制、
 
 需要真实账号、provider、Claude Code、OpenClaw 或 Codex 的实验单独列在 [手动集成 smoke 矩阵](manual-integration-smoke-matrix.md)，避免让发布门禁依赖外部状态。
 
-日常开发按 [分级测试与批次检查策略](validation-strategy.md) 执行：低风险改动逐次运行聚焦测试，最多累计 3 个代码提交；达到阈值、高风险改动或准备推送时，运行当前平台完整 profile。每次推送仍由 GitHub Actions 执行三平台矩阵。
+日常开发按 [分级测试与批次检查策略](validation-strategy.md) 执行：低风险改动逐次运行聚焦测试，最多累计 3 个代码提交。PR 候选只运行一次 GitHub Actions 三平台完整矩阵；合入 `main` 后运行精确 merge commit 的快速版本、包和治理完整性检查；发布再验证精确 Tag、main ancestry、包内容和 OIDC provenance，不重复相同树的三平台矩阵。本机完整 profile 只用于门禁自身变化、平台复现、无托管 CI 或仍有未知影响的场景。
 
 ## 维护约定
 

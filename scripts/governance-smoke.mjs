@@ -28,7 +28,8 @@ assert.match(validationStrategy, /Level 0/);
 assert.match(validationStrategy, /Level 1/);
 assert.match(validationStrategy, /Level 2/);
 assert.match(validationStrategy, /最多 3 个低风险代码提交/);
-assert.match(validationStrategy, /推送后仍由 GitHub Actions 运行 macOS、Windows、Linux 三平台矩阵/);
+assert.match(validationStrategy, /一次 PR 托管三平台矩阵/);
+assert.match(validationStrategy, /main.*不重复已经通过的同树三平台矩阵/);
 
 const security = fs.readFileSync("SECURITY.md", "utf8");
 assert.match(security, /Do not post secrets/i);

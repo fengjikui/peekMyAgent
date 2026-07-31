@@ -59,10 +59,12 @@ git rev-parse origin/main
 
 ### Continuous automated validation
 
-- Every pull request and every push to `main` MUST run the GitHub Actions macOS, Windows, and Linux matrix. Same-repository feature-branch pushes rely on the pull-request run so the same commit is not validated twice; fork contributions remain covered by the pull-request trigger.
-- Low-risk local commits MAY be grouped into one push, but a batch MUST NOT exceed three consecutive low-risk code commits since the last successful full host-platform profile.
+- Every runtime-code pull request MUST run the GitHub Actions macOS, Windows, and Linux matrix. `workflow_dispatch` remains available for an explicit repeat when evidence is stale or uncertain.
+- `main` MUST be updated through a green pull request. The resulting push runs a fast exact-commit integrity job; it MUST NOT repeat the same three-platform matrix when the merged tree is byte-identical to the validated pull-request tree.
+- A release Tag MUST point to `main`. Publishing reuses the green pull-request platform evidence for that identical tree, then verifies the exact Tag, version, package contents, main ancestry, OIDC, and provenance without running a third identical matrix.
+- Low-risk local commits MAY be grouped into one push, but a batch MUST NOT exceed three consecutive low-risk code commits since the last successful local or hosted full platform profile.
 - High-risk changes, unexplained failures, handoffs, and release checkpoints MUST NOT wait for a later batch.
-- Documentation-only commits MAY share a later push with the next code batch. Every pushed batch still runs hosted CI.
+- Documentation-only commits MAY share a later push with the next code batch. They require their focused governance checks, not an automatic local full profile.
 
 ### Real-machine validation
 
@@ -86,8 +88,8 @@ Treat a change as **high platform risk** when it touches any of these areas:
 High-risk changes require:
 
 1. focused deterministic smoke tests;
-2. the full platform profile on the contributor's host;
-3. hosted three-platform CI;
+2. one hosted three-platform pull-request matrix;
+3. a local full profile only when the release-check machinery itself changes, a platform-specific failure needs reproduction, hosted CI is unavailable, or unexplained wider impact remains;
 4. real-machine validation on affected platforms before release.
 
 Viewer-only JavaScript, CSS, copy, or documentation changes still use hosted CI, but normally do not require immediate real-machine validation unless they alter browser, filesystem, or local API behavior.
@@ -95,7 +97,7 @@ Viewer-only JavaScript, CSS, copy, or documentation changes still use hosted CI,
 ## 5. Branch And Commit Rules
 
 - Platform agents MUST work on a branch such as `codex/windows-<task>`, `codex/linux-<task>`, or `codex/macos-<task>`.
-- Do not push directly to `main` from a validation machine.
+- Do not push directly to `main`; merge a green pull request.
 - Keep each commit focused on one behavior, bug, or refactoring boundary.
 - Do not mix formatting churn, generated artifacts, personal notes, or unrelated cleanup into a fix.
 - Use semantic commit subjects that describe observable intent.
@@ -138,18 +140,18 @@ Examples include a pure helper extraction, a narrow Viewer renderer change, or a
 - Viewer interaction changes SHOULD include the narrowest representative browser scenario.
 - Prefer one direct contract plus the nearest integration boundary; do not expand to unrelated subsystem or full-profile tests without an explicit escalation trigger.
 - Commit the change when focused evidence is green; do not defer focused tests until the batch ends.
-- After three consecutive Level 1 code commits since the last successful full host-platform profile, run Level 2 before starting a fourth code commit or pushing the batch.
+- After three consecutive Level 1 code commits since the last successful local or hosted full platform profile, enter Level 2 before starting a fourth code commit or pushing the batch.
 
 ### Level 2: full checkpoint
 
-Run the current host's full platform profile when any of these conditions is true:
+Enter Level 2 when any of these conditions is true:
 
 1. the change is high platform risk under Section 4;
 2. three Level 1 code commits have accumulated since the last successful full profile;
-3. code is about to be pushed, handed off, proposed for merge, or released;
+3. code is about to be handed off, proposed for merge, or released;
 4. a focused test exposes an unexplained failure, shared-contract uncertainty, or a wider blast radius than expected.
 
-Run the smallest focused checks while developing, then the matching platform profile at the checkpoint:
+Run the smallest focused checks while developing, then use the pull-request three-platform matrix as the default full checkpoint. Run a matching local profile only for the explicit local triggers in Section 4:
 
 ```bash
 npm install
@@ -158,9 +160,9 @@ npm run release:check:windows
 npm run release:check:linux
 ```
 
-Run only the profile matching the current host. The other profile commands can be listed from any host with their `:list` variants.
+Run only the profile matching the current host. The other profile commands can be listed from any host with their `:list` variants. Do not run a local full profile merely because code is about to be pushed when focused evidence is already green and the pull-request matrix will cover the candidate.
 
-A successful full profile resets the Level 1 counter only for the exact tested branch HEAD. Any later runtime-code commit starts a new counter. Documentation-only batches may be pushed without a fresh local full profile, but the hosted three-platform matrix still applies to the push.
+A successful local or hosted full profile resets the Level 1 counter only for the exact tested tree. Any later runtime-code change starts a new counter. When a squash merge creates a new SHA with a byte-identical tree, the platform evidence MAY be reused only if the handoff records both SHAs and verifies that tree identity; the `main` integrity job still validates the exact merge commit.
 
 Real Agent tests belong to the [manual integration smoke matrix](docs/manual-integration-smoke-matrix.md). Use a non-sensitive test project and temporary state whenever possible.
 
