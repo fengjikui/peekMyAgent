@@ -4,6 +4,7 @@ import {
   RequestRailController,
   REQUEST_RAIL_THRESHOLD,
 } from "../src/viewer/request-rail.js";
+import { conversationTimelineRequestsForTurn } from "../src/viewer/trace-timeline-model.js";
 
 const clientSource = fs.readFileSync(new URL("../src/viewer/client.js", import.meta.url), "utf8");
 const agentGraphModelSource = fs.readFileSync(new URL("../src/viewer/agent-graph-model.js", import.meta.url), "utf8");
@@ -98,7 +99,15 @@ assert.equal((shortSignalRail.innerHTML.match(/class="request-line"/g) || []).le
 assert.doesNotMatch(shortSignalRail.innerHTML, /request-number/, "short visible request rails should not render numbered buttons");
 assert.match(clientSource, /import \{ RequestRailController \} from "\.\/request-rail\.js";/, "long turns should use a dedicated request rail feature");
 assert.match(clientSource, /function activeTurnRequestUniverse\(\)/, "request rail scope should be the active Turn");
-assert.match(clientSource, /function childRequestIdsForTurn\(turn\)/, "child requests should be removed from the main request universe");
+assert.deepEqual(
+  conversationTimelineRequestsForTurn({
+    turn: { request_ids: ["main", "child"] },
+    requestMap: new Map([["main", { id: "main" }], ["child", { id: "child" }]]),
+    agentTrace: { branches: [{ request_ids: ["child"] }] },
+  }).map((request) => request.id),
+  ["main"],
+  "child requests should be removed from the main request universe",
+);
 assert.match(requestRailSource, /allowedIds\.has\(card\.dataset\.card\)/, "scroll activation should ignore child-Agent cards excluded from the rail");
 assert.match(clientSource, /getActiveId: \(\) => state\.activeTimelineRequestId/, "scroll navigation should own a selection separate from Raw detail");
 assert.match(clientSource, /onActiveChange: markActiveTimelineRequest/, "request rail scrolling should never replace the Raw inspector context");
@@ -127,7 +136,7 @@ assert.match(clientSource, /state\.openAgentDashboards\.has\(turn\.id\)/, "folde
 assert.match(agentGraphRendererSource, /data-agent-branch-select/, "each child Agent should be selectable through a tab");
 assert.match(agentGraphRendererSource, /selectedTimelineHtml/, "the selected branch should accept the shared request-card timeline language");
 assert.match(clientSource, /state\.selectedAgentBranches\.set\(turn\.id, branchId\)/, "selected child Agent state should be stable per Turn");
-assert.match(clientSource, /function mainTimelineRequestsForTurn\(turn, requestMap\)/, "main and supporting timelines should share child-request deduplication");
+assert.match(clientSource, /conversationTimelineRequestsForTurn\(\{/, "main, supporting, and request-rail views should share child-request deduplication");
 assert.doesNotMatch(agentGraphRendererSource, /data-agent-status-filter/, "the tab row replaces the old status-filter card grid");
 assert.match(timelineModelSource, /export function filterTraceTurns\(/, "Trace search should filter at the turn-story level");
 assert.match(timelineModelSource, /export function traceRequestHasIssue\(request\)/, "Trace search should expose an issue entry point");

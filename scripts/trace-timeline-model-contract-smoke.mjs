@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   buildTraceTimelineView,
+  conversationTimelineRequestsForTurn,
   fallbackTimelineTurns,
   findTurnLeadRequest,
   filterTraceTurns,
@@ -116,6 +117,32 @@ assert.equal(fallback[3].subagent_count, 1);
 assert.equal(fallback[2].tool_result_count, 1);
 
 assert.equal(findTurnLeadRequest([requests[1], requests[2]], turns[1])?.id, "r2");
+const crossTurnBranchTrace = {
+  branches: [{ id: "branch-1", request_ids: ["r4", "r6"] }],
+};
+const crossTurnRequestMap = new Map([
+  ...requests.map((item) => [item.id, item]),
+  ["r6", request("r6", 6, { user: "child continuation", subagent: true })],
+]);
+assert.deepEqual(
+  conversationTimelineRequestsForTurn({
+    turn: turn("t4", 4, ["r1", "r6"], "later parent turn"),
+    requestMap: crossTurnRequestMap,
+    agentTrace: crossTurnBranchTrace,
+  }).map((item) => item.id),
+  ["r1"],
+  "a child branch stays out of the parent timeline even after it crosses into a later Turn",
+);
+assert.deepEqual(
+  conversationTimelineRequestsForTurn({
+    turn: turn("t4", 4, ["r1", "r6"], "later parent turn"),
+    requestMap: crossTurnRequestMap,
+    agentTrace: crossTurnBranchTrace,
+    includeBranchRequests: true,
+  }).map((item) => item.id),
+  ["r1", "r6"],
+  "trace search/filter views can still render matching child requests directly",
+);
 assert.equal(filterTraceTurns({ turns, requests, query: "missing", resultLimit: 24 }).length, 0);
 
 console.log("trace timeline model contract smoke passed");

@@ -93,6 +93,7 @@ const requestUrl = configuredModel?.url || baseUrl.replace(/\\\/$/, '') + '/chat
 const credential = configuredModel?.apiKey || process.env.CODEBUDDY_API_KEY || '';
 const sessionIndex = Math.max(args.indexOf('--session-id'), args.indexOf('--resume'));
 const sessionId = sessionIndex >= 0 ? args[sessionIndex + 1] : 'codebuddy-session-smoke';
+const subagentProbe = process.env.PEEK_FAKE_CODEBUDDY_SUBAGENT === '1';
 fs.writeFileSync(process.env.PEEK_FAKE_CODEBUDDY_STATE_PATH, JSON.stringify({
   args,
   baseUrl,
@@ -123,9 +124,9 @@ const response = await fetch(requestUrl, {
     'content-type': 'application/json',
     authorization: 'Bearer ' + credential,
     'x-api-key': credential,
-    'x-codebuddy-request': '1',
+    ...(subagentProbe ? {} : { 'x-codebuddy-request': '1' }),
     'x-agent-intent': 'craft',
-    'x-agent-purpose': 'conversation',
+    'x-agent-purpose': subagentProbe ? 'subagent:private-project-agent' : 'conversation',
     'x-ide-type': 'CLI',
     'x-ide-name': 'CLI',
     'x-ide-version': '2.130.0',
@@ -138,11 +139,13 @@ const response = await fetch(requestUrl, {
     model: process.env.CODEBUDDY_MODEL,
     messages: [
       { role: 'system', content: 'You are CodeBuddy Code. Use tools carefully.' },
-      {
-        role: 'user',
-        agent: 'cli',
-        content: '<system-reminder>CodeBuddy project instructions were injected.</system-reminder>\\n\\n<user_query>Inspect the CodeBuddy protocol.</user_query>',
-      },
+      subagentProbe
+        ? { role: 'user', agent: 'cli', content: '[Subagent Context] Inspect one fixture file.' }
+        : {
+            role: 'user',
+            agent: 'cli',
+            content: '<system-reminder>CodeBuddy project instructions were injected.</system-reminder>\\n\\n<user_query>Inspect the CodeBuddy protocol.</user_query>',
+          },
     ],
     tools: [{ type: 'function', function: { name: 'Read', description: 'Read a file', parameters: { type: 'object', properties: { path: { type: 'string' } } } } }],
     tool_choice: 'auto',
@@ -262,6 +265,34 @@ console.log('fake codebuddy ok');
   assert.equal(continuedSource.store_watch_id, source.store_watch_id, "continue reuses the original watch");
   assert.equal(continuedSource.request_count, 2);
   assert.equal(continuedSource.response_count, 2);
+
+  const subagent = await runCli([
+    "run",
+    "codebuddy",
+    "--watch",
+    "new",
+    "--target-base-url",
+    `${upstreamUrl}/v1`,
+    "--model",
+    "mimo-v2.5-pro",
+    "--viewer-url",
+    viewer.url,
+    "--",
+    "--print",
+    "--session-id",
+    "codebuddy-subagent-smoke",
+  ], { ...commonEnv, PEEK_FAKE_CODEBUDDY_SUBAGENT: "1" });
+  assert.equal(subagent.code, 0, subagent.stderr);
+  const subagentSource = await sourceForConversation(viewer.url, "codebuddy-subagent-smoke");
+  const subagentView = await getJson(`${viewer.url}/api/view?source=${encodeURIComponent(subagentSource.id)}`);
+  assert.equal(subagentView.requests[0].source_hint.type, "subagent");
+  assert.equal(subagentView.requests[0].raw.header_semantics.codebuddy.agent_purpose, "subagent");
+  assert.equal(subagentView.requests[0].raw.headers["x-agent-purpose"], "[REDACTED:header]");
+  assert.equal(
+    JSON.stringify(subagentView).includes("private-project-agent"),
+    false,
+    "custom CodeBuddy subagent names are not persisted in safe header semantics",
+  );
 
   const failed = await runCli([
     "run",

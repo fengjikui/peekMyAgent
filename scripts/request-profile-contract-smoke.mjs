@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { extractSafeHeaderSemantics } from "../src/core/redaction.mjs";
 import {
   classifyCodeBuddyRequestOperation,
   classifyCodexRequestOperation,
@@ -337,6 +338,26 @@ const infer = (overrides = {}) => inferRequestSource({
   ...overrides,
 });
 
+assert.deepEqual(
+  extractSafeHeaderSemantics({
+    "x-agent-purpose": "subagent:private-project-agent",
+  }, { agentProfile: "CodeBuddy Code" }),
+  { codebuddy: { agent_purpose: "subagent" } },
+  "CodeBuddy subagent purpose keeps the category without persisting a custom agent name",
+);
+assert.deepEqual(
+  extractSafeHeaderSemantics({
+    "x-agent-purpose": "custom_agent:private-project-agent",
+  }, { agentProfile: "CodeBuddy Code" }),
+  { codebuddy: { agent_purpose: "custom_agent" } },
+  "CodeBuddy custom-agent purpose keeps only its privacy-safe category",
+);
+assert.equal(
+  extractSafeHeaderSemantics({ "x-agent-purpose": "subagent:private-project-agent" }),
+  undefined,
+  "a generic Harness cannot activate CodeBuddy semantics with a shared header name alone",
+);
+
 assert.equal(
   classifyCodeBuddyRequestOperation({
     agent_profile: "CodeBuddy Code",
@@ -345,10 +366,97 @@ assert.equal(
   null,
   "the main CodeBuddy conversation remains a normal model turn",
 );
+const codeBuddySuggestionBody = {
+  messages: [
+    {
+      role: "system",
+      content: "You are a prompt suggestion generator. Reply in 3-8 words with ONLY the suggestion.",
+    },
+    { role: "user", content: "[User Message]\nInspect the project.\n...\n[Assistant Response]\nInspection complete." },
+  ],
+  tools: [],
+};
 assert.deepEqual(
   classifyCodeBuddyRequestOperation({
     agent_profile: "CodeBuddy Code",
-    header_semantics: { codebuddy: { agent_purpose: "subagent:explore" } },
+    header_semantics: { codebuddy: { agent_purpose: "prompt_suggestion" } },
+  }, codeBuddySuggestionBody),
+  {
+    type: "metadata",
+    label: "CodeBuddy 输入建议请求",
+    label_key: "codebuddySuggestionRequest",
+    actor: "harness",
+    relation: "current_dialogue",
+    operation: "input_suggestion",
+    request_kind: "prompt_suggestion",
+    confidence: "high",
+    evidence: [
+      { origin: "request_header", field: "header_semantics.codebuddy.agent_purpose", value: "prompt_suggestion" },
+      { origin: "request_body", field: "semantic_shape", value: "codebuddy_prompt_suggestion" },
+    ],
+  },
+  "a CodeBuddy suggestion needs both the purpose header and the verified request shape",
+);
+const codeBuddyMainToolLoopBody = {
+  messages: [
+    { role: "system", content: "You are CodeBuddy Code." },
+    { role: "user", content: "<user_query>Inspect the project.</user_query>" },
+    {
+      role: "assistant",
+      tool_calls: [{ id: "call-read", type: "function", function: { name: "Read", arguments: '{"file_path":"README.md"}' } }],
+    },
+    { role: "tool", tool_call_id: "call-read", content: "file contents" },
+  ],
+  tools: [{ type: "function", function: { name: "Read", parameters: { type: "object" } } }],
+};
+assert.equal(
+  classifyCodeBuddyRequestOperation({
+    agent_profile: "CodeBuddy Code",
+    header_semantics: { codebuddy: { agent_purpose: "prompt_suggestion" } },
+  }, codeBuddyMainToolLoopBody),
+  null,
+  "a leaked suggestion purpose cannot override the primary user-query/tool-loop body",
+);
+assert.equal(
+  infer({
+    capture: {
+      agent_profile: "CodeBuddy Code",
+      header_semantics: { codebuddy: { agent_purpose: "prompt_suggestion" } },
+    },
+    body: codeBuddyMainToolLoopBody,
+    currentUser: codeBuddyMainToolLoopBody.messages[1],
+    lastUser: codeBuddyMainToolLoopBody.messages[1],
+  }).type,
+  "main",
+  "a leaked suggestion purpose remains on the ordinary conversation timeline",
+);
+const codeBuddyReminderInsideToolLoop = {
+  messages: [
+    { role: "system", content: "You are CodeBuddy Code." },
+    { role: "user", content: "<user_query>Inspect the project.</user_query>" },
+    { role: "user", content: "<system-reminder>Continue using the tool result.</system-reminder>" },
+    {
+      role: "assistant",
+      tool_calls: [{ id: "call-read", type: "function", function: { name: "Read", arguments: '{"file_path":"README.md"}' } }],
+    },
+    { role: "tool", tool_call_id: "call-read", content: "file contents" },
+  ],
+  tools: [{ type: "function", function: { name: "Read", parameters: { type: "object" } } }],
+};
+assert.equal(
+  infer({
+    capture: { agent_profile: "CodeBuddy Code" },
+    body: codeBuddyReminderInsideToolLoop,
+    currentUser: codeBuddyReminderInsideToolLoop.messages[1],
+    lastUser: codeBuddyReminderInsideToolLoop.messages[2],
+  }).type,
+  "main",
+  "an earlier framework reminder cannot turn a later tool-result continuation into an internal request",
+);
+assert.deepEqual(
+  classifyCodeBuddyRequestOperation({
+    agent_profile: "CodeBuddy Code",
+    header_semantics: { codebuddy: { agent_purpose: "subagent" } },
   }),
   {
     type: "subagent",
@@ -357,9 +465,9 @@ assert.deepEqual(
     actor: "subagent",
     relation: "child_dialogue",
     operation: "subagent_turn",
-    request_kind: "subagent:explore",
+    request_kind: "subagent",
     confidence: "high",
-    evidence: [{ origin: "request_header", field: "header_semantics.codebuddy.agent_purpose", value: "subagent:explore" }],
+    evidence: [{ origin: "request_header", field: "header_semantics.codebuddy.agent_purpose", value: "subagent" }],
   },
 );
 assert.equal(
@@ -412,8 +520,16 @@ assert.deepEqual(
   },
   "metadata classification wins over child-agent evidence",
 );
-assert.equal(infer({ lastUser: user("[SUGGESTION MODE: suggest the next input]") }).type, "metadata");
-assert.equal(infer({ lastUser: user("<system-reminder>framework note</system-reminder>") }).type, "metadata");
+const suggestionModeMessage = user("[SUGGESTION MODE: suggest the next input]");
+assert.equal(
+  infer({ body: { messages: [suggestionModeMessage] }, currentUser: null, lastUser: suggestionModeMessage }).type,
+  "metadata",
+);
+const frameworkReminderMessage = user("<system-reminder>framework note</system-reminder>");
+assert.equal(
+  infer({ body: { messages: [frameworkReminderMessage] }, currentUser: null, lastUser: frameworkReminderMessage }).type,
+  "metadata",
+);
 assert.deepEqual(
   infer({ body: { system: "Generate a concise, sentence-case title", messages: [] } }),
   {

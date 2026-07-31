@@ -116,7 +116,7 @@ export function buildCaptureRecord({
   receivedAt = new Date().toISOString(),
 }) {
   const { headers, redactions } = redactHeaders(req.headers || {});
-  const headerSemantics = extractSafeHeaderSemantics(req.headers || {});
+  const headerSemantics = extractSafeHeaderSemantics(req.headers || {}, { agentProfile: attribution.agentProfile });
   const capture = {
     capture_id: captureId,
     watch_id: attribution.watchId,
