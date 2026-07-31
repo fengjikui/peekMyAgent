@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Chinese quick-start media from Browser-captured Viewer frames."""
+"""Build Chinese README and user-guide media from Browser-captured Viewer frames."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FRAMES = ROOT / "assets" / "demo" / "source" / "quickstart"
 DEFAULT_NAVIGATION_FRAME = ROOT / "assets" / "demo" / "source" / "navigation" / "two-level-navigation-raw.png"
+DEFAULT_USER_GUIDE_FRAMES = ROOT / "assets" / "demo" / "source" / "user-guide"
 DEFAULT_OUTPUT = ROOT / "assets" / "demo"
 FONT_CANDIDATES = (
     Path("/System/Library/Fonts/STHeiti Light.ttc"),
@@ -32,6 +33,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--frames", type=Path, default=DEFAULT_FRAMES)
     parser.add_argument("--navigation-frame", type=Path, default=DEFAULT_NAVIGATION_FRAME)
+    parser.add_argument("--user-guide-frames", type=Path, default=DEFAULT_USER_GUIDE_FRAMES)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
 
@@ -242,10 +244,135 @@ def main() -> None:
     ).save(annotated_dir / "07-two-level-navigation.png", optimize=True)
     save_gif(navigation_walkthrough, args.output / "two-level-navigation.gif", [6500, 7500])
 
+    build_user_guide_media(args.user_guide_frames, args.output / "user-guide")
+
     for path in sorted(args.output.glob("*.gif")):
         print(f"{path.relative_to(ROOT)}: {path.stat().st_size / 1024:.1f} KiB")
     for path in sorted(args.output.glob("*.png")):
         print(f"{path.relative_to(ROOT)}: {path.stat().st_size / 1024:.1f} KiB")
+    for path in sorted((args.output / "user-guide").glob("*")):
+        if path.suffix.lower() in {".gif", ".png"}:
+            print(f"{path.relative_to(ROOT)}: {path.stat().st_size / 1024:.1f} KiB")
+
+
+def build_user_guide_media(source_root: Path, output: Path) -> None:
+    paths = {
+        "context": source_root / "context" / "context-system-diff-raw.png",
+        "async_result": source_root / "async-tool" / "async-delayed-result-raw.png",
+        "subagent_collapsed": source_root / "subagent" / "subagent-collapsed-raw.png",
+        "subagent_board": source_root / "subagent" / "subagent-board-raw.png",
+    }
+    missing = [str(path) for path in paths.values() if not path.exists()]
+    if missing:
+        raise SystemExit("Missing user-guide Browser frame(s):\n" + "\n".join(missing))
+    frames = {name: load_image(path) for name, path in paths.items()}
+    output.mkdir(parents=True, exist_ok=True)
+
+    context_detail = annotate(
+        frames["context"],
+        [
+            Callout(
+                "1.1",
+                "打开第 4 次请求的“详情”",
+                (1200, 668, 1247, 709),
+                (1510, 644),
+                "action",
+                target=(1247, 689),
+                controls=((1435, 664), (1340, 689)),
+            )
+        ],
+    )
+    context_diff = annotate(
+        frames["context"],
+        [
+            Callout(
+                "1.2",
+                "选择 System diff，比较前后指令",
+                (1464, 66, 1538, 97),
+                (1550, 104),
+                "action",
+                target=(1538, 81),
+                controls=((1544, 99), (1540, 88)),
+                result_box=(1298, 151, 2037, 314),
+            )
+        ],
+    )
+    context_detail.save(output / "context-request-detail.png", optimize=True)
+    context_diff.save(output / "context-system-diff.png", optimize=True)
+    save_gif([context_detail, context_diff], output / "context-changes.gif", [6500, 9500])
+
+    delayed_result = annotate(
+        frames["async_result"],
+        [
+            Callout(
+                "2.1",
+                "后台结果到第 4 次请求才回传",
+                (276, 741, 1247, 777),
+                (1480, 681),
+                "result",
+                target=(1120, 741),
+                controls=((1400, 654), (1210, 690)),
+            )
+        ],
+    )
+    delayed_origin = annotate(
+        frames["async_result"],
+        [
+            Callout(
+                "2.1",
+                "后台结果到第 4 次请求才回传",
+                (276, 741, 1247, 777),
+                (1480, 681),
+                "result",
+                target=(1120, 741),
+                controls=((1400, 654), (1210, 690)),
+            ),
+            Callout(
+                "2.2",
+                "点击“来源 #1”回到最初调用",
+                (1194, 741, 1247, 777),
+                (1480, 790),
+                "action",
+                target=(1247, 759),
+                controls=((1400, 808), (1320, 759)),
+            ),
+        ],
+    )
+    delayed_result.save(output / "delayed-tool-result-arrives.png", optimize=True)
+    delayed_origin.save(output / "delayed-tool-result.png", optimize=True)
+    save_gif([delayed_result, delayed_origin], output / "delayed-tool-result.gif", [7500, 8500])
+
+    subagent_action = annotate(
+        frames["subagent_collapsed"],
+        [
+            Callout(
+                "3.1",
+                "展开 multi-agent 看板",
+                (276, 493, 1247, 533),
+                (1480, 487),
+                "action",
+                target=(1247, 513),
+                controls=((1410, 505), (1320, 513)),
+            )
+        ],
+    )
+    subagent_result = annotate(
+        frames["subagent_board"],
+        [
+            Callout(
+                "3.2",
+                "选择分支，查看子 Agent 的完整请求链",
+                (276, 494, 1247, 1047),
+                (1450, 506),
+                "result",
+                target=(1247, 540),
+                controls=((1390, 526), (1320, 540)),
+            )
+        ],
+    )
+    subagent_action.save(output / "subagent-expand.png", optimize=True)
+    subagent_result.save(output / "subagent-board.png", optimize=True)
+    save_gif([subagent_action, subagent_result], output / "subagent-collaboration.gif", [6500, 9500])
 
 
 class Callout:

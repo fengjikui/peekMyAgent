@@ -169,15 +169,32 @@ python3 scripts/build-readme-media.py
 
 公开分享新素材前必须逐帧检查 Source 名称、System、Tools、Raw、路径、命令输出和历史消息。不要录制真实 API Key、真实提示词、用户源码、本地隐私路径或不可公开的 Capture。
 
-## 后续素材优先级
+## 用户手册扩展素材 v0.1
 
-在主 GIF 与五分钟快速上手通过用户审阅后，再独立制作：
+快速上手之后使用 `scripts/user-guide-media-demo.mjs` 生成三条互相独立的确定性 Source：
 
-1. Claude Code 主题下的子 Agent 启动、结果回流与主 Agent 汇总；
-2. 上下文变化与压缩前后对比，并明确区分各 Harness 的真实实现；
-3. 异步工具结果跨多轮回传和来源定位；
-4. System / Tools 分块翻译；
-5. 自研 Harness 通过 OpenAI / Anthropic 通用桥接入；
-6. 一支可配字幕和旁白的中文视频。
+| 场景 | 用户要理解什么 | 主题 | 发布素材 | 停留时间 |
+| --- | --- | --- | --- | --- |
+| 上下文演进 | 从第 4 次请求详情进入 `System diff`，区分历史复用、工具结果和固定指令变化 | Codex | `assets/demo/user-guide/context-changes.gif` | 6.5 秒、9.5 秒 |
+| 迟到工具结果 | `start_background_scan` 在 #1 发起、到 #4 才回传，仍可点 `来源 #1` | Codex | `assets/demo/user-guide/delayed-tool-result.gif` | 7.5 秒、8.5 秒 |
+| 双子 Agent | 主 Agent 启动两个 Explore 分支，展开看板查看 child 请求和结果回流 | Claude | `assets/demo/user-guide/subagent-collaboration.gif` | 6.5 秒、9.5 秒 |
+
+箭头草稿与禁行区：
+
+- 上下文第一帧从右栏空白短曲线回指第 4 次请求的 `详情`，不得压住用户消息；第二帧从次要筛选栏留白指向 `System diff`，红框只覆盖 diff 结果。
+- 迟到结果的红箭头落在结果框上边缘，蓝箭头单独落在 `来源 #1` 按钮；两条线不能汇聚到同一语义目标。
+- 子 Agent 第一帧从右栏空白水平指向折叠看板；第二帧红框覆盖当前选中分支的完整时间线，不能遮住 Agent 标签、请求正文或回流状态。
+
+2026-08-01 已对上述五张关键标注帧执行 2048×1056 原图和 1024 像素宽预览复核。第一轮发现迟到结果红蓝箭头汇聚，第二轮发现上下文动作卡遮挡用户消息；两处均局部返工并在重新生成后通过。完整 Source、协议、预期语义和脱敏记录见 `assets/demo/source/user-guide/manifest.json`。
+
+## 下一阶段素材优先级
+
+上下文变化、迟到工具结果和 Claude Code 子 Agent 已在用户手册素材 v0.1 中完成。通过用户审阅后，再独立制作：
+
+1. 从协议视图进入 Raw Inspector、核对原生 JSON 与脱敏记录；
+2. 自研 Harness 通过 OpenAI / Anthropic 通用桥完成一次端到端接入；
+3. System / Tools 分块翻译，并展示原文与译文如何对应；
+4. 使用真实长会话展示上下文压缩，并明确区分 Codex、Claude Code 等 Harness 的已验证事实；
+5. 一支复用当前原始帧、字幕脚本和慢节奏规范的中文视频。
 
 每个新主题仍只回答一个核心问题，并先用真实产品证据确认功能存在，不能把 roadmap 写成已实现。

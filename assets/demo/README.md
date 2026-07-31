@@ -2,6 +2,8 @@
 
 这个目录保存 README 和用户手册使用的公开演示素材。中文快速上手 v0.1 使用真实 PMA Viewer、确定性假上游和完全虚构的数据生成。
 
+快速上手之后的上下文变化、迟到工具结果和子 Agent 素材见 [`user-guide/README.md`](user-guide/README.md)。
+
 ## 当前主素材
 
 - `quickstart-tool-loop.gif`：从用户请求到工具闭环、最终回答和原始协议的慢速主 GIF，42.7 秒。
@@ -31,6 +33,14 @@ python3 scripts/build-readme-media.py
 ```
 
 脚本会重新生成所有 `quickstart-*` 发布素材。完整镜头脚本见 `docs/visual-usage-guide.zh-CN.md`。
+
+用户手册扩展素材使用另一条确定性脚本：
+
+```bash
+node scripts/user-guide-media-demo.mjs --port 43113
+```
+
+它会生成上下文演进、迟到工具结果和 Claude Code 双子 Agent 三个 Source。完整场景与隐私记录见 `source/user-guide/manifest.json`。
 
 ## 制作规则
 

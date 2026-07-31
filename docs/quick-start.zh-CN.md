@@ -81,7 +81,7 @@ OpenCode 的 `--auto` 不会覆盖项目或组织策略中的显式 `deny`，所
 }
 ```
 
-OpenClaw 没有一个等价的单次启动 flag。它使用 PMA 隔离的 `peekmyagent` profile；先运行并退出一次 `pma openclaw chat` 初始化，再按[完整用户手册](user-guide.md#各-harness-的完全权限模式)设置完整工具 profile 和 host exec policy。
+OpenClaw 没有一个等价的单次启动 flag。它使用 PMA 隔离的 `peekmyagent` profile；先运行并退出一次 `pma openclaw chat` 初始化，再按[安全与清理章节](user-guide/privacy-cleanup.md#openclaw-隔离-profile)设置完整工具 profile 和 host exec policy。
 
 ### `-c` 与 `-C` 为什么不应该强行写整齐
 
@@ -205,10 +205,10 @@ pma clear --all-sessions
 完成这条最小轨迹后，再逐步增加复杂度：
 
 1. [完整用户手册](user-guide.md)：切换 Harness、暂停/恢复 watch、故障排查。
-2. 工具调用：比较工具声明、参数、结果和后续模型决策。
-3. 子 Agent：观察启动、结果回流和主 Agent 汇总。
-4. 协议与 Raw：定位请求字段缺失、顺序异常或兼容层改写。
-5. 上下文变化：比较相邻请求增加、删除和复用的内容。
-6. [接入自研 Harness](new-harness-adaptation-playbook.md)：先用通用 OpenAI / Anthropic 桥，再按证据开发专用 adapter。
+2. [工具调用与迟到结果](user-guide/tools-results.md)：比较工具声明、参数、结果和后续模型决策。
+3. [子 Agent 与多 Agent 协作](user-guide/subagents.md)：观察启动、内部请求、结果回流和主 Agent 汇总。
+4. [协议与 Raw](user-guide/protocol-raw.md)：定位请求字段缺失、顺序异常或兼容层改写。
+5. [请求与上下文变化](user-guide/requests-context.md)：比较相邻请求增加、删除和复用的内容。
+6. [接入自研 Harness](user-guide/custom-harness.md)：先用通用 OpenAI / Anthropic 桥，再按证据决定是否开发专用 adapter。
 
 演示镜头、帧时长、素材来源和重生成命令见[图文与演示素材说明](visual-usage-guide.zh-CN.md)。
