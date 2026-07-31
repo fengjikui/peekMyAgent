@@ -12,11 +12,15 @@ import { writeFakeNodeCommand } from "./lib/fake-node-command.mjs";
 const cwd = process.cwd();
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peek-run-codebuddy-"));
 const binDir = path.join(tmpDir, "bin");
+const codeBuddyConfigDir = path.join(tmpDir, "codebuddy-config");
+const emptyCodeBuddyConfigDir = path.join(tmpDir, "empty-codebuddy-config");
 const childStatePath = path.join(tmpDir, "child-state.json");
 const storePath = path.join(tmpDir, "store.sqlite");
 const previousStateDir = process.env.PEEKMYAGENT_STATE_DIR;
 process.env.PEEKMYAGENT_STATE_DIR = path.join(tmpDir, "state");
 fs.mkdirSync(binDir, { recursive: true });
+fs.mkdirSync(codeBuddyConfigDir, { recursive: true });
+fs.mkdirSync(emptyCodeBuddyConfigDir, { recursive: true });
 const upstreamRequests = [];
 
 const upstream = http.createServer(async (request, response) => {
@@ -53,6 +57,20 @@ const upstream = http.createServer(async (request, response) => {
 
 const upstreamUrl = await listen(upstream);
 const viewer = await startViewerServer({ cwd, storePath });
+const modelsPath = path.join(codeBuddyConfigDir, "models.json");
+const modelsSource = `${JSON.stringify({
+  models: [{
+    id: "mimo-v2.5-pro",
+    name: "MiMo V2.5 Pro",
+    vendor: "OpenAI-compatible",
+    apiKey: "codebuddy-smoke-secret",
+    url: `${upstreamUrl}/must-not-bypass/chat/completions`,
+    supportsToolCall: true,
+    supportsReasoning: true,
+  }],
+  availableModels: ["mimo-v2.5-pro"],
+}, null, 2)}\n`;
+fs.writeFileSync(modelsPath, modelsSource, { mode: 0o600 });
 
 try {
   writeFakeNodeCommand(
@@ -60,6 +78,7 @@ try {
     "codebuddy",
     `
 import fs from 'node:fs';
+import path from 'node:path';
 
 const args = process.argv.slice(2);
 if (args.includes('--version')) {
@@ -67,12 +86,20 @@ if (args.includes('--version')) {
   process.exit(0);
 }
 const baseUrl = process.env.CODEBUDDY_BASE_URL || '';
+const configPath = path.join(process.env.CODEBUDDY_CONFIG_DIR || '', 'models.json');
+const config = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf8')) : { models: [] };
+const configuredModel = config.models.find((model) => model.id === process.env.CODEBUDDY_MODEL) || null;
+const requestUrl = configuredModel?.url || baseUrl.replace(/\\\/$/, '') + '/chat/completions';
+const credential = configuredModel?.apiKey || process.env.CODEBUDDY_API_KEY || '';
 const sessionIndex = Math.max(args.indexOf('--session-id'), args.indexOf('--resume'));
 const sessionId = sessionIndex >= 0 ? args[sessionIndex + 1] : 'codebuddy-session-smoke';
 fs.writeFileSync(process.env.PEEK_FAKE_CODEBUDDY_STATE_PATH, JSON.stringify({
   args,
   baseUrl,
-  credentialPreserved: process.env.CODEBUDDY_API_KEY === 'codebuddy-smoke-secret',
+  configuredUrl: configuredModel?.url || null,
+  credentialPreserved: credential === 'codebuddy-smoke-secret',
+  credentialFromFile: configuredModel?.apiKey === 'codebuddy-smoke-secret' && !process.env.CODEBUDDY_API_KEY,
+  routeHookEnvironmentCleared: !process.env.PEEKMYAGENT_CODEBUDDY_MODEL_CONFIG_PATHS && !process.env.PEEKMYAGENT_CODEBUDDY_PROXY_MODEL && !process.env.PEEKMYAGENT_CODEBUDDY_PROXY_URL,
   models: {
     main: process.env.CODEBUDDY_MODEL,
     lite: process.env.CODEBUDDY_SMALL_FAST_MODEL,
@@ -85,13 +112,17 @@ if (process.env.PEEK_FAKE_CODEBUDDY_FAIL === '1') {
   console.error('fake codebuddy failure');
   process.exit(19);
 }
+if (!credential) {
+  console.error('fake codebuddy missing credential');
+  process.exit(23);
+}
 
-const response = await fetch(baseUrl.replace(/\\\/$/, '') + '/chat/completions', {
+const response = await fetch(requestUrl, {
   method: 'POST',
   headers: {
     'content-type': 'application/json',
-    authorization: 'Bearer ' + process.env.CODEBUDDY_API_KEY,
-    'x-api-key': process.env.CODEBUDDY_API_KEY,
+    authorization: 'Bearer ' + credential,
+    'x-api-key': credential,
     'x-codebuddy-request': '1',
     'x-agent-intent': 'craft',
     'x-agent-purpose': 'conversation',
@@ -132,7 +163,7 @@ console.log('fake codebuddy ok');
   const commonEnv = {
     ...process.env,
     PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
-    CODEBUDDY_API_KEY: "codebuddy-smoke-secret",
+    CODEBUDDY_CONFIG_DIR: codeBuddyConfigDir,
     PEEK_FAKE_CODEBUDDY_STATE_PATH: childStatePath,
   };
   const first = await runCli([
@@ -160,7 +191,11 @@ console.log('fake codebuddy ok');
 
   const child = JSON.parse(fs.readFileSync(childStatePath, "utf8"));
   assert.equal(child.credentialPreserved, true);
+  assert.equal(child.credentialFromFile, true);
+  assert.equal(child.routeHookEnvironmentCleared, true);
   assert.match(child.baseUrl, /^http:\/\/127\.0\.0\.1:\d+\/watch\//);
+  assert.match(child.configuredUrl, /^http:\/\/127\.0\.0\.1:\d+\/watch\/[^/]+\/chat\/completions$/);
+  assert.equal(fs.readFileSync(modelsPath, "utf8"), modelsSource, "models.json remains byte-for-byte unchanged");
   assert.deepEqual(child.models, {
     main: "mimo-v2.5-pro",
     lite: "mimo-v2.5-pro",
@@ -248,8 +283,7 @@ console.log('fake codebuddy ok');
   assert.equal(failedSource.live_status, "stopped");
   assert.equal(failedSource.request_count, 0);
 
-  const withoutKey = { ...commonEnv };
-  delete withoutKey.CODEBUDDY_API_KEY;
+  const withoutKey = { ...commonEnv, CODEBUDDY_CONFIG_DIR: emptyCodeBuddyConfigDir };
   const missingKey = await runCli([
     "run",
     "codebuddy",
@@ -261,11 +295,16 @@ console.log('fake codebuddy ok');
     viewer.url,
     "--",
     "--print",
+    "--session-id",
+    "codebuddy-missing-credential-smoke",
   ], withoutKey);
-  assert.equal(missingKey.code, 1);
-  assert.match(missingKey.stderr, /Missing CODEBUDDY_API_KEY/);
+  assert.equal(missingKey.code, 23);
+  assert.match(missingKey.stderr, /fake codebuddy missing credential/);
+  const missingKeySource = await sourceForConversation(viewer.url, "codebuddy-missing-credential-smoke");
+  assert.equal(missingKeySource.live_status, "stopped");
+  assert.equal(missingKeySource.request_count, 0);
 
-  console.log("run codebuddy wrapper smoke passed (exact Chat capture, OpenCode model mapping, variants, privacy, resume reuse, cleanup)");
+  console.log("run codebuddy wrapper smoke passed (models.json route interception, file credential ownership, exact Chat capture, variants, privacy, resume reuse, cleanup)");
 } finally {
   await viewer.close();
   await closeServer(upstream);

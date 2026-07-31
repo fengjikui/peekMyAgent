@@ -39,7 +39,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 
 | 路径 | 职责 |
 | --- | --- |
-| `bin/peekmyagent.mjs` | CLI 命令路由、daemon 生命周期、Claude/OpenClaw wrapper、doctor、维护和卸载编排 |
+| `bin/peekmyagent.mjs` | CLI 命令路由、daemon 生命周期、Claude/OpenCode/CodeBuddy/OpenClaw wrapper、doctor、维护和卸载编排 |
 | `src/core/capture-proxy.mjs` | HTTP 转发、请求/响应截获、Content-Encoding 捕获副本解码、wire/decoded 大小和请求边界 |
 | `src/core/upstream-http-transport.mjs` | loopback/HTTPS 上游转发、代理环境与原始字节请求边界 |
 | `src/core/otel-capture.mjs` | 扫描 Claude Code OTel raw-body dump、关联 request/response 并生成 capture |
@@ -88,6 +88,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/adapters/codex-desktop-discovery.mjs`、`codex-rollout-normalizer.mjs` | Codex 会话元数据发现、显式单会话选择和 rollout 语义归一化 |
 | `src/adapters/codex-desktop-installation.mjs`、`codex-desktop-managed-session.mjs`、`codex-app-server-relay.mjs` | Codex Desktop 版本/能力检测、受管 App Server、双 capability loopback relay、优雅重启与恢复边界 |
 | `src/adapters/codex-exact-proxy.mjs` | Codex first-party 路由白名单、zstd 安全解码副本和精确捕获适配 |
+| `src/adapters/opencode-config.mjs`、`codebuddy-config.mjs`、`codebuddy-model-config-hook.cjs` | OpenCode effective provider/runtime override；CodeBuddy 子进程模型映射，以及不接触凭据的 `models.json` 内存 URL 覆写 |
 | `src/adapters/openclaw-config.mjs`、`openclaw-normalize.mjs` | OpenClaw profile 配置和协议归一化 |
 | `src/adapters/trae-cn-integration.mjs` | Trae CN 配置发现、启停、漂移检查和稳定路由 |
 | `src/viewer/server.mjs` | Viewer daemon composition root、shared proxy/Store/Service/Router 装配与公开 DTO presenter |
@@ -217,7 +218,9 @@ OpenCode 的自定义 command 在 wire 上可能只表现为普通 user message�
 
 ## CodeBuddy Code 捕获路径
 
-`pma codebuddy [CodeBuddy args...]` 创建 `codebuddy_proxy_exact` watch。默认读取 OpenCode effective config 中非敏感的 model/provider/base URL，并只在当前 CodeBuddy 子进程中设置 `CODEBUDDY_BASE_URL` 以及 main/lite/reasoning/subagent 四个模型环境变量。PMA 不读取 OpenCode 认证文件，也不把密钥从一个 Harness 搬运到另一个 Harness；父 shell 必须显式提供 `CODEBUDDY_API_KEY`。用户配置文件、其他 CodeBuddy/OpenCode 进程和下次启动均不受影响。
+`pma codebuddy [CodeBuddy args...]` 创建 `codebuddy_proxy_exact` watch。默认读取 OpenCode effective config 中非敏感的 model/provider/base URL，并只在当前 CodeBuddy 子进程中设置 `CODEBUDDY_BASE_URL` 以及 main/lite/reasoning/subagent 四个模型环境变量。用户既可以使用环境认证，也可以把 provider URL 与凭据放在 CodeBuddy 原生用户级或项目级 `models.json` 中。
+
+CodeBuddy 2.130.0 对自定义 model 的完整 `url` 赋予高于 `CODEBUDDY_BASE_URL` 的优先级。为避免请求绕过 Capture Proxy，adapter 通过当前 CodeBuddy Node 子进程的静态 preload hook 拦截精确的两个 `models.json` 读取路径，只在返回的内存 JSON 中改写选中 model 的 URL；原文件、`apiKey`、其他模型字段和其他进程均不改变。PMA 不把文件凭据导出到父进程或持久化，不读取 OpenCode 认证文件，也不把密钥从一个 Harness 搬运到另一个 Harness。`CODEBUDDY_AUTH_TOKEN`、`apiKeyHelper`、文件 `apiKey` 与 `CODEBUDDY_API_KEY` 的优先级仍由 CodeBuddy 决定。
 
 CodeBuddy 2.130.0 的真实安装包与隔离假上游证明该路径使用 streaming OpenAI Chat Completions，并以 `x-conversation-id` 传递原生 session identity。该 identity 只在 effective Agent 明确为 CodeBuddy 时参与 watch 归属，原 header 在持久化前脱敏。`x-codebuddy-request` 打开受限的安全语义提取：经过枚举/token 白名单的 `x-agent-purpose`、intent 和 IDE 信息可用于主对话、子 Agent、标题、建议、压缩及后台请求分类；request/conversation/message id 只保留存在性或脱敏占位符。
 

@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { inspectOpenCodeConfiguration } from "./opencode-config.mjs";
-import { childProcessSpawnConfig, safeProcessCwd } from "../core/platform.mjs";
+import { childProcessSpawnConfig, joinPlatformPath, safeProcessCwd, userHome } from "../core/platform.mjs";
 
 export const CODEBUDDY_BASE_URL_ENV = "CODEBUDDY_BASE_URL";
 export const CODEBUDDY_API_KEY_ENV = "CODEBUDDY_API_KEY";
@@ -8,6 +9,11 @@ export const CODEBUDDY_MODEL_ENV = "CODEBUDDY_MODEL";
 export const CODEBUDDY_SMALL_MODEL_ENV = "CODEBUDDY_SMALL_FAST_MODEL";
 export const CODEBUDDY_REASONING_MODEL_ENV = "CODEBUDDY_BIG_SLOW_MODEL";
 export const CODEBUDDY_SUBAGENT_MODEL_ENV = "CODEBUDDY_CODE_SUBAGENT_MODEL";
+export const CODEBUDDY_MODEL_CONFIG_PATHS_ENV = "PEEKMYAGENT_CODEBUDDY_MODEL_CONFIG_PATHS";
+export const CODEBUDDY_PROXY_MODEL_ENV = "PEEKMYAGENT_CODEBUDDY_PROXY_MODEL";
+export const CODEBUDDY_PROXY_URL_ENV = "PEEKMYAGENT_CODEBUDDY_PROXY_URL";
+
+const CODEBUDDY_MODEL_CONFIG_HOOK_PATH = fileURLToPath(new URL("./codebuddy-model-config-hook.cjs", import.meta.url));
 
 export function inspectCodeBuddyConfiguration({
   args = [],
@@ -47,13 +53,25 @@ export function inspectCodeBuddyConfiguration({
   };
 }
 
-export function buildCodeBuddyProxyEnv({ env = process.env, proxyBaseUrl, model } = {}) {
-  assertCodeBuddyCredentialEnv(env);
+export function buildCodeBuddyProxyEnv({
+  env = process.env,
+  proxyBaseUrl,
+  model,
+  cwd = safeProcessCwd(),
+  platform = process.platform,
+  systemHome,
+} = {}) {
   const selectedModel = cleanModelId(model);
   if (!selectedModel) throw new Error("CodeBuddy model is required.");
+  const baseUrl = normalizeBaseUrl(proxyBaseUrl);
+  const configPaths = codeBuddyModelConfigPaths({ cwd, env, platform, systemHome });
   return {
     ...env,
-    [CODEBUDDY_BASE_URL_ENV]: normalizeBaseUrl(proxyBaseUrl),
+    NODE_OPTIONS: appendNodeRequire(env.NODE_OPTIONS, CODEBUDDY_MODEL_CONFIG_HOOK_PATH),
+    [CODEBUDDY_MODEL_CONFIG_PATHS_ENV]: JSON.stringify(configPaths),
+    [CODEBUDDY_PROXY_MODEL_ENV]: selectedModel,
+    [CODEBUDDY_PROXY_URL_ENV]: `${baseUrl}/chat/completions`,
+    [CODEBUDDY_BASE_URL_ENV]: baseUrl,
     [CODEBUDDY_MODEL_ENV]: selectedModel,
     [CODEBUDDY_SMALL_MODEL_ENV]: selectedModel,
     [CODEBUDDY_REASONING_MODEL_ENV]: selectedModel,
@@ -61,12 +79,19 @@ export function buildCodeBuddyProxyEnv({ env = process.env, proxyBaseUrl, model 
   };
 }
 
-export function assertCodeBuddyCredentialEnv(env = process.env) {
-  if (hasEnvironmentValue(env, CODEBUDDY_API_KEY_ENV)) return;
-  throw new Error(
-    `Missing ${CODEBUDDY_API_KEY_ENV}. Export the upstream credential for CodeBuddy before running this command. ` +
-      "peekMyAgent deliberately does not read or copy OpenCode authentication.",
-  );
+export function codeBuddyModelConfigPaths({
+  cwd = safeProcessCwd(),
+  env = process.env,
+  platform = process.platform,
+  systemHome,
+} = {}) {
+  const configuredDir = firstEnvironmentValue(env, ["WORKBUDDY_CONFIG_DIR", "CODEBUDDY_CONFIG_DIR"]);
+  const home = userHome({ env, platform, ...(systemHome === undefined ? {} : { systemHome }) });
+  const userDir = configuredDir || (home ? joinPlatformPath(platform, home, ".codebuddy") : null);
+  return [...new Set([
+    userDir ? joinPlatformPath(platform, userDir, "models.json") : null,
+    joinPlatformPath(platform, cwd, ".codebuddy", "models.json"),
+  ].filter(Boolean))];
 }
 
 export function inspectCodeBuddyInstallation({ command = "codebuddy", env = process.env } = {}) {
@@ -136,8 +161,19 @@ function normalizeBaseUrl(value) {
   return url.toString().replace(/\/$/, "");
 }
 
-function hasEnvironmentValue(env, name) {
-  return Object.prototype.hasOwnProperty.call(env || {}, name) && String(env[name] || "").length > 0;
+function firstEnvironmentValue(env, names) {
+  for (const name of names) {
+    if (Object.prototype.hasOwnProperty.call(env || {}, name) && String(env[name] || "").trim()) {
+      return String(env[name]).trim();
+    }
+  }
+  return null;
+}
+
+function appendNodeRequire(existing, modulePath) {
+  const current = String(existing || "").trim();
+  const requireOption = `--require=${JSON.stringify(modulePath)}`;
+  return current ? `${current} ${requireOption}` : requireOption;
 }
 
 function optionValue(args, names) {

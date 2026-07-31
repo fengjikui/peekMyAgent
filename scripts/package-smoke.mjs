@@ -114,6 +114,7 @@ for (const required of [
   "src/adapters/codex-desktop-managed-session.mjs",
   "src/adapters/codex-desktop-session.mjs",
   "src/adapters/codebuddy-config.mjs",
+  "src/adapters/codebuddy-model-config-hook.cjs",
   "src/server/http.mjs",
   "src/contracts/lazy-payload.mjs",
   "src/contracts/viewer-api.mjs",
@@ -211,12 +212,12 @@ const allowedPatterns = [
 const unexpectedFiles = packageFiles.filter((file) => !allowedPatterns.some((pattern) => pattern.test(file)));
 assert.deepEqual(unexpectedFiles, [], `npm package includes files outside the release allowlist: ${unexpectedFiles.join(", ")}`);
 
-const MAX_PACKAGE_ENTRIES = 155;
+const MAX_PACKAGE_ENTRIES = 156;
 // These limits include direction-aware OpenAI/Anthropic Schema recognition,
 // Protocol Exchange, OpenCode and CodeBuddy continuation identity, organized request
 // generation metadata, the two explicitly required lazy-payload runtime
-// modules, and the generic child-process Observe bridge. They leave less than
-// 0.5% headroom; allowlist, entry count, and denied patterns remain unchanged.
+// modules, the generic child-process Observe bridge, and the required CodeBuddy
+// models.json process-local route hook. The allowlist and denied patterns remain strict.
 const MAX_PACKED_BYTES = 400_000;
 const MAX_UNPACKED_BYTES = 1_758_000;
 assert.ok(packs[0].entryCount <= MAX_PACKAGE_ENTRIES, `npm package contains too many files: ${packs[0].entryCount}/${MAX_PACKAGE_ENTRIES}`);

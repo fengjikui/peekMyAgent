@@ -16,7 +16,6 @@ import {
   resolveOpenCodeContinuationSession,
 } from "../src/adapters/opencode-config.mjs";
 import {
-  assertCodeBuddyCredentialEnv,
   buildCodeBuddyProxyEnv,
   codeBuddyContinuesSession,
   codeBuddyConversationFromArgs,
@@ -1475,7 +1474,6 @@ async function runCodeBuddyAgent(parsed, viewerUrl) {
   if (!installation.installed) {
     throw new Error("CodeBuddy Code is not installed or not runnable. Install it with: npm install -g @tencent-ai/codebuddy-code");
   }
-  assertCodeBuddyCredentialEnv(process.env);
   const configuration = inspectCodeBuddyConfiguration({
     args: parsed.childArgs,
     cwd: workspace,
@@ -1512,8 +1510,9 @@ async function runCodeBuddyAgent(parsed, viewerUrl) {
     env: process.env,
     proxyBaseUrl: watch.base_url,
     model: configuration.model,
+    cwd: workspace,
   });
-  console.error("peekMyAgent capture: CodeBuddy exact OpenAI Chat proxy (process-local; user config unchanged)");
+  console.error("peekMyAgent capture: CodeBuddy exact OpenAI Chat proxy (process-local model route; user config and credentials unchanged)");
   console.error(`peekMyAgent model: ${configuration.model} (${configuration.configuration_source === "opencode" ? "from OpenCode configuration" : "explicit"})`);
   printPrivateRunStarted({ viewerUrl, watch, command: "codebuddy" });
   return runChildWithWatchCleanup({

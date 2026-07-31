@@ -3,6 +3,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { buildCodeBuddyProxyEnv } from "../src/adapters/codebuddy-config.mjs";
 import { readBody } from "../src/core/capture-proxy.mjs";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "peekmyagent-codebuddy-probe-"));
@@ -29,7 +30,7 @@ const upstream = http.createServer(async (request, response) => {
     body,
   });
 
-  if (request.method !== "POST" || !["/v1/chat/completions", "/chat/completions"].includes(request.url)) {
+  if (request.method !== "POST" || !["/proxy/chat/completions", "/chat/completions"].includes(request.url)) {
     response.writeHead(404, { "content-type": "application/json" });
     response.end(JSON.stringify({ error: { message: "unexpected probe route" } }));
     return;
@@ -40,7 +41,7 @@ const upstream = http.createServer(async (request, response) => {
     "cache-control": "no-cache",
     connection: "keep-alive",
   });
-  const responseText = request.url === "/chat/completions" ? "PMA_CODEBUDDY_DIRECT_OK" : "PMA_CODEBUDDY_OK";
+  const responseText = request.url === "/chat/completions" ? "PMA_CODEBUDDY_DIRECT_OK" : "PMA_CODEBUDDY_FILE_OK";
   response.write(`data: ${JSON.stringify({
     id: "chatcmpl-codebuddy-probe",
     object: "chat.completion.chunk",
@@ -61,15 +62,15 @@ const upstream = http.createServer(async (request, response) => {
 
 try {
   const upstreamUrl = await listen(upstream);
-  fs.writeFileSync(
-    path.join(configDir, "models.json"),
+  const modelsPath = path.join(configDir, "models.json");
+  const modelsSource =
     `${JSON.stringify({
       models: [{
         id: "mimo-v2.5-pro",
         name: "MiMo V2.5 Pro PMA probe",
         vendor: "OpenAI-compatible",
-        apiKey: "${PMA_CODEBUDDY_TEST_API_KEY}",
-        url: `${upstreamUrl}/v1/chat/completions`,
+        apiKey: "probe-key-not-real",
+        url: `${upstreamUrl}/must-not-bypass/chat/completions`,
         maxInputTokens: 128000,
         maxOutputTokens: 4096,
         supportsToolCall: true,
@@ -77,23 +78,32 @@ try {
         supportsReasoning: true,
       }],
       availableModels: ["mimo-v2.5-pro"],
-    }, null, 2)}\n`,
+    }, null, 2)}\n`;
+  fs.writeFileSync(
+    modelsPath,
+    modelsSource,
     { mode: 0o600 },
   );
 
+  const fileModelEnv = {
+    ...process.env,
+    CODEBUDDY_CONFIG_DIR: configDir,
+    DISABLE_TELEMETRY: "1",
+    DISABLE_ERROR_REPORTING: "1",
+    DISABLE_AUTOUPDATER: "1",
+    CODEBUDDY_SKIP_BUILTIN_MARKETPLACE: "1",
+    CODEBUDDY_PROMPT_SUGGESTION_DISABLED: "1",
+    CODEBUDDY_DISABLE_AUTO_MEMORY: "1",
+  };
   const openAiResult = await runCodeBuddy({
     cwd: workspace,
-    env: {
-      ...process.env,
-      CODEBUDDY_CONFIG_DIR: configDir,
-      PMA_CODEBUDDY_TEST_API_KEY: "probe-key-not-real",
-      DISABLE_TELEMETRY: "1",
-      DISABLE_ERROR_REPORTING: "1",
-      DISABLE_AUTOUPDATER: "1",
-      CODEBUDDY_SKIP_BUILTIN_MARKETPLACE: "1",
-      CODEBUDDY_PROMPT_SUGGESTION_DISABLED: "1",
-      CODEBUDDY_DISABLE_AUTO_MEMORY: "1",
-    },
+    expectedText: "PMA_CODEBUDDY_FILE_OK",
+    env: buildCodeBuddyProxyEnv({
+      env: fileModelEnv,
+      proxyBaseUrl: `${upstreamUrl}/proxy`,
+      model: "mimo-v2.5-pro",
+      cwd: workspace,
+    }),
   });
 
   const directResult = await runCodeBuddy({
@@ -117,9 +127,10 @@ try {
   console.log(JSON.stringify({
     kind: "codebuddy_local_mock_probe",
     codebuddy_version: await codeBuddyVersion(),
-    custom_openai: {
+    models_json_process_override: {
       exit_code: openAiResult.code,
-      stdout_contains_expected_text: openAiResult.stdout.includes("PMA_CODEBUDDY_OK"),
+      stdout_contains_expected_text: openAiResult.stdout.includes("PMA_CODEBUDDY_FILE_OK"),
+      source_file_unchanged: fs.readFileSync(modelsPath, "utf8") === modelsSource,
       stderr_present: Boolean(openAiResult.stderr.trim()),
     },
     direct_base_url: {
@@ -136,11 +147,12 @@ try {
   }, null, 2));
   if (
     openAiResult.code !== 0 ||
-    !openAiResult.stdout.includes("PMA_CODEBUDDY_OK") ||
+    !openAiResult.stdout.includes("PMA_CODEBUDDY_FILE_OK") ||
+    fs.readFileSync(modelsPath, "utf8") !== modelsSource ||
     directResult.code !== 0 ||
     !directResult.stdout.includes("PMA_CODEBUDDY_DIRECT_OK") ||
     requests.length !== 2 ||
-    requests[0]?.path !== "/v1/chat/completions" ||
+    requests[0]?.path !== "/proxy/chat/completions" ||
     requests[1]?.path !== "/chat/completions" ||
     requests.some((request) => request.body?.model !== "mimo-v2.5-pro") ||
     requests.some((request) => request.headers?.["x-codebuddy-request"] !== "1")
