@@ -1,6 +1,6 @@
 # CodeBuddy Code 适配计划与证据
 
-状态：候选实现（2026-07-31）。当前证据基于 `@tencent-ai/codebuddy-code` 2.131.0、真实 CLI 进程和隔离 loopback 假上游；尚未把其他 CodeBuddy 版本、ACP/IDE 通道或非 OpenAI-compatible provider 宣称为已支持。
+状态：CLI OpenAI-compatible 路径已合入 `main`（2026-07-31）。当前证据基于 `@tencent-ai/codebuddy-code` 2.131.0、真实 CLI 进程、隔离 loopback 假上游、317-request Viewer 验收和 hosted macOS/Windows/Linux release matrix；尚未把其他 CodeBuddy 版本、ACP/IDE 通道或非 OpenAI-compatible provider 宣称为已支持。
 
 ## 用户路径
 
@@ -58,6 +58,18 @@ pma codebuddy --resume <session-id>
 
 2.131.0 的输入建议任务会在共享 session 上临时设置 `agentPurpose=prompt_suggestion`，并在普通回复结束后异步运行。若用户在建议请求完成前继续操作，后续普通主请求可能继承这个临时 Header。PMA 因而把 purpose 当作 hint：真正的建议请求还必须满足已验证的无工具、两消息和建议专用 prompt 结构；若 Header 与 `<user_query>`、工具循环或子 Agent 正文证据冲突，以正文事实为准。一次 317-request 的非敏感结构审计中，旧逻辑把 155 条请求都归为 suggestion；body 交叉验证后只有 3 条是真正建议，其余请求恢复为主 Agent、parent spawn 或 child Agent。
 
+## 首轮适配为什么遗漏这些问题
+
+首轮实现优先证明了配置覆写、HTTP 转发、OpenAI Chat 解析和小型 wrapper fixture，因此误把“能够捕获”当成了“语义已经适配”。具体缺口是：
+
+- 假 CodeBuddy 命令稳定发送 marker 和 purpose，没有复现真实 2.131.0 的异步 session 竞态与无 marker child 请求；
+- purpose 分类只有 Header 正例，没有正文冲突、历史 reminder、其他 Harness 同名 Header等反例；
+- 子 Agent 去重只看当前 Turn，没有验证一个 child 分支跨越后续父 Turn 的情况；
+- 验收主要检查 request/response 数量和 DTO，没有在长 Trace 中展开幕后时间线，并同时确认 Agent dashboard 仍保留完整 child 轨迹；
+- 个别 smoke 通过源码函数名约束实现结构，使正确的纯 Model 重构先表现为门禁失败，而不是直接验证可观察行为。
+
+今后的 CodeBuddy 版本升级不能只重放一个普通 prompt。必须重跑真实二进制 loopback 探针的普通对话、Read、Explore、resume 和内部异步请求，统计一条长 Trace 的分类分布，最后在 Viewer 同时验证主时间线、幕后时间线和 Agent dashboard。完整的通用反证流程见[新 Harness 适配工作手册](new-harness-adaptation-playbook.md#37-codebuddy-首轮适配复盘)。
+
 可重复证据：
 
 ```bash
@@ -81,7 +93,7 @@ npm run smoke:run-codebuddy
 
 ## 未关闭风险
 
-- 发布前必须完成 macOS Level 2、hosted macOS/Windows/Linux CI，并在 Windows/Linux 实机验证全局安装、进程环境、signal 和路径。
+- hosted macOS/Windows/Linux CI 已在合入前通过；发布候选仍需在 Windows/Linux 实机验证全局安装、进程环境、signal 和路径。
 - 内存 URL hook 已在 CodeBuddy 2.131.0 的同步配置读取路径验证；升级 CodeBuddy 时必须重新运行真实假上游探针，不能把未来实现变化静默宣称为已支持。
 - 当前只对 OpenAI/openai-compatible OpenCode driver 自动映射。其他 driver 必须显式提供已验证的 `--target-base-url` 与 `--model`。
 - CodeBuddy 自带 OTel、IDE/ACP、远程控制和更复杂后台任务尚未形成协议证据，不能从 CLI Chat 路径外推。
