@@ -154,7 +154,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 
 ## Harness 权限模式边界
 
-PMA 不定义一套跨 Harness 的虚拟权限，也不会因为开始捕获而提升自身或 Agent 的权限。`pma codex`、`pma claude` 和 `pma opencode` 将原生 Harness 参数交给对应子进程；完全权限、自动审批和显式 deny 的最终语义仍由该 Harness 的当前版本决定。OpenClaw 的完整工具 profile 与 host exec policy 写入 PMA 明确命名的 `peekmyagent` 隔离 profile，不改写默认 profile。Codex Desktop 的权限由 Desktop UI 管理，CLI 的 bypass 参数不会跨到 Desktop。
+PMA 不定义一套跨 Harness 的虚拟权限，也不会因为开始捕获而提升自身或 Agent 的权限。`pma codex`、`pma claude`、`pma opencode` 和 `pma codebuddy` 将原生 Harness 参数交给对应子进程；完全权限、自动审批和显式 deny 的最终语义仍由该 Harness 的当前版本决定。OpenClaw 的完整工具 profile 与 host exec policy 写入 PMA 明确命名的 `peekmyagent` 隔离 profile，不改写默认 profile。Codex Desktop 的权限由 Desktop UI 管理，CLI 的 bypass 参数不会跨到 Desktop。
 
 快速和高级 CLI help 都必须同时给出各 Harness 的原生命令、不能被 bypass 覆盖的策略边界，以及仅在受信任外部隔离环境中使用的风险提示。该 help 由 `scripts/cli-smoke.mjs` 固定为发布契约。
 
@@ -214,6 +214,14 @@ OpenCode 发送累计 message history，但 leading system 可能因 Skill 搜�
 OpenCode 的自定义 command 在 wire 上可能只表现为普通 user message。`pma opencode ... --command <name>` 因而会在子进程 provider 配置中增加一次性的 `x-peek-opencode-command` 本地证据头；Capture Proxy 保存该证据，并在转发上游前剥离所有 `x-peek-*` header。Harness 整理与翻译据此把 command 展开后的 prompt 额外投影为命令注入，但原 message 继续保留在 History/Message。普通用户文本即使以 `/` 开头也不会触发该分类；没有原生命令参数、生命周期事件或已验证精确模板时仍保持普通 Message/unknown。
 
 真实场景已经验证 `read`、`skill` 和 `task` tool loop 可以直接复用共享 tool/response/subagent 语义；OpenCode 专用逻辑不进入 Viewer renderer。TUI `/compact` 对应的 server summarize 会发出独立模型请求，随后持久化 compaction boundary 与 `summary: true` assistant message；当前版本的精确 anchored-summary 模板额外投影到 Harness，原 message 仍留在 History/Message。`opencode run --command compact` 只是 generic command，不等价于 summarize。其他 provider driver、任意 TUI slash 和复杂多 child lifecycle 未经验证时保持 Raw/unknown，不从 OpenAI-compatible 单一实例外推。
+
+## CodeBuddy Code 捕获路径
+
+`pma codebuddy [CodeBuddy args...]` 创建 `codebuddy_proxy_exact` watch。默认读取 OpenCode effective config 中非敏感的 model/provider/base URL，并只在当前 CodeBuddy 子进程中设置 `CODEBUDDY_BASE_URL` 以及 main/lite/reasoning/subagent 四个模型环境变量。PMA 不读取 OpenCode 认证文件，也不把密钥从一个 Harness 搬运到另一个 Harness；父 shell 必须显式提供 `CODEBUDDY_API_KEY`。用户配置文件、其他 CodeBuddy/OpenCode 进程和下次启动均不受影响。
+
+CodeBuddy 2.130.0 的真实安装包与隔离假上游证明该路径使用 streaming OpenAI Chat Completions，并以 `x-conversation-id` 传递原生 session identity。该 identity 只在 effective Agent 明确为 CodeBuddy 时参与 watch 归属，原 header 在持久化前脱敏。`x-codebuddy-request` 打开受限的安全语义提取：经过枚举/token 白名单的 `x-agent-purpose`、intent 和 IDE 信息可用于主对话、子 Agent、标题、建议、压缩及后台请求分类；request/conversation/message id 只保留存在性或脱敏占位符。
+
+CodeBuddy 把当前用户内容包在顶层 `<user_query>` 中，并可能附加通用 `<system-reminder>`。共享 message semantics 只在精确匹配这两个已验证边界时剥离包装，原始 request 仍完整保留在 Raw。协议、response normalizer、Protocol Exchange、Metadata、工具循环和子 Agent 图继续走共享层，不增加 CodeBuddy 专用 renderer。未知 purpose 和其他 provider driver 保持 Harness/unknown；详细证据与限制见 [CodeBuddy Code 适配计划](codebuddy-code-adaptation-plan.md)。
 
 ## Codex 捕获路径
 

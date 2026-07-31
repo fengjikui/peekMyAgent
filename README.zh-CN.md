@@ -239,6 +239,28 @@ PMA 只覆盖当前子进程的 `baseURL`，不改配置、不读 `auth.json`、
 
 使用 `-c/--continue` 或 `-s/--session` 时，PMA 会通过 OpenCode 的公开 session 身份定位已有记录，并询问是否继续写入。直接回车默认复用，选择 2 会创建独立记录；也可用 `pma --reuse opencode -c` 跳过询问。`--fork` 会产生新的 OpenCode session，因此始终创建新记录。
 
+## 快速开始：CodeBuddy Code
+
+先安装 CodeBuddy，并在当前 shell 中提供上游凭据。PMA 不读取或复制 OpenCode 的认证：
+
+```bash
+npm install -g @tencent-ai/codebuddy-code
+export CODEBUDDY_API_KEY='<你的 provider key>'
+cd <your-project>
+pma codebuddy
+```
+
+默认情况下，PMA 会把 CodeBuddy 的主模型、轻量模型、推理模型和子 Agent 模型映射到当前 OpenCode 的 model 与 OpenAI-compatible endpoint。代理和模型环境变量只影响当前 CodeBuddy 子进程，不修改用户配置文件。
+
+```bash
+pma codebuddy --continue
+pma --reuse codebuddy --continue
+pma codebuddy --resume <session-id>
+pma codebuddy --dangerously-skip-permissions
+```
+
+当前适配由 CodeBuddy 2.130.0 和 OpenAI Chat Completions 验证。精确边界见 [CodeBuddy 适配计划与证据](docs/codebuddy-code-adaptation-plan.md)。
+
 ## 快速开始：OpenClaw
 
 ```bash
@@ -339,4 +361,6 @@ npm run release:check
 - [手动集成 smoke 矩阵](docs/manual-integration-smoke-matrix.md)
 - [Claude Code 当前会话控制](docs/claude-code-current-session-control.md)
 - [OpenCode CLI 适配计划与证据](docs/opencode-cli-adaptation-plan.md)
+- [CodeBuddy Code 适配计划与证据](docs/codebuddy-code-adaptation-plan.md)
+- [Agent 可观测与调试产品借鉴点](docs/agent-observability-product-notes.md)
 - [OpenClaw profile watch](docs/openclaw-profile-watch.md)

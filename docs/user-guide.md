@@ -190,6 +190,34 @@ pma observe --name my-agent --base-url-env ANTHROPIC_BASE_URL -- python agent.py
 
 如果 Harness 不支持进程级 base URL 覆写，或者需要解释它的私有运行机制，请继续使用[新 Harness 适配工作手册](new-harness-adaptation-playbook.md)建立证据包和专用 adapter。
 
+### CodeBuddy Code：复用当前 OpenCode 模型
+
+安装 CodeBuddy 后，在 shell 中显式提供同一上游的凭据：
+
+```bash
+npm install -g @tencent-ai/codebuddy-code
+export CODEBUDDY_API_KEY='<你的 provider key>'
+cd <your-project>
+pma codebuddy
+```
+
+PMA 读取 OpenCode effective config 中的 model、provider 和 base URL，但不读取 `auth.json` 或复制任何认证。CodeBuddy 的 main、lite、reasoning 和 subagent model 只在该子进程内统一映射到当前 OpenCode model。当前验证范围是 CodeBuddy 2.130.0 的 OpenAI Chat Completions 路径。
+
+```bash
+pma codebuddy --continue
+pma --reuse codebuddy --continue
+pma codebuddy --resume <session-id>
+pma codebuddy --fork-session
+```
+
+`--continue` 找到既有 PMA Source 并选择复用时，会转换成精确的原生 `--resume <session-id>`，避免恢复历史后错误创建新监控会话。`--fork-session` 始终创建新 Source。自定义已验证 endpoint 使用高级形式：
+
+```bash
+pma run codebuddy --target-base-url https://example.invalid/v1 --model example-model -- --print 'hello'
+```
+
+不要把 key 放在命令参数中。完整协议证据和限制见 [CodeBuddy Code 适配计划](codebuddy-code-adaptation-plan.md)。
+
 ### 各 Harness 的完全权限模式
 
 下面的权限开关属于各 Harness 本身。peekMyAgent 只负责透传参数，或者使用明确命名的 OpenClaw 隔离 profile，不会给自身提升权限。
@@ -204,6 +232,12 @@ Claude Code 单次绕过权限检查：
 
 ```bash
 pma claude -c --dangerously-skip-permissions
+```
+
+CodeBuddy Code 单次绕过权限检查：
+
+```bash
+pma codebuddy --dangerously-skip-permissions
 ```
 
 OpenCode 自动批准原本会询问的权限：

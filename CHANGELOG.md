@@ -5,6 +5,11 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 
 ## [Unreleased]
 
+### Added
+
+- `pma codebuddy` now captures CodeBuddy Code 2.130.0 through an exact process-local OpenAI Chat proxy, maps its model roles to the current OpenCode model without copying authentication, preserves native session reuse, and classifies verified CodeBuddy purpose headers while redacting request identities.
+- Added an evidence-backed product note on the trace-to-dataset-to-evaluation loop worth borrowing from LangSmith, Langfuse, and CodeBuddy without changing peekMyAgent's local-first scope.
+
 ## [0.1.0-alpha.3] - 2026-07-30
 
 ### Fixed

@@ -34,6 +34,12 @@ const codexCompactHandoff = `Another language model started to solve this proble
 **Handoff Summary**
 - Preserve this payload in History.`;
 const reminder = "<system-reminder>Injected by the harness.</system-reminder>";
+const codeBuddyWrappedUser = {
+  role: "user",
+  content: `${reminder}\n\n<user_query>请检查这个 CodeBuddy 请求。</user_query>`,
+};
+assert.equal(realUserVisibleText(codeBuddyWrappedUser), "请检查这个 CodeBuddy 请求。", "CodeBuddy user_query is unwrapped after reminders");
+assert.equal(classifyCurrentEntry([codeBuddyWrappedUser]).kind, "user_input");
 const taskNotification = `<task-notification>
 <task-id>task-1</task-id>
 <status>completed</status>

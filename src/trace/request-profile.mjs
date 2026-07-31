@@ -39,6 +39,8 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
   }
   const codexOperation = classifyCodexRequestOperation(capture, body);
   if (codexOperation) return codexOperation;
+  const codeBuddyOperation = classifyCodeBuddyRequestOperation(capture);
+  if (codeBuddyOperation) return codeBuddyOperation;
   if (isContextTokenCountingRequest(capture)) {
     return createRequestAttribution({
       type: "metadata",
@@ -60,7 +62,7 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
   if (isFrameworkReminderMessage(lastUser)) {
     return createRequestAttribution({
       type: "metadata",
-      label: "Claude Code 框架提醒",
+      label: "Harness 框架提醒",
       operation: "framework_reminder",
       confidence: "high",
       evidence: [requestAttributionEvidence("message", "semantic_marker", "system_reminder")],
@@ -158,6 +160,78 @@ export function inferRequestSource({ capture = {}, body = {}, currentUser = null
     label: "主代理请求",
     confidence: "medium",
     evidence: [requestAttributionEvidence("fallback", "classification", "main_agent")],
+  });
+}
+
+export function classifyCodeBuddyRequestOperation(capture = {}) {
+  const agentProfile = String(capture?.agent_profile || capture?.agentProfile || "").trim();
+  if (!/^codebuddy(?:\s+code)?$/i.test(agentProfile)) return null;
+  const purpose = String(capture?.header_semantics?.codebuddy?.agent_purpose || "").trim().toLowerCase();
+  if (!purpose || purpose === "conversation") return null;
+  const evidence = [requestAttributionEvidence("request_header", "header_semantics.codebuddy.agent_purpose", purpose)];
+  if (/^(?:subagent|custom_agent)(?:$|[/:_-])/.test(purpose)) {
+    return createRequestAttribution({
+      type: "subagent",
+      label: "CodeBuddy 子 Agent 请求",
+      label_key: "codebuddySubagentRequest",
+      request_kind: purpose,
+      confidence: "high",
+      evidence,
+    });
+  }
+  if (purpose === "conversation_topic") {
+    return createRequestAttribution({
+      type: "metadata",
+      label: "CodeBuddy 会话标题请求",
+      label_key: "codebuddyTitleRequest",
+      operation: "session_title_generation",
+      request_kind: purpose,
+      turn_placement: "trigger_turn",
+      confidence: "high",
+      evidence,
+    });
+  }
+  if (purpose === "prompt_suggestion") {
+    return createRequestAttribution({
+      type: "metadata",
+      label: "CodeBuddy 输入建议请求",
+      label_key: "codebuddySuggestionRequest",
+      operation: "input_suggestion",
+      request_kind: purpose,
+      confidence: "high",
+      evidence,
+    });
+  }
+  if (/^(?:context_compact|context_summary_)/.test(purpose)) {
+    return createRequestAttribution({
+      type: "metadata",
+      label: "CodeBuddy 上下文压缩请求",
+      label_key: "codebuddyCompactionRequest",
+      operation: "context_compaction",
+      request_kind: purpose,
+      confidence: "high",
+      evidence,
+    });
+  }
+  const knownBackground = new Set([
+    "summary",
+    "webfetch",
+    "memory_selection",
+    "insights",
+    "prompt_hook",
+    "agent_instructions",
+    "memory_extraction",
+    "auto_mode_classifier",
+    "automation",
+  ]);
+  return createRequestAttribution({
+    type: knownBackground.has(purpose) ? "background" : "metadata",
+    label: knownBackground.has(purpose) ? "CodeBuddy 后台 Harness 请求" : "CodeBuddy Harness 请求",
+    label_key: knownBackground.has(purpose) ? "codebuddyBackgroundRequest" : "codebuddyHarnessRequest",
+    operation: `codebuddy_${safeOperationToken(purpose)}`,
+    request_kind: purpose,
+    confidence: "high",
+    evidence,
   });
 }
 

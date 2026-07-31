@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  classifyCodeBuddyRequestOperation,
   classifyCodexRequestOperation,
   classifyTransportOperation,
   codexSubagentIdentity,
@@ -335,6 +336,42 @@ const infer = (overrides = {}) => inferRequestSource({
   debugSource: null,
   ...overrides,
 });
+
+assert.equal(
+  classifyCodeBuddyRequestOperation({
+    agent_profile: "CodeBuddy Code",
+    header_semantics: { codebuddy: { agent_purpose: "conversation" } },
+  }),
+  null,
+  "the main CodeBuddy conversation remains a normal model turn",
+);
+assert.deepEqual(
+  classifyCodeBuddyRequestOperation({
+    agent_profile: "CodeBuddy Code",
+    header_semantics: { codebuddy: { agent_purpose: "subagent:explore" } },
+  }),
+  {
+    type: "subagent",
+    label: "CodeBuddy 子 Agent 请求",
+    label_key: "codebuddySubagentRequest",
+    actor: "subagent",
+    relation: "child_dialogue",
+    operation: "subagent_turn",
+    request_kind: "subagent:explore",
+    confidence: "high",
+    evidence: [{ origin: "request_header", field: "header_semantics.codebuddy.agent_purpose", value: "subagent:explore" }],
+  },
+);
+assert.equal(
+  infer({
+    capture: {
+      agent_profile: "CodeBuddy Code",
+      header_semantics: { codebuddy: { agent_purpose: "memory_extraction" } },
+    },
+  }).type,
+  "background",
+  "the exact CodeBuddy purpose header identifies independent background work",
+);
 
 assert.deepEqual(
   infer({ capture: { path: "/v1/responses/compact", headers: { "x-openai-subagent": "true" } } }),

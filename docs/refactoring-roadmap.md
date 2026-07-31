@@ -296,6 +296,8 @@ Codex Desktop 本地观察、CLI 精确代理、macOS 受管 Desktop 精确捕�
 
 通用 `pma observe` 协议桥已作为阶段 5 的最小接入面落地：任何支持 child-process base URL override 的 Harness 都可复用 OpenAI Responses/Chat 与 Anthropic Messages 的共享协议解析、Capture Proxy、持久化和 Viewer，而无需新增 renderer 分支。它刻意不声明权限、命令、压缩、resume 或子 Agent 私有语义；这些能力仍必须按 Evidence Pack 和 adapter 验收清单逐项证明。后续用第二个真实自研 Harness 验证重复边界后，再决定是否把 CLI 解析、capability descriptor 和 adapter 生命周期抽成稳定 SDK。
 
+CodeBuddy Code 已作为第二个真实 Harness 的候选 adapter 接入：2.130.0 的真实 CLI 假上游证明了 OpenAI Chat、原生 conversation identity、purpose 标签和进程级模型/endpoint 覆写；实现复用共享协议与 Viewer，只在 adapter 中保留 OpenCode 非敏感配置映射、独立认证边界和 continue/resume 生命周期。当前仍需 hosted CI 与 Windows/Linux 实机验证，不能据此把 adapter API 宣布为稳定 SDK。产品层可借鉴的评测闭环与优先级记录在 [Agent 可观测与调试产品借鉴点](agent-observability-product-notes.md)。
+
 ## 阶段 6：公开发布成熟度
 
 任务：
