@@ -119,6 +119,8 @@ Viewer-only JavaScript, CSS, copy, or documentation changes still use hosted CI,
 
 Validation effort follows the risk and accumulated blast radius. The detailed policy lives in [the tiered validation strategy](docs/validation-strategy.md).
 
+Before running tests, the contributor MUST state the selected validation level, the changed boundary, and the planned focused commands. Level 2 MUST NOT be used as a generic confidence ritual: run it only when a trigger below applies, and name that trigger in the progress or handoff report. When Level 1 evidence is green and no escalation trigger applies, stop testing and continue development.
+
 ### Level 0: documentation and non-runtime metadata
 
 Use Level 0 only when runtime code, package contents, workflows, schemas, and user-facing behavior are unchanged.
@@ -134,6 +136,7 @@ Examples include a pure helper extraction, a narrow Viewer renderer change, or a
 
 - Run syntax/type checks and the smallest deterministic contract or integration smokes that cover the changed path.
 - Viewer interaction changes SHOULD include the narrowest representative browser scenario.
+- Prefer one direct contract plus the nearest integration boundary; do not expand to unrelated subsystem or full-profile tests without an explicit escalation trigger.
 - Commit the change when focused evidence is green; do not defer focused tests until the batch ends.
 - After three consecutive Level 1 code commits since the last successful full host-platform profile, run Level 2 before starting a fourth code commit or pushing the batch.
 
