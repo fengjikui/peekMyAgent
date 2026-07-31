@@ -57,19 +57,43 @@ pma open
 
 ## 3. 通过 PMA 启动 Agent
 
+本指南为了稳定产生工具调用，使用各 Harness 提供的完全权限或最大自动批准模式。**这些命令可能直接修改文件、执行命令和访问已配置的网络服务，只能在你信任的非敏感测试目录中运行，最好再放进外部 sandbox 或一次性环境。**
+
 在测试目录中选择你正在使用的 Harness：
 
 ```bash
 cd <path-to-hello-agent>
 
-pma codex            # Codex CLI
-pma claude -c        # Claude Code
-pma opencode         # OpenCode
-pma codebuddy        # CodeBuddy Code
-pma openclaw chat    # OpenClaw
+pma codex --dangerously-bypass-approvals-and-sandbox  # Codex CLI
+pma claude --dangerously-skip-permissions             # Claude Code
+pma opencode --auto                                   # OpenCode：自动批准，但显式 deny 仍生效
+pma codebuddy --dangerously-skip-permissions          # CodeBuddy Code
 ```
 
 不要同时执行全部命令。选一个即可；本指南后续以 Codex CLI 为例。
+
+OpenCode 的 `--auto` 不会覆盖项目或组织策略中的显式 `deny`，所以不能把它表述成无条件全权限。如果确实要在受信任测试项目中全部允许，需要在该项目的 `opencode.json` 中显式设置：
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": "allow"
+}
+```
+
+OpenClaw 没有一个等价的单次启动 flag。它使用 PMA 隔离的 `peekmyagent` profile；先运行并退出一次 `pma openclaw chat` 初始化，再按[完整用户手册](user-guide.md#各-harness-的完全权限模式)设置完整工具 profile 和 host exec policy。
+
+### `-c` 与 `-C` 为什么不应该强行写整齐
+
+- Claude Code、OpenCode 和 CodeBuddy 的小写 `-c` / `--continue` 表示继续当前目录最近的会话；创建新的演示会话时不需要它。
+- Codex CLI 使用 `resume` 恢复会话；它的小写 `-c` 是配置覆盖，不是 continue。
+- 只有 Codex CLI 的大写 `-C <目录>` / `--cd <目录>` 表示把指定目录作为工作根目录。因为上面的示例已经先执行了 `cd <path-to-hello-agent>`，无需再重复添加 `-C`。
+
+例如，不先执行 `cd` 时可以写：
+
+```bash
+pma codex -C <path-to-hello-agent> --dangerously-bypass-approvals-and-sandbox
+```
 
 PMA 不是新的聊天客户端。你仍然在原 Agent 的终端界面里工作，只是该进程的模型请求会同时出现在 Viewer 中。
 

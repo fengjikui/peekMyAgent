@@ -33,7 +33,7 @@ peekMyAgent（PMA）是一个本地优先的 Agent 请求观察工作台。它�
 当前版本可以：
 
 - 在本地 Web Viewer 中按 Source、项目和会话浏览 Capture。
-- 通过 `pma codex`、`pma claude -c`、`pma opencode`、`pma codebuddy` 和 `pma openclaw chat` 启动受支持 Harness 并捕获请求。
+- 通过 `pma codex`、`pma claude`、`pma opencode`、`pma codebuddy` 和 `pma openclaw chat` 启动受支持 Harness 并捕获请求。
 - 通过 `pma observe ...` 观察读取 OpenAI-compatible 或 Anthropic-compatible base URL 环境变量的自研 Harness。
 - 按厂商原生顺序查看 OpenAI Responses / Chat、Anthropic Messages 和 Google GenerateContent 证据，并跳回 Raw JSON。
 - 关联工具调用与后续结果，使用 Turn / Request 两级导航浏览长 Trace，并查看子 Agent、翻译、上下文变化和大型载荷的按需内容。
@@ -151,13 +151,15 @@ rollout 不是完整网络请求，正文也不会复制进 PMA SQLite。精确�
 启动 Claude Code：
 
 ```bash
-pma claude -c
+pma claude
 ```
+
+小写 `-c` / `--continue` 是 Claude Code 的原生“继续当前目录最近会话”参数；新建会话时不需要。需要继续时使用 `pma claude -c`。
 
 如果你明确想让 Claude Code 跳过权限确认，可以把 Claude Code 自己的参数放在 `claude` 后面：
 
 ```bash
-pma claude -c --dangerously-skip-permissions
+pma claude --dangerously-skip-permissions
 ```
 
 这个参数属于 Claude Code，不属于 peekMyAgent。它会绕过 Claude Code 的常规权限检查，只建议在你信任的仓库里使用。
@@ -283,7 +285,7 @@ pma codex --dangerously-bypass-approvals-and-sandbox
 Claude Code 单次绕过权限检查：
 
 ```bash
-pma claude -c --dangerously-skip-permissions
+pma claude --dangerously-skip-permissions
 ```
 
 CodeBuddy Code 单次绕过权限检查：
@@ -316,6 +318,8 @@ pma openclaw chat
 ```
 
 组织托管配置、显式 `deny` 和 per-agent policy 仍可能限制 OpenCode 或 OpenClaw。Codex Desktop 的权限需要在 Desktop 界面中选择，Codex CLI 的绕过参数不会影响 Desktop。
+
+不要为了让示例看起来整齐而给每个 Harness 添加 `-C`。大写 `-C <目录>` / `--cd <目录>` 是 Codex CLI 独有的工作根目录参数；Claude Code、OpenCode 和 CodeBuddy 的小写 `-c` / `--continue` 则是继续最近会话。Codex 的小写 `-c` 是配置覆盖，恢复对话要使用 `resume`。
 
 这些模式可能让 Agent 无需再次确认就修改文件、执行命令、调用已配置工具或访问网络。只应在受信任项目中使用，最好同时放在外部 sandbox 或一次性环境里。
 

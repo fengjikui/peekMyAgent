@@ -147,7 +147,7 @@ Start Claude Code through peekMyAgent:
 
 ```bash
 cd <your-project>
-pma claude -c
+pma claude
 ```
 
 Then use Claude Code normally. Captured requests will appear in the dashboard.
@@ -157,7 +157,7 @@ Claude Code capture uses `auto` mode by default: peekMyAgent uses proxy capture 
 If you intentionally want to run Claude Code with permission prompts disabled, put Claude Code's flag after `claude`:
 
 ```bash
-pma claude -c --dangerously-skip-permissions
+pma claude --dangerously-skip-permissions
 ```
 
 Use this only in repositories you trust. The flag belongs to Claude Code, not peekMyAgent, and it bypasses Claude Code's normal permission checks.
@@ -207,6 +207,8 @@ pma codex --dangerously-bypass-approvals-and-sandbox
 ```
 
 The last command bypasses approvals and sandboxing; use it only in a trusted isolated environment. In Codex CLI, `-c` means config override, not continue.
+
+Codex CLI's uppercase `-C <dir>` / `--cd <dir>` selects its working root. It is unrelated to permissions or conversation resume. Claude Code, OpenCode, and CodeBuddy instead use lowercase `-c` / `--continue` for their most recent conversation; omit it when starting a fresh session.
 
 To keep the native Codex Desktop interaction surface and inspect the exact wire request on a supported macOS build, run this command from an **external Terminal**:
 
@@ -293,7 +295,7 @@ pma codex --dangerously-bypass-approvals-and-sandbox
 Claude Code can bypass its permission checks for one captured process:
 
 ```bash
-pma claude -c --dangerously-skip-permissions
+pma claude --dangerously-skip-permissions
 ```
 
 CodeBuddy Code can bypass its permission checks for one captured process:

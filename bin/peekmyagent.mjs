@@ -63,7 +63,7 @@ const MIN_NODE_VERSION = ">=24.0.0";
 const FULL_PERMISSION_HELP = `Full-permission modes (dangerous):
   pma codex --dangerously-bypass-approvals-and-sandbox
                                    Codex CLI: skip approvals and run without its sandbox.
-  pma claude -c --dangerously-skip-permissions
+  pma claude --dangerously-skip-permissions
                                    Claude Code: bypass all permission checks.
   pma opencode --auto
                                    OpenCode: auto-approve asks; explicit deny rules still apply.
@@ -123,7 +123,8 @@ Usage:
 
 ${FULL_PERMISSION_HELP}
 Notes:
-  - The shortest daily path is to prefix the original Agent command: "pma claude -c", "pma opencode", "pma codebuddy", or "pma openclaw chat".
+  - The shortest daily path is to prefix the original Agent command: "pma claude", "pma opencode", "pma codebuddy", or "pma openclaw chat".
+  - For Claude, OpenCode, and CodeBuddy, -c/--continue resumes the most recent conversation; omit it for a fresh session. Codex uses "resume" for conversations. Codex -C/--cd selects a working root and is unrelated to continue or permissions.
   - Claude Code capture defaults to auto: proxy capture when a configurable upstream base URL exists, otherwise OTel raw-body capture for subscription/OAuth sessions. Use --capture proxy|otel, --proxy, or --otel to force a mode.
   - Codex capture defaults to exact selected-thread routing. "pma codex desktop" keeps the native Desktop UI, routes only the first new thread in the current workspace through Capture Proxy, and asks before a graceful restart when Desktop is already running. Use --capture rollout for no-restart semantic observation.
   - openclaw-capture expects one proxy capture record with method/path/headers/body.
@@ -147,6 +148,7 @@ Usage:
   pma --version
   pma open
   pma codex
+  pma claude
   pma claude -c
   pma claude -r <session-id>
   pma opencode
@@ -168,7 +170,8 @@ Common:
   pma codex desktop --select       Choose a Desktop session for read-only observation.
   pma codex desktop --select --capture exact
                                    Restart once and exactly capture the selected thread on cold resume.
-  pma claude -c                    Start Claude Code and capture this session.
+  pma claude                       Start a fresh Claude Code session and capture it.
+  pma claude -c                    Continue Claude Code's most recent conversation and capture it.
   pma opencode                     Start OpenCode with exact process-local proxy capture.
   pma opencode --continue          Continue OpenCode while capturing only this process.
   pma codebuddy                    Start CodeBuddy Code with the current OpenCode model and exact proxy capture.
@@ -190,7 +193,8 @@ Maintenance:
   pma uninstall --remove-data      Uninstall pma/peekmyagent and peekMyAgent-owned local data.
 
 Notes:
-  - Daily use is usually: "pma open", then "pma claude -c" in your project.
+  - Daily use is usually: "pma open", then start a fresh Agent with "pma claude", "pma opencode", or "pma codebuddy" in your project.
+  - For Claude, OpenCode, and CodeBuddy, -c/--continue resumes the most recent conversation; omit it for a fresh session. Codex uses "resume" for conversations. Codex -C/--cd selects a working root and is unrelated to continue or permissions.
   - The full command name "peekmyagent" still works exactly like "pma".
   - Advanced/debug commands are hidden from this quick help. Run "pma help --all" to show them.
 `;

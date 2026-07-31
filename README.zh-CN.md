@@ -33,8 +33,10 @@ pma open
 
 ```bash
 cd <your-test-project>
-pma codex
+pma codex --dangerously-bypass-approvals-and-sandbox
 ```
+
+这里使用完全权限，是为了让公开测试目录中的工具调用不中途等待审批。它会关闭 Codex CLI 的审批与 sandbox，只能用于你信任的测试目录，最好外面还有一层容器或一次性环境。其他 Harness 的对应命令及 `-c` / `-C` 区别见[五分钟快速上手](docs/quick-start.zh-CN.md#3-通过-pma-启动-agent)。
 
 向 Agent 发送一个容易理解、又能产生工具闭环的请求：
 
@@ -57,13 +59,24 @@ pma codex
 | Harness | 最短启动命令 | 观察方式 |
 | --- | --- | --- |
 | Codex CLI | `pma codex` | 当前进程专属的精确代理捕获 |
-| Claude Code | `pma claude -c` | 可配置上游时精确代理；官方订阅 / OAuth 场景可回退到 OTel raw-body |
+| Claude Code | `pma claude` | 可配置上游时精确代理；官方订阅 / OAuth 场景可回退到 OTel raw-body |
 | OpenCode | `pma opencode` | 当前 CLI / TUI 进程专属的精确代理捕获 |
 | CodeBuddy Code | `pma codebuddy` | 当前已验证版本的 OpenAI Chat 请求捕获 |
 | OpenClaw | `pma openclaw chat` | 隔离 profile 或前缀式启动捕获 |
 | 自研 Harness | `pma observe ...` | 进程级覆写 OpenAI / Anthropic compatible base URL |
 
 Codex Desktop 还支持 `pma codex desktop` 的托管精确捕获，以及只读的 rollout 观察回退。不同 Harness 的配置边界和已验证版本见[完整用户手册](docs/user-guide.md)。
+
+需要在受信任测试目录中录制不被审批打断的工具轨迹时，使用对应 Harness 自己的权限参数：
+
+```bash
+pma codex --dangerously-bypass-approvals-and-sandbox
+pma claude --dangerously-skip-permissions
+pma opencode --auto  # 显式 deny 仍然生效
+pma codebuddy --dangerously-skip-permissions
+```
+
+这些不是 PMA 的提权开关。OpenCode 真正的全部允许和 OpenClaw 隔离 profile 设置，以及小写 `-c` 与 Codex 大写 `-C` 的区别，见[快速上手的启动说明](docs/quick-start.zh-CN.md#3-通过-pma-启动-agent)。
 
 ## 接入自研 Harness
 
