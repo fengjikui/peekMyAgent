@@ -15,6 +15,15 @@ import {
   openCodeForksSession,
   resolveOpenCodeContinuationSession,
 } from "../src/adapters/opencode-config.mjs";
+import {
+  buildCodeBuddyProxyEnv,
+  codeBuddyContinuesSession,
+  codeBuddyConversationFromArgs,
+  codeBuddyForksSession,
+  inspectCodeBuddyConfiguration,
+  inspectCodeBuddyInstallation,
+  replaceCodeBuddyContinueWithResume,
+} from "../src/adapters/codebuddy-config.mjs";
 import { normalizeClaudeOtelRequestFile } from "../src/adapters/claude-otel.mjs";
 import { CodexDesktopDiscovery } from "../src/adapters/codex-desktop-discovery.mjs";
 import {
@@ -59,6 +68,8 @@ const FULL_PERMISSION_HELP = `Full-permission modes (dangerous):
   pma opencode --auto
                                    OpenCode: auto-approve asks; explicit deny rules still apply.
                                    For all-allow, set {"permission":"allow"} in a trusted project's opencode.json.
+  pma codebuddy --dangerously-skip-permissions
+                                   CodeBuddy Code: bypass all permission checks.
   openclaw --profile peekmyagent config set tools.profile full
   openclaw --profile peekmyagent exec-policy preset yolo
   pma openclaw chat
@@ -78,6 +89,7 @@ function usage(exitCode = 0) {
 Usage:
   pma [--reuse|--ask] [--open] claude [claude args...]
   pma [--reuse|--ask] [--open] opencode [opencode args...]
+  pma [--reuse|--ask] [--open] codebuddy [codebuddy args...]
   pma [--reuse] [--open] openclaw [openclaw args...]
   pma normalize openclaw-capture <capture.json> [--out <file>]
   pma normalize claude-otel <request.json> [--out <file>] [--delete-raw-after-import]
@@ -101,20 +113,24 @@ Usage:
   pma dev view [--demo openclaw-subagent|openclaw-multiturn|claude-subagent|claude-proxy-resume] [--evidence <dir>] [--port <port>] [--open]
   pma run claude [--watch ask|reuse|new] [peekMyAgent options] -- [claude args...]
   pma run opencode [--watch ask|reuse|new] [peekMyAgent options] -- [opencode args...]
+  pma run codebuddy [--watch ask|reuse|new] [--target-base-url <url>] [--model <id>] [peekMyAgent options] -- [codebuddy args...]
   pma run openclaw [--watch reuse|new] [peekMyAgent options] -- [openclaw args...]
+  pma observe --name <label> --base-url-env <env> [--target-base-url <url>] [--conversation-id <id>] [--viewer-url <url>] [--open-viewer] [--mode <mode>] -- <command> [args...]
   pma watch-current [--agent claude-code|openclaw] [--mode next_request|single_session|privacy_guard] [--viewer-url <url>] [--json] [--open] [--pause] [--resume] [--stop] [--clear] [--session-key <key>] [--patch-openclaw] [--openclaw-profile <name>] [--provider <id>] [--model <id>] [--target-base-url <url>] [--refresh-profile]
   pma install-claude-skill [--scope user|project] [--commands] [--dest <claude-dir>] [--json]
   pma install-openclaw-skill [--agent <id>] [--global] [--force] [--json]
 
 ${FULL_PERMISSION_HELP}
 Notes:
-  - The shortest daily path is to prefix the original Agent command: "pma claude -c", "pma opencode", or "pma openclaw chat".
+  - The shortest daily path is to prefix the original Agent command: "pma claude -c", "pma opencode", "pma codebuddy", or "pma openclaw chat".
   - Claude Code capture defaults to auto: proxy capture when a configurable upstream base URL exists, otherwise OTel raw-body capture for subscription/OAuth sessions. Use --capture proxy|otel, --proxy, or --otel to force a mode.
   - Codex capture defaults to exact selected-thread routing. "pma codex desktop" keeps the native Desktop UI, routes only the first new thread in the current workspace through Capture Proxy, and asks before a graceful restart when Desktop is already running. Use --capture rollout for no-restart semantic observation.
   - openclaw-capture expects one proxy capture record with method/path/headers/body.
   - claude-otel expects one Claude Code OTel .request.json file.
   - output is normalized JSON and does not print raw secrets beyond adapter redaction.
-  - run is the advanced compatibility path. Starting an Agent through peekMyAgent is the user's explicit consent to capture that process. For Claude or OpenCode continue/resume, peekMyAgent asks where to write capture by default when a matching watch exists; use --reuse to reuse automatically or choose option 2 to start a separate recording. OpenCode --fork always starts a new recording.
+  - run is the advanced compatibility path. Starting an Agent through peekMyAgent is the user's explicit consent to capture that process. For Claude, OpenCode, or CodeBuddy continue/resume, peekMyAgent asks where to write capture by default when a matching watch exists; use --reuse to reuse automatically or choose option 2 to start a separate recording. OpenCode --fork and CodeBuddy --fork-session always start a new recording.
+  - codebuddy defaults to the current OpenCode model/provider/base URL, but never reads or copies OpenCode authentication. Export CODEBUDDY_API_KEY separately. The child-only CodeBuddy model overrides keep main, lite, reasoning, and subagent traffic on the selected endpoint.
+  - observe wraps any command that already reads an OpenAI- or Anthropic-compatible base URL from an environment variable. It changes only that child process, never prints child arguments, never changes API-key variables, and auto-detects the wire protocol. Harness-specific permissions, compaction, commands, and subagent semantics remain unknown until an adapter supplies evidence.
   - daemon starts the stable local API/dashboard plus fixed capture proxy. open opens that shared dashboard and starts the daemon if needed. shutdown stops it, and restart reloads it on the fixed ports.
   - doctor explains current paths, daemon status, installed helpers, and common cross-platform configuration issues. clear --all-sessions removes captured session storage after stopping the daemon. uninstall removes the CLI, peekMyAgent helpers, and optionally local data, but does not modify Agent provider configs unless a future restore adapter explicitly owns them.
   - compact stops the daemon, removes duplicated raw request bodies that can be rebuilt from content blocks, and VACUUMs the SQLite store unless --no-vacuum is set.
@@ -132,7 +148,9 @@ Usage:
   pma claude -c
   pma claude -r <session-id>
   pma opencode
+  pma codebuddy
   pma openclaw chat
+  pma observe --name my-agent --base-url-env OPENAI_BASE_URL -- my-agent
   pma doctor
 
 Common:
@@ -151,7 +169,11 @@ Common:
   pma claude -c                    Start Claude Code and capture this session.
   pma opencode                     Start OpenCode with exact process-local proxy capture.
   pma opencode --continue          Continue OpenCode while capturing only this process.
+  pma codebuddy                    Start CodeBuddy Code with the current OpenCode model and exact proxy capture.
+  pma codebuddy --continue         Continue the latest PMA-observed CodeBuddy session.
   pma openclaw chat                Start OpenClaw and capture this session.
+  pma observe --name my-agent --base-url-env OPENAI_BASE_URL -- my-agent
+                                   Capture an OpenAI/Anthropic-compatible custom Harness without changing its config.
   pma doctor                       Check install, paths, daemon, and integrations.
   pma install-claude-skill --commands
                                    Install /peekmyagent slash commands for Claude Code.
@@ -324,12 +346,13 @@ function parseAgentShortcut(values) {
 }
 
 function isAgentName(value) {
-  return /^(claude|claude-code|opencode|openclaw)$/i.test(value || "");
+  return /^(claude|claude-code|opencode|codebuddy|codebuddy-code|cbc|openclaw)$/i.test(value || "");
 }
 
 function normalizeShortcutAgent(value) {
   if (/^claude(?:-code)?$/i.test(value)) return "claude";
   if (/^opencode$/i.test(value)) return "opencode";
+  if (/^(?:codebuddy(?:-code)?|cbc)$/i.test(value)) return "codebuddy";
   return "openclaw";
 }
 
@@ -354,6 +377,9 @@ try {
     process.exitCode = result.exit_code;
   } else if (command === "run") {
     const result = await runAgent();
+    process.exitCode = result.exit_code;
+  } else if (command === "observe") {
+    const result = await runObservedHarness();
     process.exitCode = result.exit_code;
   } else if (command === "daemon") {
     await startForegroundDaemon();
@@ -1166,6 +1192,7 @@ async function runAgent() {
     console.log(`Usage:
   peekmyagent run claude [--watch ask|reuse|new] [--viewer-url <url>] [--open-viewer] [--mode <mode>] -- [claude args...]
   peekmyagent run opencode [--watch ask|reuse|new] [--viewer-url <url>] [--open-viewer] [--mode <mode>] [--provider <id>] [--target-base-url <url>] -- [opencode args...]
+  peekmyagent run codebuddy [--watch ask|reuse|new] [--viewer-url <url>] [--open-viewer] [--mode <mode>] [--provider <id>] [--model <id>] [--target-base-url <url>] -- [codebuddy args...]
   peekmyagent run openclaw [--watch reuse|new] [--viewer-url <url>] [--open-viewer] [--mode <mode>] [--session-key <key>] [--openclaw-profile <name>] [--provider <id>] -- [openclaw args...]`);
     return { exit_code: 0 };
   }
@@ -1177,8 +1204,51 @@ async function runAgent() {
 
   if (/^claude(?:-code)?$/i.test(parsed.agent)) return runClaudeAgent(parsed, viewer.url);
   if (/^opencode$/i.test(parsed.agent)) return runOpenCodeAgent(parsed, viewer.url);
+  if (/^(?:codebuddy(?:-code)?|cbc)$/i.test(parsed.agent)) return runCodeBuddyAgent(parsed, viewer.url);
   if (/^openclaw$/i.test(parsed.agent)) return runOpenClawAgent(parsed, viewer.url);
   throw new Error(`Unsupported agent for run: ${parsed.agent}`);
+}
+
+async function runObservedHarness() {
+  if (!rest.length || ["--help", "-h"].includes(rest[0])) {
+    console.log(`Usage:
+  pma observe --name <label> --base-url-env <env> [--target-base-url <url>] [--conversation-id <id>] [--viewer-url <url>] [--open-viewer] [--mode <mode>] -- <command> [args...]
+
+Examples:
+  pma observe --name my-agent --base-url-env OPENAI_BASE_URL -- my-agent run
+  pma observe --name my-agent --base-url-env ANTHROPIC_BASE_URL --conversation-id debug-1 -- python agent.py
+
+The named base URL is read before launch, then overridden only for the child process. API keys and other environment variables are preserved. Child arguments are never echoed by PMA.`);
+    return { exit_code: 0 };
+  }
+
+  const parsed = parseObserveArgs(rest);
+  const targetBaseUrl = observedHarnessTargetBaseUrl(parsed);
+  const viewer = await ensureViewerForRun(parsed);
+  const workspace = safeProcessCwd();
+  const watch = await postJson(`${trimSlash(viewer.url)}/api/watch/start`, {
+    agent: parsed.name,
+    mode: parsed.mode,
+    workspace,
+    conversation_id: parsed.conversationId,
+    started_by: "peekmyagent-observe",
+    reuse: false,
+    target_base_url: targetBaseUrl,
+    kind: "protocol_proxy_exact",
+    confidence: "exact",
+    note: "Exact HTTP capture through a child-process-only base URL override. The wire protocol is auto-detected; Harness-specific semantics require separate evidence.",
+  }, { headers: { "x-peekmyagent-intent": "watch-start" } });
+  const dashboardUrl = `${trimSlash(viewer.url)}?source=${encodeURIComponent(watch.id)}`;
+  if (hasFlagIn(parsed.wrapperArgs, "--open-viewer")) launchBrowserUrl(dashboardUrl);
+  printObserveStarted({ dashboardUrl, watch, command: parsed.command, baseUrlEnv: parsed.baseUrlEnv });
+  return runChildWithWatchCleanup({
+    command: parsed.command,
+    args: parsed.childArgs,
+    env: { ...process.env, [parsed.baseUrlEnv]: watch.base_url },
+    viewerUrl: viewer.url,
+    watch,
+    openclawProfile: null,
+  });
 }
 
 async function runClaudeAgent(parsed, viewerUrl) {
@@ -1398,6 +1468,63 @@ async function runOpenCodeAgent(parsed, viewerUrl) {
   });
 }
 
+async function runCodeBuddyAgent(parsed, viewerUrl) {
+  const workspace = safeProcessCwd();
+  const installation = inspectCodeBuddyInstallation({ env: process.env });
+  if (!installation.installed) {
+    throw new Error("CodeBuddy Code is not installed or not runnable. Install it with: npm install -g @tencent-ai/codebuddy-code");
+  }
+  const configuration = inspectCodeBuddyConfiguration({
+    args: parsed.childArgs,
+    cwd: workspace,
+    env: process.env,
+    targetBaseUrl: optionValueIn(parsed.wrapperArgs, "--target-base-url"),
+    providerId: optionValueIn(parsed.wrapperArgs, "--provider"),
+    model: optionValueIn(parsed.wrapperArgs, "--model"),
+  });
+  const fork = codeBuddyForksSession(parsed.childArgs);
+  const requestedConversationId = fork ? null : codeBuddyConversationFromArgs(parsed.childArgs);
+  const runContext = await resolveCodeBuddyRunContext({
+    parsed,
+    viewerUrl,
+    workspace,
+    conversationId: requestedConversationId,
+    fork,
+  });
+  const watch = await postJson(`${trimSlash(viewerUrl)}/api/watch/start`, {
+    agent: "CodeBuddy Code",
+    mode: optionValueIn(parsed.wrapperArgs, "--mode") || "single_session",
+    workspace,
+    conversation_id: runContext.conversationId,
+    started_by: "peekmyagent-run",
+    reuse: Boolean(runContext.reuseWatchId),
+    reuse_watch_id: runContext.reuseWatchId,
+    target_base_url: configuration.target_base_url,
+    provider_id: configuration.provider_id,
+    config_patched: false,
+    kind: "codebuddy_proxy_exact",
+    confidence: "exact",
+    note: "CodeBuddy Code 子进程通过进程级 CODEBUDDY_BASE_URL 连接本地 Capture Proxy；用户配置文件与认证文件未修改。",
+  }, { headers: { "x-peekmyagent-intent": "watch-start" } });
+  const env = buildCodeBuddyProxyEnv({
+    env: process.env,
+    proxyBaseUrl: watch.base_url,
+    model: configuration.model,
+    cwd: workspace,
+  });
+  console.error("peekMyAgent capture: CodeBuddy exact OpenAI Chat proxy (process-local model route; user config and credentials unchanged)");
+  console.error(`peekMyAgent model: ${configuration.model} (${configuration.configuration_source === "opencode" ? "from OpenCode configuration" : "explicit"})`);
+  printPrivateRunStarted({ viewerUrl, watch, command: "codebuddy" });
+  return runChildWithWatchCleanup({
+    command: "codebuddy",
+    args: runContext.childArgs,
+    env,
+    viewerUrl,
+    watch,
+    openclawProfile: null,
+  });
+}
+
 function normalizeOpenClawChildArgs(childArgs) {
   const args = childArgs.length ? [...childArgs] : ["chat"];
   const command = args[0];
@@ -1417,6 +1544,75 @@ function parseRunArgs(values) {
   if (hasFlagIn(wrapperArgs, "--new")) throw new Error("The --new wrapper flag was removed. Use --watch new on the advanced run command.");
   const childArgs = separatorIndex === -1 ? stripRunWrapperArgs(runArgs) : runArgs.slice(separatorIndex + 1);
   return { agent, wrapperArgs, childArgs };
+}
+
+function parseObserveArgs(values) {
+  const separatorIndex = values.indexOf("--");
+  if (separatorIndex === -1) throw new Error('pma observe requires "--" before the child command.');
+  const wrapperArgs = values.slice(0, separatorIndex);
+  const child = values.slice(separatorIndex + 1);
+  if (!child.length) throw new Error("pma observe requires a child command after --.");
+
+  const valueOptions = new Set(["--name", "--base-url-env", "--target-base-url", "--conversation-id", "--viewer-url", "--mode"]);
+  const flagOptions = new Set(["--open-viewer"]);
+  for (let index = 0; index < wrapperArgs.length; index += 1) {
+    const value = wrapperArgs[index];
+    if (flagOptions.has(value)) continue;
+    const assignmentOption = [...valueOptions].find((option) => isOptionAssignment(value, option));
+    if (assignmentOption) {
+      optionValueIn([value], assignmentOption);
+      continue;
+    }
+    if (valueOptions.has(value)) {
+      if (!wrapperArgs[index + 1] || isFlagLike(wrapperArgs[index + 1])) throw new Error(`${value} requires a value.`);
+      index += 1;
+      continue;
+    }
+    throw new Error(`Unknown pma observe option before --: ${value}`);
+  }
+
+  const name = normalizeObservedHarnessName(optionValueIn(wrapperArgs, "--name"));
+  const baseUrlEnv = normalizeObservedHarnessEnvironmentName(optionValueIn(wrapperArgs, "--base-url-env"));
+  return {
+    wrapperArgs,
+    name,
+    baseUrlEnv,
+    targetBaseUrl: optionValueIn(wrapperArgs, "--target-base-url"),
+    conversationId: optionValueIn(wrapperArgs, "--conversation-id"),
+    mode: optionValueIn(wrapperArgs, "--mode") || "single_session",
+    command: child[0],
+    childArgs: child.slice(1),
+  };
+}
+
+function normalizeObservedHarnessName(value) {
+  const name = String(value || "").trim();
+  if (!name) throw new Error("pma observe requires --name <label>.");
+  if (name.length > 80 || /[\u0000-\u001f\u007f]/.test(name)) throw new Error("pma observe --name must be 1-80 printable characters.");
+  return name;
+}
+
+function normalizeObservedHarnessEnvironmentName(value) {
+  const name = String(value || "");
+  if (!name) throw new Error("pma observe requires --base-url-env <env>.");
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new Error(`Invalid base URL environment variable name: ${name}`);
+  return name;
+}
+
+function observedHarnessTargetBaseUrl(parsed) {
+  const value = parsed.targetBaseUrl || process.env[parsed.baseUrlEnv];
+  if (!value) throw new Error(`Missing upstream base URL. Set ${parsed.baseUrlEnv} or pass --target-base-url.`);
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`Invalid upstream base URL in ${parsed.targetBaseUrl ? "--target-base-url" : parsed.baseUrlEnv}.`);
+  }
+  if (!["http:", "https:"].includes(url.protocol)) throw new Error(`Unsupported upstream base URL protocol: ${url.protocol}`);
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("The upstream base URL must not contain credentials, query parameters, or a fragment.");
+  }
+  return url.toString().replace(/\/$/, "");
 }
 
 function stripRunWrapperArgs(values) {
@@ -1483,6 +1679,53 @@ async function resolveOpenCodeRunWatchChoice({ parsed, viewerUrl, workspace, con
     return null;
   }
   return (await askRunWatchReuse({ agent: "OpenCode", conversationId, candidate: best })) ? watchCandidateId(best) : null;
+}
+
+async function resolveCodeBuddyRunContext({ parsed, viewerUrl, workspace, conversationId, fork }) {
+  const originalChildArgs = [...parsed.childArgs];
+  const explicitPolicy = optionValueIn(parsed.wrapperArgs, "--watch");
+  if (fork) {
+    if (explicitPolicy === "reuse" || explicitPolicy === "ask") {
+      console.error("peekMyAgent: CodeBuddy --fork-session 会创建新 session，因此本次始终新建监听。");
+    }
+    return { reuseWatchId: null, conversationId: null, childArgs: originalChildArgs };
+  }
+
+  const continuation = codeBuddyContinuesSession(originalChildArgs);
+  const watchPolicy = explicitPolicy ? normalizeWatchPolicy(explicitPolicy, { allowAsk: true }) : continuation ? "ask" : "new";
+  if (watchPolicy === "new") {
+    return { reuseWatchId: null, conversationId, childArgs: originalChildArgs };
+  }
+
+  const candidates = await findRunWatchCandidates({
+    agent: "CodeBuddy Code",
+    parsed,
+    viewerUrl,
+    workspace,
+    conversationId,
+  });
+  const best = candidates[0] || null;
+  if (!best) {
+    if (watchPolicy === "reuse") console.error("peekMyAgent: 没有找到可复用的 CodeBuddy 监听，本次将新建监听。");
+    return { reuseWatchId: null, conversationId, childArgs: originalChildArgs };
+  }
+
+  let reuse = watchPolicy === "reuse";
+  if (watchPolicy === "ask") {
+    if (!isInteractiveStdio()) {
+      console.error("peekMyAgent: 检测到 CodeBuddy continue/resume，但当前不是交互式终端；本次将新建监听。可用 --watch reuse 显式复用。");
+      return { reuseWatchId: null, conversationId, childArgs: originalChildArgs };
+    }
+    reuse = await askRunWatchReuse({ agent: "CodeBuddy Code", conversationId, candidate: best });
+  }
+  if (!reuse) return { reuseWatchId: null, conversationId, childArgs: originalChildArgs };
+
+  const resolvedConversationId = conversationId || best.conversation_id || null;
+  return {
+    reuseWatchId: watchCandidateId(best),
+    conversationId: resolvedConversationId,
+    childArgs: replaceCodeBuddyContinueWithResume(originalChildArgs, resolvedConversationId),
+  };
 }
 
 function watchCandidateId(candidate) {
@@ -2579,6 +2822,18 @@ function printRunStarted({ viewerUrl, watch, command, args }) {
   console.error(`peekMyAgent dashboard: ${trimSlash(viewerUrl)}?source=${encodeURIComponent(watch.id)}`);
   console.error(`peekMyAgent watch: ${watch.watch_id} (${watch.reused ? "reused" : "new"})`);
   console.error(`running: ${[command, ...args].join(" ")}`);
+}
+
+function printPrivateRunStarted({ viewerUrl, watch, command }) {
+  console.error(`peekMyAgent dashboard: ${trimSlash(viewerUrl)}?source=${encodeURIComponent(watch.id)}`);
+  console.error(`peekMyAgent watch: ${watch.watch_id} (${watch.reused ? "reused" : "new"})`);
+  console.error(`running: ${command} (arguments omitted)`);
+}
+
+function printObserveStarted({ dashboardUrl, watch, command, baseUrlEnv }) {
+  console.error(`peekMyAgent dashboard: ${dashboardUrl}`);
+  console.error(`peekMyAgent watch: ${watch.watch_id} (new)`);
+  console.error(`observing: ${path.basename(command)} (arguments omitted; child-only ${baseUrlEnv} override)`);
 }
 
 function runChild(command, args, env) {

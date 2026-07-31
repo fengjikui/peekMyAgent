@@ -122,6 +122,24 @@ node scripts/install.mjs --dry-run
 node bin/peekmyagent.mjs --help
 ```
 
+## 调试你自己的 Harness
+
+如果自研 Harness 已经从环境变量读取 OpenAI-compatible 或 Anthropic-compatible 的 base URL，不需要先开发专用 adapter，也可以直接接入 PMA：
+
+```bash
+# OPENAI_BASE_URL 保存真实上游地址，通常以 /v1 结尾。
+pma observe --name my-agent --base-url-env OPENAI_BASE_URL -- my-agent run
+
+# Anthropic-compatible 示例。
+pma observe --name my-agent --base-url-env ANTHROPIC_BASE_URL -- python agent.py
+```
+
+`pma observe` 会在启动前读取真实上游，创建一条新的精确捕获 watch，然后只在被包装的子进程中覆写指定环境变量。API key 环境变量、认证 header、stdin/stdout、信号和子进程退出码都保持不变。原始 base URL 的路径前缀也会保留，例如 OpenAI 的 `/v1` 加上子进程请求的 `/responses`，仍会转发到真实上游的 `/v1/responses`。PMA 会打印可直接打开的 Trace 链接，但不会回显任何子进程参数。
+
+可以用 `--conversation-id <id>` 写入一个不敏感的稳定测试标识；如果指定环境变量原本为空，也可以显式传入 `--target-base-url <url>`。带用户名/密码、query 或 fragment 的上游 URL 会被拒绝。
+
+通用桥会自动识别并整理 OpenAI Responses/Chat 和 Anthropic Messages 的协议字段，但不会猜测自研 Harness 的权限策略、命令、压缩或父子 Agent 关系；这些私有机制需要有真实 fixture 证据的专用 adapter。如果 Harness 不支持进程级 base URL 覆写，请按[新 Harness 适配工作手册](docs/new-harness-adaptation-playbook.md)继续接入。
+
 ## 快速开始：Claude Code
 
 先打开 dashboard：
@@ -220,6 +238,28 @@ pma opencode --model <provider/model>
 PMA 只覆盖当前子进程的 `baseURL`，不改配置、不读 `auth.json`、不捕获其他会话，并要求显式 `baseURL`。
 
 使用 `-c/--continue` 或 `-s/--session` 时，PMA 会通过 OpenCode 的公开 session 身份定位已有记录，并询问是否继续写入。直接回车默认复用，选择 2 会创建独立记录；也可用 `pma --reuse opencode -c` 跳过询问。`--fork` 会产生新的 OpenCode session，因此始终创建新记录。
+
+## 快速开始：CodeBuddy Code
+
+先安装 CodeBuddy，并在当前 shell 中提供上游凭据。PMA 不读取或复制 OpenCode 的认证：
+
+```bash
+npm install -g @tencent-ai/codebuddy-code
+export CODEBUDDY_API_KEY='<你的 provider key>'
+cd <your-project>
+pma codebuddy
+```
+
+默认情况下，PMA 会把 CodeBuddy 的主模型、轻量模型、推理模型和子 Agent 模型映射到当前 OpenCode 的 model 与 OpenAI-compatible endpoint。代理和模型环境变量只影响当前 CodeBuddy 子进程，不修改用户配置文件。
+
+```bash
+pma codebuddy --continue
+pma --reuse codebuddy --continue
+pma codebuddy --resume <session-id>
+pma codebuddy --dangerously-skip-permissions
+```
+
+当前适配由 CodeBuddy 2.130.0 和 OpenAI Chat Completions 验证。精确边界见 [CodeBuddy 适配计划与证据](docs/codebuddy-code-adaptation-plan.md)。
 
 ## 快速开始：OpenClaw
 
@@ -321,4 +361,6 @@ npm run release:check
 - [手动集成 smoke 矩阵](docs/manual-integration-smoke-matrix.md)
 - [Claude Code 当前会话控制](docs/claude-code-current-session-control.md)
 - [OpenCode CLI 适配计划与证据](docs/opencode-cli-adaptation-plan.md)
+- [CodeBuddy Code 适配计划与证据](docs/codebuddy-code-adaptation-plan.md)
+- [Agent 可观测与调试产品借鉴点](docs/agent-observability-product-notes.md)
 - [OpenClaw profile watch](docs/openclaw-profile-watch.md)

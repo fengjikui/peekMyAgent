@@ -39,7 +39,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 
 | 路径 | 职责 |
 | --- | --- |
-| `bin/peekmyagent.mjs` | CLI 命令路由、daemon 生命周期、Claude/OpenClaw wrapper、doctor、维护和卸载编排 |
+| `bin/peekmyagent.mjs` | CLI 命令路由、daemon 生命周期、Claude/OpenCode/CodeBuddy/OpenClaw wrapper、doctor、维护和卸载编排 |
 | `src/core/capture-proxy.mjs` | HTTP 转发、请求/响应截获、Content-Encoding 捕获副本解码、wire/decoded 大小和请求边界 |
 | `src/core/upstream-http-transport.mjs` | loopback/HTTPS 上游转发、代理环境与原始字节请求边界 |
 | `src/core/otel-capture.mjs` | 扫描 Claude Code OTel raw-body dump、关联 request/response 并生成 capture |
@@ -88,6 +88,7 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 | `src/adapters/codex-desktop-discovery.mjs`、`codex-rollout-normalizer.mjs` | Codex 会话元数据发现、显式单会话选择和 rollout 语义归一化 |
 | `src/adapters/codex-desktop-installation.mjs`、`codex-desktop-managed-session.mjs`、`codex-app-server-relay.mjs` | Codex Desktop 版本/能力检测、受管 App Server、双 capability loopback relay、优雅重启与恢复边界 |
 | `src/adapters/codex-exact-proxy.mjs` | Codex first-party 路由白名单、zstd 安全解码副本和精确捕获适配 |
+| `src/adapters/opencode-config.mjs`、`codebuddy-config.mjs`、`codebuddy-model-config-hook.cjs` | OpenCode effective provider/runtime override；CodeBuddy 子进程模型映射，以及不接触凭据的 `models.json` 内存 URL 覆写 |
 | `src/adapters/openclaw-config.mjs`、`openclaw-normalize.mjs` | OpenClaw profile 配置和协议归一化 |
 | `src/adapters/trae-cn-integration.mjs` | Trae CN 配置发现、启停、漂移检查和稳定路由 |
 | `src/viewer/server.mjs` | Viewer daemon composition root、shared proxy/Store/Service/Router 装配与公开 DTO presenter |
@@ -154,9 +155,17 @@ Viewer 的 Source 列表已经通过 `SourceRepository` 汇聚 live、SQLite、f
 
 ## Harness 权限模式边界
 
-PMA 不定义一套跨 Harness 的虚拟权限，也不会因为开始捕获而提升自身或 Agent 的权限。`pma codex`、`pma claude` 和 `pma opencode` 将原生 Harness 参数交给对应子进程；完全权限、自动审批和显式 deny 的最终语义仍由该 Harness 的当前版本决定。OpenClaw 的完整工具 profile 与 host exec policy 写入 PMA 明确命名的 `peekmyagent` 隔离 profile，不改写默认 profile。Codex Desktop 的权限由 Desktop UI 管理，CLI 的 bypass 参数不会跨到 Desktop。
+PMA 不定义一套跨 Harness 的虚拟权限，也不会因为开始捕获而提升自身或 Agent 的权限。`pma codex`、`pma claude`、`pma opencode` 和 `pma codebuddy` 将原生 Harness 参数交给对应子进程；完全权限、自动审批和显式 deny 的最终语义仍由该 Harness 的当前版本决定。OpenClaw 的完整工具 profile 与 host exec policy 写入 PMA 明确命名的 `peekmyagent` 隔离 profile，不改写默认 profile。Codex Desktop 的权限由 Desktop UI 管理，CLI 的 bypass 参数不会跨到 Desktop。
 
 快速和高级 CLI help 都必须同时给出各 Harness 的原生命令、不能被 bypass 覆盖的策略边界，以及仅在受信任外部隔离环境中使用的风险提示。该 help 由 `scripts/cli-smoke.mjs` 固定为发布契约。
+
+## 通用 Harness 协议桥
+
+`pma observe --name <label> --base-url-env <env> -- <command...>` 是不依赖 Harness 身份的精确协议入口。CLI 在启动前读取指定环境变量或显式 `--target-base-url`，调用 `WatchRuntimeService` 新建 `kind=protocol_proxy_exact` 的独立 watch，再只在 child env 中把该变量替换为 watch proxy URL。其他环境变量、认证 header、stdio、信号和退出码沿用共享 wrapper；正常退出、非零退出和 spawn error 都通过 `runChildWithWatchCleanup()` 停止 watch 并保留 Trace。该入口不写用户配置、不复用历史 watch，也不打印 child argv。
+
+目标 URL 必须是无 userinfo、query 和 fragment 的 HTTP(S) URL。Capture Proxy 的 path-prefix 保留逻辑负责把 OpenAI 常见的 `/v1` target 与 child 发出的 `/responses` 组合为 `/v1/responses`；认证 header 照常转发，但持久化副本继续脱敏。Viewer、Trace Domain 和 response normalizer 只根据 wire path/body 识别 OpenAI Responses/Chat 或 Anthropic Messages，不根据 `--name` 改写协议事实。
+
+通用桥只证明“这个子进程的模型 HTTP 交换被精确捕获”，不证明 Harness 的权限、命令、Skill、压缩、会话恢复或子 Agent 语义。只有真实 fixture 提供稳定证据时，这些信息才通过 `src/adapters/` 与共享 Trace contract 扩展。`scripts/observe-wrapper-smoke.mjs` 使用 loopback 假上游同时锁定两种优先协议、child-only env、认证透传/持久化脱敏、响应投影、隐私输出和失败清理。
 
 ## Claude Code 捕获路径
 
@@ -206,6 +215,16 @@ OpenCode 发送累计 message history，但 leading system 可能因 Skill 搜�
 OpenCode 的自定义 command 在 wire 上可能只表现为普通 user message。`pma opencode ... --command <name>` 因而会在子进程 provider 配置中增加一次性的 `x-peek-opencode-command` 本地证据头；Capture Proxy 保存该证据，并在转发上游前剥离所有 `x-peek-*` header。Harness 整理与翻译据此把 command 展开后的 prompt 额外投影为命令注入，但原 message 继续保留在 History/Message。普通用户文本即使以 `/` 开头也不会触发该分类；没有原生命令参数、生命周期事件或已验证精确模板时仍保持普通 Message/unknown。
 
 真实场景已经验证 `read`、`skill` 和 `task` tool loop 可以直接复用共享 tool/response/subagent 语义；OpenCode 专用逻辑不进入 Viewer renderer。TUI `/compact` 对应的 server summarize 会发出独立模型请求，随后持久化 compaction boundary 与 `summary: true` assistant message；当前版本的精确 anchored-summary 模板额外投影到 Harness，原 message 仍留在 History/Message。`opencode run --command compact` 只是 generic command，不等价于 summarize。其他 provider driver、任意 TUI slash 和复杂多 child lifecycle 未经验证时保持 Raw/unknown，不从 OpenAI-compatible 单一实例外推。
+
+## CodeBuddy Code 捕获路径
+
+`pma codebuddy [CodeBuddy args...]` 创建 `codebuddy_proxy_exact` watch。默认读取 OpenCode effective config 中非敏感的 model/provider/base URL，并只在当前 CodeBuddy 子进程中设置 `CODEBUDDY_BASE_URL` 以及 main/lite/reasoning/subagent 四个模型环境变量。用户既可以使用环境认证，也可以把 provider URL 与凭据放在 CodeBuddy 原生用户级或项目级 `models.json` 中。
+
+CodeBuddy 2.130.0 对自定义 model 的完整 `url` 赋予高于 `CODEBUDDY_BASE_URL` 的优先级。为避免请求绕过 Capture Proxy，adapter 通过当前 CodeBuddy Node 子进程的静态 preload hook 拦截精确的两个 `models.json` 读取路径，只在返回的内存 JSON 中改写选中 model 的 URL；原文件、`apiKey`、其他模型字段和其他进程均不改变。PMA 不把文件凭据导出到父进程或持久化，不读取 OpenCode 认证文件，也不把密钥从一个 Harness 搬运到另一个 Harness。`CODEBUDDY_AUTH_TOKEN`、`apiKeyHelper`、文件 `apiKey` 与 `CODEBUDDY_API_KEY` 的优先级仍由 CodeBuddy 决定。
+
+CodeBuddy 2.130.0 的真实安装包与隔离假上游证明该路径使用 streaming OpenAI Chat Completions，并以 `x-conversation-id` 传递原生 session identity。该 identity 只在 effective Agent 明确为 CodeBuddy 时参与 watch 归属，原 header 在持久化前脱敏。`x-codebuddy-request` 打开受限的安全语义提取：经过枚举/token 白名单的 `x-agent-purpose`、intent 和 IDE 信息可用于主对话、子 Agent、标题、建议、压缩及后台请求分类；request/conversation/message id 只保留存在性或脱敏占位符。
+
+CodeBuddy 把当前用户内容包在顶层 `<user_query>` 中，并可能附加通用 `<system-reminder>`。共享 message semantics 只在精确匹配这两个已验证边界时剥离包装，原始 request 仍完整保留在 Raw。协议、response normalizer、Protocol Exchange、Metadata、工具循环和子 Agent 图继续走共享层，不增加 CodeBuddy 专用 renderer。未知 purpose 和其他 provider driver 保持 Harness/unknown；详细证据与限制见 [CodeBuddy Code 适配计划](codebuddy-code-adaptation-plan.md)。
 
 ## Codex 捕获路径
 
@@ -388,7 +407,7 @@ Viewer 会从 capture 中派生：
 
 翻译对象被提取为语义块，规范化后以 `kind + "\0" + source_text` 作为 lookup key，并计算 SHA-256。Server、浏览器 Client、离线提取脚本和翻译 worker 共用 `src/translation/blocks.mjs`；Node 路径共用 `hash.mjs`，浏览器对同一 key 使用 Web Crypto，因此已有缓存 key 保持兼容。并发翻译返回通过共享 parser 解析 `@@PEEK_TRANSLATION <hash>` marker，与原块重新对齐，不依赖响应顺序。
 
-系统支持 Markdown 感知的长块拆分、部分成功和块级重译。翻译既可显式使用兼容 API，也可按捕获来源选择该 Harness 自己的本地 CLI：Claude Code 使用无会话持久化的 `claude -p`，Codex 使用 ephemeral/read-only 的 `codex exec`，OpenCode 使用无工具、禁分享的临时 `opencode run` 并在响应后删除 session。已知 Harness 不会因环境中恰好存在另一套凭据而静默切换到别的 Agent。Viewer 的整条 Source、单 Request 和显式材料刷新由 `ViewerTranslationAdapter` 统一转成 Translation Material；Harness 提取复用共享 message semantics，单 Request 刷新只调用详情读取端口。浏览器继续负责当前可见结构的展示与搜索，但不重新定义 block identity。维护契约见[翻译块协议](translation-block-contract.md)和[Viewer Translation Adapter 契约](viewer-translation-adapter-contract.md)。
+系统支持 Markdown 感知的长块拆分、部分成功和块级重译。翻译既可显式使用兼容 API，也可按捕获来源选择该 Harness 自己的本地 CLI：Claude Code 使用无会话持久化的 `claude -p`，Codex 使用 ephemeral/read-only 的 `codex exec`，OpenCode 使用无工具、禁分享的临时 `opencode run` 并在响应后删除 session；CodeBuddy 复用捕获请求的 model 引用，由临时 `codebuddy --print` 回到原用户级 `models.json` provider 条目，PMA 不读取其中的认证。已知 Harness 不会因环境中恰好存在另一套凭据而静默切换到别的 Agent。Viewer 的整条 Source、单 Request 和显式材料刷新由 `ViewerTranslationAdapter` 统一转成 Translation Material；Harness 提取复用共享 message semantics，单 Request 刷新只调用详情读取端口。浏览器继续负责当前可见结构的展示与搜索，但不重新定义 block identity。维护契约见[翻译块协议](translation-block-contract.md)和[Viewer Translation Adapter 契约](viewer-translation-adapter-contract.md)。
 
 浏览器缓存以 `sourceId + targetLanguage` 为上下文，通过有序 Agent 候选查找首个可用 cache。每次 Source/语言变化都会使旧 cache load、lookup rebuild、生成 operation 和自动刷新 timer 失效；同一上下文重复加载也只有最后一次操作可以提交。compact request 无论在缓存网络等待还是 lookup hash 计算期间被详情补载，都会把当前 lookup 标为 dirty，并在提交前使用最新 request 集合重建。缓存缺失的自动刷新按 `source + agent + language` 去重，`invalidate()` 同时清除 timer 与 attempt，实际生成仍由应用层执行。完整边界见[Viewer 翻译缓存上下文契约](translation-cache-controller-contract.md)。
 

@@ -5,6 +5,21 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 
 ## [Unreleased]
 
+## [0.1.0-alpha.4] - 2026-07-31
+
+### Added
+
+- `pma observe` adds a process-local OpenAI/Anthropic capture bridge for custom Harnesses.
+- `pma codebuddy` adds exact capture and native session reuse for CodeBuddy Code 2.130.0.
+
+### Fixed
+
+- CodeBuddy keeps provider credentials in `models.json`; translation reuses the captured model instead of Viewer credentials.
+
+### Changed
+
+- Validation now declares risk and focused scope before escalating to a full host profile.
+
 ## [0.1.0-alpha.3] - 2026-07-30
 
 ### Fixed
@@ -18,6 +33,7 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 - `pma codex` now opens Codex Desktop for the current project, exposes a waiting Source immediately, and binds that stable Source to the next new workspace thread without copying rollout history into peekMyAgent SQLite.
 - Codex XML-like Harness blocks now use a conservative tag registry for runtime, capability, policy, lifecycle, internal, and subagent presentation, with multilingual block translation through the shared cache pipeline.
 - `pma opencode` now starts one OpenCode CLI/TUI process behind an exact, reversible proxy overlay, preserves native session attribution, and reuses the shared Trace, tool-loop, subagent, command-injection, compaction, and same-Harness translation pipeline.
+- `pma observe` now gives custom Harness authors a child-process-only OpenAI/Anthropic base-URL bridge with exact request/response capture, protocol auto-detection, redacted authentication evidence, direct Trace links, and deterministic cleanup without a Harness-specific adapter.
 
 ### Changed
 
@@ -50,7 +66,8 @@ All notable changes to peekMyAgent are documented in this file. The project foll
 - Node.js 24 or newer is required.
 - Claude Code and OpenClaw are the primary integrated Agents. Provider-specific model and reasoning options may still affect Agent behavior independently of capture fidelity.
 
-[Unreleased]: https://github.com/fengjikui/peekMyAgent/compare/v0.1.0-alpha.3...HEAD
+[Unreleased]: https://github.com/fengjikui/peekMyAgent/compare/v0.1.0-alpha.4...HEAD
+[0.1.0-alpha.4]: https://github.com/fengjikui/peekMyAgent/compare/v0.1.0-alpha.3...v0.1.0-alpha.4
 [0.1.0-alpha.3]: https://github.com/fengjikui/peekMyAgent/compare/v0.1.0-alpha.2...v0.1.0-alpha.3
 [0.1.0-alpha.2]: https://github.com/fengjikui/peekMyAgent/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/fengjikui/peekMyAgent/releases/tag/v0.1.0-alpha.1

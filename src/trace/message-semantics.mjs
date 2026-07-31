@@ -257,7 +257,7 @@ export function displayMessageText(message) {
   if (codexHarnessBlocks.length) {
     return codexHarnessBlocks.map((block) => `${block.defaultLabel}\n${block.text}`).join("\n\n");
   }
-  if (isFrameworkReminderMessage(message)) return "Claude Code 框架自动补充提醒";
+  if (isFrameworkReminderMessage(message)) return "Harness 框架自动补充提醒";
   if (isTaskNotificationMessage(message)) {
     const { taskId, preview, subagent } = taskNotificationSummary(message);
     if (subagent) return taskId ? `子 Agent 结果回流 · ${taskId}\n${subagent.preview || preview}` : `子 Agent 结果回流\n${subagent.preview || preview}`;
@@ -448,12 +448,14 @@ function stripFrameworkReminderBlocks(text) {
 }
 
 function stripDisplayWrapperTags(text) {
-  return String(text || "")
+  const stripped = String(text || "")
     .replace(/<\/?session>/gi, "")
     .replace(/<\/?user_input>/gi, "")
     .replace(commandMessageRegex(), "$1")
     .replace(commandNameRegex(), "$1")
     .trim();
+  const codeBuddyUserQuery = stripped.match(/^<user_query\b[^>]*>([\s\S]*?)<\/user_query>$/i);
+  return (codeBuddyUserQuery?.[1] || stripped).trim();
 }
 
 export function stripCodexHarnessBlocks(text) {

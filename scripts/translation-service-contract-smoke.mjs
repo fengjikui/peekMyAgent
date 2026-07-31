@@ -32,7 +32,7 @@ const service = new TranslationService({
   materialProvider: {
     fromInput(input) {
       assert.equal(input.targetLanguage, "ja-JP");
-      return { materials, sourceCount: 1 };
+      return { materials, sourceCount: 1, sourceModel: "mimo-v2.5-pro" };
     },
     fromSource(input) {
       return { materials: materials.map((item) => ({ ...item, target_language: input.targetLanguage })), sourceCount: 1 };
@@ -82,6 +82,7 @@ try {
   assert.equal(calls.length, 1, "manual materials skip the offline extraction script");
   assert.equal(calls[0].script, "scripts/translate-materials-zh.mjs");
   assert.equal(option(calls[0].args, "--concurrency"), String(MAX_TRANSLATION_CONCURRENCY));
+  assert.equal(option(calls[0].args, "--source-model"), "mimo-v2.5-pro");
   assert.equal(option(calls[0].args, "--force-hashes"), materialHash);
   assert.equal(generated.cache.available, true);
   assert.equal(generated.cache.entry_count, 1);

@@ -272,6 +272,31 @@ cleanup
 
 ## 5. 实现顺序
 
+### 协议桥快速入口
+
+如果 Harness 已经支持通过环境变量覆写 OpenAI-compatible 或 Anthropic-compatible base URL，先用下面的最小入口验证共享协议能力：
+
+```bash
+pma observe --name <harness-name> --base-url-env OPENAI_BASE_URL -- <harness-command...>
+```
+
+该入口只覆写 child env、创建独立 exact watch、保留退出码并在退出后停止 watch；`--name` 不参与协议推断。它适合验证 System、Tools、Messages、Response、usage 和生成参数是否已经由共享协议层覆盖。它不代表 Harness 已完成适配，也不证明权限、命令、Skill、压缩、resume 或 subagent 生命周期；这些能力仍要继续执行阶段 A-F 的证据与 adapter 工作。
+
+### 现有 Harness 的 provider/认证来源边界
+
+“凭据是否放在环境变量”不能作为跨 Harness 的统一假设。adapter 只改模型路由，认证继续由原 Harness 拥有：
+
+| Harness | 文件型 provider/认证处理 | 当前边界 |
+| --- | --- | --- |
+| Claude Code | 读取用户/项目 `.claude/settings*.json` 中的 `env`，合并到 child 后只覆盖 `ANTHROPIC_BASE_URL` | `ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_API_KEY`、model 等文件配置保留；contract smoke 已覆盖 |
+| OpenCode | `debug config --pure` 只用于取得 effective model/provider/base URL；`OPENCODE_CONFIG_CONTENT` 只深合并当前 provider 的 `baseURL` | `auth.json`、文件 provider 的 key/header/driver 继续由 OpenCode 读取，PMA 不读取认证文件 |
+| CodeBuddy | 用户/项目 `models.json` 的完整 URL 会压过 `CODEBUDDY_BASE_URL`；2.130.0 adapter 通过 child-only preload 只改选中 model 的内存 URL | 文件 `apiKey`、环境引用、`apiKeyHelper` 和 auth token 仍由 CodeBuddy 解析；源文件不修改 |
+| OpenClaw | 从默认配置初始化 PMA 明确命名的隔离 profile，只 patch 该 profile 当前 provider 的 `baseUrl` | provider `apiKey` 和其他字段留在隔离 profile；默认 profile 不修改，退出恢复 base URL |
+| Codex CLI/Desktop | 当前精确路径只支持经验证的 first-party Codex 路由，并沿用原生登录态/认证存储 | 不把订阅认证当 API key，不承诺任意自定义 provider；这是安全边界，不是待猜测的通用映射 |
+| `pma observe` | 除指定 base URL env 外完整保留 child env；Harness 若继续从文件取 key，则通常可直接工作 | 只证明协议交换；若 Harness 的文件型完整 endpoint 优先于该 env，必须做专用 adapter，不能静默声称已捕获 |
+
+新增 Harness 时必须分别证明“路由 override 的优先级”和“认证来源是否仍由原 Harness读取”。如果文件型完整 endpoint 会绕过环境 override，应使用官方 runtime override 或精确、进程级、可逆的配置读取边界；不得复制密钥到临时配置，也不得只因模型调用成功就宣布 Capture 成功。
+
 ### 阶段 A：只读发现
 
 1. 发现可执行文件和版本；

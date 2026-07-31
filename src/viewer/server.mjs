@@ -875,6 +875,7 @@ function captureLabel(source) {
   const captureKind = source.capture_kind || source.kind;
   if (captureKind === "codex_proxy_exact") return "Codex exact Responses capture";
   if (captureKind === "opencode_proxy_exact") return "OpenCode exact Chat Completions capture";
+  if (captureKind === "codebuddy_proxy_exact") return "CodeBuddy exact Chat Completions capture";
   if (source.confidence === "exact" && captureKind === "proxy_capture") return "exact proxy capture";
   if (source.kind === "otel_raw_body") return "otel raw body";
   if (source.kind === "official_debug") return "official debug timeline";

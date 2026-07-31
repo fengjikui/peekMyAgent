@@ -84,7 +84,7 @@ try {
     assert.ok(view.requests[1].summary.composition.ratios.current_user_to_input > 0);
     assert.ok(view.requests[1].summary.composition.sections.agent_internal.ratio > 0);
     assert.equal(view.requests[2].source_hint.type, "metadata");
-    assert.equal(view.requests[2].source_hint.label, "Claude Code 框架提醒");
+    assert.equal(view.requests[2].source_hint.label, "Harness 框架提醒");
     assert.equal(view.requests[2].summary.current_user, realUser.content);
     assert.equal(view.requests[2].summary.history_stack[2].role, "user");
     assert.equal(view.requests[2].summary.history_stack[2].kind, "framework_reminder");

@@ -5,6 +5,9 @@ const SENSITIVE_IDENTITY_HEADERS = new Set([
   "openai-project",
   "thread-id",
   "x-client-request-id",
+  "x-conversation-id",
+  "x-conversation-message-id",
+  "x-conversation-request-id",
   "x-codex-installation-id",
   "x-codex-parent-thread-id",
   "x-codex-thread-id",
@@ -12,6 +15,8 @@ const SENSITIVE_IDENTITY_HEADERS = new Set([
   "x-codex-turn-state",
   "x-codex-window-id",
   "x-openai-subagent",
+  "x-request-id",
+  "x-user-id",
 ]);
 const SECRET_TEXT =
   /(sk-[A-Za-z0-9_-]{12,}|sk-ant-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9_]{12,}|Bearer\s+[A-Za-z0-9._-]{12,})/g;
@@ -44,6 +49,21 @@ export function extractSafeHeaderSemantics(headers = {}) {
   if (Object.keys(safeCodexTurnMetadata).length) semantics.codex_turn_metadata = safeCodexTurnMetadata;
   if (hasMeaningfulHeader(normalized["x-codex-parent-thread-id"])) semantics.codex_parent_thread = true;
   if (truthyMarker(normalized["x-openai-subagent"])) semantics.codex_subagent = true;
+  if (truthyMarker(normalized["x-codebuddy-request"])) {
+    const codebuddy = {};
+    const purpose = safeHeaderEnum(normalized["x-agent-purpose"]);
+    const intent = safeHeaderEnum(normalized["x-agent-intent"]);
+    const ideType = safeHeaderEnum(normalized["x-ide-type"]);
+    const ideName = safeHeaderEnum(normalized["x-ide-name"]);
+    const ideVersion = safeHeaderToken(normalized["x-ide-version"]);
+    if (purpose) codebuddy.agent_purpose = purpose;
+    if (intent) codebuddy.agent_intent = intent;
+    if (ideType) codebuddy.ide_type = ideType;
+    if (ideName) codebuddy.ide_name = ideName;
+    if (ideVersion) codebuddy.ide_version = ideVersion;
+    if (hasMeaningfulHeader(normalized["x-conversation-request-id"])) codebuddy.conversation_request_id_present = true;
+    if (Object.keys(codebuddy).length) semantics.codebuddy = codebuddy;
+  }
   return Object.keys(semantics).length ? semantics : undefined;
 }
 
@@ -66,6 +86,11 @@ function parseJsonObject(value) {
 function safeHeaderEnum(value) {
   const text = String(value || "").trim().toLowerCase();
   return /^[a-z][a-z0-9_-]{0,63}$/.test(text) ? text : null;
+}
+
+function safeHeaderToken(value) {
+  const text = String(value || "").trim();
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(text) ? text : null;
 }
 
 function hasMeaningfulHeader(value) {

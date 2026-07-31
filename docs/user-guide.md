@@ -157,6 +157,69 @@ pma --ask claude -r <session-id>
 - 如果明确选择了复用，但目标监听已不存在，命令会报错而不是静默新建一条监听。
 - 非交互环境：默认新建监听，避免脚本卡住；需要复用时使用 `--reuse`。
 
+### 通过协议桥接入自研 Harness
+
+如果你的 Harness 已经通过某个环境变量读取 OpenAI-compatible 或 Anthropic-compatible 的 base URL，可以使用通用协议桥，不必先在 PMA 中新增 Agent 名称分支：
+
+```bash
+pma observe \
+  --name my-agent \
+  --base-url-env OPENAI_BASE_URL \
+  --conversation-id my-agent-debug-1 \
+  -- my-agent run
+```
+
+Anthropic-compatible 的写法相同，只需换成 Harness 实际读取的变量：
+
+```bash
+pma observe --name my-agent --base-url-env ANTHROPIC_BASE_URL -- python agent.py
+```
+
+运行契约：
+
+- `--` 是强制边界；前面只能放 PMA 的 observe 选项，后面是完整原始子命令。
+- `--name` 只是 Source 展示名，不参与协议判断。
+- PMA 在启动前读取指定变量作为真实上游，再只对该子进程写入 watch proxy URL；父进程和用户配置不变。
+- `--target-base-url` 可以显式提供真实上游，但仍必须用 `--base-url-env` 指明要给子进程覆写哪个变量。
+- 原上游的 path prefix 会保留；OpenAI 常见的 `/v1` 不会在代理时丢失。
+- API key、其他环境变量、stdin/stdout、SIGINT/SIGTERM 和退出码保持原样；PMA 自己的启动信息不打印子进程参数。
+- 子进程正常或异常退出后，watch 都会停止，但 Trace 保留在本地。
+- 只保证通用 OpenAI Responses/Chat 与 Anthropic Messages 的上行/下行解析；权限、命令、Skill、压缩和子 Agent 等 Harness 私有机制在没有证据时保持 unknown。
+
+安全边界：上游必须是 `http` 或 `https`，且 URL 中不能嵌入用户名/密码、query 或 fragment。Capture Proxy 继续只绑定 loopback，认证 header 在持久化前使用现有规则脱敏。请勿把 key 放在子进程参数中；即使 PMA 不打印参数，其他进程工具仍可能观察 argv。
+
+如果 Harness 不支持进程级 base URL 覆写，或者需要解释它的私有运行机制，请继续使用[新 Harness 适配工作手册](new-harness-adaptation-playbook.md)建立证据包和专用 adapter。
+
+### CodeBuddy Code：复用当前 OpenCode 模型
+
+安装 CodeBuddy 后，先在用户级 `~/.codebuddy/models.json` 中配置模型与认证，或在 shell 中提供同一上游的凭据：
+
+```bash
+npm install -g @tencent-ai/codebuddy-code
+export CODEBUDDY_API_KEY='<你的 provider key>'
+cd <your-project>
+pma codebuddy
+```
+
+PMA 读取 OpenCode effective config 中的 model、provider 和 base URL，但不读取 `auth.json` 或复制任何认证。CodeBuddy 的 main、lite、reasoning 和 subagent model 只在该子进程内统一映射到当前 OpenCode model。当前验证范围是 CodeBuddy 2.130.0 的 OpenAI Chat Completions 路径。
+
+Viewer 翻译会复用捕获请求里的 model，并让一次无工具、无持久化的 CodeBuddy 临时任务回到同一个用户级 `models.json` 条目；PMA 不会根据 Viewer 进程中的其他 provider 环境变量重新猜测，也不会读取或复制文件 API key。
+
+```bash
+pma codebuddy --continue
+pma --reuse codebuddy --continue
+pma codebuddy --resume <session-id>
+pma codebuddy --fork-session
+```
+
+`--continue` 找到既有 PMA Source 并选择复用时，会转换成精确的原生 `--resume <session-id>`，避免恢复历史后错误创建新监控会话。`--fork-session` 始终创建新 Source。自定义已验证 endpoint 使用高级形式：
+
+```bash
+pma run codebuddy --target-base-url https://example.invalid/v1 --model example-model -- --print 'hello'
+```
+
+不要把 key 放在命令参数中。完整协议证据和限制见 [CodeBuddy Code 适配计划](codebuddy-code-adaptation-plan.md)。
+
 ### 各 Harness 的完全权限模式
 
 下面的权限开关属于各 Harness 本身。peekMyAgent 只负责透传参数，或者使用明确命名的 OpenClaw 隔离 profile，不会给自身提升权限。
@@ -171,6 +234,12 @@ Claude Code 单次绕过权限检查：
 
 ```bash
 pma claude -c --dangerously-skip-permissions
+```
+
+CodeBuddy Code 单次绕过权限检查：
+
+```bash
+pma codebuddy --dangerously-skip-permissions
 ```
 
 OpenCode 自动批准原本会询问的权限：

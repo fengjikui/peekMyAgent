@@ -117,6 +117,24 @@ node bin/peekmyagent.mjs --help
 
 All examples below use `pma`. The full `peekmyagent` command remains available and behaves the same.
 
+## Observe Your Own Harness
+
+If a custom Harness already reads an OpenAI- or Anthropic-compatible base URL from an environment variable, PMA can capture it without a Harness-specific adapter:
+
+```bash
+# OPENAI_BASE_URL should contain the real upstream URL, commonly ending in /v1.
+pma observe --name my-agent --base-url-env OPENAI_BASE_URL -- my-agent run
+
+# Anthropic-compatible example.
+pma observe --name my-agent --base-url-env ANTHROPIC_BASE_URL -- python agent.py
+```
+
+`pma observe` reads the original URL before launch, creates a fresh exact-capture watch, and overrides only the named variable in the child process. API-key variables, authentication headers, stdin/stdout, signals, and the child exit code are preserved. The original base path is retained, so an OpenAI `/v1` URL still forwards `/responses` to `/v1/responses`. PMA prints a direct Trace link but omits all child arguments from its own startup output.
+
+Use `--conversation-id <id>` to attach a stable non-secret test identity, or `--target-base-url <url>` when the named environment variable is intentionally unset. Upstream URLs containing credentials, query parameters, or fragments are rejected.
+
+This generic bridge auto-detects and organizes OpenAI Responses/Chat and Anthropic Messages fields. It does not infer private Harness behavior such as permission policy, commands, compaction, or parent/child Agent relationships; those require a fixture-backed adapter. If the Harness cannot override its base URL per process, follow the [new Harness adaptation playbook](docs/new-harness-adaptation-playbook.md) instead.
+
 ## Quick Start With Claude Code
 
 Open the dashboard:
@@ -241,6 +259,27 @@ PMA only overrides the wrapped process's `baseURL`; it does not change config, r
 
 For `-c/--continue` and `-s/--session`, PMA resolves OpenCode's public session identity and offers to append to the matching existing recording. Press Enter to reuse it, choose option 2 for a separate recording, or use `pma --reuse opencode -c` to skip the prompt. `--fork` always starts a new recording because OpenCode creates a new session identity.
 
+## Quick Start With CodeBuddy Code
+
+Install CodeBuddy and provide its upstream credential in the shell. PMA deliberately does not read or copy OpenCode authentication:
+
+```bash
+npm install -g @tencent-ai/codebuddy-code
+export CODEBUDDY_API_KEY='<your-provider-key>'
+cd <your-project>
+pma codebuddy
+```
+
+By default PMA maps CodeBuddy's main, lite, reasoning, and subagent model slots to the current OpenCode model and OpenAI-compatible endpoint. Only the wrapped CodeBuddy process receives the proxy and model environment overrides; user configuration files remain unchanged.
+
+```bash
+pma codebuddy --continue
+pma --reuse codebuddy --continue
+pma codebuddy --resume <session-id>
+```
+
+The current adapter is verified against CodeBuddy 2.130.0 and OpenAI Chat Completions. See the [CodeBuddy adaptation evidence](docs/codebuddy-code-adaptation-plan.md) for exact scope and limitations.
+
 ## Full-Permission Modes
 
 These switches and settings belong to the underlying harness. PMA passes them through or uses the named isolated OpenClaw profile; it does not grant itself additional permissions.
@@ -255,6 +294,12 @@ Claude Code can bypass its permission checks for one captured process:
 
 ```bash
 pma claude -c --dangerously-skip-permissions
+```
+
+CodeBuddy Code can bypass its permission checks for one captured process:
+
+```bash
+pma codebuddy --dangerously-skip-permissions
 ```
 
 OpenCode can auto-approve requests that would otherwise ask:
@@ -603,4 +648,6 @@ node --check src/viewer/client.js
 - [Manual integration smoke matrix](docs/manual-integration-smoke-matrix.md)
 - [Claude Code current-session control](docs/claude-code-current-session-control.md)
 - [OpenCode CLI adaptation plan and evidence](docs/opencode-cli-adaptation-plan.md)
+- [CodeBuddy Code adaptation plan and evidence](docs/codebuddy-code-adaptation-plan.md)
+- [Agent observability product learnings](docs/agent-observability-product-notes.md)
 - [OpenClaw profile watch](docs/openclaw-profile-watch.md)

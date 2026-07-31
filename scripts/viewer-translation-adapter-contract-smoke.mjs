@@ -47,6 +47,7 @@ const requests = [
     watch_id: "watch-a",
     raw: {
       body: {
+        model: "mimo-v2.5-pro",
         tools: [
           {
             name: "Read",
@@ -107,6 +108,7 @@ assert.equal(sourceMaterials.sourceCount, 1);
 assert.deepEqual(sourceMaterials.materials.map((item) => item.kind), ["tool_description", "tool_parameter_description"]);
 assert.ok(sourceMaterials.materials.every((item) => item.target_language === "ja-JP"));
 assert.ok(sourceMaterials.materials.every((item) => item.occurrences[0].source_id === source.id));
+assert.equal(sourceMaterials.sourceModel, "mimo-v2.5-pro");
 
 calls.length = 0;
 const requestMaterials = adapter.collectFromSource({
@@ -122,17 +124,19 @@ assert.deepEqual(
   [...new Set(requestMaterials.materials.map((item) => item.kind))].sort(),
   ["harness_command", "harness_compact", "harness_reminder", "harness_suggestion"],
 );
+assert.equal(requestMaterials.sourceModel, "mimo-v2.5-pro");
 
 const inputMaterials = adapter.collectFromInput({
   materials: [{ kind: "thinking", source_text: "Reason about the task." }],
-  sourceId: "source-manual",
-  requestId: "request-manual",
+  sourceId: source.id,
+  requestId: "request-tools",
   targetLanguage: "fr",
 });
 assert.equal(inputMaterials.sourceCount, 1);
 assert.equal(inputMaterials.materials[0].kind, "thinking");
 assert.equal(inputMaterials.materials[0].target_language, "fr");
-assert.equal(inputMaterials.materials[0].occurrences[0].request_id, "request-manual");
+assert.equal(inputMaterials.materials[0].occurrences[0].request_id, "request-tools");
+assert.equal(inputMaterials.sourceModel, "mimo-v2.5-pro");
 
 assert.throws(
   () => createViewerTranslationAdapter({ loadViewerData() {}, loadRequestDetail: null }),

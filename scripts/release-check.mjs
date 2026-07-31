@@ -70,6 +70,9 @@ const coreCommands = [
   ["npm", "run", "smoke:run-claude"],
   ["npm", "run", "smoke:daemon-claude"],
   ["npm", "run", "smoke:run-openclaw"],
+  ["npm", "run", "smoke:observe"],
+  ["npm", "run", "smoke:codebuddy-config"],
+  ["npm", "run", "smoke:run-codebuddy"],
   ["npm", "run", "smoke:openclaw-profile-cleanup"],
   ["npm", "run", "smoke:agent-send-service-contract"],
   ["npm", "run", "smoke:agent-send"],
@@ -138,6 +141,7 @@ const viewerCommands = [
   ["npm", "run", "smoke:translation-claude-cli"],
   ["npm", "run", "smoke:translation-codex-cli"],
   ["npm", "run", "smoke:translation-opencode-cli"],
+  ["npm", "run", "smoke:translation-codebuddy-cli"],
 ];
 const protocolCommands = [
   ["npm", "run", "smoke:provenance-contract"],

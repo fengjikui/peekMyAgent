@@ -93,6 +93,9 @@ function conversationIdFromHeaders(headers = {}, fallback = {}) {
     (/^open\s*code$/i.test(String(fallback.agentProfile || ""))
       ? firstHeader(headers["x-session-id"])
       : null) ||
+    (/^codebuddy(?:\s+code)?$/i.test(String(fallback.agentProfile || ""))
+      ? firstHeader(headers["x-conversation-id"])
+      : null) ||
     fallback.conversationId ||
     null
   );
