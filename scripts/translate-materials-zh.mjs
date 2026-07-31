@@ -30,6 +30,7 @@ const args = process.argv.slice(2);
 const MAX_TRANSLATION_CONCURRENCY = 100;
 const targetLanguage = optionValue("--target-language") || "zh-CN";
 const agent = optionValue("--agent") || "Claude Code";
+const sourceModel = optionValue("--source-model") || null;
 const materialsPath =
   optionValue("--materials") ||
   path.join(translationsDir(agent, targetLanguage), "materials.jsonl");
@@ -354,6 +355,7 @@ function createTranslationClient() {
   if (protocol === "claude-cli") return createClaudeCliClient();
   if (protocol === "codex-cli") return createCodexCliClient();
   if (protocol === "opencode-cli") return createOpenCodeCliClient();
+  if (protocol === "codebuddy-cli") return createCodeBuddyCliClient();
   throw new Error(`Unsupported translation protocol: ${protocol}`);
 }
 
@@ -474,6 +476,38 @@ function createOpenCodeCliClient() {
     },
   };
   return client;
+}
+
+function createCodeBuddyCliClient() {
+  const command = process.env.PEEKMYAGENT_TRANSLATION_CODEBUDDY_BIN || "codebuddy";
+  const model = sourceModel;
+  return {
+    protocol: "codebuddy-cli",
+    baseUrl: `local:${command}`,
+    model: model || "codebuddy-default-low",
+    modelSource: model ? "captured-request" : "codebuddy-default",
+    reasoningEffort: "low",
+    maxConcurrency: 2,
+    async request({ prompt }) {
+      return withTemporaryDirectory("peek-translation-codebuddy-", async (workingDirectory) => {
+        const args = [
+          "--print", "--output-format", "text",
+          "--no-session-persistence", "--tools", "",
+          "--permission-mode", "dontAsk", "--effort", "low", "--max-turns", "1",
+          "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
+          "--setting-sources", "user",
+        ];
+        if (model) args.push("--model", model);
+        const result = await runCliCommand(command, args, {
+          input: prompt,
+          cwd: workingDirectory,
+          env: { ...process.env, DISABLE_TELEMETRY: "1", DISABLE_ERROR_REPORTING: "1", DISABLE_AUTOUPDATER: "1" },
+          label: "CodeBuddy CLI",
+        });
+        return { content: result.stdout };
+      });
+    },
+  };
 }
 
 async function runCodexCli(command, prompt, { model, reasoningEffort }) {

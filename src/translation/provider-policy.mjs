@@ -30,6 +30,7 @@ export function resolveTranslationProtocol({ agent, env = process.env } = {}) {
   if (explicit) return normalizeExplicitProtocol(explicit);
 
   const normalizedAgent = String(agent || "").trim();
+  if (/code\s*buddy|\bcbc\b/i.test(normalizedAgent)) return "codebuddy-cli";
   if (/open\s*code/i.test(normalizedAgent)) return "opencode-cli";
   if (/\bcodex\b/i.test(normalizedAgent)) return "codex-cli";
   if (/claude|anthropic|\bcc\b/i.test(normalizedAgent)) return "claude-cli";

@@ -53,11 +53,12 @@ export class ViewerTranslationAdapter {
     if (requestId) {
       const detail = this.loadRequestDetail({ sourceId, requestId, requireSource: true });
       collector.collectRequest(detail.request, detail.source, { section });
+      return { materials: collector.materials(), sourceCount: 1, sourceModel: requestModel(detail.request) };
     } else {
       const data = this.loadViewerData({ sourceId, requireSource: true });
       for (const request of data.requests || []) collector.collectRequest(request, data.source, { section });
+      return { materials: collector.materials(), sourceCount: 1, sourceModel: requestModel((data.requests || []).at(-1)) };
     }
-    return { materials: collector.materials(), sourceCount: 1 };
   }
 
   collectFromInput({ materials, sourceId, requestId, targetLanguage }) {
@@ -70,7 +71,14 @@ export class ViewerTranslationAdapter {
       workspace: null,
       conversation_id: null,
     });
-    return { materials: collector.materials(), sourceCount: sourceId ? 1 : 0 };
+    const detail = sourceId && requestId
+      ? this.loadRequestDetail({ sourceId, requestId, requireSource: true })
+      : null;
+    return {
+      materials: collector.materials(),
+      sourceCount: sourceId ? 1 : 0,
+      sourceModel: requestModel(detail?.request),
+    };
   }
 
   createCollector(targetLanguage) {
@@ -81,6 +89,11 @@ export class ViewerTranslationAdapter {
       tooLarge: this.tooLarge,
     });
   }
+}
+
+function requestModel(request) {
+  const model = request?.raw?.body?.model || request?.body?.model;
+  return typeof model === "string" ? model : null;
 }
 
 function requiredFunction(value, name) {

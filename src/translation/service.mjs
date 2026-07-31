@@ -21,6 +21,7 @@ export class TranslationService {
     const options = this.sanitizeInput(input);
     const inputMaterials = Array.isArray(input.materials) ? input.materials : [];
     let extract;
+    let sourceModel = null;
     if (inputMaterials.length) {
       const prepared = this.materialProvider.fromInput({
         materials: inputMaterials,
@@ -28,6 +29,7 @@ export class TranslationService {
         requestId: options.requestId,
         targetLanguage: options.targetLanguage,
       });
+      sourceModel = sanitizeSourceModel(prepared.sourceModel);
       extract = this.writeMaterials({ ...prepared, sourceId: options.sourceId, agent: options.agent, targetLanguage: options.targetLanguage });
     } else if (options.sourceId) {
       const prepared = this.materialProvider.fromSource({
@@ -36,6 +38,7 @@ export class TranslationService {
         section: options.section,
         targetLanguage: options.targetLanguage,
       });
+      sourceModel = sanitizeSourceModel(prepared.sourceModel);
       extract = this.writeMaterials({ ...prepared, sourceId: options.sourceId, agent: options.agent, targetLanguage: options.targetLanguage });
     } else {
       const extracted = await this.runScript("scripts/extract-translation-materials.mjs", [
@@ -55,6 +58,7 @@ export class TranslationService {
       "--concurrency",
       String(options.concurrency),
     ];
+    if (sourceModel) translateArgs.push("--source-model", sourceModel);
     if (options.force && extract?.material_hashes?.length) translateArgs.push("--force-hashes", extract.material_hashes.join(","));
     const translated = await this.runScript("scripts/translate-materials-zh.mjs", translateArgs);
     const translateResult = parseJsonCommandOutput(translated.stdout);
@@ -209,6 +213,11 @@ function translationAliasSlugs(agent) {
 function positiveInt(value, fallback) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : fallback;
+}
+
+function sanitizeSourceModel(value) {
+  const model = String(value || "").trim();
+  return model && model.length <= 200 && !/[\x00-\x1f\x7f]/.test(model) ? model : null;
 }
 
 function readJson(filePath) {

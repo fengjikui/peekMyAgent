@@ -60,12 +60,14 @@ worker 使用共享 parser 按 hash 对齐，不依赖模型返回顺序。parse
 
 - `Codex` Source 使用本机 Codex 登录态执行临时 `codex exec`；
 - `Claude Code` Source 使用本机 Claude Code 登录态执行临时 `claude -p`；
-- `PEEKMYAGENT_TRANSLATION_PROTOCOL` 仍可显式选择 `codex-cli`、`claude-cli`、`openai` 或 `anthropic`，显式配置优先于自动路由；
+- `OpenCode` Source 使用本机 OpenCode 配置执行临时 `opencode run`；
+- `CodeBuddy` Source 把已捕获的 model 作为原 `models.json` provider 条目的引用，使用本机 CodeBuddy 执行临时 `codebuddy --print`；PMA 不重新推断 endpoint，也不读取文件 API key；
+- `PEEKMYAGENT_TRANSLATION_PROTOCOL` 仍可显式选择既有的 CLI/API 路径；CodeBuddy 默认按 Source 自动路由，显式配置优先于自动路由；
 - 尚无安全临时任务适配器的 Agent 暂时保留旧 provider 探测，后续应以独立 adapter 替换，不能偷偷跨用另一个 Agent 的订阅。
 
 Codex 翻译不会继承用户日常会话选择的高成本模型和 reasoning effort。worker 从 `$CODEX_HOME/models_cache.json` 的可见模型中优先选择 `gpt-5.3-codex-spark`，其次选择 `gpt-5.6-luna`；该缓存只是能力提示，不是持久 API。缓存缺失时先尝试首选快速模型，模型不可用时回退到 Codex 内建默认模型。所有自动路径都强制 `low` effort；用户可用 `PEEKMYAGENT_TRANSLATION_CODEX_MODEL` 和 `PEEKMYAGENT_TRANSLATION_CODEX_REASONING_EFFORT` 显式覆盖。
 
-Codex 子进程使用 `--ephemeral`、`--ignore-user-config`、`--ignore-rules` 和 `--sandbox read-only`，因此不保存 rollout，不加载项目规则/MCP，也不允许修改工作区。Claude 子进程使用 `--no-session-persistence`、空 tools 和 `low` effort。两者都从 stdin 接收材料，避免把系统提示词和工具描述暴露在进程命令行中；CLI provider 最多并发两个进程。
+Codex 子进程使用 `--ephemeral`、`--ignore-user-config`、`--ignore-rules` 和 `--sandbox read-only`，因此不保存 rollout，不加载项目规则/MCP，也不允许修改工作区。Claude 和 CodeBuddy 子进程使用 `--no-session-persistence`、空 tools 和 `low` effort；CodeBuddy 还只加载 user settings、使用空 strict MCP，并在临时目录运行。CLI 路径都从 stdin 接收材料，避免把系统提示词和工具描述暴露在进程命令行中；CLI provider 最多并发两个进程。
 
 ## 修改规则
 
@@ -85,5 +87,7 @@ npm run smoke:harness-translation
 npm run smoke:translation-tolerance
 npm run smoke:translation-claude-cli
 npm run smoke:translation-codex-cli
+npm run smoke:translation-opencode-cli
+npm run smoke:translation-codebuddy-cli
 npm run smoke:dashboard-open
 ```

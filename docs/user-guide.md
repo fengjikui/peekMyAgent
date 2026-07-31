@@ -192,7 +192,7 @@ pma observe --name my-agent --base-url-env ANTHROPIC_BASE_URL -- python agent.py
 
 ### CodeBuddy Code：复用当前 OpenCode 模型
 
-安装 CodeBuddy 后，在 shell 中显式提供同一上游的凭据：
+安装 CodeBuddy 后，先在用户级 `~/.codebuddy/models.json` 中配置模型与认证，或在 shell 中提供同一上游的凭据：
 
 ```bash
 npm install -g @tencent-ai/codebuddy-code
@@ -202,6 +202,8 @@ pma codebuddy
 ```
 
 PMA 读取 OpenCode effective config 中的 model、provider 和 base URL，但不读取 `auth.json` 或复制任何认证。CodeBuddy 的 main、lite、reasoning 和 subagent model 只在该子进程内统一映射到当前 OpenCode model。当前验证范围是 CodeBuddy 2.130.0 的 OpenAI Chat Completions 路径。
+
+Viewer 翻译会复用捕获请求里的 model，并让一次无工具、无持久化的 CodeBuddy 临时任务回到同一个用户级 `models.json` 条目；PMA 不会根据 Viewer 进程中的其他 provider 环境变量重新猜测，也不会读取或复制文件 API key。
 
 ```bash
 pma codebuddy --continue
