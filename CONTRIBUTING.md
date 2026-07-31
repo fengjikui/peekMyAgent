@@ -51,9 +51,9 @@ Before opening a pull request, run the smallest checks that cover your change:
 - Install/uninstall: `npm run smoke:source-install && npm run smoke:source-uninstall`
 - Dashboard startup: `npm run smoke:dashboard-open`
 - Package contents: `npm run smoke:package`
-- Full local gate: `npm run release:check`
+- Full local gate when explicitly triggered: `npm run release:check`
 
-Low-risk local commits may be tested and committed with focused checks, then grouped into a batch of at most three code commits. Run the full host-platform profile before pushing that batch, or immediately for any high-risk change. See the [tiered validation strategy](docs/validation-strategy.md) for the exact reset and escalation rules.
+Low-risk local commits may be tested and committed with focused checks, then grouped into a batch of at most three code commits. The pull-request matrix is the default full checkpoint. Run a local full host profile only when the gate itself changes, a platform failure needs reproduction, hosted CI is unavailable, or wider impact remains unexplained. See the [tiered validation strategy](docs/validation-strategy.md) for the exact reset and escalation rules.
 
 If your change affects an adapter, include the relevant smoke result and describe whether it used a fake command, a fixture, or a real agent.
 

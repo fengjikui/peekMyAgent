@@ -3,6 +3,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { viewerRegistryPath } from "../src/core/app-paths.mjs";
 import { childProcessSpawnConfig } from "../src/core/platform.mjs";
 import {
   preserveReleaseCheckHostEnvironment,
@@ -239,6 +240,7 @@ const startedAt = Date.now();
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), `peek-release-${profile}-`));
 const results = [];
 let failedExitCode = 0;
+const trackedBefore = readTrackedSnapshot({ cwd: repoRoot, allowTrackedChanges });
 
 try {
   console.log(`release-check profile: ${profile}`);
@@ -248,34 +250,37 @@ try {
   for (const command of selected.commands) {
     const started = Date.now();
     const commandEnv = await isolatedCommandEnv(command);
-    const trackedBefore = readTrackedSnapshot({ cwd: repoRoot, allowTrackedChanges });
     console.log(`\n$ ${formatCommand(command)}`);
     try {
       const result = await run(command, commandEnv);
       const elapsedMs = Date.now() - started;
-      const trackedAfter = readTrackedSnapshot({ cwd: repoRoot, allowTrackedChanges });
-      const trackedChange = trackedSnapshotChanged(trackedBefore, trackedAfter, { allowTrackedChanges });
-      const exitCode = result.code === 0 && trackedChange ? 1 : result.code;
-      const summary = { command: formatCommand(command), exit_code: exitCode, elapsed_ms: elapsedMs };
-      if (trackedChange) {
-        summary.error = "Command changed tracked files.";
-        summary.tracked_before = trackedBefore;
-        summary.tracked_after = trackedAfter;
-        console.error("release-check detected tracked file changes after command.");
-        console.error(`Before: ${formatTrackedSnapshot(trackedBefore)}`);
-        console.error(`After: ${formatTrackedSnapshot(trackedAfter)}`);
-      }
-      results.push(summary);
-      if (exitCode !== 0) {
-        writeSummary({ ok: false });
-        failedExitCode = exitCode || 1;
-      }
+      results.push({ command: formatCommand(command), exit_code: result.code, elapsed_ms: elapsedMs });
+      if (result.code !== 0) failedExitCode = result.code || 1;
     } finally {
       await shutdownDaemon(commandEnv);
     }
     if (failedExitCode) break;
   }
+
+  const trackedAfter = readTrackedSnapshot({ cwd: repoRoot, allowTrackedChanges });
+  const trackedChange = trackedSnapshotChanged(trackedBefore, trackedAfter, { allowTrackedChanges });
+  if (trackedChange) {
+    console.error("release-check detected tracked file changes during the profile.");
+    console.error(`Before: ${formatTrackedSnapshot(trackedBefore)}`);
+    console.error(`After: ${formatTrackedSnapshot(trackedAfter)}`);
+    results.push({
+      command: "tracked worktree guard",
+      exit_code: 1,
+      elapsed_ms: 0,
+      error: "The release profile changed tracked files.",
+      tracked_before: trackedBefore,
+      tracked_after: trackedAfter,
+    });
+    failedExitCode = failedExitCode || 1;
+  }
+
   if (failedExitCode) {
+    writeSummary({ ok: false });
     process.exitCode = failedExitCode;
   } else {
     writeSummary({ ok: true });
@@ -350,6 +355,7 @@ async function isolatedCommandEnv(command) {
 }
 
 async function shutdownDaemon(env) {
+  if (!fs.existsSync(viewerRegistryPath({ env }))) return;
   await runQuiet([process.execPath, "bin/peekmyagent.mjs", "shutdown", "--force", "--json"], env);
 }
 

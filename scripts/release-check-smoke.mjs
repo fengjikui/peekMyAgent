@@ -11,6 +11,18 @@ const profiles = [
   ["macos", "macOS host release gate"],
   ["windows", "Windows host gate"],
 ];
+const releaseCheckSource = fs.readFileSync("scripts/release-check.mjs", "utf8");
+
+assert.equal(
+  (releaseCheckSource.match(/readTrackedSnapshot\(/g) || []).length,
+  2,
+  "the tracked-worktree guard should snapshot once before and once after the full profile",
+);
+assert.match(
+  releaseCheckSource,
+  /if \(!fs\.existsSync\(viewerRegistryPath\(\{ env \}\)\)\) return;/,
+  "daemon cleanup should only spawn when the isolated command created a viewer registry",
+);
 
 for (const [profile, description] of profiles) {
   const spawnConfig = childProcessSpawnConfig(process.execPath, ["scripts/release-check.mjs", "--profile", profile, "--list"]);

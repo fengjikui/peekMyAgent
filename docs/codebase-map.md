@@ -78,8 +78,8 @@ pma CLI / adapter
 ## 验证与文档
 
 - 开发中先运行改动模块的直接 contract smoke。
-- Level 1 低风险代码累计到 3 个提交、准备推送代码批次或出现跨模块不确定性时，运行当前主机完整 release profile。
-- CLI、进程、路径、端口、安装、SQLite 和 provider 配置属于高平台风险，必须按 `docs/validation-strategy.md` 执行 Level 2。
+- Level 1 低风险代码最多累计 3 个提交；达到阈值或出现跨模块不确定性时进入 Level 2，由 PR 三平台矩阵完成默认完整检查点。
+- CLI、进程、路径、端口、安装、SQLite 和 provider 配置属于高平台风险，必须按 `docs/validation-strategy.md` 执行 Level 2；只有门禁自身变化、平台复现、无托管 CI 或未知影响时才额外运行本机完整 profile。
 - 当前行为变化同步更新 `docs/architecture.md`；未来计划只写入 roadmap；复杂修复保留 evidence/retrospective。
 - 新增 UI 文案必须同步更新 `ui-i18n.js` 的中英文 key，并运行 `npm run smoke:viewer-i18n-contract`；该门禁同时检查占位符和源码/HTML 的静态 key 引用。
 

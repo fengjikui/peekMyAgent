@@ -13,9 +13,18 @@ fs.mkdirSync(outDir, { recursive: true });
 const openclawOut = path.join(outDir, "openclaw.normalized.json");
 const claudeOut = path.join(outDir, "claude.normalized.json");
 const openclawAssignmentOut = path.join(outDir, "openclaw.assignment.normalized.json");
+const expectedVersion = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
+
+for (const versionArg of ["--version", "-v", "-V", "version"]) {
+  const version = spawnSync(process.execPath, [bin, versionArg], { encoding: "utf8" });
+  assert.equal(version.status, 0, version.stderr);
+  assert.equal(version.stdout, `${expectedVersion}\n`);
+  assert.equal(version.stderr, "");
+}
 
 const quickHelp = spawnSync(process.execPath, [bin, "--help"], { encoding: "utf8" });
 assert.equal(quickHelp.status, 0, quickHelp.stderr);
+assert.match(quickHelp.stdout, /pma --version/);
 assert.match(quickHelp.stdout, /pma open/);
 assert.match(quickHelp.stdout, /pma claude -c/);
 assert.match(quickHelp.stdout, /--dangerously-skip-permissions/);
@@ -32,6 +41,7 @@ assert.doesNotMatch(quickHelp.stdout, /pma daemon/);
 
 const advancedHelp = spawnSync(process.execPath, [bin, "help", "--all"], { encoding: "utf8" });
 assert.equal(advancedHelp.status, 0, advancedHelp.stderr);
+assert.match(advancedHelp.stdout, /pma --version/);
 assert.match(advancedHelp.stdout, /normalize openclaw-capture/);
 assert.match(advancedHelp.stdout, /pma daemon/);
 assert.match(advancedHelp.stdout, /Full-permission modes \(dangerous\)/);
