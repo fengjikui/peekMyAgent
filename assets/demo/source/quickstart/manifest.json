@@ -44,27 +44,27 @@
     {
       "file": "quickstart-system-raw.png",
       "duration_ms": 6500,
-      "focus": "System 指令"
+      "focus": "点击详情打开右栏，再选择 System 查看实际指令"
     },
     {
       "file": "quickstart-tool-result-raw.png",
       "duration_ms": 7500,
-      "focus": "list_directory 工具结果"
+      "focus": "点击 list_directory 工具结果，在右栏查看实际回传"
     },
     {
       "file": "quickstart-tool-origin-raw.png",
       "duration_ms": 7500,
-      "focus": "工具结果与来源调用关联"
+      "focus": "点击来源 #1，跳回原始工具调用与参数"
     },
     {
       "file": "quickstart-final-raw.png",
       "duration_ms": 6500,
-      "focus": "最终回答"
+      "focus": "点击最终回复详情，在右栏核对原始 Response"
     },
     {
       "file": "quickstart-protocol-raw.png",
       "duration_ms": 9500,
-      "focus": "OpenAI Responses 原生协议"
+      "focus": "打开请求详情并切到协议视图，核对 OpenAI Responses 完整上下行"
     }
   ]
 }
