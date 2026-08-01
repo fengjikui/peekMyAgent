@@ -138,18 +138,20 @@ async function main() {
       }
     }
 
-    const reachesTimelineEnd = startSeconds + renderedSeconds >= timeline.duration_seconds - 0.05;
-    if (reachesTimelineEnd) {
-      await page.waitFor("document.body.dataset.playing === '0'", {
-        timeoutMs: 2_000,
-        description: "storyboard playback to reach its final frame",
-      });
-    } else {
-      await page.evaluate(`(() => {
-        const toggle = document.querySelector('[data-action="toggle"]');
-        if (document.body.dataset.playing === '1') toggle?.click();
-      })()`);
-    }
+    await delay(80);
+    const finalPlaybackState = await page.evaluate(`(() => ({
+      absoluteMs: Number(document.body.dataset.absoluteMs),
+      playing: document.body.dataset.playing,
+      sceneIndex: Number(document.body.dataset.sceneIndex)
+    }))()`);
+    const expectedEndMs = (startSeconds + renderedSeconds) * 1000;
+    assert(Number.isFinite(finalPlaybackState.absoluteMs), "storyboard did not expose a final playback time");
+    assert(Math.abs(finalPlaybackState.absoluteMs - expectedEndMs) <= 250,
+      `storyboard ended at ${finalPlaybackState.absoluteMs}ms instead of the requested ${expectedEndMs}ms`);
+    await page.evaluate(`(() => {
+      const toggle = document.querySelector('[data-action="toggle"]');
+      if (document.body.dataset.playing === '1') toggle?.click();
+    })()`);
     await page.send("Page.stopScreencast");
     unsubscribe();
     encoder.stdin.end();
@@ -180,6 +182,8 @@ async function main() {
       duration_seconds: renderedSeconds,
       encoded_frames: totalFrames,
       browser_frames_received: receivedFrames,
+      browser_final_absolute_ms: finalPlaybackState.absoluteMs,
+      maximum_encoder_lateness_ms: Number(maximumLatenessMs.toFixed(3)),
       subtitles_visible: options.includeSubtitles,
       audio: false,
       external_requests: false,
