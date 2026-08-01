@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import tempfile
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,6 +35,7 @@ COVER_SOURCE_IMAGE = "assets/demo/quickstart/01-trace.png"
 COVER_LABEL = "从一次最小会话，追到每一层真实证据"
 SHOW_UI_CAPTION_PANEL = True
 EMBED_SUBTITLE_TRACK = True
+DISPLAY_SUBTITLE_REPLACEMENTS: dict[str, str] = {}
 
 WIDTH = 1920
 HEIGHT = 1080
@@ -64,6 +67,7 @@ class Scene:
     accent: tuple[int, int, int] = BLUE
     card_line: str | None = None
     footer: str | None = None
+    subtitle_segments: tuple[str, ...] | None = None
 
 
 SCENES = (
@@ -421,6 +425,53 @@ def timestamp(seconds: float, separator: str = ",") -> str:
     return f"{hours:02}:{minutes:02}:{secs:02}{separator}{milliseconds:03}"
 
 
+def subtitle_reading_weight(text: str) -> float:
+    """Estimate relative spoken duration for mixed Chinese and English copy."""
+    cjk_count = len(re.findall(r"[\u3400-\u9fff]", text))
+    latin_tokens = re.findall(r"[A-Za-z0-9_.-]+", text)
+    latin_weight = sum(max(1.5, len(token) / 3.5) for token in latin_tokens)
+    strong_pauses = sum(text.count(mark) for mark in "。！？；")
+    light_pauses = sum(text.count(mark) for mark in "，、：")
+    return max(1.0, cjk_count + latin_weight + strong_pauses * 1.8 + light_pauses * 0.8)
+
+
+def subtitle_visual_width(text: str) -> float:
+    """Return an approximate width measured in full-width Chinese characters."""
+    terminal_cells = sum(
+        2 if unicodedata.east_asian_width(char) in {"W", "F"} else 1
+        for char in text
+    )
+    return terminal_cells / 2
+
+
+def subtitle_cues(scene: Scene, start: float, end: float) -> list[tuple[float, float, str]]:
+    """Distribute concise subtitle segments across a scene without changing its duration."""
+    segments = scene.subtitle_segments or (scene.narration,)
+    if not segments or any(not segment.strip() for segment in segments):
+        raise SystemExit(f"subtitle verification failed: empty segment in {scene.scene_id}")
+    if scene.subtitle_segments and any(subtitle_visual_width(segment) > 32 for segment in segments):
+        raise SystemExit(f"subtitle verification failed: overlong segment in {scene.scene_id}")
+    weights = [subtitle_reading_weight(segment) for segment in segments]
+    total_weight = sum(weights)
+    duration = end - start
+    cues: list[tuple[float, float, str]] = []
+    elapsed_weight = 0.0
+    for index, (segment, weight) in enumerate(zip(segments, weights, strict=True)):
+        cue_start = start + duration * elapsed_weight / total_weight
+        elapsed_weight += weight
+        cue_end = end if index == len(segments) - 1 else start + duration * elapsed_weight / total_weight
+        cues.append((cue_start, cue_end, segment))
+    if scene.subtitle_segments and any(cue_end - cue_start < 2 for cue_start, cue_end, _ in cues):
+        raise SystemExit(f"subtitle verification failed: cue shorter than two seconds in {scene.scene_id}")
+    return cues
+
+
+def display_subtitle_text(text: str) -> str:
+    for spoken, displayed in DISPLAY_SUBTITLE_REPLACEMENTS.items():
+        text = text.replace(spoken, displayed)
+    return text
+
+
 def probe_duration(path: Path) -> float:
     return float(
         output(
@@ -530,7 +581,8 @@ def verify_outputs(final_video: Path, srt_path: Path, timeline_path: Path, expec
         )
     srt_blocks = [block for block in srt_path.read_text(encoding="utf-8").strip().split("\n\n") if block]
     timeline = json.loads(timeline_path.read_text(encoding="utf-8"))
-    if len(srt_blocks) != len(SCENES) or len(timeline["scenes"]) != len(SCENES):
+    expected_subtitles = sum(len(scene.subtitle_segments or (scene.narration,)) for scene in SCENES)
+    if len(srt_blocks) != expected_subtitles or len(timeline["scenes"]) != len(SCENES):
         raise SystemExit("video verification failed: scene and subtitle counts differ")
     if any(
         scene["duration_seconds"] < 11
@@ -549,12 +601,14 @@ def build_video(args: argparse.Namespace) -> None:
 
     timeline: list[dict[str, object]] = []
     srt_blocks: list[str] = []
+    voice_srt_blocks: list[str] = []
+    subtitle_index = 1
     cursor = 0.0
 
     with tempfile.TemporaryDirectory(prefix="pma-demo-video-") as temp_name:
         temp_dir = Path(temp_name)
         clip_paths: list[Path] = []
-        for index, scene in enumerate(SCENES, start=1):
+        for scene in SCENES:
             frame_path = FRAME_DIR / f"{scene.scene_id}.png"
             render_scene(scene, frame_path, font_path)
             audio_path = temp_dir / f"{scene.scene_id}.aiff"
@@ -565,9 +619,16 @@ def build_video(args: argparse.Namespace) -> None:
 
             start = cursor
             end = cursor + duration
-            srt_blocks.append(
-                f"{index}\n{timestamp(start)} --> {timestamp(end)}\n{scene.narration}\n"
-            )
+            scene_subtitle_cues = subtitle_cues(scene, start, end)
+            for cue_start, cue_end, cue_text in scene_subtitle_cues:
+                display_text = display_subtitle_text(cue_text)
+                srt_blocks.append(
+                    f"{subtitle_index}\n{timestamp(cue_start)} --> {timestamp(cue_end)}\n{display_text}\n"
+                )
+                voice_srt_blocks.append(
+                    f"{subtitle_index}\n{timestamp(cue_start)} --> {timestamp(cue_end)}\n{cue_text}\n"
+                )
+                subtitle_index += 1
             timeline.append(
                 {
                     "id": scene.scene_id,
@@ -579,6 +640,10 @@ def build_video(args: argparse.Namespace) -> None:
                     "composite_frame": str(frame_path.relative_to(ROOT)),
                     "caption": scene.caption,
                     "narration": scene.narration,
+                    "subtitle_cues": [
+                        display_subtitle_text(cue_text) for _, _, cue_text in scene_subtitle_cues
+                    ],
+                    "voice_subtitle_cues": [cue_text for _, _, cue_text in scene_subtitle_cues],
                     "transition": "0.35s fade through black",
                 }
             )
@@ -613,6 +678,8 @@ def build_video(args: argparse.Namespace) -> None:
 
         srt_path = OUTPUT_DIR / f"{OUTPUT_BASENAME}.srt"
         srt_path.write_text("\n".join(srt_blocks), encoding="utf-8")
+        voice_srt_path = OUTPUT_DIR / f"{OUTPUT_BASENAME}-voice.srt"
+        voice_srt_path.write_text("\n".join(voice_srt_blocks), encoding="utf-8")
         final_video = OUTPUT_DIR / f"{OUTPUT_BASENAME}.mp4"
         mux_command = [
             "ffmpeg",
@@ -708,6 +775,7 @@ def build_video(args: argparse.Namespace) -> None:
 
     print(f"video: {OUTPUT_DIR / f'{OUTPUT_BASENAME}.mp4'}")
     print(f"subtitles: {OUTPUT_DIR / f'{OUTPUT_BASENAME}.srt'}")
+    print(f"voice subtitles: {OUTPUT_DIR / f'{OUTPUT_BASENAME}-voice.srt'}")
     print(f"voice: {OUTPUT_DIR / f'{OUTPUT_BASENAME}-voice.m4a'}")
     print(f"cover: {OUTPUT_DIR / f'{OUTPUT_BASENAME}-cover.png'}")
     print(f"timeline: {timeline_path}")

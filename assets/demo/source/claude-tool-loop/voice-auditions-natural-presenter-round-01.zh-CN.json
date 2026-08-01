@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "experiment": {
+    "round": 1,
+    "purpose": "只重新测试基础音色；两个 take 使用完全相同的模型、文本与短提示词。",
+    "changed_variable": "仅保留 MiMo Voice Design 的随机生成差异；不加入导演模式、音频标签或声学术语。",
+    "display_text": "现在，我们来看一次 Claude Code 的工具调用。打开 PMA，请求、工具调用和模型回复，都在同一条时间线上。",
+    "status": "paused",
+    "conclusion": "两个 take 的基础听感都被产品所有者明确否决；结合此前多轮未入选结果，暂停 MiMo 音色探索，不继续生成下一轮。"
+  },
+  "sample_text": "现在，我们来看一次克劳德 Code 的工具调用。打开 P M A，请求、工具调用和模型回复，都在同一条时间线上。",
+  "samples": [
+    {
+      "id": "20-natural-presenter-a",
+      "model": "mimo-v2.5-tts-voicedesign",
+      "direction": "二十多岁的中文女性产品主讲人，普通话自然，声音亲和可信，语速中等偏快，情绪稳定轻松。",
+      "result": {
+        "output": "tmp/mimo-tts-natural-presenter-round-01/20-natural-presenter-a.wav",
+        "duration_seconds": 11.68,
+        "audio": "pcm_s16le, 24000 Hz, mono",
+        "sha256": "77a0e150edd2dedaf42bae66c80563dbd9829c579ef37a71007bf2f999fef1e6",
+        "asr_transcript": "现在我们来看一次克劳德扣的工具调用。打开PMA，请求、工具调用和模型回复都在同一条时间线上。",
+        "subjective_feedback": "未入选。始终有同一种不好听的感觉，整体听感非常不好；不是局部语速、停顿或术语问题。"
+      }
+    },
+    {
+      "id": "21-natural-presenter-b",
+      "model": "mimo-v2.5-tts-voicedesign",
+      "direction": "二十多岁的中文女性产品主讲人，普通话自然，声音亲和可信，语速中等偏快，情绪稳定轻松。",
+      "result": {
+        "output": "tmp/mimo-tts-natural-presenter-round-01/21-natural-presenter-b.wav",
+        "duration_seconds": 12.48,
+        "audio": "pcm_s16le, 24000 Hz, mono",
+        "sha256": "14a650d8a2c6718b19192bf1d86cf778057a15582b5553ae535b4fb42c9864e9",
+        "asr_transcript": "现在我们来看一次克劳德 Code 工具调用。打开 PMA，请求、工具调用和模型回复都在同一条时间线上。",
+        "subjective_feedback": "未入选。始终有同一种不好听的感觉，整体听感非常不好；不是局部语速、停顿或术语问题。"
+      }
+    }
+  ]
+}

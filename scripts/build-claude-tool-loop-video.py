@@ -237,6 +237,14 @@ def configure_builder(builder, images: dict[str, str]) -> None:
     builder.COVER_LABEL = "从用户请求，追到模型最终回答"
     builder.SHOW_UI_CAPTION_PANEL = False
     builder.EMBED_SUBTITLE_TRACK = False
+    builder.DISPLAY_SUBTITLE_REPLACEMENTS = {
+        "README 点 m d": "README.md",
+        "read hello": "read_hello",
+        "井号 hello agent": "# hello-agent",
+        "hello agent": "hello-agent",
+        "tool use": "tool_use",
+        "tool result": "tool_result",
+    }
     Scene = builder.Scene
     builder.SCENES = (
         Scene(
@@ -248,6 +256,12 @@ def configure_builder(builder, images: dict[str, str]) -> None:
             accent=CLAUDE,
             card_line="用户目标 → Claude Code 本地执行 ↔ 远端模型选择下一步",
             footer="PMA 记录三者之间每一次结构化往返",
+            subtitle_segments=(
+                "这支视频只讲清一件事：",
+                "用户、Claude Code 和远端模型，怎样共同完成一次工具调用。",
+                "远端模型不会直接读取你的电脑。",
+                "真正的本地执行发生在 Claude Code 这一侧。",
+            ),
         ),
         Scene(
             "01-overview",
@@ -257,6 +271,12 @@ def configure_builder(builder, images: dict[str, str]) -> None:
             16.0,
             images["01-overview"],
             CLAUDE,
+            subtitle_segments=(
+                "演示任务很简单：读取 README 第一行，并告诉我项目名。",
+                "PMA 在同一个 Turn 里，",
+                "把用户目标、第一次模型请求、Read 工具调用、",
+                "工具结果、第二次请求和最终回答串成一条证据链。",
+            ),
         ),
         Scene(
             "02-metadata",
@@ -266,6 +286,12 @@ def configure_builder(builder, images: dict[str, str]) -> None:
             14.0,
             images["02-metadata"],
             CLAUDE,
+            subtitle_segments=(
+                "点开第一次请求的详情，再切到 Metadata。",
+                "这里能核对模型、最大输出、是否流式、",
+                "传输路径和上行构成。",
+                "排查 Harness 时，先确认模型和参数没有在中间被改错。",
+            ),
         ),
         Scene(
             "03-system",
@@ -275,6 +301,12 @@ def configure_builder(builder, images: dict[str, str]) -> None:
             15.0,
             images["03-system"],
             CLAUDE,
+            subtitle_segments=(
+                "切到 System，可以看到这一次真正发送给模型的固定指令。",
+                "演示轨迹明确限制为虚构的 demo 文件，",
+                "不访问凭据、用户文件或网络。",
+                "这里展示的是捕获证据，不是根据结果猜出来的提示词。",
+            ),
         ),
         Scene(
             "04-tools",
@@ -284,6 +316,13 @@ def configure_builder(builder, images: dict[str, str]) -> None:
             20.0,
             images["04-tools"],
             CLAUDE,
+            subtitle_segments=(
+                "Tools 区域给出了这一次模型可以选择的动作。",
+                "这里同时声明了 Read、Glob 和 Bash，",
+                "并附带描述与输入 schema。",
+                "模型并不是预先写死要读文件。",
+                "在这条 Capture 中，它从已提供的工具里返回了 Read。",
+            ),
         ),
         Scene(
             "05-tool-use",
@@ -293,6 +332,12 @@ def configure_builder(builder, images: dict[str, str]) -> None:
             18.0,
             images["05-tool-use"],
             CLAUDE,
+            subtitle_segments=(
+                "点击时间线里的 Read，右栏出现 tool use。",
+                "模型返回了调用标识 read hello、工具名和参数：",
+                "读取 README 点 m d，从第一行开始，只取一行。",
+                "到这一步，模型只是提出调用，并没有亲自碰本地文件。",
+            ),
         ),
         Scene(
             "06-tool-result",
@@ -302,6 +347,13 @@ def configure_builder(builder, images: dict[str, str]) -> None:
             19.0,
             images["06-tool-result"],
             CLAUDE,
+            subtitle_segments=(
+                "Claude Code 接到这个调用后，负责权限检查和本地执行。",
+                "下一条工具结果显示，返回内容是井号 hello agent，",
+                "并且引用同一个 read hello 标识。",
+                "远端模型真正看到文件内容，",
+                "是在后续请求收到 tool result 的时候。",
+            ),
         ),
         Scene(
             "07-source-jump",
@@ -311,6 +363,12 @@ def configure_builder(builder, images: dict[str, str]) -> None:
             16.0,
             images["07-source-jump"],
             CLAUDE,
+            subtitle_segments=(
+                "PMA 已经把工具结果和最初调用关联起来。",
+                "点击来源编号，就会跳回第一次请求的 tool use，",
+                "并保留返回结果的入口。",
+                "长会话里，即使结果晚了几轮，也不需要手工搜索调用标识。",
+            ),
         ),
         Scene(
             "08-protocol",
@@ -320,6 +378,13 @@ def configure_builder(builder, images: dict[str, str]) -> None:
             22.0,
             images["08-protocol"],
             CLAUDE,
+            subtitle_segments=(
+                "协议视图保留 Anthropic Messages 的原生角色和顺序。",
+                "先是用户消息，再是 assistant 文本和 tool use。",
+                "Claude Code 执行后，把 tool result",
+                "放进后续 user message 的 content。",
+                "模型收到这份新请求，才返回最终回答。",
+            ),
         ),
         Scene(
             "09-raw",
@@ -329,6 +394,12 @@ def configure_builder(builder, images: dict[str, str]) -> None:
             19.0,
             images["09-raw"],
             CLAUDE,
+            subtitle_segments=(
+                "如果整理后的协议仍不足以解释问题，可以打开完整请求。",
+                "Raw Inspector 保留原始请求头、body、模型参数、",
+                "System、工具定义和消息。",
+                "敏感请求头会显示脱敏原因，而不是把真实值录进素材。",
+            ),
         ),
         Scene(
             "10-final",
@@ -338,6 +409,13 @@ def configure_builder(builder, images: dict[str, str]) -> None:
             16.0,
             images["10-final"],
             CLAUDE,
+            subtitle_segments=(
+                "最后点击模型回复的详情。",
+                "第二次 Response 给出：项目名是 hello agent。",
+                "现在我们不只看到了答案，还能沿时间线向前核对：",
+                "它使用了哪一个工具、文件实际返回了什么、",
+                "结果又怎样进入下一次模型请求。",
+            ),
         ),
         Scene(
             "11-outro",
@@ -348,6 +426,12 @@ def configure_builder(builder, images: dict[str, str]) -> None:
             accent=CLAUDE,
             card_line="用户目标 → tool_use → 本地执行 → tool_result → 最终回答",
             footer="模型没有越过 Claude Code 直接操作你的电脑",
+            subtitle_segments=(
+                "记住这条边界：模型负责根据结构化上下文选择下一步。",
+                "Claude Code 负责在本地执行和回传。",
+                "PMA 让每一步都能回到请求、协议和 Raw 证据。",
+                "下一支视频，我们再拆解 Skill 是怎样被发现和加载的。",
+            ),
         ),
     )
 

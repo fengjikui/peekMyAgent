@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "provider": "xiaomi-mimo",
+  "purpose": "为 PMA 设计原创中文女性品牌音色，获选后作为 Voice Clone 的自有参考样本",
+  "display_text": "现在，我们来看一次 Claude Code 的工具调用。打开 PMA，请求、工具调用和模型回复，都在同一条时间线上。",
+  "sample_text": "现在，我们来看一次克劳德 Code 的工具调用。打开 P M A，请求、工具调用和模型回复，都在同一条时间线上。",
+  "samples": [
+    {
+      "id": "14-crisp-cool-presenter-a",
+      "label": "原创设计｜清透知性 A",
+      "model": "mimo-v2.5-tts-voicedesign",
+      "direction": "二十五岁女性，普通话自然，声线中高、清透偏凉，前置共鸣清晰但不尖，气息干净且实声稳定，吐字利落。语速中等偏快，节奏连续而不抢字，情绪底色知性、友好、克制，像熟悉开发工具的产品讲解者。"
+    },
+    {
+      "id": "15-crisp-cool-presenter-b",
+      "label": "原创设计｜清透知性 B",
+      "model": "mimo-v2.5-tts-voicedesign",
+      "direction": "二十五岁女性，普通话自然，声线中高、清透偏凉，前置共鸣清晰但不尖，气息干净且实声稳定，吐字利落。语速中等偏快，节奏连续而不抢字，情绪底色知性、友好、克制，像熟悉开发工具的产品讲解者。"
+    },
+    {
+      "id": "16-light-taiwan-presenter-a",
+      "label": "原创设计｜轻台湾语调 A",
+      "model": "mimo-v2.5-tts-voicedesign",
+      "direction": "二十六岁女性，普通话带很轻的台湾语调，中高音区，声音清亮轻盈但不甜腻，咬字自然、字尾收束干净。语速中等偏快，表达亲切而稳定，情绪起伏小，像在给开发者做轻松可信的产品演示。"
+    },
+    {
+      "id": "17-light-taiwan-presenter-b",
+      "label": "原创设计｜轻台湾语调 B",
+      "model": "mimo-v2.5-tts-voicedesign",
+      "direction": "二十六岁女性，普通话带很轻的台湾语调，中高音区，声音清亮轻盈但不甜腻，咬字自然、字尾收束干净。语速中等偏快，表达亲切而稳定，情绪起伏小，像在给开发者做轻松可信的产品演示。"
+    },
+    {
+      "id": "18-bright-magnetic-presenter-a",
+      "label": "原创设计｜明亮轻磁性 A",
+      "model": "mimo-v2.5-tts-voicedesign",
+      "direction": "二十八岁女性，普通话自然，中音偏高，清亮实声带一点轻微磁性质感，气息稳定，吐字紧致但不生硬。语速中等偏快，整体从容、亲和、可信，语气保持小幅变化，适合连续讲解技术产品。"
+    },
+    {
+      "id": "19-bright-magnetic-presenter-b",
+      "label": "原创设计｜明亮轻磁性 B",
+      "model": "mimo-v2.5-tts-voicedesign",
+      "direction": "二十八岁女性，普通话自然，中音偏高，清亮实声带一点轻微磁性质感，气息稳定，吐字紧致但不生硬。语速中等偏快，整体从容、亲和、可信，语气保持小幅变化，适合连续讲解技术产品。"
+    }
+  ]
+}
