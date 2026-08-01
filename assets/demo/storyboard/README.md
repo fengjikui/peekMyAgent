@@ -86,7 +86,7 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html?timeline=/assets/demo/s
 node scripts/demo-storyboard-smoke.mjs assets/demo/source/claude-skill/video/timeline.zh-CN.json
 ```
 
-快速上手、Claude Code 工具调用、Skill、子 Agent、上下文压缩和多步规划时间线都声明了 `review_points`。每个点包含稳定名称、镜头序号和镜头内毫秒位置，用来重复生成“旧重点、交叉淡化、新重点、保留但降级”两种视口的逐帧审阅稿。编号必须按讲解顺序逐个出现；前一编号是否保留、降级或退出由镜头中的比较关系决定，不能在镜头开始时一次叠出全部编号。契约检查会拒绝重复名称、越界镜头或超出镜头时长的时间点：
+快速上手、Claude Code 工具调用、Skill、子 Agent、上下文压缩和多步规划时间线都声明了 `review_points`。每个点包含稳定名称、镜头序号和镜头内毫秒位置，用来重复生成“旧重点、交叉淡化、新重点、保留但降级”两种视口的逐帧审阅稿。编号必须按讲解顺序逐个出现；前一编号是否保留、降级或退出由镜头中的比较关系决定，不能在镜头开始时一次叠出全部编号。契约检查会拒绝同一时刻出现的多个数字编号；旧编号若在新编号出现一秒后仍然存在，则必须已经通过 `dim_ms` 退为次要。它也会拒绝重复名称、越界镜头或超出镜头时长的复核点：
 
 ```bash
 node scripts/demo-storyboard-smoke.mjs \

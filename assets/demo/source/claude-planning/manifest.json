@@ -131,7 +131,7 @@
       "contract": "video/timeline.zh-CN.json review_points"
     },
     "review_notes": [
-      "Comparison scenes retain the earlier marker when Turn levels, Request levels, tool calls, and results must be read together.",
+      "Comparison scenes retain the earlier marker when Turn levels, Request levels, tool calls, and results must be read together, but dim it before the new numbered marker appears.",
       "Independent focus changes crossfade the earlier marker into the next marker; the completed state contains only the new marker.",
       "No arrow was needed in this chapter because marker placement and focus boxes establish every relationship without crossing readable content.",
       "Subtitles remain bottom-centered at both review sizes and do not cover the selected tab, highlighted evidence, or final response.",
@@ -141,6 +141,7 @@
       "Numbered markers are timed teaching beats, not a static legend.",
       "Markers appear one by one with narration; they never enter as a complete 1-2-3-4 set.",
       "The previous marker remains only when the next point needs comparison or a visible causal link.",
+      "A retained previous marker uses dim_ms before or when the next marker appears, so it cannot compete with the current teaching beat.",
       "When attention moves to a new independent target, the previous marker fades before or crossfades with the next marker.",
       "Each review point must inspect marker entry, overlap, and exit states, not only the final frame."
     ]

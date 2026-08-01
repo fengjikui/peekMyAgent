@@ -91,6 +91,27 @@ for (const [index, scene] of timeline.scenes.entries()) {
       assert(overlay.end_ms <= (scene.end_seconds - scene.start_seconds) * 1000, `${overlayLabel}.end_ms exceeds scene duration`);
     }
   }
+
+  const numberedOverlays = (scene.overlays || [])
+    .filter((overlay) => overlay.type === "badge" && /^\d+(?:\.\d+)?$/.test(overlay.label || ""))
+    .sort((left, right) => (left.delay_ms || 0) - (right.delay_ms || 0));
+  for (let numberedIndex = 1; numberedIndex < numberedOverlays.length; numberedIndex += 1) {
+    const previous = numberedOverlays[numberedIndex - 1];
+    const current = numberedOverlays[numberedIndex];
+    const previousDelay = previous.delay_ms || 0;
+    const currentDelay = current.delay_ms || 0;
+    assert(currentDelay > previousDelay,
+      `${label} numbered badges ${previous.label} and ${current.label} must appear progressively, not at the same time`);
+
+    const handoffOverlapMs = Number.isFinite(previous.end_ms)
+      ? previous.end_ms - currentDelay
+      : Number.POSITIVE_INFINITY;
+    const previousPersistsBeyondHandoff = handoffOverlapMs > 1000;
+    if (previousPersistsBeyondHandoff) {
+      assert(Number.isFinite(previous.dim_ms) && previous.dim_ms <= currentDelay,
+        `${label} numbered badge ${previous.label} persists after ${current.label} appears and must dim first`);
+    }
+  }
 }
 
 assert(expectedStart === timeline.duration_seconds, "last scene must end at duration_seconds");
