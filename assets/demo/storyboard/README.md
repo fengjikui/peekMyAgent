@@ -38,6 +38,26 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html?present=1&review=1&auto
 
 `catalog.zh-CN.json` 是统一章节目录和审阅状态源。每个条目必须同时声明时间线、对应中文文档、真实标题，以及 `review` 中的目标问题、观众、Source 边界、状态、下一道确认门和五类审阅资料。点击制作控制区的“章节审阅”即可在同一页面打开这份合同；它不会进入 `present=1` 成片。新增可发布章节时必须同步增加 catalog 条目；`demo-production-audit.mjs` 与 `documentation-consistency-audit.mjs` 会拒绝缺失章节、错误路径、失效资料、未纳入中文公开文档审计的文件或不存在的小节标题。
 
+## 一条命令重生成双尺寸审阅帧
+
+不需要手工启动静态服务器，也不需要安装 Playwright。下面的命令从 catalog 找到章节时间线和输出目录，启动只监听环回地址的临时服务器与一次性无痕 Chrome，再按全部 `review_points` 生成 JPEG 和两张联系表：
+
+```bash
+node scripts/capture-storyboard-review-frames.mjs codex-compact
+node scripts/demo-production-audit.mjs --strict codex-compact
+```
+
+脚本自动查找 Chrome、Chromium 或 Edge；也可以通过 `--browser <path>` 或 `PMA_STORYBOARD_BROWSER` 指定。它固定使用 `present=1&review=1&autoplay=0`，等待源图和目标镜头完成，再调用浏览器原生截图并验证实际像素严格等于 1920×1080 或 1024×576。一次性浏览器 profile 会在结束时清理，网页和素材只从本地仓库读取。
+
+修改时间线但暂时不想覆盖已提交素材时，先输出到隔离目录：
+
+```bash
+node scripts/capture-storyboard-review-frames.mjs codex-compact \
+  --output-root tmp/codex-compact-review-candidate
+```
+
+脚本只覆盖时间线当前声明的同名帧，不会擅自删除旧文件；复核点被删除或改名后，严格生产审计会报告多余文件，再由制作者明确处理。
+
 ## 统一入口视觉复核记录
 
 2026-08-02 使用真实浏览器完成以下检查：

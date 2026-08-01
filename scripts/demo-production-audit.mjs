@@ -52,6 +52,18 @@ console.log([
 ].join(" "));
 
 function auditStoryboardCatalog() {
+  const reviewCaptureScript = path.join(root, "scripts", "capture-storyboard-review-frames.mjs");
+  assertFile(reviewCaptureScript, "storyboard review capture script");
+  assertTrackable(reviewCaptureScript, "storyboard review capture script");
+  scanTextPrivacy(reviewCaptureScript, "storyboard review capture script");
+  const reviewCaptureSource = fs.readFileSync(reviewCaptureScript, "utf8");
+  assert(
+    reviewCaptureSource.includes("review_points")
+      && reviewCaptureSource.includes('url.searchParams.set("review", "1")')
+      && reviewCaptureSource.includes('Page.captureScreenshot'),
+    "storyboard review capture script must use timeline review points and frozen browser capture",
+  );
+
   for (const name of ["index.html", "player.css", "player.js", "README.md", "catalog.zh-CN.json"]) {
     const file = path.join(storyboardRoot, name);
     assertFile(file, "storyboard player artifact");

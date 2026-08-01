@@ -85,6 +85,7 @@
     "timeline": "assets/demo/source/codex-compact/video/timeline.zh-CN.json",
     "subtitles": "assets/demo/video/pma-codex-compact.zh-CN.srt",
     "storyboard_player": "assets/demo/storyboard/index.html",
+    "review_capture": "node scripts/capture-storyboard-review-frames.mjs codex-compact",
     "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
     "audio": "not_started; handled by the separate voice-tuning workflow"
   },

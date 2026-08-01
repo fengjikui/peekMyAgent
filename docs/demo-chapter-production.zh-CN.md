@@ -119,7 +119,16 @@ node scripts/demo-production-audit.mjs
 node scripts/demo-production-audit.mjs --strict translation
 ```
 
-联系表也由统一脚本生成，不能用一张缩略联系表反向证明原始帧尺寸：
+双尺寸审阅帧应从 catalog 和时间线统一生成。下面的命令会自行启动环回服务器与一次性无痕 Chrome，冻结每个 `review_points` 时刻、输出 1920×1080 / 1024×576 JPEG、验证真实像素并重建联系表：
+
+```bash
+node scripts/capture-storyboard-review-frames.mjs codex-compact
+node scripts/demo-production-audit.mjs --strict codex-compact
+```
+
+第一次尝试新镜头时使用 `--output-root tmp/<chapter>-review-candidate`，原尺寸和联系表检查通过后再写入 catalog 声明的正式目录。该脚本不删除失效旧帧；严格审计会把多余文件作为显式问题交给制作者判断，避免自动清理误删人工素材。
+
+如果只需要从已经复核的帧重建联系表，继续使用统一联系表脚本；不能用一张缩略联系表反向证明原始帧尺寸：
 
 ```bash
 python3 scripts/build-demo-contact-sheet.py \

@@ -250,6 +250,8 @@ python3 scripts/build-readme-storyboard-gif.py --check
 
 同日又完成了独立的 Codex compact 章节。真实 Codex App Server 轨迹先生成 4 个普通 Turn 和 5 次模型请求，再从 Request 4 的 `request_kind=compaction`、九项 input、Harness checkpoint 提示和 Request 5 重组后的 History 逐层核对。20 个稳定状态分别在 1920×1080 与 1024×576 下审查：入口镜头只冻结一个点击波纹；协议顺序按 1→2 展开；History 按 1→2→3 展开，其中编号 1 在编号 2 出现时降级、在编号 3 出现前退出，编号 2 只作为弱化对照保留。首次取帧误在 700ms 页面淡入期间截图，整批发白，因此全部拒绝；播放器随后增加仅供制作验收的 `review=1` 冻结模式，关闭页面转场和标注动画，但不改变正常播放。重录后编号、框线、点击中心、字幕安全区和双尺寸构图均通过，未使用箭头。联系表和事实边界见 `assets/demo/source/codex-compact/manifest.json`。
 
+为避免后续章节再次依赖一次性浏览器会话，`scripts/capture-storyboard-review-frames.mjs` 已把上述操作收束为 catalog 驱动的命令。使用 Chrome 150 在隔离输出目录重生成 Codex compact 的 40 张帧和两张联系表后，所有文件都通过 JPEG 格式与真实尺寸校验；与当前已提交帧逐像素比较的平均绝对差为 2.40/255，最大单帧为 3.41/255，联系表肉眼一致，因此没有为了更换截图工具而重写现有二进制素材。正式更新时仍须打开联系表和代表性原图自审，自动生成成功不能代替视觉判断。
+
 同日，“Skill 怎样被发现和加载”从 32 张旧式审阅帧迁移为时间线声明的 31 个稳定复核点，并重新生成真实 1920×1080 与 1024×576 两档画面。System、Tools 和协议视图标签已经能够自我解释，只保留轻描边；编号留给 Request 入口、调用、参数、回执、Raw 命中和最终证据。相关的调用与参数允许约半秒共存，焦点已经改变的标记交叉淡出，最终 Response 使用点击波纹后再出现单一证据编号。两档逐帧检查确认编号居中、框线未遮挡正文，并且不需要箭头。联系表和事实边界见 `assets/demo/source/claude-skill/manifest.json`。
 
 同日，“子 Agent 在哪里运行，结果怎样回来”从 33 张未声明复核点的旧审阅图迁移为时间线中的 32 个稳定 `review_points`。multi-agent 镜头先用短波纹指示真实展开控件，再让两个分支编号 1、2 依次出现；Turn 2 / Turn 3 对照保留旧编号，但在新阶段出现前通过 `dim_ms` 退为次要；最终 Response 也改为点击波纹后只保留一个证据编号。第一轮自审还发现 Turn 2 降级状态比“显示 Turn 3”的字幕晚约一秒，修正时码后只重渲染相关帧。真实 1920×1080 与 1024×576 两档均通过，未使用箭头。联系表和事实边界见 `assets/demo/source/claude-subagents/manifest.json`。

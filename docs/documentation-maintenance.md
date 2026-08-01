@@ -12,6 +12,7 @@
 - `scripts/translation-viewer-demo.mjs` 可通过真实 Capture Proxy、真实翻译接口与两个确定性 loopback 上游重建 3 个 System、7 个 Tools 翻译块及原文兜底场景；
 - `scripts/build-readme-media.py` 可从保留的原始帧重新生成标注图和慢速 GIF；
 - `scripts/build-demo-video.py` 可从已验收素材重新生成中文 MP4、旁白、字幕、封面与中性时间线；
+- `scripts/capture-storyboard-review-frames.mjs <chapter>` 可直接读取 catalog 与时间线，用环回服务器和一次性 Chrome 重建 1920×1080 / 1024×576 审阅帧及联系表；它验证真实 JPEG 像素，不需要 Playwright，也不会自动删除失效旧帧；
 - `assets/demo/storyboard/` 可从章节时间线非破坏性播放真实 Viewer 帧、字幕、聚焦框、标注和转场；统一 catalog 还把十个演示章节映射到对应中文手册小节，并保存问题、观众、Source 边界、审阅状态、下一道门与五类资料入口；`review=1` 可冻结指定时点用于逐帧验收，制作模式可以直接打开，成片模式不会显示；`scripts/demo-storyboard-smoke.mjs` 检查镜头连续性、可读时长、素材路径与箭头草稿；
 - `scripts/demo-production-audit.mjs` 跨章节核对 manifest、旁白、时间线、SRT、Source 图片、双尺寸审阅帧的真实像素、Git 可追踪性、媒体体积预算、章节审阅合同与常见隐私哨兵；带 `review_points` 的章节可用 `--strict` 要求两档帧与稳定时点逐一对应；`smoke:governance` 会调用这项生产审计；
 - `scripts/documentation-consistency-audit.mjs` 核对中英文 README、快速开始、用户手册首页与十个任务章节的本地链接和章节锚点；同时检查 Node.js 要求、九条核心 CLI 事实、英文首页的支持协议/主 GIF/中文深读入口，以及十个演示章节到真实中文标题和审阅合同的映射；它已经由 `smoke:governance` 调用；

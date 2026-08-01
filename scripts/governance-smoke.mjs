@@ -21,6 +21,7 @@ const requiredFiles = [
   ".github/ISSUE_TEMPLATE/config.yml",
   ".github/pull_request_template.md",
   "assets/demo/media-budget.json",
+  "scripts/capture-storyboard-review-frames.mjs",
   "scripts/documentation-impact-summary.mjs",
 ];
 
@@ -165,6 +166,15 @@ const exactRangePayload = JSON.parse(exactRange.stdout);
 assert.deepEqual(exactRangePayload.impact.changed_files, []);
 assert.equal(exactRangePayload.handoff.target_sha, documentationHandoff.target_sha);
 assert.equal(exactRangePayload.handoff.base_sha, documentationHandoff.target_sha);
+
+const reviewCaptureHelp = spawnSync(process.execPath, [
+  "scripts/capture-storyboard-review-frames.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(reviewCaptureHelp.status, 0, `storyboard capture help failed:\n${reviewCaptureHelp.stderr}`);
+assert.match(reviewCaptureHelp.stdout, /<chapter-id>/);
+assert.match(reviewCaptureHelp.stdout, /--output-root/);
+assert.match(reviewCaptureHelp.stdout, /PMA_STORYBOARD_BROWSER/);
 
 const demoProduction = spawnSync(process.execPath, ["scripts/demo-production-audit.mjs"], {
   encoding: "utf8",
