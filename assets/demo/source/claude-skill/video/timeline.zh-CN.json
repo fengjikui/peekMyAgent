@@ -1,0 +1,415 @@
+{
+  "version": 1,
+  "title": "用 PMA 看懂 Claude Code：Skill 怎样被发现和加载",
+  "resolution": [1920, 1080],
+  "source_viewport": [2048, 1056],
+  "fps": 30,
+  "duration_seconds": 239,
+  "theme": "claude",
+  "subtitle_layout": {
+    "position": "bottom-center",
+    "bottom_percent": 5.2,
+    "max_width_percent": 72,
+    "max_lines": 2,
+    "background": "none",
+    "outline": "subtle"
+  },
+  "review_points": [
+    { "name": "00-intro", "scene": 0, "at_ms": 8000 },
+    { "name": "01-overview", "scene": 1, "at_ms": 6000 },
+    { "name": "02a-detail", "scene": 2, "at_ms": 1600 },
+    { "name": "02b-detail-to-system", "scene": 2, "at_ms": 4900 },
+    { "name": "02c-system-tab", "scene": 2, "at_ms": 6500 },
+    { "name": "02d-system-to-description", "scene": 2, "at_ms": 9000 },
+    { "name": "02e-skill-description", "scene": 2, "at_ms": 13000 },
+    { "name": "03a-tools-tab", "scene": 3, "at_ms": 2200 },
+    { "name": "03b-tools-to-definition", "scene": 3, "at_ms": 5100 },
+    { "name": "03c-generic-skill-tool", "scene": 3, "at_ms": 10000 },
+    { "name": "04a-skill-call", "scene": 4, "at_ms": 2000 },
+    { "name": "04b-call-crossfade", "scene": 4, "at_ms": 6200 },
+    { "name": "04c-call-parameters", "scene": 4, "at_ms": 10000 },
+    { "name": "05a-load-result", "scene": 5, "at_ms": 2000 },
+    { "name": "05b-result-crossfade", "scene": 5, "at_ms": 5300 },
+    { "name": "05c-load-receipt", "scene": 5, "at_ms": 9000 },
+    { "name": "06a-raw-search", "scene": 6, "at_ms": 2000 },
+    { "name": "06b-raw-crossfade", "scene": 6, "at_ms": 6200 },
+    { "name": "06c-skill-body", "scene": 6, "at_ms": 11000 },
+    { "name": "07a-protocol-tab", "scene": 7, "at_ms": 2200 },
+    { "name": "07b-protocol-to-order", "scene": 7, "at_ms": 5400 },
+    { "name": "07c-protocol-order", "scene": 7, "at_ms": 10000 },
+    { "name": "08a-read-call", "scene": 8, "at_ms": 2000 },
+    { "name": "08b-read-crossfade", "scene": 8, "at_ms": 5500 },
+    { "name": "08c-read-parameters", "scene": 8, "at_ms": 10000 },
+    { "name": "09a-read-result", "scene": 9, "at_ms": 2000 },
+    { "name": "09b-result-crossfade", "scene": 9, "at_ms": 5500 },
+    { "name": "09c-read-content", "scene": 9, "at_ms": 10000 },
+    { "name": "10a-response-click", "scene": 10, "at_ms": 800 },
+    { "name": "10b-final-response", "scene": 10, "at_ms": 6000 },
+    { "name": "11-outro", "scene": 11, "at_ms": 9000 }
+  ],
+  "scenes": [
+    {
+      "id": "00-intro",
+      "title": "Skill 到底是什么？",
+      "start_seconds": 0,
+      "end_seconds": 15,
+      "source_image": null,
+      "card": {
+        "eyebrow": "peekMyAgent · Claude Code 机制 02",
+        "headline": "Skill 怎样被发现和加载？",
+        "steps": ["发现", "加载", "执行"]
+      },
+      "narration": "一个 Skill，是不是一个新工具？还是一大段从第一轮开始就占着上下文的提示词？这一支视频，我们只追一条 project-summary Skill，从被看见，到被加载，再到真正指导后续动作。",
+      "subtitle_cues": [
+        "一个 Skill，是不是一个新工具？",
+        "还是一大段始终占着上下文的提示词？",
+        "我们只追一条 project-summary Skill，",
+        "从被看见，到被加载，再到指导后续动作。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    },
+    {
+      "id": "01-overview",
+      "title": "先看完整路径",
+      "start_seconds": 15,
+      "end_seconds": 34,
+      "source_image": "/assets/demo/source/claude-skill/recording/real-cli/raw/01-overview.jpg",
+      "narration": "任务很简单：使用 project-summary，总结项目名、目标和下一步。Claude Code 实际产生三次模型请求；PMA 又把机制整理成六段：用户请求、加载 Skill、正文回传、调用 Read、结果回传和最终回答。先记住完整路径，再逐段打开证据。",
+      "subtitle_cues": [
+        "任务很简单：使用 project-summary，",
+        "总结项目名、目标和下一步。",
+        "Claude Code 实际产生三次模型请求。",
+        "PMA 又把机制整理成六段，",
+        "先记住完整路径，再逐段打开证据。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.4, 13.8, 48.8, 5.4],
+          "label_box": [11.2, 10.5, 2.6, 5.0],
+          "delay_ms": 900,
+          "draft": "编号贴在机制流程左上外缘，不加箭头；只证明先看完整链；镜头内只有这一个重点。"
+        }
+      ]
+    },
+    {
+      "id": "02-discovery-system",
+      "title": "模型一开始看见什么？",
+      "start_seconds": 34,
+      "end_seconds": 56,
+      "source_image": "/assets/demo/source/claude-skill/recording/real-cli/raw/02-discovery-system-search.jpg",
+      "narration": "先看第一次请求的 System。Raw 搜索定位到 message_system：可用 Skill 清单只给出 project-summary 的名称和一行 description。模型可以先凭这份描述判断是否相关；完整步骤还没有在这里展开。这次由用户明确指定 Skill，所以我们只验证加载流程，不把它说成模型自主选择。",
+      "subtitle_cues": [
+        "Raw 搜索定位到 message_system。",
+        "可用 Skill 清单只给出名称和 description。",
+        "完整步骤还没有在这里展开。",
+        "本例由用户指定 Skill，只验证加载流程。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [57.8, 18.3, 3.2, 3.7],
+          "label_box": [55.5, 15.1, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 5200,
+          "draft": "先标记 Request 1 的详情按钮，解释右栏从哪里打开；不加箭头；讲完后与编号 2 交叉淡出。"
+        },
+        {
+        "type": "focus",
+        "focus": [69.2, 6.1, 3.7, 2.9],
+        "delay_ms": 4700,
+        "end_ms": 9300,
+        "draft": "System 标签本身已经有名称，因此只用轻描边接管焦点，和编号 1 交叉约半秒；讲完切换动作后再与证据编号 2 交叉淡出。"
+        },
+        {
+          "type": "badge",
+        "label": "2",
+          "focus": [63.6, 18.2, 35.5, 20.7],
+          "label_box": [61.0, 15.0, 2.6, 5.0],
+          "delay_ms": 8800,
+        "draft": "最终只保留证据编号 2，聚焦 project-summary 的一行 description；不遮字段路径或说明正文。"
+        }
+      ]
+    },
+    {
+      "id": "03-generic-skill-tool",
+      "title": "每个 Skill 都会新增一个工具吗？",
+      "start_seconds": 56,
+      "end_seconds": 78,
+      "source_image": "/assets/demo/source/claude-skill/recording/real-cli/raw/03-generic-skill-tool.jpg",
+      "narration": "再切到 Tools。当前请求共声明二十八个工具，其中只有一个通用 Skill 入口，也包含后面要用的 Read；并没有一个名叫 project-summary 的专属工具。Claude Code 通过现有入口加载工作流，不会让每个 Skill 都扩张一次工具目录。",
+      "subtitle_cues": [
+        "当前请求共声明二十八个工具。",
+        "其中只有一个通用 Skill 入口，",
+        "没有 project-summary 专属工具。",
+        "每个 Skill 不会扩张一次工具目录。"
+      ],
+      "overlays": [
+        {
+        "type": "focus",
+        "focus": [71.7, 6.3, 2.8, 2.8],
+        "delay_ms": 400,
+        "end_ms": 5400,
+        "draft": "Tools 标签本身已经有名称，因此只用轻描边说明当前页面来源；不加编号或箭头；随后与证据编号 1 交叉淡出。"
+        },
+        {
+          "type": "badge",
+        "label": "1",
+          "focus": [63.6, 18.3, 35.4, 46.0],
+          "label_box": [61.0, 15.1, 2.6, 5.0],
+          "delay_ms": 4900,
+        "draft": "证据编号 1 聚焦通用 Skill 工具说明与两个参数；标签描边交接完成后消失；不遮正文。"
+        }
+      ]
+    },
+    {
+      "id": "04-skill-call",
+      "title": "请求加载的证据",
+      "start_seconds": 78,
+      "end_seconds": 96,
+      "source_image": "/assets/demo/source/claude-skill/recording/real-cli/raw/04-skill-call.jpg",
+      "narration": "点击这条 Skill 工具调用。右栏只保留调用标识、工具名和参数 project-summary。到这一步，模型只是用结构化 tool use 请求 Claude Code 加载这份 Skill；详细工作步骤并没有塞进这段参数。",
+      "subtitle_cues": [
+        "点击时间线中的 Skill 工具调用。",
+        "右栏保留调用标识、工具名和参数。",
+        "这一步只是请求加载，",
+        "详细工作步骤不在 tool_use 参数里。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.5, 32.3, 47.1, 5.0],
+          "label_box": [11.0, 29.3, 2.6, 5.0],
+          "delay_ms": 350,
+          "end_ms": 6500,
+          "draft": "编号 1 标记时间线中的 Skill 调用行，解释点击来源；不加箭头；随后与编号 2 交叉淡出。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.6, 19.0, 35.4, 13.2],
+          "label_box": [61.0, 15.8, 2.6, 5.0],
+          "delay_ms": 6000,
+          "draft": "编号 2 接管右栏 tool_use 参数；交接完成后编号 1 消失；不遮 ID、工具名或 project-summary。"
+        }
+      ]
+    },
+    {
+      "id": "05-skill-load-result",
+      "title": "加载确认不是任务结果",
+      "start_seconds": 96,
+      "end_seconds": 113,
+      "source_image": "/assets/demo/source/claude-skill/recording/real-cli/raw/05-skill-tool-result.jpg",
+      "narration": "Request 2 的 tool result 引用同一个调用标识，内容是 Launching skill: project-summary。它只是加载回执，并不是项目总结。PMA 同时保留来源一，可以直接回到最初那次调用。",
+      "subtitle_cues": [
+        "Request 2 先返回 Skill 加载回执。",
+        "内容是 Launching skill: project-summary，",
+        "并不是项目总结本身。",
+        "PMA 还保留“来源 #1”用于追溯。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.5, 42.6, 47.1, 6.0],
+          "label_box": [11.0, 39.6, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 5600,
+          "draft": "先标记 Request 2 的 Skill 工具结果与来源 #1；讲完点击来源后与编号 2 交叉淡出。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [64.1, 19.0, 35.2, 17.6],
+          "label_box": [61.2, 15.8, 2.6, 5.0],
+          "delay_ms": 5100,
+          "draft": "编号 2 聚焦右栏的 user/tool_result 与 Launching skill 回执；交接完成后编号 1 消失。"
+        }
+      ]
+    },
+    {
+      "id": "06-skill-body-raw",
+      "title": "正文什么时候真正进入上下文？",
+      "start_seconds": 113,
+      "end_seconds": 139,
+      "source_image": "/assets/demo/source/claude-skill/recording/real-cli/raw/06-skill-body-raw-search.jpg",
+      "narration": "真正的变化也发生在 Request 2。打开完整请求并搜索 Base directory，可以定位到 messages 三的 content 一：角色仍是 user，文本包含 Skill 目录、标题和三步正文。它与前一个 tool result 同属一条 user message。PMA 把这次请求标成 Skill、Harness 注入；Raw 则保留了原始位置。",
+      "subtitle_cues": [
+        "真正的变化也发生在 Request 2。",
+        "Raw 定位到 messages[3].content[1]。",
+        "它与 tool_result 同属一条 user message。",
+        "这里保存完整 Skill 正文。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [69.0, 9.0, 21.5, 4.8],
+          "label_box": [60.7, 8.7, 2.6, 5.0],
+          "delay_ms": 350,
+          "end_ms": 6500,
+          "draft": "编号 1 标记 Raw 搜索框与公开搜索词；不加箭头；讲完定位动作后与编号 2 交叉淡出。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.6, 18.2, 35.4, 20.4],
+          "label_box": [61.0, 15.0, 2.6, 5.0],
+          "delay_ms": 6000,
+          "draft": "编号 2 聚焦 messages[3].content[1] 的字段路径与正文摘录；交接完成后编号 1 消失。"
+        }
+      ]
+    },
+    {
+      "id": "07-protocol-order",
+      "title": "在 Anthropic Messages 里处于什么位置？",
+      "start_seconds": 139,
+      "end_seconds": 161,
+      "source_image": "/assets/demo/source/claude-skill/recording/real-cli/raw/07-skill-protocol-order.jpg",
+      "narration": "协议视图把顺序整理得更清楚：索引四是 assistant 的 Skill tool use；索引五和六都是下一条 user message 的内容块，先是 tool result，再是 Skill 正文文本。PMA 的摘要不会改写这些原生角色、顺序和路径；开发自研 Harness 时，也可以回到这里核对自己的封装。",
+      "subtitle_cues": [
+        "协议视图保留原生角色和顺序。",
+        "索引 4 是 assistant/tool_use。",
+        "索引 5 和 6 同属下一条 user message。",
+        "自研 Harness 可以在这里核对封装。"
+      ],
+      "overlays": [
+        {
+        "type": "focus",
+        "focus": [66.4, 6.1, 4.0, 2.9],
+        "delay_ms": 400,
+        "end_ms": 5700,
+        "draft": "协议视图标签本身已经有名称，因此只用轻描边解释页面来源；不加编号或箭头；随后与证据编号 1 交叉淡出。"
+        },
+        {
+          "type": "badge",
+        "label": "1",
+          "focus": [63.6, 59.0, 35.6, 34.5],
+          "label_box": [61.0, 56.0, 2.6, 5.0],
+          "delay_ms": 5200,
+        "draft": "证据编号 1 聚焦上行索引 4、5、6；标签描边交接完成后消失；不遮角色、类型或 source path。"
+        }
+      ]
+    },
+    {
+      "id": "08-read-call",
+      "title": "Skill 提供知识，不替代工具",
+      "start_seconds": 161,
+      "end_seconds": 181,
+      "source_image": "/assets/demo/source/claude-skill/recording/real-cli/raw/08-read-call.jpg",
+      "narration": "正文要求读取 README，于是模型随后返回独立的 Read 调用，参数指向一次性公开项目中的 README.md。Skill 提供的是一套可复用流程；真正访问本地文件，仍然要经过 Claude Code 的 Read 工具和权限边界。",
+      "subtitle_cues": [
+        "正文要求读取 README。",
+        "模型随后返回独立的 Read 调用。",
+        "Skill 提供流程知识，",
+        "真正访问文件仍要经过工具与权限边界。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.5, 56.0, 47.1, 5.6],
+          "label_box": [11.0, 52.9, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 5800,
+          "draft": "编号 1 标记时间线中的 Read 调用行，解释点击来源；不加箭头；随后与编号 2 交叉淡出。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.6, 19.0, 35.4, 18.0],
+          "label_box": [61.0, 15.8, 2.6, 5.0],
+          "delay_ms": 5300,
+          "draft": "编号 2 聚焦右栏 file_path 参数；交接完成后编号 1 消失；只证明 Skill 与文件工具分离。"
+        }
+      ]
+    },
+    {
+      "id": "09-read-result",
+      "title": "文件实际返回了什么？",
+      "start_seconds": 181,
+      "end_seconds": 201,
+      "source_image": "/assets/demo/source/claude-skill/recording/real-cli/raw/09-read-result.jpg",
+      "narration": "下一次请求里的 tool result 返回了公开 README：项目名 Blue Lantern，目标是演示 Agent Skill 的加载与工具闭环，下一步是在 PMA 中比较加载前后的模型请求。这里看到的是工具真正交给模型的内容，不是对结果的二次概括。",
+      "subtitle_cues": [
+        "tool_result 返回公开 README 的真实内容。",
+        "项目名、目标和下一步都来自这里。",
+        "这是工具交给模型的原文，",
+        "不是对结果的二次概括。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.5, 67.7, 47.1, 6.0],
+          "label_box": [11.0, 64.6, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 5800,
+          "draft": "编号 1 标记 Request 3 的 Read 结果与来源 #2；讲完来源后与编号 2 交叉淡出。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [64.0, 19.0, 35.1, 19.3],
+          "label_box": [61.2, 15.8, 2.6, 5.0],
+          "delay_ms": 5300,
+          "draft": "编号 2 聚焦右栏 README 原文；交接完成后编号 1 消失；不遮项目名、目标或下一步。"
+        }
+      ]
+    },
+    {
+      "id": "10-final-response",
+      "title": "最终回答是否同时遵守两份证据？",
+      "start_seconds": 201,
+      "end_seconds": 221,
+      "source_image": "/assets/demo/source/claude-skill/recording/real-cli/raw/10-final-response.jpg",
+      "narration": "最后的 Response 正好给出三条：项目名、目标和下一步。现在可以分别核对两件事：三条格式来自 Skill 正文；具体内容来自 Read 的工具结果。回答遵守了流程，也有实际文件证据支撑。",
+      "subtitle_cues": [
+        "最终 Response 正好给出三条。",
+        "三条格式来自 Skill 正文，",
+        "具体内容来自 Read 工具结果。",
+        "回答遵守流程，也有文件证据。"
+      ],
+      "overlays": [
+        {
+        "type": "click",
+        "click": [59.4, 74.3],
+        "delay_ms": 400,
+        "draft": "短点击波纹落在最终 Assistant 回复旁的详情按钮，解释右栏从哪里打开；波纹自动消失，不保留重复编号或箭头。"
+        },
+        {
+          "type": "badge",
+        "label": "1",
+          "focus": [64.0, 23.0, 35.0, 17.0],
+          "label_box": [61.2, 19.8, 2.6, 5.0],
+        "delay_ms": 1700,
+        "draft": "点击波纹消失后，证据编号 1 聚焦最终三条 Response；不遮三条答案。"
+        }
+      ]
+    },
+    {
+      "id": "11-outro",
+      "title": "四层记忆点",
+      "start_seconds": 221,
+      "end_seconds": 239,
+      "source_image": null,
+      "card": {
+        "eyebrow": "Skill 加载闭环",
+        "headline": "description → Skill → 正文 → Read",
+        "steps": ["发现", "请求加载", "指导行为", "真实操作"],
+        "footer": "PMA：比较加载前后，并回到协议与 Raw"
+      },
+      "narration": "记住四层：description 用来发现，通用 Skill 工具请求加载，正文指导行为，Read 等工具完成真实操作。PMA 的价值，是让你能在同一条时间线上比较加载前后，并随时回到协议和 Raw，而不是只凭最终表现猜机制。",
+      "subtitle_cues": [
+        "description 用来发现，Skill 工具请求加载。",
+        "正文指导行为，Read 完成真实操作。",
+        "PMA 让你比较加载前后，",
+        "并随时回到协议和 Raw。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    }
+  ]
+}

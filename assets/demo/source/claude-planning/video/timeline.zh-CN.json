@@ -1,0 +1,460 @@
+{
+  "version": 1,
+  "title": "用 PMA 看懂 Claude Code：一个用户请求为什么会变成七次模型往返",
+  "resolution": [1920, 1080],
+  "source_viewport": [2048, 1056],
+  "fps": 30,
+  "duration_seconds": 274,
+  "theme": "claude",
+  "subtitle_layout": {
+    "position": "bottom-center",
+    "bottom_percent": 5.2,
+    "max_width_percent": 72,
+    "max_lines": 2,
+    "background": "none",
+    "outline": "subtle"
+  },
+  "review_points": [
+    { "name": "00-intro", "scene": 0, "at_ms": 7000 },
+    { "name": "01a-setup-turns", "scene": 1, "at_ms": 3500 },
+    { "name": "01b-execution-turn", "scene": 1, "at_ms": 12000 },
+    { "name": "02a-request-rail", "scene": 2, "at_ms": 3000 },
+    { "name": "02b-request-chain", "scene": 2, "at_ms": 10000 },
+    { "name": "03a-tool-guidance", "scene": 3, "at_ms": 3000 },
+    { "name": "03b-tool-crossfade", "scene": 3, "at_ms": 14150 },
+    { "name": "03c-tool-fields", "scene": 3, "at_ms": 17000 },
+    { "name": "04a-call-list", "scene": 4, "at_ms": 3000 },
+    { "name": "04b-call-crossfade", "scene": 4, "at_ms": 9400 },
+    { "name": "04c-call-parameters", "scene": 4, "at_ms": 12000 },
+    { "name": "05a-result-source", "scene": 5, "at_ms": 2800 },
+    { "name": "05b-result-crossfade", "scene": 5, "at_ms": 8600 },
+    { "name": "05c-result-role", "scene": 5, "at_ms": 11000 },
+    { "name": "06a-task-progress", "scene": 6, "at_ms": 3000 },
+    { "name": "06b-read-crossfade", "scene": 6, "at_ms": 15100 },
+    { "name": "06c-read-evidence", "scene": 6, "at_ms": 19000 },
+    { "name": "07a-guide-evidence", "scene": 7, "at_ms": 3000 },
+    { "name": "07b-state-crossfade", "scene": 7, "at_ms": 12900 },
+    { "name": "07c-task-get", "scene": 7, "at_ms": 17000 },
+    { "name": "08-history-boundary", "scene": 8, "at_ms": 9000 },
+    { "name": "09a-completed-calls", "scene": 9, "at_ms": 3000 },
+    { "name": "09b-completed-results", "scene": 9, "at_ms": 14000 },
+    { "name": "10a-read-protocol", "scene": 10, "at_ms": 3000 },
+    { "name": "10b-protocol-crossfade", "scene": 10, "at_ms": 13350 },
+    { "name": "10c-state-protocol", "scene": 10, "at_ms": 18000 },
+    { "name": "11-final-response", "scene": 11, "at_ms": 6000 },
+    { "name": "12-outro", "scene": 12, "at_ms": 7000 }
+  ],
+  "scenes": [
+    {
+      "id": "00-intro",
+      "title": "一个请求，为什么需要七次往返",
+      "start_seconds": 0,
+      "end_seconds": 14,
+      "source_image": null,
+      "card": {
+        "eyebrow": "peekMyAgent · Claude Code 机制 05",
+        "headline": "一个用户请求，为什么会变成七次模型往返？",
+        "steps": ["模型提出动作", "Claude Code 执行", "结果进入下一次请求"]
+      },
+      "narration": "用户只发出一个多步请求，Claude Code 为什么会和模型往返七次？任务清单是谁创建的，文件又是谁读取的？这一次我们不只看最终答案，而是沿着每次 Request，把模型、Harness 和本地工具的分工逐层拆开。",
+      "subtitle_cues": [
+        "一个用户请求，为什么要往返七次？",
+        "任务清单和文件读取，分别由谁完成？",
+        "沿每次 Request 拆开三方分工。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    },
+    {
+      "id": "01-simple-scenario",
+      "title": "场景简单，机制完整",
+      "start_seconds": 14,
+      "end_seconds": 36,
+      "source_image": "/assets/demo/source/claude-planning/recording/raw/01-overview.jpg",
+      "narration": "演示项目叫 Blue Lantern，只有 README 和一页快速指南。前三轮只确定项目名、只读边界和证据要求。第四轮才提出完整任务：建立清单，读取两个文件，更新状态，再给三条建议。业务内容很简单，观众不需要先理解陌生项目；我们把注意力全部留给 Agent 机制。",
+      "subtitle_cues": [
+        "Blue Lantern 只有两份很短的公开文件。",
+        "编号 1 是三个铺垫 Turn。",
+        "编号 2 是真正执行任务的 Turn 4。",
+        "业务简单，注意力全部留给 Agent 机制。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.4, 9.4, 47.6, 64.0],
+          "label_box": [10.2, 8.4, 3.2, 6.0],
+          "delay_ms": 800,
+          "draft": "出现顺序：编号 1 先标出 Turn 1 到 Turn 3 的准备阶段；保留关系：编号 2 出现后继续保留，因为需要比较准备阶段和执行阶段；淡出时点：镜头转场时统一淡出。标签位于主栏左侧留白，不遮用户气泡和回复。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [13.4, 77.2, 47.6, 21.5],
+          "label_box": [10.2, 76.2, 3.2, 6.0],
+          "delay_ms": 9100,
+          "draft": "出现顺序：讲完前三个铺垫 Turn 后出现编号 2；保留关系：编号 1 继续保留，用来形成准备阶段与 Turn 4 执行阶段的上下对照；淡出时点：镜头结束。标签不遮 Turn 4 标题和用户请求。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "02-two-level-navigation",
+      "title": "Turn 与 Request 两级导航",
+      "start_seconds": 36,
+      "end_seconds": 54,
+      "source_image": "/assets/demo/source/claude-planning/recording/raw/02-two-level-navigation.jpg",
+      "narration": "选择 Turn 4 后，第二级 Request Rail 出现。顶部七个刻度对应 Request 4 到 Request 10；下方时间线则显示每次工具调用、结果回传和模型回复。第一层 Turn 帮你找到用户任务阶段，第二层 Request 帮你定位 Harness 内部的某一次往返。",
+      "subtitle_cues": [
+        "选择 Turn 4 后，Request Rail 出现。",
+        "七个刻度对应 Request 4 到 10。",
+        "下方时间线展开每次调用与结果。",
+        "Turn 找阶段，Request 找内部往返。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.4, 7.2, 47.6, 5.0],
+          "label_box": [10.2, 6.4, 3.2, 6.0],
+          "delay_ms": 650,
+          "draft": "出现顺序：编号 1 先聚焦 Turn 4 顶部的七格 Request Rail；保留关系：编号 2 出现后继续保留，因为下方请求链需要与上方刻度对应；淡出时点：镜头结束。描边不压住 #4 与 1/7 文本。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [13.4, 13.1, 47.6, 81.0],
+          "label_box": [10.2, 12.3, 3.2, 6.0],
+          "delay_ms": 7600,
+          "draft": "出现顺序：讲完 Request Rail 后出现编号 2；保留关系：编号 1 继续保留，使上方刻度与下方 Request 4 到 6 的工具链形成可见对应；淡出时点：镜头结束。聚焦范围止于分栏线，不遮右栏。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "03-tool-definition",
+      "title": "模型为什么选择 TaskCreate",
+      "start_seconds": 54,
+      "end_seconds": 82,
+      "source_image": "/assets/demo/source/claude-planning/recording/raw/05-task-create-tools.jpg",
+      "subtitle_layout": { "bottom_percent": 8.0 },
+      "narration": "远端模型一开始只收到文本和工具定义。Request 4 的 Tools 区显示，Claude Code 向模型声明了 TaskCreate，并说明它适合三个以上步骤的复杂任务，也说明 subject、description 和 activeForm 等字段。模型不是凭空知道如何建任务，它依据的正是这次请求里真实存在的工具说明和参数 schema。",
+      "subtitle_cues": [
+        "模型先收到文本和工具定义。",
+        "编号 1 是 TaskCreate 的使用条件。",
+        "复杂任务需要三个以上独立步骤。",
+        "编号 2 是 subject 等参数字段。",
+        "模型依据真实工具说明选择动作。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [63.4, 10.4, 35.8, 50.8],
+          "label_box": [59.7, 9.6, 3.2, 6.0],
+          "delay_ms": 700,
+          "end_ms": 14500,
+          "draft": "出现顺序：编号 1 先聚焦 TaskCreate 的说明和 When to Use This Tool；保留关系：参数字段是新的独立焦点，因此不与编号 2 长期并存；淡出时点：编号 2 出现前约 700 毫秒开始渐隐，形成交叉淡化。标签放在分栏线留白，不遮英文正文。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.4, 61.6, 35.8, 36.5],
+          "label_box": [59.7, 60.8, 3.2, 6.0],
+          "delay_ms": 13800,
+          "draft": "出现顺序：讲完工具使用条件后出现编号 2；保留关系：编号 1 正在交叉淡出，编号 2 单独承担参数说明；淡出时点：镜头结束。聚焦范围覆盖 Task Fields 和参数说明，不压住字幕安全区。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "04-task-create-call",
+      "title": "模型只提出 TaskCreate 调用",
+      "start_seconds": 82,
+      "end_seconds": 102,
+      "source_image": "/assets/demo/source/claude-planning/recording/raw/06-task-create-call.jpg",
+      "narration": "模型的回复包含两个 TaskCreate tool_use，分别核对 README 和快速指南。这里还没有任务被真正创建。模型只给出工具名、调用标识和参数；Claude Code 收到回复后，才在本地执行这两个调用。PMA 把模型提出的动作与 Harness 的实际执行边界分开显示。",
+      "subtitle_cues": [
+        "模型返回两个 TaskCreate tool_use。",
+        "编号 1 是中栏的两条调用。",
+        "编号 2 是右栏的工具名与参数。",
+        "真正执行者仍是 Claude Code。"
+      ],
+      "overlays": [
+        {
+          "type": "click",
+          "click": [59.5, 50.0],
+          "delay_ms": 350,
+          "draft": "点击波纹落在第一条 TaskCreate 行右端，交代右栏 tool_use 从哪个动作打开；波纹约一秒后自动消失，不与编号长期叠加。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.4, 46.0, 47.5, 10.3],
+          "label_box": [10.2, 45.2, 3.2, 6.0],
+          "delay_ms": 1500,
+          "end_ms": 9800,
+          "draft": "出现顺序：点击波纹后出现编号 1，聚焦中栏两条 TaskCreate；保留关系：右栏参数出现后焦点转移，不需要继续保留；淡出时点：编号 2 出现前约 700 毫秒开始渐隐。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.4, 18.0, 35.8, 27.5],
+          "label_box": [59.7, 17.2, 3.2, 6.0],
+          "delay_ms": 9100,
+          "draft": "出现顺序：讲完中栏调用后出现编号 2；保留关系：编号 1 交叉淡出，编号 2 单独聚焦右栏两个 tool_use 和参数；淡出时点：镜头结束。不使用跨栏箭头。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "05-task-create-result",
+      "title": "结果进入下一次用户消息",
+      "start_seconds": 102,
+      "end_seconds": 120,
+      "source_image": "/assets/demo/source/claude-planning/recording/raw/07-task-create-result.jpg",
+      "narration": "Request 5 才带回两个结果：Task 1 和 Task 2 已创建。中栏的“来源 4”可以直接跳回上一条调用；右栏则显示结果属于 user 角色。Claude Code 把本地执行结果封装成后续用户消息，模型因此得到任务编号，才能继续更新状态。",
+      "subtitle_cues": [
+        "Request 5 才带回创建结果。",
+        "编号 1 可从来源 4 跳回调用。",
+        "编号 2 显示结果属于 user 角色。",
+        "模型得到任务编号，才能继续。"
+      ],
+      "overlays": [
+        {
+          "type": "click",
+          "click": [59.4, 50.4],
+          "delay_ms": 350,
+          "draft": "点击波纹落在 Request 5 第一条 TaskCreate 结果行，说明右栏由哪一条结果打开；波纹自动消失。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.4, 46.0, 47.5, 10.5],
+          "label_box": [10.2, 45.2, 3.2, 6.0],
+          "delay_ms": 1500,
+          "end_ms": 9000,
+          "draft": "出现顺序：编号 1 先聚焦两条结果和来源 #4；保留关系：讲解转到右栏 user/tool_result 后不再需要中栏标记；淡出时点：编号 2 出现前交叉淡出。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.4, 18.2, 35.8, 27.0],
+          "label_box": [59.7, 17.4, 3.2, 6.0],
+          "delay_ms": 8300,
+          "draft": "出现顺序：讲完来源关联后出现编号 2；保留关系：编号 1 渐隐，编号 2 独立聚焦两个 tool_result 及 user 角色；淡出时点：镜头结束。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "06-status-and-read",
+      "title": "更新状态，再读取 README",
+      "start_seconds": 120,
+      "end_seconds": 150,
+      "source_image": "/assets/demo/source/claude-planning/recording/raw/11-history-file-evidence.jpg",
+      "narration": "下一轮，模型先把两项任务标成 in_progress。Claude Code 回传更新结果后，模型再请求 Read。右栏 History 同时保留了 Read 的绝对路径和返回的 Blue Lantern 文件内容。模型最终能引用项目目标，不是因为它访问了磁盘，而是 Harness 把文件结果放进了后续上下文。",
+      "subtitle_cues": [
+        "先把两个任务更新为 in_progress。",
+        "Claude Code 回传状态更新结果。",
+        "随后模型请求 Read README。",
+        "右栏保留路径和文件原文。",
+        "模型看到的是 Harness 回传的结果。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [63.4, 9.4, 35.8, 37.5],
+          "label_box": [59.7, 8.6, 3.2, 6.0],
+          "delay_ms": 700,
+          "end_ms": 15400,
+          "draft": "出现顺序：编号 1 先聚焦 TaskUpdate in_progress 与两条更新结果；保留关系：文件读取是新的独立阶段，因此不与编号 2 长期并存；淡出时点：编号 2 出现前约 700 毫秒开始渐隐。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.4, 47.2, 35.8, 37.2],
+          "label_box": [59.7, 46.4, 3.2, 6.0],
+          "delay_ms": 14700,
+          "draft": "出现顺序：状态更新讲完后出现编号 2；保留关系：编号 1 交叉淡出，编号 2 单独聚焦 Read 调用、绝对路径和 README 结果；淡出时点：镜头结束。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "07-guide-and-state",
+      "title": "读取指南，再核对任务状态",
+      "start_seconds": 150,
+      "end_seconds": 175,
+      "source_image": "/assets/demo/source/claude-planning/recording/raw/12-history-guide-and-state.jpg",
+      "narration": "同样的闭环再执行一次：Read 请求快速指南，Claude Code 返回 Turn Rail、Request Rail 和 History 三条原文。随后模型没有直接假设任务状态，而是调用两次 TaskGet，读取最新状态。多步规划不只是列一个清单，还要让后续动作与可验证的任务状态保持一致。",
+      "subtitle_cues": [
+        "第二次 Read 请求公开快速指南。",
+        "编号 1 是路径和三条文件原文。",
+        "编号 2 是两个 TaskGet 调用。",
+        "任务状态也必须重新核对。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [63.4, 9.4, 35.8, 54.0],
+          "label_box": [59.7, 8.6, 3.2, 6.0],
+          "delay_ms": 700,
+          "end_ms": 13200,
+          "draft": "出现顺序：编号 1 先聚焦 guide.md 调用、路径和三条原文；保留关系：TaskGet 是新的验证阶段，因此不与编号 2 长期并存；淡出时点：编号 2 出现前交叉淡出。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.4, 64.0, 35.8, 34.0],
+          "label_box": [59.7, 63.2, 3.2, 6.0],
+          "delay_ms": 12500,
+          "draft": "出现顺序：文件内容讲完后出现编号 2；保留关系：编号 1 渐隐，编号 2 独立聚焦 TaskGet 的两个 taskId；淡出时点：镜头结束。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "08-history-boundary",
+      "title": "History 与当前 Message 分开",
+      "start_seconds": 175,
+      "end_seconds": 194,
+      "source_image": "/assets/demo/source/claude-planning/recording/raw/13-history-completion.jpg",
+      "narration": "打开最终 Request 10 的 History，最末端仍是 TaskGet 返回的 in_progress。这是模型发出完成更新之前已经积累的历史。PMA 把它与当前 Message 分开，因此我们能准确回答：最终请求发送前，模型已经知道什么；这一轮刚新增的输入又是什么。",
+      "subtitle_cues": [
+        "Request 10 的 History 到哪里为止？",
+        "这里仍是 TaskGet 的 in_progress。",
+        "这是发送最终请求前的既有历史。",
+        "当前新增输入要去 Message 查看。"
+      ],
+      "overlays": [
+        {
+          "type": "focus",
+          "focus": [63.4, 23.0, 35.8, 72.0],
+          "delay_ms": 700,
+          "draft": "出现顺序：本镜头只有一圈轻描边，直接聚焦 History 末段的 TaskGet 调用与 in_progress 结果；保留关系：无需编号和第二目标；淡出时点：镜头结束。右栏标题和搜索栏保持无遮挡。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "09-current-message",
+      "title": "当前 Message 完成状态闭环",
+      "start_seconds": 194,
+      "end_seconds": 216,
+      "source_image": "/assets/demo/source/claude-planning/recording/raw/14-final-message-completed-results.jpg",
+      "narration": "切到 Message，上一条 Assistant 回复提出两个 TaskUpdate，状态都是 completed；紧接着的当前用户输入带回两条更新结果。调用和结果在同一块里一一对应。只有这份新 Message 被送到远端模型之后，模型才具备“任务已经完成”的证据。",
+      "subtitle_cues": [
+        "Message 先列出两个完成更新调用。",
+        "编号 1 是 completed 状态。",
+        "编号 2 是紧接着的 tool_result。",
+        "调用与结果必须同时可见。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [63.4, 18.0, 35.8, 44.0],
+          "label_box": [59.7, 17.2, 3.2, 6.0],
+          "delay_ms": 700,
+          "draft": "出现顺序：编号 1 先聚焦 Assistant 的两个 TaskUpdate completed；保留关系：编号 2 出现后继续保留，因为必须同时看到完成调用与结果回传的因果关系；淡出时点：镜头结束。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.4, 63.0, 35.8, 34.0],
+          "label_box": [59.7, 62.2, 3.2, 6.0],
+          "delay_ms": 10300,
+          "draft": "出现顺序：讲完完成调用后出现编号 2；保留关系：编号 1 继续保留，使上方 assistant/tool_use 与下方 user/tool_result 同时可比较；淡出时点：镜头结束。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "10-protocol-order",
+      "title": "协议视图保留原生顺序",
+      "start_seconds": 216,
+      "end_seconds": 242,
+      "source_image": "/assets/demo/source/claude-planning/recording/raw/17-protocol-tool-exchanges.jpg",
+      "narration": "如果摘要仍然不够，协议视图保留 Anthropic Messages 的原生路径和顺序。先是 Assistant 的 tool_use，再是 User 的 tool_result，之后模型才能继续下一步。这里还能连续看到 Read、TaskGet 和 TaskUpdate 的调用标识。开发自有 Harness 时，可以据此检查角色、顺序和关联是否被兼容层改写。",
+      "subtitle_cues": [
+        "协议视图保留 Anthropic 原生顺序。",
+        "编号 1 是 Read 的 use 与 result。",
+        "Assistant 调用后，User 回传结果。",
+        "编号 2 是 TaskGet 与完成更新。",
+        "可直接核对角色、路径与调用标识。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [63.4, 16.8, 35.8, 25.8],
+          "label_box": [59.7, 16.0, 3.2, 6.0],
+          "delay_ms": 700,
+          "end_ms": 13700,
+          "draft": "出现顺序：编号 1 先聚焦 Read 的 tool_use 与 tool_result 行；保留关系：后半段 TaskGet 和 TaskUpdate 是新的独立序列，因此不与编号 2 长期并存；淡出时点：编号 2 出现前交叉淡出。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.4, 43.0, 35.8, 53.5],
+          "label_box": [59.7, 42.2, 3.2, 6.0],
+          "delay_ms": 13000,
+          "draft": "出现顺序：Read 顺序讲完后出现编号 2；保留关系：编号 1 渐隐，编号 2 独立聚焦 TaskGet、TaskUpdate 及后续结果；淡出时点：镜头结束。标注不遮原生路径。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "11-final-response",
+      "title": "最终回答必须能回到证据",
+      "start_seconds": 242,
+      "end_seconds": 260,
+      "source_image": "/assets/demo/source/claude-planning/recording/raw/15-final-response.jpg",
+      "narration": "最后的三条建议分别对应两个文件里的真实内容：Turn Rail 定位任务，Request Rail 检查往返，History 核对上下文。PMA 的价值不是让答案看起来更复杂，而是让你能从最终回答一路回到文件结果、任务状态、工具定义和每一次模型请求。",
+      "subtitle_cues": [
+        "最终三条建议都能回到文件原文。",
+        "Turn Rail、Request Rail 与 History。",
+        "回答可以追溯到状态和工具结果。",
+        "这才是一条可检查的 Agent 证据链。"
+      ],
+      "overlays": [
+        {
+          "type": "click",
+          "click": [59.5, 69.2],
+          "delay_ms": 350,
+          "draft": "点击波纹落在中栏最终 Assistant 回复右端的详情按钮，交代右栏 Response 的来源；波纹自动消失，不覆盖三条建议。"
+        },
+        {
+          "type": "focus",
+          "focus": [63.4, 18.0, 35.8, 25.5],
+          "delay_ms": 1650,
+          "draft": "出现顺序：点击波纹消失后，用一圈轻描边聚焦右栏最终三条建议；保留关系：无第二编号；淡出时点：镜头结束。描边避开顶部标签和底部字幕。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "12-outro",
+      "title": "三步看懂多步任务",
+      "start_seconds": 260,
+      "end_seconds": 274,
+      "source_image": null,
+      "card": {
+        "eyebrow": "一条可检查的多步任务链",
+        "headline": "Turn 找目标，Request 找每次内部往返",
+        "steps": ["模型提出动作", "Claude Code 执行", "结果进入新上下文"],
+        "footer": "PMA 保留工具定义、调用、结果、上下文和最终回答"
+      },
+      "narration": "记住三步：模型根据工具定义提出动作；Claude Code 在本地执行并回传结果；模型使用新的上下文继续下一步。PMA 把一个 Turn 内的所有 Request 连成可检查的证据链，让“Agent 正在规划”不再只是一句黑盒描述。",
+      "subtitle_cues": [
+        "第一步：模型根据工具定义提出动作。",
+        "第二步：Claude Code 执行并回传结果。",
+        "第三步：模型使用新上下文继续。",
+        "PMA 把所有 Request 连成证据链。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    }
+  ]
+}

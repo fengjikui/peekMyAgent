@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "title": "一个用户请求为什么会变成七次模型往返",
+  "language": "zh-CN",
+  "chapter_status": "real_cli_trace_story_narration_raw_capture_and_dual_viewport_storyboard_review_v0_2",
+  "product_sha": "674222577f415c1b2775acefd337844ea6efd74c",
+  "source": {
+    "generator": "scripts/claude-planning-real-cli-probe.mjs",
+    "harness": "Claude Code 2.1.220",
+    "harness_execution": "real installed CLI launched through PMA exact Capture Proxy",
+    "upstream": "deterministic local Anthropic Messages SSE fixture",
+    "workspace": "/private/tmp/pma-claude-planning-demo/public-project",
+    "protocol": "Anthropic Messages",
+    "turns": 4,
+    "requests": 10,
+    "requests_per_turn": [1, 1, 1, 7],
+    "final_turn_requests": [4, 5, 6, 7, 8, 9, 10],
+    "external_requests": false,
+    "real_credentials": false,
+    "raw_capture": "tmp/claude-planning-real-cli; local and Git-ignored"
+  },
+  "teaching_contract": {
+    "audiences": [
+      "第一次想看懂 Claude Code 多步任务的用户",
+      "需要核对工具调用、任务状态和文件证据的 Harness 使用者",
+      "开发自有 Agent 并检查 Anthropic tool_use 与 tool_result 顺序的工程师"
+    ],
+    "question": "一个用户请求怎样在 Claude Code、远端模型和本地工具之间展开成多次请求，任务状态和文件证据又怎样进入最终回答？",
+    "takeaway": "模型只能返回文本和结构化 tool_use。Claude Code 根据本次请求中的工具定义执行 TaskCreate、TaskUpdate、Read 与 TaskGet，再把结果作为后续用户消息发送给模型。PMA 用 Turn 和 Request 两级导航保留每次往返，并在 History、Message 与协议视图中展示上下文如何逐步增长。",
+    "explicit_limits": [
+      "The real component under test is Claude Code CLI and its request assembly; model replies come from a deterministic local fake upstream.",
+      "The scenario demonstrates Claude Code task tools, not EnterPlanMode or ExitPlanMode.",
+      "The fake upstream follows a fixed sequence so the public teaching trace can be reproduced; it is not evidence of model quality.",
+      "Task status shown in the final CLI footer can lag during terminal rendering; the PMA request evidence and hook log are the facts used by this chapter.",
+      "PMA observes the loop and does not create or update Claude Code tasks itself."
+    ]
+  },
+  "experiment": {
+    "public_project": "Blue Lantern",
+    "setup_turns": [
+      "记住虚构项目名",
+      "约束本次任务只读",
+      "要求建议对应真实文件"
+    ],
+    "final_request": "只读核对 README.md 和 docs/guide.md：先建立任务清单，逐个读取两个文件，更新任务状态，最后给我三条让新用户更容易理解 PMA 的建议。不要修改任何文件。",
+    "tool_sequence": [
+      "TaskCreate x2",
+      "TaskUpdate in_progress x2",
+      "Read README.md",
+      "Read docs/guide.md",
+      "TaskGet x2",
+      "TaskUpdate completed x2",
+      "final text response"
+    ],
+    "hook_events": {
+      "SessionStart": 1,
+      "PreToolUse": 10,
+      "PostToolUse": 10
+    },
+    "file_integrity": {
+      "README.md_sha256": "ced68da7e81a5b1eba0c9c5d464656826b42c6c60b943f00957c93cdcac98673",
+      "docs/guide.md_sha256": "899c86a2a2b4f8c0855861166831be0bd71fcdfcdd2b5a5aabc49b3463acfb63"
+    }
+  },
+  "viewer": {
+    "viewport_css_pixels": { "width": 2048, "height": 1056 },
+    "theme": "Claude",
+    "ui_language": "zh-CN",
+    "capture_mode": "Codex in-app Browser",
+    "browser_layout": "full three-pane layout",
+    "black_frame": false
+  },
+  "facts": [
+    "The real CLI produced ten Anthropic Messages requests across four PMA user turns.",
+    "The final user Turn contains seven model requests, Requests 4 through 10.",
+    "Request 4 carries the two TaskCreate tool calls; Request 5 carries their tool_result blocks and the next TaskUpdate calls.",
+    "Request 7 carries the README.md Read result; Request 8 carries the docs/guide.md Read result and TaskGet calls.",
+    "Request 9 carries TaskGet results with in_progress state and the assistant TaskUpdate calls that set both tasks to completed.",
+    "Request 10 Message contains the completed TaskUpdate tool_use blocks together with their tool_result blocks; the final response is produced only after that input is sent.",
+    "Request 10 History preserves earlier messages and tool exchanges, while Message isolates the immediately preceding assistant tool calls and current tool results.",
+    "The Protocol view preserves Anthropic assistant tool_use and user tool_result roles and source paths for all exchanges.",
+    "PMA Metadata shows the deterministic model id, adaptive thinking, max_tokens, stream mode, token statistics, and request composition.",
+    "The two public source files retained their pre-run SHA-256 values."
+  ],
+  "raw_frames": [
+    "recording/raw/01-overview.jpg",
+    "recording/raw/02-two-level-navigation.jpg",
+    "recording/raw/04-task-create-detail.jpg",
+    "recording/raw/05-task-create-tools.jpg",
+    "recording/raw/06-task-create-call.jpg",
+    "recording/raw/07-task-create-result.jpg",
+    "recording/raw/08-read-result.jpg",
+    "recording/raw/09-final-history-top.jpg",
+    "recording/raw/10-history-task-lifecycle.jpg",
+    "recording/raw/11-history-file-evidence.jpg",
+    "recording/raw/12-history-guide-and-state.jpg",
+    "recording/raw/13-history-completion.jpg",
+    "recording/raw/14-final-message-completed-results.jpg",
+    "recording/raw/15-final-response.jpg",
+    "recording/raw/16-final-protocol.jpg",
+    "recording/raw/17-protocol-tool-exchanges.jpg",
+    "recording/raw/18-request-metadata.jpg"
+  ],
+  "production": {
+    "narration": "assets/demo/source/claude-planning/narration.zh-CN.md",
+    "timeline": "assets/demo/source/claude-planning/video/timeline.zh-CN.json",
+    "subtitles": "assets/demo/video/pma-claude-planning.zh-CN.srt",
+    "storyboard_player": "assets/demo/storyboard/index.html",
+    "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "audio": "not_started; handled by the separate voice-tuning workflow"
+  },
+  "official_references": [
+    "https://code.claude.com/docs/en/tools-reference",
+    "https://code.claude.com/docs/en/permission-modes",
+    "https://code.claude.com/docs/en/how-claude-code-works"
+  ],
+  "privacy": {
+    "paths": "Only generic /private/tmp paths for a disposable public demo workspace; no user home directory appears.",
+    "system_prompt": "The full request log remains local and ignored. Published frames use only a fictional project and current public tool definitions.",
+    "model_output": "Deterministic public fixture text only.",
+    "headers": "Authorization and session headers are visibly redacted by PMA.",
+    "prohibited": ["API keys", "provider credentials", "user prompts", "user source", "home-directory paths", "real captures"]
+  },
+  "visual_review": {
+    "captured_at": "2026-08-02",
+    "raw_frame_result": "passed for composition and readability at 2048x1056",
+    "storyboard_result": "passed 28 progressive states at both 1920x1080 and 1024x576",
+    "review_frames": {
+      "desktop": "recording/review-1920/; 28 JPEG frames at 1920x1080 plus contact-sheet.jpg",
+      "compact": "recording/review-1024/; 28 JPEG frames at 1024x576 plus contact-sheet.jpg",
+      "contract": "video/timeline.zh-CN.json review_points"
+    },
+    "review_notes": [
+      "Comparison scenes retain the earlier marker when Turn levels, Request levels, tool calls, and results must be read together.",
+      "Independent focus changes crossfade the earlier marker into the next marker; the completed state contains only the new marker.",
+      "No arrow was needed in this chapter because marker placement and focus boxes establish every relationship without crossing readable content.",
+      "Subtitles remain bottom-centered at both review sizes and do not cover the selected tab, highlighted evidence, or final response.",
+      "The first production audit found that the directory named review-1920 still contained 1280x720 files. All 28 desktop states were re-rendered in present mode at an exact 1920x1080 viewport, pixel dimensions were verified from image bytes, and both contact sheets were rebuilt."
+    ],
+    "annotation_policy": [
+      "Numbered markers are timed teaching beats, not a static legend.",
+      "Markers appear one by one with narration; they never enter as a complete 1-2-3-4 set.",
+      "The previous marker remains only when the next point needs comparison or a visible causal link.",
+      "When attention moves to a new independent target, the previous marker fades before or crossfades with the next marker.",
+      "Each review point must inspect marker entry, overlap, and exit states, not only the final frame."
+    ]
+  },
+  "publication_gate": {
+    "status": "real_cli_cross_check_raw_capture_and_dual_viewport_storyboard_review_complete_owner_story_review_pending",
+    "remaining": [
+      "Freeze narration only after the owner reviews the Chinese story.",
+      "Do not publish the ignored raw request log or generated video from the main repository."
+    ]
+  }
+}

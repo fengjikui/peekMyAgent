@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  buildDocumentationHandoff,
+  buildDocumentationImpact,
+  runDocumentationConsistencyAudit,
+} from "./documentation-consistency-audit.mjs";
 
 const requiredFiles = [
   "CONTRIBUTING.md",
@@ -10,6 +16,7 @@ const requiredFiles = [
   ".github/ISSUE_TEMPLATE/trace_display_bug.yml",
   ".github/ISSUE_TEMPLATE/config.yml",
   ".github/pull_request_template.md",
+  "assets/demo/media-budget.json",
 ];
 
 for (const file of requiredFiles) {
@@ -55,5 +62,43 @@ const prTemplate = fs.readFileSync(".github/pull_request_template.md", "utf8");
 assert.match(prTemplate, /Deterministic release gate or focused smoke tests passed/);
 assert.match(prTemplate, /Manual integration smokes are listed separately/);
 assert.match(prTemplate, /Capture Boundary/);
+assert.match(prTemplate, /Documentation And Demo Impact/);
+assert.match(prTemplate, /documentation-consistency-audit\.mjs --base/);
+assert.match(prTemplate, /Documentation handoff target SHA/);
+
+const documentationSummary = runDocumentationConsistencyAudit();
+assert.equal(documentationSummary.documents, 14);
+assert.equal(documentationSummary.demoMappings, 6);
+const documentationImpact = buildDocumentationImpact([
+  "bin/peekmyagent.mjs",
+  "src/viewer/agent-graph-view.js",
+  "src/viewer/raw-inspector-controller.js",
+]);
+assert.deepEqual(
+  documentationImpact.impacts.map((impact) => impact.id),
+  ["cli-and-lifecycle", "subagents", "protocol-and-raw"],
+);
+assert(
+  documentationImpact.impacts
+    .find((impact) => impact.id === "subagents")
+    .required_docs.includes("docs/user-guide/subagents.md"),
+);
+const documentationHandoff = buildDocumentationHandoff(documentationImpact);
+assert.match(documentationHandoff.target_sha, /^[0-9a-f]{40}$/);
+assert.equal(documentationHandoff.requires_documentation_review, true);
+assert.deepEqual(documentationHandoff.impact_ids, ["cli-and-lifecycle", "subagents", "protocol-and-raw"]);
+assert(documentationHandoff.required_docs.includes("docs/user-guide/subagents.md"));
+assert(documentationHandoff.required_demos.includes("协议视图、Raw Inspector 与脱敏 JSON"));
+assert.equal(documentationHandoff.validation_commands.at(-1), "git diff --check");
+
+const demoProduction = spawnSync(process.execPath, ["scripts/demo-production-audit.mjs"], {
+  encoding: "utf8",
+});
+assert.equal(
+  demoProduction.status,
+  0,
+  `demo production audit failed:\n${demoProduction.stdout}${demoProduction.stderr}`,
+);
+process.stdout.write(demoProduction.stdout);
 
 console.log("governance smoke passed");

@@ -20,6 +20,7 @@ PMA 不是用来“破解隐藏提示词”的工具，只用于你自己授权�
 | 分别观察 Codex、Claude Code、OpenCode、CodeBuddy 或 OpenClaw | [观察官方支持的 Harness](user-guide/supported-harnesses.md) |
 | 理解 Turn、Request、History、System diff 和上下文构成 | [看懂请求、回复和上下文变化](user-guide/requests-context.md) |
 | 从工具声明追到调用、迟到结果和最终回答 | [看懂工具调用、工具结果与迟到回传](user-guide/tools-results.md) |
+| 检查 Skill 如何被发现、加载并指导后续工具 | [看懂 Skill 的发现、加载与后续工具调用](user-guide/skills.md) |
 | 检查子 Agent 启动、内部请求和结果回流 | [看懂子 Agent 与多 Agent 协作](user-guide/subagents.md) |
 | 核对 OpenAI / Anthropic 原生字段或排查 adapter 异常 | [查看原始协议与调试异常](user-guide/protocol-raw.md) |
 | 不开发专用 adapter，先观察自研 Harness | [通过通用协议桥接入自研 Harness](user-guide/custom-harness.md) |
@@ -40,8 +41,9 @@ PMA 不是用来“破解隐藏提示词”的工具，只用于你自己授权�
 ### 想研究 Codex、Claude Code 等 Harness
 
 1. [请求、回复和上下文变化](user-guide/requests-context.md)
-2. [子 Agent 与多 Agent 协作](user-guide/subagents.md)
-3. [原始协议与 Raw](user-guide/protocol-raw.md)
+2. [Skill 的发现、加载与后续工具](user-guide/skills.md)
+3. [子 Agent 与多 Agent 协作](user-guide/subagents.md)
+4. [原始协议与 Raw](user-guide/protocol-raw.md)
 
 重点区分真实协议字段、PMA 整理语义和有限推断，不能把 roadmap 或单次实验写成 Harness 的稳定实现。
 
@@ -49,8 +51,9 @@ PMA 不是用来“破解隐藏提示词”的工具，只用于你自己授权�
 
 1. [通用协议桥](user-guide/custom-harness.md)
 2. [工具调用与迟到结果](user-guide/tools-results.md)
-3. [原始协议与 Raw](user-guide/protocol-raw.md)
-4. [新 Harness 适配工作手册](new-harness-adaptation-playbook.md)
+3. [Skill 的发现与加载](user-guide/skills.md)
+4. [原始协议与 Raw](user-guide/protocol-raw.md)
+5. [新 Harness 适配工作手册](new-harness-adaptation-playbook.md)
 
 先用通用 OpenAI / Anthropic 桥确认 HTTP 交换，再决定是否需要专用 adapter 解释权限、Skill、压缩或子 Agent。
 
@@ -103,6 +106,8 @@ PMA 会明确区分：
 4. 对原图和 900～1100px README 预览逐帧验收；
 5. 同步中文版事实，再更新英文及其他语言；
 6. 把产品缺口记录为反馈，不在文档任务中顺手修改主线功能。
+7. 运行 `node scripts/documentation-consistency-audit.mjs`，核对章节入口、链接、锚点与核心 CLI 事实；功能分支可再用 `--base <SHA> --json` 生成受影响章节清单。
+8. 新增或重命名演示章节时，同步 `assets/demo/storyboard/catalog.zh-CN.json` 中的 `guide` 与 `guide_section`，确保制作端画面能回到对应中文事实。
 
 素材来源、箭头草稿、帧时长和验收门禁见[图文与演示素材说明](visual-usage-guide.zh-CN.md)。
 

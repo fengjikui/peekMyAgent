@@ -1,80 +1,153 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "title": "用 PMA 看懂 Claude Code：一次工具调用",
   "language": "zh-CN",
-  "publication_status": "local_draft",
-  "viewer_commit": "dded809e7e5883989e9b01c60bf6a54ec6c7a8a0",
-  "recorded_at": "2026-08-01",
+  "chapter_status": "deterministic_teaching_trace_story_narration_storyboard_and_dual_viewport_review_v0_2",
   "source": {
-    "id": "claude-tool-loop",
+    "viewer_source_commit": "dded809e7e5883989e9b01c60bf6a54ec6c7a8a0",
+    "verified_worktree_head": "674222577f415c1b2775acefd337844ea6efd74c",
+    "verified_origin_main": "83a5f158fa913c69f8f80809ce17d8a2ea701bd0",
+    "viewer_diff_since_capture": "The capture commit is not an ancestor of origin/main, but the trees under src/viewer, src/server, and src/contracts/viewer-api.mjs are identical between the capture commit and origin/main.",
+    "source_type": "deterministic_synthetic_anthropic_messages",
     "generator": "scripts/claude-mechanisms-media-demo.mjs",
-    "protocol": "Anthropic Messages",
     "workspace": "/demo/claude-tool-loop",
+    "conversation_id": "claude-tool-loop",
+    "protocol": "Anthropic Messages",
     "turns": 1,
     "requests": 2,
+    "external_requests": false,
+    "real_credentials": false,
+    "real_cli_cross_check": "The assistant/tool_use -> user/tool_result -> final response shape is separately present in the Claude Code 2.1.220 real-CLI Skill trace. This two-request teaching Source itself is synthetic and must not be described as a real provider session."
+  },
+  "teaching_contract": {
+    "audiences": [
+      "第一次想知道 Claude Code 为什么能读取文件的用户",
+      "想区分远端模型决策与本地 Harness 执行的开发者",
+      "需要核对 Anthropic tool_use、tool_result、调用标识与消息角色的 Harness 工程师"
+    ],
+    "question": "远端模型只能输入和输出结构化文本，为什么 Claude Code 最终却能读取本地 README？",
+    "takeaway": "模型从请求中声明的工具里返回 tool_use；Claude Code 负责权限检查与本地执行，再把同一调用标识的 tool_result 放入后续 user message；模型收到新请求后才形成最终回答。PMA 把模型参数、System、Tools、调用、结果、来源跳转、协议和 Raw 证据放进一条可导航链。",
+    "out_of_scope": [
+      "Skill 加载",
+      "子 Agent",
+      "上下文压缩",
+      "真实 provider 性能或模型质量评测",
+      "Claude Code 的内部思维链"
+    ]
+  },
+  "scenario": {
     "task": "请读取 README.md 第一行，告诉我项目名；不要修改文件。",
-    "declared_tools": ["Read", "Glob", "Bash"],
+    "declared_tools": [
+      "Read",
+      "Glob",
+      "Bash"
+    ],
     "selected_tool": {
       "name": "Read",
       "id": "read_hello",
-      "input": { "file_path": "README.md", "offset": 1, "limit": 1 }
+      "input": {
+        "file_path": "README.md",
+        "offset": 1,
+        "limit": 1
+      }
     },
     "tool_result": "# hello-agent",
-    "final_response": "项目名是 hello-agent。"
+    "final_response": "项目名是 hello-agent。",
+    "mechanism_flow": [
+      "用户目标",
+      "Request 1 声明 System 与 Tools",
+      "assistant/tool_use",
+      "Claude Code 本地执行",
+      "Request 2 user/tool_result",
+      "最终 assistant Response"
+    ]
   },
-  "recording": {
-    "viewer_viewport_css_pixels": { "width": 2048, "height": 1056 },
-    "export_resolution": { "width": 1920, "height": 1080 },
+  "viewer": {
+    "viewport_css_pixels": {
+      "width": 2048,
+      "height": 1056
+    },
     "theme": "Claude",
     "ui_language": "zh-CN",
-    "raw_frames": "assets/demo/source/claude-tool-loop/recording/raw/",
-    "annotated_review_frames": "assets/demo/source/claude-tool-loop/recording/review/",
-    "git_policy": "Raw, annotated, composite and QA frames stay local and are ignored; the capture and annotation recipe remains tracked."
+    "capture_method": "Codex in-app Browser controlling the PMA Viewer",
+    "layout": "full three-pane Viewer; no browser chrome, black frame, or baked annotation"
   },
-  "shots": [
-    { "id": "01-overview", "source": "02-overview.png", "focus": "one Turn's complete mechanism flow" },
-    { "id": "02-metadata", "source": "03-metadata.png", "focus": "model and common request parameters" },
-    { "id": "03-system", "source": "04-system.png", "focus": "actual System field" },
-    { "id": "04-tools", "source": "05-tools.png", "focus": "Read, Glob and Bash definitions" },
-    { "id": "05-tool-use", "source": "06-tool-use.png", "focus": "tool_use id and Read input" },
-    { "id": "06-tool-result", "source": "07-tool-result.png", "focus": "matching tool_result and output" },
-    { "id": "07-source-jump", "source": "08-source-jump.png", "focus": "result-to-call source navigation" },
-    { "id": "08-protocol", "source": "09-protocol.png", "focus": "assistant/tool_use followed by user/tool_result" },
-    { "id": "09-raw", "source": "10-raw-search.png", "focus": "raw request body and header redactions" },
-    { "id": "10-final", "source": "11-final-response.png", "focus": "final model response" }
+  "facts": [
+    "The teaching Source contains one PMA Turn and two Anthropic Messages requests.",
+    "Request 1 Metadata shows model, max_tokens, stream, transport identity, token usage, and upstream composition.",
+    "Request 1 System contains only fictional /demo constraints and explicitly forbids credentials, user files, and network access.",
+    "Request 1 declares Read, Glob, and Bash with descriptions and input schemas.",
+    "Request 1 response contains tool_use id read_hello for Read(README.md, offset=1, limit=1).",
+    "Request 2 contains a user-role tool_result with the same read_hello id and output '# hello-agent'.",
+    "The Viewer links the result back to its originating call and preserves a return-to-result action.",
+    "The Protocol view preserves the Anthropic role order: user, assistant text, assistant/tool_use, user/tool_result, and final assistant response.",
+    "The Raw Inspector displays the complete synthetic headers and body while showing sensitive headers as redacted.",
+    "The final response says '项目名是 hello-agent。' and can be traced backward to the tool result."
   ],
-  "build": {
-    "script": "scripts/build-claude-tool-loop-video.py",
-    "command": "python3 scripts/build-claude-tool-loop-video.py --voice Tingting --rate 175",
+  "raw_frames": [
+    { "file": "recording/raw/02-overview.png", "focus": "One Turn's complete mechanism flow" },
+    { "file": "recording/raw/03-metadata.png", "focus": "Request 1 model and common request parameters" },
+    { "file": "recording/raw/04-system.png", "focus": "Actual Request 1 System field" },
+    { "file": "recording/raw/05-tools.png", "focus": "Read, Glob, and Bash definitions" },
+    { "file": "recording/raw/06-tool-use.png", "focus": "tool_use id and Read input" },
+    { "file": "recording/raw/07-tool-result.png", "focus": "Matching user/tool_result and output" },
+    { "file": "recording/raw/08-source-jump.png", "focus": "Result-to-call source navigation" },
+    { "file": "recording/raw/09-protocol.png", "focus": "Anthropic Messages role and content-block order" },
+    { "file": "recording/raw/10-raw-search.png", "focus": "Complete request and header redactions" },
+    { "file": "recording/raw/11-final-response.png", "focus": "Final model response" }
+  ],
+  "production": {
+    "narration": "assets/demo/source/claude-tool-loop/narration.zh-CN.md",
     "timeline": "assets/demo/source/claude-tool-loop/video/timeline.zh-CN.json",
-    "video": "assets/demo/video/pma-claude-tool-loop.zh-CN.mp4",
-    "voice": "assets/demo/video/pma-claude-tool-loop.zh-CN-voice.m4a",
     "subtitles": "assets/demo/video/pma-claude-tool-loop.zh-CN.srt",
-    "cover": "assets/demo/video/pma-claude-tool-loop.zh-CN-cover.png",
-    "narration_review_script": "assets/demo/source/claude-tool-loop/narration.zh-CN.md",
-    "clean_master": {
-      "burned_caption_panel": false,
-      "embedded_subtitle_track": false,
-      "sidecar_subtitles": "assets/demo/video/pma-claude-tool-loop.zh-CN.srt"
-    },
-    "video_and_voice_git_policy": "ignored; publish through a Release or CDN after owner approval"
+    "storyboard_player": "assets/demo/storyboard/index.html",
+    "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "repository_policy": "The ten public raw Viewer frames and both v0.2 review directories are tracked so a clean clone can play and audit the storyboard; v0.1 baked frames, local video, and audio remain ignored.",
+    "legacy_video_builder": "scripts/build-claude-tool-loop-video.py; v0.1 baked-frame path only, not the v0.2 storyboard renderer",
+    "legacy_video": "assets/demo/video/pma-claude-tool-loop.zh-CN.mp4; local and Git-ignored",
+    "audio": "not_started for v0.2; handled by the separate voice-tuning workflow"
   },
   "privacy": {
-    "external_model_requests": false,
-    "real_credentials": false,
-    "real_user_files": false,
-    "real_private_paths": false,
+    "uses_user_capture": false,
+    "uses_user_files": false,
+    "uses_real_api_key": false,
+    "uses_real_local_path": false,
     "network_access_by_demo_agent": false,
-    "headers": "synthetic values; sensitive fields shown redacted by the actual Viewer"
+    "headers": "Synthetic values; sensitive fields are visibly redacted by the actual Viewer.",
+    "notes": "All prompts, paths, tool definitions, tool results, model responses, IDs, timestamps, and token counts are deterministic public demo data."
   },
-  "qa": {
-    "annotated_frames_reviewed_at_source_resolution": 10,
-    "video_midpoint_frames_reviewed": 12,
-    "layout": "full three-column Viewer retained",
-    "video": "1920x1080, 30 fps, H.264",
-    "audio": "AAC, 48 kHz, stereo, -16.0 LUFS integrated, -3.3 dBFS true peak",
-    "subtitles": "standalone SRT only; the clean master has no embedded subtitle track or burned caption panel",
-    "duration_seconds": 242.945,
-    "result": "passed for local owner review; narration remains an internal system-TTS placeholder"
+  "annotation_policy": [
+    "A label tab that already names itself, such as System, Tools, Metadata, Protocol, Raw, or Response, uses a focus outline without a redundant numbered badge.",
+    "Numbered markers are reserved for actions and evidence that need a reading order; they appear one at a time in narration order.",
+    "Independent focus changes crossfade for approximately 0.7 seconds and remove the previous marker.",
+    "When source state and call details must remain visible together, the earlier outline remains but uses dim_ms to become secondary when the new numbered evidence appears.",
+    "No routed arrow is used because focus outlines, pane position, click pulse, and source state already establish every relationship.",
+    "The final Details action uses one short click pulse instead of a numbered marker near the subtitle safe area."
+  ],
+  "visual_review": {
+    "status": "passed",
+    "captured_at": "2026-08-02",
+    "result": "passed 36 progressive review states at both 1920x1080 and 1024x576",
+    "review_frames": {
+      "desktop": "recording/review-1920/; 36 JPEG frames at 1920x1080 plus contact-sheet.jpg",
+      "compact": "recording/review-1024/; 36 JPEG frames at 1024x576 plus contact-sheet.jpg"
+    },
+    "notes": [
+      "The full three-pane Viewer remains visible and no browser or video black frame surrounds it.",
+      "The first v0.2 draft placed Metadata, tool_result, and Response focus boxes one tab too far right. All three coordinates were corrected and the affected crossfade states were re-recorded at both sizes.",
+      "A second review found that numbered badges on already-labelled tabs covered the right-pane title. Those badges were removed; tabs now use a light focus outline and numbering begins on the evidence itself.",
+      "Badge numerals remain visually centered at both review sizes.",
+      "The source-navigation scene retains a dimmed source-state outline when the call parameters appear, preserving causality without two equally strong numbered markers.",
+      "The final-response click pulse was reviewed against the actual Details button center.",
+      "The old recording/review and video/frames directories are v0.1 comparison artifacts and are not v0.2 publication sources."
+    ]
+  },
+  "publication_gate": {
+    "status": "storyboard_and_dual_viewport_review_complete_owner_story_review_pending",
+    "remaining": [
+      "Freeze the Chinese story only after the owner reviews it.",
+      "Before describing this exact two-request scenario as current real Claude Code behavior, replace or cross-check it with a fresh real-CLI Capture at an exact Claude Code version.",
+      "Do not publish the legacy local MP4 or any audio from the main repository."
+    ]
   }
 }

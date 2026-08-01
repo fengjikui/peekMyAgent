@@ -1,6 +1,6 @@
 # peekMyAgent 图文与演示素材说明
 
-这篇文档记录中文快速上手 v0.1 的演示设计、素材来源和重生成方式。它既是用户的图文导览，也是以后界面更新时重录素材的制作说明。
+这篇文档记录中文快速上手的演示设计、素材来源和重生成方式。README 当前仍使用 v0.1 GIF；v0.2 已迁移到可逐镜头播放的网页故事板，并生成一版等待所有者审阅的慢速主 GIF 候选稿。它既是用户的图文导览，也是以后界面更新时重录素材的制作说明。
 
 ## 这支主 GIF 只回答一个问题
 
@@ -41,7 +41,7 @@
 
 这个场景的优势是用户不需要理解任何业务规则。目录、读文件、依据结果回答都是直觉动作，注意力可以完全放在 Harness 如何组织请求，以及 PMA 如何关联证据上。
 
-## 完整镜头脚本
+## 已发布的 v0.1 GIF 镜头脚本
 
 | 镜头 | 用户动作 | 画面重点 | 要证明的价值 | 标注 | 停留 |
 | --- | --- | --- | --- | --- | --- |
@@ -53,6 +53,29 @@
 | 6. 协议 | 打开一次请求的 `详情`，再点击 `协议视图` | 原生 input 顺序、工具、参数与回复 | 摘要不够时仍可核对完整上下行 | `6.1` 蓝框标 `详情`；`6.2` 蓝框标标签并用红框圈出协议内容 | 9.5 秒 |
 
 总时长 42.7 秒。普通画面已超过 5 秒，复杂协议画面接近 10 秒；没有快速闪切，也没有无意义鼠标移动。
+
+## v0.2 网页故事板
+
+v0.2 不再把大号深色说明卡、固定箭头和字幕直接烘焙进截图。它在同一组真实 Viewer 原图上增加三个可独立替换的层：
+
+1. 说明卡：安装、启动和清理命令；明确是演示说明页，不模拟终端 UI。
+2. 渐进标注：轻描边、小编号和点击波纹；每个标注分别声明出现与淡出时刻。
+3. 字幕：48 条短句稳定放在底部中央，可以独立翻译或替换配音。
+
+完整故事共 12 个镜头、4 分 11 秒，依次讲安装、受信任目录启动、完整工具闭环、System、工具结果、来源跳转、最终 Response、协议视图、两级导航以及停止和清理。中文旁白与镜头数据分别保存在：
+
+- `assets/demo/source/quickstart/narration.zh-CN.md`
+- `assets/demo/source/quickstart/video/timeline.zh-CN.json`
+- `assets/demo/video/pma-quickstart.zh-CN.srt`
+
+时间线声明 28 个 `review_points`。每个焦点交接都检查“旧重点、交叉淡化、新重点”；Turn Rail 与 Request Rail 因为需要解释层级关系，保留前一编号后再出现后一编号。
+
+README 候选版从这些已复核状态中选出 17 个镜头，输出为 1024×576、65 帧、74 秒、约 5.6 MiB。普通动作停留 3～5.5 秒，协议顺序停留 7.5 秒，两级导航分别停留 4.5 秒和 6.5 秒。上方 UI 与标注使用 0.6 秒渐变；字幕安全区不参与整帧混合，而是在转场中干净切换，避免相邻两句形成双影。镜头计划和候选文件分别为：
+
+- `assets/demo/source/quickstart/readme-gif.zh-CN.json`
+- `assets/demo/quickstart-tool-loop-v0.2-candidate.gif`
+
+候选版尚未替换 README 当前 GIF。它的任务是让所有者先比较节奏、信息密度和标注逻辑，而不是提前形成发布事实。
 
 ## 两级导航场景
 
@@ -70,8 +93,10 @@
 - Codex 场景使用 Codex 主题；未来 Claude Code 场景使用 Claude 主题。
 - 暗夜主题只在主题切换说明中出现，不为每个教程重复录制一套。
 - 中文界面优先；英文和其他语言等中文版结构稳定后再翻译。
-- 蓝色只表示“点击这里”，红色只表示“随后查看这里”；同一镜头最多保留两步动作和一个结果区。
-- 箭头使用带白色描边的短曲线，优先沿留白区域连接，不穿过正文；标注卡片不能遮挡被点击按钮、当前标签或关键内容。
+- v0.1 蓝色表示点击、红色表示结果；v0.2 改用与三种主题都更协调的轻描边、小编号和短点击波纹，不再依赖固定颜色背诵动作语义。
+- 1、2、3、4 是讲解节奏，不是静态图例：标注必须随旁白逐个出现，不能在镜头开始时一次叠出全部编号。下一项出现时，上一项只有在仍需对照、回看或建立因果时才继续保留，并通过 `dim_ms` 退为次要；焦点已经转移时，应先渐隐或与下一项交叉淡化。同一帧可以累积多个已经讲过的编号，但每一个新增编号都必须对应一次明确的讲解推进。
+- 标签本身已经写明 System、Tools、Metadata、协议视图、完整请求或 Response 时，只用轻描边提示点击目标；不为重复说明再放一个会遮住右栏标题的圆形编号。
+- 只有仅靠位置和出现顺序仍无法建立关系时才使用箭头。需要箭头时优先短直线或一次有意义的转折，沿留白连接，不穿过正文；标注不能遮挡按钮、当前标签或关键内容。
 - 主 GIF 是基于真实 Viewer 状态的慢速逐帧演示，不伪造产品中不存在的 UI。
 
 ## 逐帧视觉验收门禁
@@ -97,19 +122,25 @@
 - 箭头路径是否穿过任何用户可能想阅读的内容；
 - 标注卡片是否遮住当前标签、按钮、标题、用户消息或协议字段；
 - 画面缩小后是否仍能在一次停留时间内理解“点哪里、看哪里”；
+- 在每个标注实际出现和淡出的时间点，画面是否只保留当前理解所需的信息；不能只检查镜头结束时的最终叠加状态；
 - 自己是否愿意把这一帧放到产品首页。如果答案不是明确的“是”，就只调整该帧并重新生成、重新检查。
 
 建议在制作记录中为每一帧保留 `通过 / 需调整 / 调整后通过` 状态，以及一句实际发现的问题。界面更新后重录时，必须重新走完这套检查，不能沿用旧结论。
 
 ### 当前版本复核记录
 
-2026-07-31 对 `01`～`07` 完成了 2048×1056 原图与 1024 像素宽 README 预览的逐帧复核。编号和文案在圆形或胶囊标记中均已调整后通过；所有箭头均落在控件或结果框边缘，并避开需要阅读的正文。`02` 和 `06` 的右栏提示卡会占用少量次要筛选栏留白，但没有遮挡被点击的标签、System 内容、协议标题或协议字段，当前版本接受这一取舍。其余帧未发现内容遮挡或指向歧义。界面或标注文案变化后，这条记录自动失效，必须重新验收。
+2026-07-31 对 v0.1 的 `01`～`07` 完成了 2048×1056 原图与 1024 像素宽 README 预览复核。这条记录只证明当前公开 GIF，不自动证明新版故事板。
+
+2026-08-02 对 v0.2 的 28 个渐进状态分别完成 1920×1080 与 1024×576 复核。第一版最终回复镜头的编号离字幕过近，因此改成短点击波纹；第一次波纹终点又落在按钮下方，按真实画面校正到 `详情` 按钮中心后重新生成两档帧。其余编号居中、焦点边界、字幕安全区和交叉淡化状态均通过。审阅帧与 contact sheet 保存在 `assets/demo/source/quickstart/recording/`。
+
+同日对 README 候选版的 17 个静态镜头和 9 个代表性转场帧再次进行原尺寸联系表复核。第一次合成发现整帧交叉淡化会把前后字幕叠成双影，因此把底部字幕区改为无混合切换，只保留 UI 与标注的渐变。System、Tool result、Response、协议和两级导航的编号均按讲解顺序出现；没有为自带名称的标签增加重复文字，也没有使用无必要箭头。
 
 ## 素材与来源
 
 发布素材：
 
 - `assets/demo/quickstart-tool-loop.gif`：README 首屏主 GIF。
+- `assets/demo/quickstart-tool-loop-v0.2-candidate.gif`：74 秒慢速候选版，等待审阅后再决定是否替换首屏素材。
 - `assets/demo/quickstart-overview.png`：无标注静态总览。
 - `assets/demo/quickstart-overview-annotated.png`：带单一引导标注的静态总览。
 - `assets/demo/quickstart/01-trace.png` ～ `06-protocol.png`：工具闭环章节图。
@@ -119,7 +150,11 @@
 原始素材：
 
 - `assets/demo/source/quickstart/*-raw.png`：真实 Viewer 原始帧。
-- `assets/demo/source/quickstart/manifest.json`：源提交、视口、主题、场景、隐私检查、生成命令和帧时长。
+- `assets/demo/source/quickstart/manifest.json`：源提交、当前事实复核、教学合同、隐私边界、生成物和视觉验收结论。
+- `assets/demo/source/quickstart/narration.zh-CN.md`：v0.2 中文旁白母稿。
+- `assets/demo/source/quickstart/video/timeline.zh-CN.json`：v0.2 镜头、字幕、标注时机和审阅点。
+- `assets/demo/source/quickstart/readme-gif.zh-CN.json`：候选 GIF 的 17 个镜头、停留时长、字幕安全区与体积门禁。
+- `assets/demo/source/quickstart/recording/review-1920/`、`review-1024/`：两档逐帧审阅稿。
 - `assets/demo/source/navigation/`：6 Turn / 13 Request 长轨迹的原始帧和 manifest。
 
 旧版 `dashboard-overview-tour.gif`、`chat-upstream-context.gif` 和 `tool-call-loop.gif` 暂时保留，供比较与后续迁移；中文版 README 首屏已不再使用它们。
@@ -155,7 +190,27 @@ assets/demo/source/navigation/two-level-navigation-raw.png
 python3 scripts/build-readme-media.py
 ```
 
-脚本使用 Pillow 确定性添加红框、箭头、编号和中文字幕，没有新增产品运行依赖。需要发布视频时，可以直接复用这些原始帧、镜头文案和时长，在 ffmpeg、剪映或其他剪辑工具中生成 MP4、字幕和配音，不必重新设计故事。
+这条命令只重建当前公开的 v0.1 GIF。v0.2 使用网页故事板：
+
+```bash
+python3 -m http.server 43115 --bind 127.0.0.1
+node scripts/demo-storyboard-smoke.mjs \
+  assets/demo/source/quickstart/video/timeline.zh-CN.json
+node scripts/timeline-subtitles-to-srt.mjs \
+  assets/demo/source/quickstart/video/timeline.zh-CN.json \
+  assets/demo/video/pma-quickstart.zh-CN.srt
+```
+
+打开 `assets/demo/storyboard/index.html`，通过 `timeline` 参数载入快速上手时间线；按 `review_points` 在 1920×1080 与 1024×576 两种浏览器视口逐帧复核。只有所有者确认故事后，才用这份时间线重做慢速 GIF 或 MP4。需要发布视频时，可以继续在 ffmpeg、剪映或其他编辑器中添加授权配音，不必重新设计故事。
+
+从已经复核的 1024×576 状态重新构建或只检查 README 候选版：
+
+```bash
+python3 scripts/build-readme-storyboard-gif.py
+python3 scripts/build-readme-storyboard-gif.py --check
+```
+
+构建脚本会拒绝少于 2.5 秒的镜头、重复或缺失的审阅帧、尺寸变化、时长漂移、帧数漂移和超过 8 MiB 的输出。`--check` 不改写 GIF，适合在文档门禁中验证现有候选文件。
 
 ## 隐私边界
 
@@ -186,6 +241,16 @@ python3 scripts/build-readme-media.py
 - 子 Agent 第一帧从右栏空白水平指向折叠看板；第二帧红框覆盖当前选中分支的完整时间线，不能遮住 Agent 标签、请求正文或回流状态。
 
 2026-08-01 已对上述五张关键标注帧执行 2048×1056 原图和 1024 像素宽预览复核。第一轮发现迟到结果红蓝箭头汇聚，第二轮发现上下文动作卡遮挡用户消息；两处均局部返工并在重新生成后通过。完整 Source、协议、预期语义和脱敏记录见 `assets/demo/source/user-guide/manifest.json`。
+
+同日，“一个用户请求为什么会变成七次模型往返”章节又对 28 个渐进标注状态分别执行了桌面档与 1024×576 复核。2026-08-02 的跨章节生产审计发现，早期桌面目录虽然命名为 `review-1920`，文件字节实际仍是 1280×720；这批文件已经在 `present=1` 的真正 1920×1080 画布重新渲染，并将 28 个稳定时点写入时间线的 `review_points`。Turn / Request、调用 / 结果等需要比较的关系会保留前一编号；工具说明到字段、文件证据到任务状态等独立焦点采用交叉淡出，并在交接后只保留新编号。该章仅用编号与聚焦框即可明确指向，因此没有为了视觉热闹追加箭头。两档审阅帧、联系表与结论记录在 `assets/demo/source/claude-planning/manifest.json`。
+
+2026-08-02，“一次工具调用到底发生了什么”迁移到 v0.2 网页故事板，并对 36 个状态分别执行 1920×1080 与 1024×576 复核。第一轮发现 Metadata、tool_result 和 Response 的聚焦框向右偏到相邻标签或空白；校正后第二轮又发现标签编号遮住右栏标题。最终规则改为“自带名称的标签只用轻描边，编号留给证据”，并用 `dim_ms` 让来源状态在调用参数出现后退为次要。两档联系表、逐帧修正记录和确定性 Source 边界见 `assets/demo/source/claude-tool-loop/manifest.json`。
+
+同日，“上下文压缩究竟改变了什么”从每镜头只保存最终状态的九张旧审阅图，迁移为 15 个稳定复核点。两个“详情”镜头分别保存点击波纹和右栏证据状态；Turn / Request 层级、新 History 的两部分、规则输入与结果、时间线分类与 Harness 原文四组关系都让编号 1 先出现，编号 2 出现时再通过 `dim_ms` 把编号 1 降为次要。15 个状态已经分别在真实 1920×1080 与 1024×576 下复核，未使用箭头。联系表和事实边界见 `assets/demo/source/claude-compact/manifest.json`。
+
+同日，“Skill 怎样被发现和加载”从 32 张旧式审阅帧迁移为时间线声明的 31 个稳定复核点，并重新生成真实 1920×1080 与 1024×576 两档画面。System、Tools 和协议视图标签已经能够自我解释，只保留轻描边；编号留给 Request 入口、调用、参数、回执、Raw 命中和最终证据。相关的调用与参数允许约半秒共存，焦点已经改变的标记交叉淡出，最终 Response 使用点击波纹后再出现单一证据编号。两档逐帧检查确认编号居中、框线未遮挡正文，并且不需要箭头。联系表和事实边界见 `assets/demo/source/claude-skill/manifest.json`。
+
+同日，“子 Agent 在哪里运行，结果怎样回来”从 33 张未声明复核点的旧审阅图迁移为时间线中的 32 个稳定 `review_points`。multi-agent 镜头先用短波纹指示真实展开控件，再让两个分支编号 1、2 依次出现；Turn 2 / Turn 3 对照保留旧编号，但在新阶段出现前通过 `dim_ms` 退为次要；最终 Response 也改为点击波纹后只保留一个证据编号。第一轮自审还发现 Turn 2 降级状态比“显示 Turn 3”的字幕晚约一秒，修正时码后只重渲染相关帧。真实 1920×1080 与 1024×576 两档均通过，未使用箭头。联系表和事实边界见 `assets/demo/source/claude-subagents/manifest.json`。
 
 ## 下一阶段素材优先级
 

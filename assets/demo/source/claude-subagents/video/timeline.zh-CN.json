@@ -1,0 +1,440 @@
+{
+  "version": 1,
+  "title": "用 PMA 看懂 Claude Code：子 Agent 在哪里运行，结果怎样回来",
+  "resolution": [1920, 1080],
+  "source_viewport": [2048, 1056],
+  "fps": 30,
+  "duration_seconds": 254,
+  "theme": "claude",
+  "subtitle_layout": {
+    "position": "bottom-center",
+    "bottom_percent": 5.2,
+    "max_width_percent": 72,
+    "max_lines": 2,
+    "background": "none",
+    "outline": "subtle"
+  },
+  "review_points": [
+    { "name": "00-intro", "scene": 0, "at_ms": 8000 },
+    { "name": "01a-request-count", "scene": 1, "at_ms": 1800 },
+    { "name": "01b-crossfade", "scene": 1, "at_ms": 8500 },
+    { "name": "01c-mechanism", "scene": 1, "at_ms": 12500 },
+    { "name": "02a-parent-calls", "scene": 2, "at_ms": 1800 },
+    { "name": "02b-crossfade", "scene": 2, "at_ms": 7300 },
+    { "name": "02c-agent-parameters", "scene": 2, "at_ms": 11000 },
+    { "name": "03a-expand-click", "scene": 3, "at_ms": 800 },
+    { "name": "03b-first-branch", "scene": 3, "at_ms": 4500 },
+    { "name": "03c-branches-crossfade", "scene": 3, "at_ms": 11700 },
+    { "name": "03d-second-branch", "scene": 3, "at_ms": 15000 },
+    { "name": "04a-read-call", "scene": 4, "at_ms": 1800 },
+    { "name": "04b-crossfade", "scene": 4, "at_ms": 6900 },
+    { "name": "04c-read-parameters", "scene": 4, "at_ms": 10500 },
+    { "name": "05a-read-result", "scene": 5, "at_ms": 1800 },
+    { "name": "05b-crossfade", "scene": 5, "at_ms": 6800 },
+    { "name": "05c-read-content", "scene": 5, "at_ms": 10500 },
+    { "name": "06a-bash-call", "scene": 6, "at_ms": 1800 },
+    { "name": "06b-crossfade", "scene": 6, "at_ms": 8300 },
+    { "name": "06c-bash-result", "scene": 6, "at_ms": 12000 },
+    { "name": "07a-launch-results", "scene": 7, "at_ms": 2000 },
+    { "name": "07b-crossfade", "scene": 7, "at_ms": 10100 },
+    { "name": "07c-wait-response", "scene": 7, "at_ms": 15000 },
+    { "name": "08a-first-notification", "scene": 8, "at_ms": 1800 },
+    { "name": "08b-crossfade", "scene": 8, "at_ms": 10100 },
+    { "name": "08c-wait-one", "scene": 8, "at_ms": 15000 },
+    { "name": "09a-turn2", "scene": 9, "at_ms": 2000 },
+    { "name": "09b-turn2-dim", "scene": 9, "at_ms": 7900 },
+    { "name": "09c-turn2-and-turn3", "scene": 9, "at_ms": 9000 },
+    { "name": "10a-response-click", "scene": 10, "at_ms": 800 },
+    { "name": "10b-final-response", "scene": 10, "at_ms": 6000 },
+    { "name": "11-outro", "scene": 11, "at_ms": 8000 }
+  ],
+  "scenes": [
+    {
+      "id": "00-intro",
+      "title": "子 Agent 不是一个黑盒名字",
+      "start_seconds": 0,
+      "end_seconds": 15,
+      "source_image": null,
+      "card": {
+        "eyebrow": "peekMyAgent · Claude Code 机制 03",
+        "headline": "子 Agent 在哪里运行，结果怎样回来？",
+        "steps": ["父级发起", "分支执行", "异步完成", "父级汇总"]
+      },
+      "narration": "Claude Code 说它启动了两个子 Agent。它们真的各自做了什么？哪个先完成？结果怎样回到父对话？这一支视频，我们用一条真实 CLI 轨迹，把父级、分支和异步回流逐段打开。",
+      "subtitle_cues": [
+        "Claude Code 启动了两个子 Agent。",
+        "它们真的各自做了什么？",
+        "哪个先完成？",
+        "结果怎样回到父对话？"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    },
+    {
+      "id": "01-overview",
+      "title": "先看完整路径",
+      "start_seconds": 15,
+      "end_seconds": 37,
+      "source_image": "/assets/demo/source/claude-subagents/recording/real-cli/raw/01-overview-three-turns.jpg",
+      "narration": "任务没有业务门槛：一个分支读取快速开始，另一个分支列出公开文档，最后给三条建议。真实 Claude Code 一共产生八次模型请求；PMA 把它们整理成三个 Turn。Turn 定位用户阶段，Request 继续查看阶段内部的模型往返。",
+      "subtitle_cues": [
+        "一个分支读取快速开始，",
+        "另一个分支列出公开文档。",
+        "真实 Claude Code 产生八次模型请求。",
+        "PMA 把它们整理成三个 Turn。",
+        "Turn 定位阶段，Request 查看内部往返。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [1.5, 16.4, 10.4, 4.2],
+          "label_box": [10.2, 13.5, 2.6, 5.0],
+          "delay_ms": 700,
+          "end_ms": 8800,
+          "draft": "先标记左侧会话中的 8 请求总数；讲完请求规模后与编号 2 交叉淡出；不遮会话名或 Source 状态。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [30.7, 12.8, 27.4, 4.6],
+          "label_box": [29.2, 9.7, 2.6, 5.0],
+          "delay_ms": 8200,
+          "draft": "编号 2 接管 Turn 1 的机制流程；编号 1 只交叉约 0.6 秒后消失；不遮用户请求正文。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "02-parent-agent-calls",
+      "title": "谁发起了两个分支？",
+      "start_seconds": 37,
+      "end_seconds": 61,
+      "source_image": "/assets/demo/source/claude-subagents/recording/real-cli/raw/02-parent-two-agent-calls.jpg",
+      "narration": "父请求一的回复里有两个 Agent tool use。每项都有独立调用标识、任务描述、完整 prompt 和 Explore 类型。模型返回的是结构化委派请求；真正创建后台任务、处理权限并运行子 Agent 的，是 Claude Code。",
+      "subtitle_cues": [
+        "父请求里出现两个 Agent tool use。",
+        "每项都有调用标识、任务 prompt 和类型。",
+        "模型返回结构化委派请求，",
+        "Claude Code 负责创建和运行子 Agent。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.5, 36.0, 47.0, 9.0],
+          "label_box": [11.1, 33.0, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 7600,
+          "draft": "编号 1 先标记中栏两条 Agent 调用，说明右栏从哪里打开；随后与编号 2 交叉淡出；不加箭头。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.6, 18.4, 35.6, 53.0],
+          "label_box": [61.0, 15.2, 2.6, 5.0],
+          "delay_ms": 7000,
+          "draft": "编号 2 接管右栏两组 Agent tool_use 参数；编号 1 只交叉约 0.6 秒后消失；不遮 prompt 和 Explore。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "03-expanded-board",
+      "title": "两级导航怎样容纳两条分支？",
+      "start_seconds": 61,
+      "end_seconds": 83,
+      "source_image": "/assets/demo/source/claude-subagents/recording/real-cli/raw/04-expanded-two-branches.jpg",
+      "narration": "展开 multi-agent，看板里出现“核对快速开始”和“核对公开目录”两个分支。它们各自有两次模型请求。PMA 没把子 Agent 压成一句摘要，而是保留分支名、类型、请求数量以及各自的内部时间线。",
+      "subtitle_cues": [
+        "展开 multi-agent，两个分支就出现了。",
+        "每个分支都有两次模型请求。",
+        "分支名、类型和请求数量都被保留。",
+        "子 Agent 不再只是一个黑盒名称。"
+      ],
+      "overlays": [
+        {
+          "type": "click",
+          "click": [80.5, 45.8],
+          "delay_ms": 400,
+          "draft": "短点击波纹落在 multi-agent 标题行最右侧的展开控件；波纹自动消失，不跨过分支内容，也不追加自绘箭头。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [31.0, 47.2, 5.8, 4.6],
+          "label_box": [29.2, 44.4, 2.6, 5.0],
+          "delay_ms": 2600,
+          "end_ms": 12000,
+          "draft": "点击波纹结束后，编号 1 聚焦快速开始分支标签；讲完第一个标签后再与编号 2 交叉淡出。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [36.0, 47.2, 5.8, 4.6],
+          "label_box": [40.8, 44.4, 2.6, 5.0],
+          "delay_ms": 11400,
+          "draft": "编号 2 接管公开目录分支标签；编号 1 只交叉约 0.6 秒后消失；最终画面只保留当前分支重点。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "04-doc-read-call",
+      "title": "快速开始分支先调用 Read",
+      "start_seconds": 83,
+      "end_seconds": 103,
+      "source_image": "/assets/demo/source/claude-subagents/recording/real-cli/raw/05-doc-child-read-call.jpg",
+      "narration": "进入第一个分支，请求二先收到只读任务，再返回 Read 调用，目标是公开演示目录里的 docs/guide.md。子 Agent 不是一个只能返回结论的黑盒；只要请求被捕获，它选择的工具和参数都能继续检查。",
+      "subtitle_cues": [
+        "第一个分支先收到只读任务。",
+        "Request 2 返回一次 Read 调用。",
+        "目标是公开的 docs/guide.md。",
+        "工具选择和参数都可以继续检查。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.5, 48.0, 47.1, 5.2],
+          "label_box": [11.0, 45.0, 2.6, 5.0],
+          "delay_ms": 350,
+          "end_ms": 7200,
+          "draft": "编号 1 标记中栏 Read 调用行，解释右栏的点击来源；随后与编号 2 交叉淡出；不遮工具名和行尾入口。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.6, 18.5, 35.5, 13.2],
+          "label_box": [61.0, 15.4, 2.6, 5.0],
+          "delay_ms": 6600,
+          "draft": "编号 2 接管右栏 Read 工具名和临时公开路径；编号 1 只交叉约 0.6 秒后消失；不遮字段值。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "05-doc-read-result",
+      "title": "工具结果先回到子分支",
+      "start_seconds": 103,
+      "end_seconds": 123,
+      "source_image": "/assets/demo/source/claude-subagents/recording/real-cli/raw/06-doc-child-read-result.jpg",
+      "narration": "同一分支后来的请求五收到匹配的 Read tool result。中栏“来源二”可以跳回原始调用，右栏则保留用户角色的结果内容。这个结果先供子 Agent 形成分支小结，还不是父 Agent 的最终回答。",
+      "subtitle_cues": [
+        "Request 5 收到匹配的 Read tool result。",
+        "“来源 #2”可以跳回原始调用。",
+        "右栏保留 user 角色的结果内容。",
+        "它先供子 Agent 形成分支小结。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.5, 46.0, 47.0, 6.2],
+          "label_box": [11.0, 43.0, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 7100,
+          "draft": "编号 1 先标记 Read 结果行和来源 #2；讲完来源关系后与编号 2 交叉淡出；不遮结果工具名。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.6, 18.2, 35.6, 23.0],
+          "label_box": [61.0, 15.1, 2.6, 5.0],
+          "delay_ms": 6500,
+          "draft": "编号 2 聚焦右栏 user/tool_result 和五分钟快速开始正文；编号 1 只交叉约 0.6 秒后消失。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "06-catalog-bash-loop",
+      "title": "另一个分支有独立工具闭环",
+      "start_seconds": 123,
+      "end_seconds": 145,
+      "source_image": "/assets/demo/source/claude-subagents/recording/real-cli/raw/08-catalog-child-bash-result.jpg",
+      "narration": "第二个分支没有共享第一条分支的 Read 历史。它在请求三调用 Bash，运行一条只读 find 命令；请求六收到 docs/guide.md 与 docs/viewer.md，再给出自己的两条建议。PMA 把两个分支分栏呈现，避免同名工具和相邻请求混在一起。",
+      "subtitle_cues": [
+        "第二个分支有自己的工具闭环。",
+        "Request 3 运行只读 Bash find。",
+        "Request 6 收到两条公开文件路径。",
+        "两个分支不会混在一条 History 里。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.5, 38.2, 47.1, 5.4],
+          "label_box": [11.0, 35.2, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 8600,
+          "draft": "编号 1 先聚焦中栏 Bash 调用，说明目录分支选择的只读工具；讲完后与编号 2 交叉淡出；不加箭头。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.6, 18.4, 35.6, 18.5],
+          "label_box": [61.0, 15.2, 2.6, 5.0],
+          "delay_ms": 8000,
+          "draft": "编号 2 接管右栏成功 Bash tool_result 和两条公开路径；编号 1 只交叉约 0.6 秒后消失；不遮输出。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "07-launch-confirmation",
+      "title": "后台启动确认不等于完成",
+      "start_seconds": 145,
+      "end_seconds": 173,
+      "source_image": "/assets/demo/source/claude-subagents/recording/real-cli/raw/03-parent-launch-confirmations.jpg",
+      "narration": "这里要区分两个事件。Request 四收到的两个 Agent tool result 只是后台任务已启动的确认，不等于子任务内容已经完成。父级回复也明确说：等待完成通知，不提前猜测结果。真正的分支结论要等后续 task-notification。",
+      "subtitle_cues": [
+        "Request 4 收到两个 Agent tool result。",
+        "它们只是后台启动确认，",
+        "不等于子任务已经完成。",
+        "父级会等待 task-notification，",
+        "不会提前猜测结果。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.5, 38.4, 47.1, 10.0],
+          "label_box": [11.0, 35.3, 2.6, 5.0],
+          "delay_ms": 450,
+          "end_ms": 10400,
+          "draft": "编号 1 先聚焦中栏两条 Agent tool result，明确它们是启动确认；讲完后与编号 2 交叉淡出；不打开含内部 ID 的原文。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.6, 20.5, 35.6, 17.0],
+          "label_box": [61.0, 17.4, 2.6, 5.0],
+          "delay_ms": 9800,
+          "draft": "编号 2 接管右栏父级等待回复；编号 1 只交叉约 0.6 秒后消失；不遮“等待完成通知”这句证据。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "08-first-completion",
+      "title": "第一个完成通知到达",
+      "start_seconds": 173,
+      "end_seconds": 197,
+      "source_image": "/assets/demo/source/claude-subagents/recording/real-cli/raw/09-parent-first-completion-waiting.jpg",
+      "narration": "目录分支先完成。Claude Code 把第一个 task-notification 放进父级 Request 七，PMA 因而显示 Turn 二。顶部明确标出这不是用户输入；父级回复则说明另一个分支仍在运行，所以它继续等待，没有提前汇总。",
+      "subtitle_cues": [
+        "目录分支先完成。",
+        "task-notification 进入 Request 7。",
+        "PMA 明确标出这不是用户输入。",
+        "另一个分支仍在运行，",
+        "父级继续等待。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.5, 38.5, 47.0, 9.2],
+          "label_box": [11.0, 35.5, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 10400,
+          "draft": "编号 1 先聚焦 Turn 2 的系统通知摘要；讲完事件来源后与编号 2 交叉淡出；不展开含任务 ID 的完整通知。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.6, 20.5, 35.6, 18.0],
+          "label_box": [61.0, 17.4, 2.6, 5.0],
+          "delay_ms": 9800,
+          "draft": "编号 2 接管右栏父级等待一个分支的回复；编号 1 只交叉约 0.6 秒后消失；不遮等待状态。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "09-second-completion",
+      "title": "第二个完成通知进入下一轮",
+      "start_seconds": 197,
+      "end_seconds": 219,
+      "source_image": "/assets/demo/source/claude-subagents/recording/real-cli/raw/10-second-completion-and-final.jpg",
+      "narration": "快速开始分支随后完成。第二个 task-notification 进入 Request 八，PMA 显示 Turn 三。现在两级导航的价值就清楚了：三个 Turn 表示启动、第一次完成、第二次完成；八个 Request 继续保留父级和两个子分支的内部往返。",
+      "subtitle_cues": [
+        "快速开始分支随后完成。",
+        "第二个通知进入 Request 8。",
+        "PMA 因而显示 Turn 3。",
+        "三个 Turn 表示三个任务阶段，",
+        "八个 Request 保留内部模型往返。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [30.7, 31.0, 49.9, 27.5],
+          "label_box": [29.1, 28.0, 2.6, 5.0],
+          "delay_ms": 500,
+          "dim_ms": 7600,
+          "draft": "编号 1 先聚焦 Turn 2 的第一次通知和等待回复；需要与下一阶段比较，因此在编号 2 出现前先退为次要并继续保留。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [30.7, 60.0, 49.9, 27.0],
+          "label_box": [29.1, 57.0, 2.6, 5.0],
+          "delay_ms": 8200,
+          "draft": "编号 2 后出现并聚焦 Turn 3 的第二次通知与最终回答；编号 1 保留用于先后对照，不添加跨区箭头。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "10-final-response",
+      "title": "最终回答真的使用了两个结果吗？",
+      "start_seconds": 219,
+      "end_seconds": 239,
+      "source_image": "/assets/demo/source/claude-subagents/recording/real-cli/raw/11-final-parent-response.jpg",
+      "narration": "打开 Request 八的 Response，三条结论分别引用快速开始分支和目录分支，还说明两个结果都回到了父对话。现在我们不仅知道启动过子 Agent，还可以核对每个分支做了什么、何时完成，以及父级是否真正使用了结果。",
+      "subtitle_cues": [
+        "打开 Request 8 的 Response。",
+        "三条结论分别使用两个分支的结果。",
+        "我们可以核对每个分支做了什么，",
+        "以及父级是否真正使用了结果。"
+      ],
+      "overlays": [
+        {
+          "type": "click",
+          "click": [59.9, 76.8],
+          "delay_ms": 350,
+          "draft": "短点击波纹落在中栏最终回复的详情按钮中心，说明右栏从哪里打开；波纹自动消失，不使用长箭头跨越正文。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [63.6, 20.2, 35.6, 22.5],
+          "label_box": [61.0, 17.1, 2.6, 5.0],
+          "delay_ms": 1700,
+          "draft": "点击波纹消失后，证据编号 1 聚焦右栏三条最终结论；不遮列表正文或角色信息。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "11-outro",
+      "title": "四步记忆点",
+      "start_seconds": 239,
+      "end_seconds": 254,
+      "source_image": null,
+      "card": {
+        "eyebrow": "真实 Claude Code 2.1.220 证据链",
+        "headline": "启动确认与完成通知，是两件事",
+        "steps": ["父级发起", "分支工具闭环", "完成通知", "父级汇总"]
+      },
+      "narration": "记住四步：父级发起 Agent 调用；子分支完成自己的工具闭环；完成通知异步回到父级；父 Agent 等齐后汇总。PMA 的价值，是把这四步放进一条可以逐项核对的证据链。",
+      "subtitle_cues": [
+        "父级发起 Agent 调用。",
+        "子分支完成自己的工具闭环。",
+        "完成通知异步回到父级。",
+        "父 Agent 等齐后汇总。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    }
+  ]
+}

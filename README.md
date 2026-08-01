@@ -1,6 +1,6 @@
 # peekMyAgent
 
-[中文 README](README.zh-CN.md)
+[中文 README](README.zh-CN.md) · [Chinese five-minute quick start](docs/quick-start.zh-CN.md) · [Chinese user guide](docs/user-guide.md)
 
 peekMyAgent is a local-first dashboard for inspecting what coding agents send to model providers.
 
@@ -10,27 +10,9 @@ peekMyAgent is not meant to "steal hidden prompts". It is an observability tool 
 
 ## Visual Overview
 
-![peekMyAgent dashboard feature tour](assets/demo/dashboard-overview-tour.gif)
+![Trace one user request through tool results, the final answer, and the native protocol](assets/demo/quickstart-tool-loop.gif)
 
-<p>
-  <strong>Protocol &amp; Namespace Walkthrough</strong><br>
-  Preserve provider wire order, distinguish declared/added/loaded tools, and expand namespace containers into qualified callable leaves.
-</p>
-
-<p>
-  <img src="assets/demo/chat-upstream-context.gif" alt="Protocol and namespace walkthrough" width="960">
-</p>
-
-<p>
-  <strong>Tool Loop &amp; Lazy Payload Walkthrough</strong><br>
-  Follow the user -> tool call -> result -> final answer loop while large tool results and images stay local placeholders until opened.
-</p>
-
-<p>
-  <img src="assets/demo/tool-call-loop.gif" alt="Tool loop and lazy payload walkthrough" width="960">
-</p>
-
-See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated screenshot, protocol/namespace walkthrough, lazy-payload walkthrough, and reproducible media workflow.
+The reviewed walkthrough follows one background-free task from the user request to two tool calls, their returned evidence, the final answer, and the original OpenAI Responses exchange. See the [Chinese five-minute quick start](docs/quick-start.zh-CN.md) for the exact commands and the [visual production guide](docs/visual-usage-guide.zh-CN.md) for its deterministic Source, privacy boundary, and rebuild steps.
 
 ## What You Can Do Today
 
@@ -403,6 +385,12 @@ pma compact
 ```
 
 `pma compact` briefly stops the local dashboard daemon to avoid concurrent writes. The dashboard can be opened again with `pma open`.
+
+Stop the local dashboard daemon without deleting captured sessions:
+
+```bash
+pma shutdown
+```
 
 Remove stored captured sessions after stopping the local daemon:
 

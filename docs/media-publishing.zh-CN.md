@@ -5,6 +5,7 @@
 ## 当前决策
 
 - 主仓库跟踪：生成脚本、镜头表、字幕、封面、素材 manifest、脱敏说明和发布目录；
+- 主仓库可以跟踪：符合 `assets/demo/media-budget.json` 的确定性原图、双尺寸审阅图和紧凑 GIF；
 - 主仓库不跟踪：MP4、独立旁白 M4A、逐镜头合成帧、临时片段和剪辑器缓存；
 - 内部审阅：从主仓库脚本在本地生成成片，通过文件或临时链接审阅；
 - 短期公开发布：优先使用 GitHub Releases 的 release asset；
@@ -69,7 +70,11 @@ CDN 负责缓存和 Range 请求；catalog 负责从稳定视频 ID 指向当前
 
 ## 主仓库验收规则
 
-- `git ls-files` 不应列出 `assets/demo/video/**/*.mp4`、`*.m4a` 或生成帧目录；
+- `git ls-files` 不应列出 `assets/demo/video/**/*.mp4`、`*.m4a`、`*.mp3`、`*.wav` 或生成帧目录；
+- `assets/demo/media-budget.json` 当前把全部可追踪演示媒体限制为 80 MiB、单个 Source 章节限制为 12 MiB、单张静态图限制为 1.5 MiB、单个 GIF 限制为 8 MiB；达到 85% 时生产审计发出预警；
+- 体积统计使用 `git ls-files --cached --others --exclude-standard`，因此既覆盖已提交文件，也覆盖下一次提交会纳入的未跟踪文件，同时排除按策略保留在本地的成片；
 - catalog 中只有 `status: published` 的条目可以提供非空 `published_url`；
 - 本地草稿可以记录校验值和输出路径，但 README 不得链接到被 `.gitignore` 排除的文件；
 - 删除本地生成物后，仓库中保留的信息必须足以重新生成或明确列出需要重新采集的原始素材。
+
+运行 `node scripts/demo-production-audit.mjs` 会执行上述格式和体积门禁；`smoke:governance` 也会调用同一审计。超过预算时，优先删除可重建重复帧、降低无损素材体积或把纯制作资料移到独立媒体工作区，不能只为让检查通过而无评审提高上限。

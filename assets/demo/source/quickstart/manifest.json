@@ -1,10 +1,33 @@
 {
-  "schema_version": 1,
-  "title": "中文快速上手：查看目录并读取 README",
-  "viewer_source_commit": "fba47b2623224f9998437ce14fb03390d489dc9f",
-  "source_type": "deterministic_synthetic_openai_responses",
-  "workspace": "/demo/hello-agent",
-  "conversation_id": "quickstart-tool-loop",
+  "schema_version": 2,
+  "title": "中文快速上手：第一次看清 Agent 工具闭环",
+  "chapter_status": "story_narration_timeline_and_dual_viewport_review_v0_2",
+  "language": "zh-CN",
+  "source": {
+    "viewer_source_commit": "fba47b2623224f9998437ce14fb03390d489dc9f",
+    "verified_worktree_head": "674222577f415c1b2775acefd337844ea6efd74c",
+    "verified_origin_main": "83a5f158fa913c69f8f80809ce17d8a2ea701bd0",
+    "viewer_diff_since_capture": "No changes under src/viewer, src/server, or src/contracts/viewer-api.mjs between the capture commit and origin/main.",
+    "source_type": "deterministic_synthetic_openai_responses",
+    "generator": "scripts/readme-media-demo.mjs",
+    "workspace": "/demo/hello-agent",
+    "conversation_id": "quickstart-tool-loop",
+    "protocol": "OpenAI Responses",
+    "external_requests": false,
+    "real_credentials": false
+  },
+  "teaching_contract": {
+    "audience": "First-time PMA users who already have one working Agent or Harness.",
+    "question": "How do I install PMA, capture one safe session, and trace a user request through tool calls, results, final response, and native protocol evidence?",
+    "takeaway": "PMA does not replace the Agent. It organizes the Agent-to-model requests and tool exchanges into a traceable evidence chain.",
+    "out_of_scope": [
+      "Skill loading",
+      "subagents",
+      "context compaction",
+      "custom Harness protocol debugging",
+      "provider authentication"
+    ]
+  },
   "viewer": {
     "viewport_css_pixels": {
       "width": 2048,
@@ -12,7 +35,8 @@
     },
     "theme": "codex",
     "ui_language": "zh-CN",
-    "capture_method": "Codex in-app Browser controlling the live PMA Viewer"
+    "capture_method": "Codex in-app Browser controlling the live PMA Viewer",
+    "layout": "full three-pane Viewer; no browser chrome, black frame, or baked annotation"
   },
   "scenario": {
     "user_request": "请先查看当前文件夹有哪些内容，再读取 README.md 中的「项目目标」部分，最后用一句话说明这个项目是做什么的。",
@@ -21,50 +45,112 @@
       "read_file"
     ],
     "request_count": 3,
-    "external_requests": false
+    "mechanism_flow": [
+      "用户请求",
+      "调用 list_directory",
+      "list_directory 结果回传",
+      "调用 read_file",
+      "read_file 结果回传",
+      "最终回答"
+    ]
   },
+  "facts": [
+    "The current package requires Node.js 24 or newer.",
+    "The current CLI help lists npm install, pma doctor, pma open, pma codex, the Codex full-permission flag, pma shutdown, and pma clear --all-sessions with the documented meanings.",
+    "The quick-start Trace contains one Turn and three OpenAI Responses requests.",
+    "Request 1 returns a list_directory function_call.",
+    "Request 2 contains the matching list_directory result and returns a read_file function_call.",
+    "Request 3 contains the matching README result and returns the final answer.",
+    "The Viewer preserves links from each tool result back to its originating call.",
+    "The Protocol view preserves instructions, tools, messages, calls, results, model id, and native order.",
+    "The Request Rail threshold is five requests in the active Turn; the navigation demo contains six Turns and thirteen Requests, with five Requests in Turn 5."
+  ],
   "privacy": {
     "uses_user_capture": false,
     "uses_user_files": false,
     "uses_real_api_key": false,
     "uses_real_local_path": false,
     "authorization_header": "synthetic value; persisted form verified redacted",
-    "notes": "All prompts, paths, file names, tool results, model responses and token counts are deterministic public demo data."
+    "notes": "All prompts, paths, file names, tool results, model responses and token counts are deterministic public demo data. Command slides do not show terminal history or local machine paths."
   },
-  "generator": {
-    "trace": "node scripts/readme-media-demo.mjs --port 43112",
-    "annotations": "python3 scripts/build-readme-media.py"
+  "production": {
+    "narration": "assets/demo/source/quickstart/narration.zh-CN.md",
+    "timeline": "assets/demo/source/quickstart/video/timeline.zh-CN.json",
+    "subtitles": "assets/demo/video/pma-quickstart.zh-CN.srt",
+    "storyboard_player": "assets/demo/storyboard/index.html",
+    "readme_gif_plan": "assets/demo/source/quickstart/readme-gif.zh-CN.json",
+    "readme_gif_candidate": "assets/demo/quickstart-tool-loop-v0.2-candidate.gif",
+    "readme_gif_generator": "scripts/build-readme-storyboard-gif.py",
+    "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "legacy_annotation_generator": "scripts/build-readme-media.py",
+    "legacy_gif": "assets/demo/quickstart-tool-loop.gif",
+    "audio": "not_started; handled by the separate voice-tuning workflow"
   },
-  "frames": [
+  "raw_frames": [
     {
       "file": "quickstart-overview-raw.png",
-      "duration_ms": 5200,
-      "focus": "完整机制流程"
+      "focus": "Complete mechanism flow"
     },
     {
       "file": "quickstart-system-raw.png",
-      "duration_ms": 6500,
-      "focus": "点击详情打开右栏，再选择 System 查看实际指令"
+      "focus": "Request 1 System evidence"
     },
     {
       "file": "quickstart-tool-result-raw.png",
-      "duration_ms": 7500,
-      "focus": "点击 list_directory 工具结果，在右栏查看实际回传"
+      "focus": "Request 2 list_directory tool result"
     },
     {
       "file": "quickstart-tool-origin-raw.png",
-      "duration_ms": 7500,
-      "focus": "点击来源 #1，跳回原始工具调用与参数"
+      "focus": "Origin navigation from result #2 to call #1"
     },
     {
       "file": "quickstart-final-raw.png",
-      "duration_ms": 6500,
-      "focus": "点击最终回复详情，在右栏核对原始 Response"
+      "focus": "Request 3 final Response"
     },
     {
       "file": "quickstart-protocol-raw.png",
-      "duration_ms": 9500,
-      "focus": "打开请求详情并切到协议视图，核对 OpenAI Responses 完整上下行"
+      "focus": "OpenAI Responses native protocol order"
+    },
+    {
+      "file": "../navigation/two-level-navigation-raw.png",
+      "focus": "Turn Rail and Request Rail in one long deterministic Trace"
     }
-  ]
+  ],
+  "annotation_policy": [
+    "Numbered markers appear in narration order and never enter as a complete set.",
+    "Independent focus changes crossfade over approximately 0.7 seconds and remove the previous marker.",
+    "The Turn Rail marker remains when the Request Rail marker appears because the scene teaches their hierarchy and recommended order; dim_ms lowers the retained Turn marker to a secondary visual level.",
+    "No routed arrow is used in v0.2; focus outlines, pane position, and progressive badges already establish every relationship.",
+    "Command scenes are explicit presentation cards, not simulated terminal screenshots."
+  ],
+  "product_feedback": [
+    "During documentation verification, `pma open --help` opened or started the dashboard instead of printing subcommand help, while `pma clear --help` returned the explicit --all-sessions error. The guide therefore documents only tested commands and does not tell users to discover these subcommands with --help. This docs branch records the CLI discoverability gap but does not change runtime behavior."
+  ],
+  "visual_review": {
+    "status": "passed",
+    "captured_at": "2026-08-02",
+    "result": "passed 28 progressive review states at both 1920x1080 and 1024x576",
+    "review_frames": {
+      "desktop": "recording/review-1920/; 28 JPEG frames at 1920x1080 plus contact-sheet.jpg",
+      "compact": "recording/review-1024/; 28 JPEG frames at 1024x576 plus contact-sheet.jpg"
+    },
+    "notes": [
+      "The full three-pane Viewer remains visible; the right-side tabs retain comfortable whitespace at the source viewport.",
+      "Badge numerals remain visually centered at both review sizes.",
+      "Independent targets use previous-only, crossfade, and current-only review states; the Turn and Request rails intentionally remain together for hierarchy comparison, with the older Turn marker dimmed when Request becomes primary.",
+      "The first final-response draft placed a numbered marker too close to the subtitle. It was replaced with a short click pulse.",
+      "The first click-pulse draft landed below the Details button. The endpoint was corrected to the actual button center and re-reviewed at both sizes.",
+      "No routed arrow remains because focus boxes, click pulse, and pane position establish every relationship without crossing content.",
+      "The README GIF keeps UI and annotation crossfades but switches the subtitle safe zone without blending, so adjacent narration lines never form a double image.",
+      "The legacy README GIF remains untouched until the owner approves this v0.2 Chinese story."
+    ]
+  },
+  "publication_gate": {
+    "status": "storyboard_and_dual_viewport_review_complete_owner_story_review_pending",
+    "remaining": [
+      "Freeze the Chinese story only after the owner reviews it.",
+      "Do not replace the README hero GIF until the new slow version is approved.",
+      "Do not publish local MP4 or audio files from the main repository."
+    ]
+  }
 }

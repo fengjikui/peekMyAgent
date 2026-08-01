@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "default_chapter": "quickstart",
+  "chapters": [
+    {
+      "id": "quickstart",
+      "label": "五分钟快速上手",
+      "timeline": "/assets/demo/source/quickstart/video/timeline.zh-CN.json",
+      "guide": "/docs/quick-start.zh-CN.md",
+      "guide_section": "5. 在 Viewer 中复盘"
+    },
+    {
+      "id": "claude-tool-loop",
+      "label": "Claude Code：一次工具调用",
+      "timeline": "/assets/demo/source/claude-tool-loop/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/tools-results.md",
+      "guide_section": "四层证据"
+    },
+    {
+      "id": "claude-skill",
+      "label": "Claude Code：Skill 加载",
+      "timeline": "/assets/demo/source/claude-skill/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/skills.md",
+      "guide_section": "先建立四层模型"
+    },
+    {
+      "id": "claude-subagents",
+      "label": "Claude Code：子 Agent 回流",
+      "timeline": "/assets/demo/source/claude-subagents/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/subagents.md",
+      "guide_section": "先看机制流程"
+    },
+    {
+      "id": "claude-compact",
+      "label": "Claude Code：上下文压缩",
+      "timeline": "/assets/demo/source/claude-compact/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/requests-context.md",
+      "guide_section": "压缩与摘要如何判断"
+    },
+    {
+      "id": "claude-planning",
+      "label": "Claude Code：多步规划",
+      "timeline": "/assets/demo/source/claude-planning/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/requests-context.md",
+      "guide_section": "真实例子：一个用户请求展开成七次 Request"
+    }
+  ]
+}

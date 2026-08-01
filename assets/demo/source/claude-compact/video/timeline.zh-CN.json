@@ -1,0 +1,304 @@
+{
+  "version": 1,
+  "title": "用 PMA 看懂 Claude Code：上下文压缩究竟改变了什么",
+  "resolution": [1920, 1080],
+  "source_viewport": [2048, 1056],
+  "fps": 30,
+  "duration_seconds": 242,
+  "theme": "claude",
+  "subtitle_layout": {
+    "position": "bottom-center",
+    "bottom_percent": 5.2,
+    "max_width_percent": 72,
+    "max_lines": 2,
+    "background": "none",
+    "outline": "subtle"
+  },
+  "review_points": [
+    { "name": "00-intro", "scene": 0, "at_ms": 7000 },
+    { "name": "01a-turn-3", "scene": 1, "at_ms": 4000 },
+    { "name": "01b-turn-and-compact", "scene": 1, "at_ms": 18000 },
+    { "name": "02a-detail-click", "scene": 2, "at_ms": 800 },
+    { "name": "02b-pre-compact-history", "scene": 2, "at_ms": 8000 },
+    { "name": "03a-compact-click", "scene": 3, "at_ms": 800 },
+    { "name": "03b-harness-compact", "scene": 3, "at_ms": 10000 },
+    { "name": "04-compact-summary", "scene": 4, "at_ms": 12000 },
+    { "name": "05a-continuation-summary", "scene": 5, "at_ms": 6000 },
+    { "name": "05b-rebuilt-history", "scene": 5, "at_ms": 22000 },
+    { "name": "06a-rule-reminder", "scene": 6, "at_ms": 6000 },
+    { "name": "06b-rule-and-result", "scene": 6, "at_ms": 24000 },
+    { "name": "07a-timeline-evidence", "scene": 7, "at_ms": 5000 },
+    { "name": "07b-timeline-and-harness", "scene": 7, "at_ms": 18000 },
+    { "name": "08-outro", "scene": 8, "at_ms": 9000 }
+  ],
+  "scenes": [
+    {
+      "id": "00-intro",
+      "title": "终端只告诉你压缩完成",
+      "start_seconds": 0,
+      "end_seconds": 15,
+      "source_image": null,
+      "card": {
+        "eyebrow": "peekMyAgent · Claude Code 机制 04",
+        "headline": "上下文压缩，究竟改变了什么？",
+        "steps": ["压缩请求", "重建 History", "规则重载"]
+      },
+      "narration": "Claude Code 显示“Compacted”之后，旧对话究竟去了哪里？哪些内容被摘要，哪些规则又会回来？只看终端，很难回答。我们用一条真实 CLI 轨迹，直接比较压缩前后两次模型请求。",
+      "subtitle_cues": [
+        "Claude Code 显示“Compacted”之后，",
+        "旧对话究竟去了哪里？",
+        "哪些内容被摘要？哪些规则会回来？",
+        "直接比较压缩前后两次真实请求。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    },
+    {
+      "id": "01-overview",
+      "title": "四个 Turn，五次模型请求",
+      "start_seconds": 15,
+      "end_seconds": 44,
+      "source_image": "/assets/demo/source/claude-compact/recording/raw/01-overview.jpg",
+      "narration": "场景很简单。前三次对话只记录三件事：项目叫 Blue Lantern，已经核对 README.md 和 docs/guide.md，待办是比较压缩前后请求。然后手动执行带重点说明的 /compact，再问一次检查点。PMA 显示四个用户 Turn，却有五次模型请求。压缩请求四仍在 Turn 3 内，这正是两级导航的价值：Turn 定位用户任务阶段，Request 定位 Harness 内部往返。",
+      "subtitle_cues": [
+        "前三次对话，只记录三个公开事实。",
+        "随后手动执行带重点说明的 /compact。",
+        "PMA 显示四个 Turn、五次模型请求。",
+        "编号 1 是外层 Turn 3。",
+        "编号 2 是其中的压缩 Request 4。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.4, 58.8, 47.4, 13.9],
+        "label_box": [10.3, 57.6, 3.2, 6.0],
+        "delay_ms": 700,
+        "dim_ms": 12500,
+        "draft": "编号 1 先放在 Turn 3 左上外缘，聚焦范围只覆盖 Turn 标题与 Request 3；不遮用户气泡。编号 2 出现时继续保留，但通过 dim_ms 退为次要，用来与同一 Turn 内的 Request 4 比较层级。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [13.4, 73.4, 47.4, 10.5],
+          "label_box": [10.3, 72.2, 3.2, 6.0],
+          "delay_ms": 12500,
+        "draft": "编号 2 在讲完外层 Turn 后才出现，贴在压缩 Request 左上外缘；不遮 compact 标签与摘要；编号 1 以较低权重继续保留，因为本镜头要同时证明两级导航。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "02-pre-compact-history",
+      "title": "先建立压缩前基线",
+      "start_seconds": 44,
+      "end_seconds": 70,
+      "source_image": "/assets/demo/source/claude-compact/recording/raw/02-pre-compact-history.jpg",
+      "narration": "先打开 Request 3 的 History。右栏逐项列出前两个用户输入和模型回复；当前输入则单独位于 Message。这样我们先知道压缩前的请求到底带了什么。没有这条基线，看到后面 History 变短，也不能证明发生了哪一种上下文处理。",
+      "subtitle_cues": [
+        "先点击 Request 3 的“详情”。",
+        "History 列出前两个输入和回复。",
+        "当前输入单独位于 Message。",
+        "没有基线，就无法解释后面的变化。"
+      ],
+      "overlays": [
+        {
+          "type": "click",
+          "click": [59.4, 49.7],
+          "delay_ms": 450,
+          "draft": "点击波纹落在 Request 3 用户气泡右端的“详情”，只交代右栏从哪里打开；波纹自动消失，不再保留多余编号或箭头。"
+        },
+        {
+          "type": "focus",
+          "focus": [63.5, 17.4, 35.5, 36.8],
+          "delay_ms": 1700,
+          "draft": "波纹消失后聚焦右栏 History 的两组前序消息；不框住顶部标签和搜索栏；不叠文字卡，让原始用户与模型内容保持可读。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "03-compact-harness-prompt",
+      "title": "/compact 会产生独立模型请求",
+      "start_seconds": 70,
+      "end_seconds": 102,
+      "source_image": "/assets/demo/source/claude-compact/recording/raw/03-compact-harness-prompt.jpg",
+      "narration": "执行 /compact 后，Claude Code 先触发一次手动 PreCompact 生命周期事件，再发出 Request 4。PMA 把它标成“上下文压缩”，Harness 区还能看到 harness_compact 的真实字段路径。这里的长提示词要求只输出结构化摘要，不调用工具，并把我们的重点说明附在末尾。它是 Harness 注入，不是用户刚刚说出的新任务。",
+      "subtitle_cues": [
+        "执行 /compact 后，先出现 Request 4。",
+        "PMA 把它识别为“上下文压缩”。",
+        "Harness 区显示 harness_compact。",
+        "提示词要求只输出结构化摘要。",
+        "这是 Harness 注入，不是新用户任务。"
+      ],
+      "overlays": [
+        {
+          "type": "click",
+          "click": [59.7, 49.9],
+          "delay_ms": 450,
+          "draft": "点击波纹落在压缩 Request 4 行尾“详情”，让观众知道 Harness 证据由哪个动作打开；点击后自动消失，不与文字标注同时堆叠。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [63.6, 51.5, 35.4, 46.5],
+          "label_box": [59.7, 50.3, 3.2, 6.0],
+          "delay_ms": 1900,
+          "draft": "点击波纹消失后，编号 1 从分栏线左侧留白出现，轻描边聚焦完整 harness_compact 区块；不遮 kind、path 和提示词首行；聚焦关系已经明确，因此删除原先会压住上方 reminder 的文字卡和短箭头。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "04-compact-summary",
+      "title": "压缩结果是一份接续摘要",
+      "start_seconds": 102,
+      "end_seconds": 126,
+      "source_image": "/assets/demo/source/claude-compact/recording/raw/03-compact-harness-prompt.jpg",
+      "narration": "确定性假上游返回一份公开摘要：项目名、两个已核对文件和待办都被保留。真实 Claude Code 接收这份回复并完成 compact。使用假上游是为了让每次素材都可重建，也避免任何真实提示词或凭证离开本机；它不改变我们要观察的 Harness 请求结构。",
+      "subtitle_cues": [
+        "假上游返回一份确定性公开摘要。",
+        "项目名、文件和待办都被保留。",
+        "真实 Claude Code 接收并完成 compact。",
+        "假上游只隔离随机性与敏感数据。"
+      ],
+      "overlays": [
+        {
+          "type": "focus",
+          "focus": [13.4, 59.2, 47.4, 16.2],
+          "delay_ms": 650,
+          "draft": "本镜头只保留一圈轻描边，聚焦 Request 4 的 summary 回复；上一镜头的 Harness 文字和箭头不延续，避免两个解释目标同时争夺注意力。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "05-post-compact-history",
+      "title": "下一次 History 被重新组装",
+      "start_seconds": 126,
+      "end_seconds": 162,
+      "source_image": "/assets/demo/source/claude-compact/recording/raw/04-post-compact-history.jpg",
+      "subtitle_layout": {
+        "bottom_percent": 10.5
+      },
+      "narration": "再看压缩后的 Request 5。最早两轮不再以逐条用户和模型消息发送，顶部换成一段“从上一段会话继续”的结构化摘要。最近保留的模型回复仍在，随后是本地 /compact 命令、压缩完成信息和当前问题。压缩不是把会话清空，而是由 Harness 重新组装下一次请求。若需要逐字旧细节，摘要还明确指向本地完整 transcript；它不会假装摘要等于原文。",
+      "subtitle_cues": [
+        "Request 5 不再逐条发送最早两轮。",
+        "编号 1 是结构化接续摘要。",
+        "最近保留的模型回复仍在。",
+        "编号 2 是 compact 命令与当前问题。",
+        "Harness 重新组装了下一次请求。",
+        "精确旧细节仍要回到完整 transcript。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [63.5, 17.2, 35.5, 35.8],
+        "label_box": [59.7, 16.0, 3.2, 6.0],
+        "delay_ms": 700,
+        "dim_ms": 14500,
+        "draft": "编号 1 先出现，贴在右栏接续摘要左上外缘；不遮 summary 正文和 transcript 提示。编号 2 出现时通过 dim_ms 退为次要，因为两部分仍要共同说明重组后的请求。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.5, 62.4, 35.5, 35.4],
+          "label_box": [59.7, 61.2, 3.2, 6.0],
+          "delay_ms": 14500,
+        "draft": "编号 2 在讲完摘要后出现，贴在 compact 命令区左上外缘；不遮 command-name、stdout 和当前问题；编号 1 以较低权重继续保留，帮助观众比较两部分怎样共同组成新 History。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "06-rule-reload",
+      "title": "项目规则会重新注入",
+      "start_seconds": 162,
+      "end_seconds": 198,
+      "source_image": "/assets/demo/source/claude-compact/recording/raw/05-post-compact-rule-reload.jpg",
+      "narration": "History 不是全部上下文。Request 5 的 Harness 区还显示根 CLAUDE.md 被重新注入到 messages[0].system-reminder[0]。测试规则要求回答检查点时附加 ROOT_RULE_RELOADED，最终回复确实带上了这个标记。这证明规则进入了压缩后的请求并被确定性上游使用。它属于消息中的 Harness reminder，不是 Anthropic 顶层 System 数组。",
+      "subtitle_cues": [
+        "History 不是全部上下文。",
+        "编号 1 是重新注入的根 CLAUDE.md。",
+        "规则要求附加 ROOT_RULE_RELOADED。",
+        "编号 2 显示最终回复使用了规则。",
+        "它是 Harness reminder，不是顶层 System。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [63.6, 23.4, 35.4, 31.5],
+        "label_box": [59.7, 22.2, 3.2, 6.0],
+        "delay_ms": 700,
+        "dim_ms": 18500,
+        "draft": "编号 1 先聚焦右栏根 CLAUDE.md reminder；标签贴在区块左上外缘，不遮路径、Blue Lantern 或规则标记。编号 2 出现时通过 dim_ms 退为次要，因为两者仍要证明输入被结果使用。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [13.4, 82.2, 47.4, 6.7],
+          "label_box": [10.3, 81.0, 3.2, 6.0],
+          "delay_ms": 18500,
+        "draft": "编号 2 后出现，贴在中栏最终回答左上外缘；不遮 ROOT_RULE_RELOADED 文字；编号 1 以较低权重继续保留，让项目规则与使用结果同时可见，不再增加跨栏长箭头。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "07-evidence-boundary",
+      "title": "什么才算压缩证据",
+      "start_seconds": 198,
+      "end_seconds": 224,
+      "source_image": "/assets/demo/source/claude-compact/recording/raw/03-compact-harness-prompt.jpg",
+      "narration": "判断压缩，不能只看 token 下降、缓存数字或 History 变短。这条轨迹同时具备三类证据：明确的 /compact 生命周期、独立的压缩请求、以及下一次请求中的摘要替换和规则重载。PMA 观察这些变化，但不会替 Claude Code 触发压缩。pma compact 只是另一项本地存储维护命令。",
+      "subtitle_cues": [
+        "只看 token 下降或 History 变短还不够。",
+        "要有生命周期与独立压缩请求。",
+        "还要核对摘要替换和规则重载。",
+        "Claude /compact 不等于 pma compact。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.4, 48.7, 47.4, 27.0],
+        "label_box": [10.3, 47.5, 3.2, 6.0],
+        "delay_ms": 700,
+        "dim_ms": 11800,
+        "draft": "编号 1 先聚焦中栏明确标记的压缩 Request 和 summary 回复；不框普通 Request。编号 2 出现时通过 dim_ms 退为次要，用于与右栏原始 Harness 证据形成双重验证。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.6, 51.5, 35.4, 46.5],
+          "label_box": [59.7, 50.3, 3.2, 6.0],
+          "delay_ms": 11800,
+        "draft": "编号 2 在结论第二步出现，贴在右栏 harness_compact 区块左上外缘；不遮字段；编号 1 以较低权重保留，因为此处要强调时间线分类与原始注入证据必须互相印证。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "08-outro",
+      "title": "三步记住上下文压缩",
+      "start_seconds": 224,
+      "end_seconds": 242,
+      "source_image": null,
+      "card": {
+        "eyebrow": "一条可检查的上下文变化链",
+        "headline": "压缩前后的真实请求，可以同时核对",
+        "steps": ["压缩请求", "重建 History", "规则重载"],
+        "footer": "PMA 保留 Capture，Claude Code 决定上下文"
+      },
+      "narration": "记住三步：Claude Code 发出压缩请求；结构化摘要接替较早历史；项目规则按加载机制重新进入后续请求。PMA 的价值，是让压缩前的 Capture 和压缩后的真实上行上下文同时可查，而不是只留一句“已经压缩”。",
+      "subtitle_cues": [
+        "第一步：Claude Code 发出压缩请求。",
+        "第二步：结构化摘要接替较早历史。",
+        "第三步：项目规则重新进入请求。",
+        "PMA 让压缩前后都可检查。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    }
+  ]
+}
