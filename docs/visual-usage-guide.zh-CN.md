@@ -254,13 +254,15 @@ python3 scripts/build-readme-storyboard-gif.py --check
 
 同日，“自研 Harness 怎样通过通用协议先接入”用真实 `pma observe` 包装两条确定性 Source：OpenAI Responses 与 Anthropic Messages 都是 1 Turn / 2 Request，只完成列目录、回传结果和最终回答。第一轮 Raw 暴露了仓库工作目录，因此整批素材被拒绝并改用固定 `/tmp/pma-custom-harness-demo/public-project` 后重录。25 个稳定状态随后分别在 1920×1080 与 1024×576 下逐张放大检查：编号按旁白逐个出现；OpenAI 上下行对照保留两个同级重点；Anthropic 的 `tool_use` 在 `tool_result` 出现后降权；其余独立焦点交叉淡出。框、编号和字幕已经足以引导视线，所以没有添加箭头。完整镜头脚本、校验值和脱敏边界见 `assets/demo/source/custom-harness/manifest.json`。
 
+同日，“协议视图与 Raw：定位一次 call id 异常”使用真实 Capture Proxy 和确定性 OpenAI Responses 假上游生成 1 Turn / 3 Request：Request 2 回传错误 ID 并收到 HTTP 400，Request 3 修正后成功。第一次采集发现切换 Request 后仍残留上一次 Raw 搜索，且活动 Request 已变成 Request 3，因此拒绝了两张画面，清空搜索并断言右栏标题后局部重录。20 个渐进状态随后分别在真实 1920×1080 与 1024×576 下逐张检查：入口和证据是独立焦点时旧编号退场；正确值与错误值、错误对象与 HTTP 状态、request 与 response fidelity 需要对照时，编号 1 在编号 2 出现后保留但降权。所有编号均视觉居中，字幕保持底部居中，聚焦框未覆盖字段；右栏本身已经提供直接空间关系，因此没有添加箭头。完整镜头脚本、原始帧校验值与事实边界见 `assets/demo/source/protocol-raw/manifest.json`。
+
 ## 下一阶段素材优先级
 
 上下文变化、迟到工具结果和 Claude Code 子 Agent 已在用户手册素材 v0.1 中完成。通过用户审阅后，再独立制作：
 
-1. 从协议视图进入 Raw Inspector、核对更多原生 JSON 异常与脱敏记录；
-2. System / Tools 分块翻译，并展示原文与译文如何对应；
-3. 使用真实长会话展示上下文压缩，并明确区分 Codex、Claude Code 等 Harness 的已验证事实；
+1. System / Tools 分块翻译，并展示原文与译文如何对应；
+2. 使用真实长会话对比 Codex 与 Claude Code 的上下文压缩，并严格区分各 Harness 已验证事实；
+3. 为协议与 Raw 排错章增加所有者审阅后的正式配音与成片；
 4. 使用真人口播或已授权旁白，对中文视频初剪做第二轮 ChatCut / 剪映精修。
 
 每个新主题仍只回答一个核心问题，并先用真实产品证据确认功能存在，不能把 roadmap 写成已实现。

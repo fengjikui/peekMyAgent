@@ -51,6 +51,30 @@
       }
     },
     {
+      "id": "protocol-raw",
+      "label": "协议与 Raw：定位一次异常",
+      "timeline": "/assets/demo/source/protocol-raw/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/protocol-raw.md",
+      "guide_section": "真实例子：从错误 call id 追到 HTTP 400",
+      "review": {
+        "question": "普通摘要只显示请求失败时，怎样找到错误原始字段并验证修正？",
+        "audience": "需要排查模型请求、兼容层或自研 Harness 工具关联的开发者",
+        "source": {
+          "label": "真实 Capture Proxy + 确定性 OpenAI Responses 假上游",
+          "boundary": "请求、响应和 provenance 来自真实代理捕获；HTTP 400 由固定 loopback 上游按错误 call id 确定性生成，不代表 provider 事故。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅中文排错故事与未知字段边界，再决定是否进入正式配音与成片。",
+        "artifacts": {
+          "narration": "/assets/demo/source/protocol-raw/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-protocol-raw-debug.zh-CN.srt",
+          "manifest": "/assets/demo/source/protocol-raw/manifest.json",
+          "review_1920": "/assets/demo/source/protocol-raw/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/protocol-raw/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
       "id": "claude-tool-loop",
       "label": "Claude Code：一次工具调用",
       "timeline": "/assets/demo/source/claude-tool-loop/video/timeline.zh-CN.json",
