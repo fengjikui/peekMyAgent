@@ -2,7 +2,7 @@
   "schema_version": 1,
   "title": "子 Agent 在哪里运行，结果怎样回来",
   "language": "zh-CN",
-  "chapter_status": "real_cli_storyboard_review_v0_3",
+  "chapter_status": "real_cli_storyboard_review_and_picture_master_technical_validation_v0_3",
   "source": {
     "generator": "scripts/claude-subagents-real-cli-probe.mjs",
     "scenario_id": "claude-subagents-real-cli",
@@ -83,6 +83,10 @@
     "timeline": "assets/demo/source/claude-subagents/video/timeline.zh-CN.json",
     "subtitles": "assets/demo/video/pma-claude-subagents.zh-CN.srt",
     "storyboard_player": "assets/demo/storyboard/index.html",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/claude-subagents/pma-claude-subagents-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "technical validation passed at exact source commit 02720e350dcef1c6320d18ccafd9ef10da2b7a2b; owner Chinese story review is still pending",
+    "repository_policy": "The eleven public real-CLI Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, raw request log, and audio remain ignored.",
     "audio": "not_started; handled by the separate voice-tuning workflow"
   },
   "official_references": [
@@ -90,8 +94,8 @@
     "https://code.claude.com/docs/en/tools-reference"
   ],
   "publication_gate": {
-    "status": "owner_content_review_pending",
-    "reason": "Real CLI cross-check, raw-frame review, and 32 timeline-declared progressive annotation states at both 1920x1080 and 1024x576 are complete. Chinese story review remains before narration and publication."
+    "status": "real_cli_storyboard_dual_viewport_review_and_picture_master_technical_validation_complete_owner_content_review_pending",
+    "reason": "Real CLI cross-check, raw-frame review, 32 timeline-declared progressive annotation states at both 1920x1080 and 1024x576, and the full picture-master technical validation are complete. Chinese story review remains before narration and publication."
   },
   "product_feedback": [
     {
@@ -150,6 +154,25 @@
       "Each overlay draft records appearance order, retention choice, and fade-out timing.",
       "Use short focus boxes and nearby badges before adding an arrow; this chapter should not need arrows.",
       "Every progressive state must be reviewed at 1920x1080 and 1024x576, not only as a final fully annotated frame."
-    ]
+    ],
+    "video_master": {
+      "status": "technical_validation_passed_owner_story_review_pending",
+      "source_commit": "02720e350dcef1c6320d18ccafd9ef10da2b7a2b",
+      "source_worktree_dirty": false,
+      "duration_seconds": 254,
+      "resolution": [1920, 1080],
+      "fps": 30,
+      "encoded_frames": 7620,
+      "browser_frames_received": 1763,
+      "browser_final_absolute_ms": 253945,
+      "maximum_encoder_lateness_ms": 57.69,
+      "bytes": 6028983,
+      "streams": "H.264 video only; no audio stream, subtitle stream, or webpage subtitle layer",
+      "black_frames": 0,
+      "review_points_checked": 32,
+      "review_frame_mean_absolute_difference": "4.19/255",
+      "review_frame_maximum_absolute_difference": "7.51/255 at 11-outro.jpg; the unannotated title card remained correctly composed and the difference is rendering variance rather than annotation displacement",
+      "repository_policy": "The MP4, render manifest, extracted frames, and contact sheet remain under Git-ignored tmp/storyboard-video/claude-subagents/."
+    }
   }
 }
