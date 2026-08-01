@@ -2,7 +2,7 @@
   "schema_version": 1,
   "title": "Skill 怎样被发现和加载",
   "language": "zh-CN",
-  "chapter_status": "real_cli_trace_story_narration_storyboard_and_dual_viewport_review_v0_3",
+  "chapter_status": "real_cli_trace_story_narration_storyboard_dual_viewport_review_and_picture_master_technical_validation_v0_3",
   "product_sha": "674222577f415c1b2775acefd337844ea6efd74c",
   "source": {
     "generator": "scripts/claude-skill-real-cli-probe.mjs",
@@ -99,6 +99,10 @@
     "subtitles": "assets/demo/video/pma-claude-skill.zh-CN.srt",
     "storyboard_player": "assets/demo/storyboard/index.html",
     "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/claude-skill/pma-claude-skill-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "technical validation passed at exact source commit 86b8ec1ace4f2e52ca4a1f0e902172b144be6561; owner Chinese story review is still pending",
+    "repository_policy": "The ten public real-CLI Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, raw request log, and audio remain ignored.",
     "audio": "not_started; handled by the separate voice-tuning workflow"
   },
   "official_references": [
@@ -133,7 +137,26 @@
       "Badge numerals are plain text centered by CSS grid; arrows are omitted because focus boxes and pane gutters already establish the relationship.",
       "All 31 named review points were opened at true 1920x1080 and 1024x576 output sizes; crossfade, retained-pair, and final-only states were visually reviewed rather than inferred from the timeline.",
       "One accidental collapsed-panel frame was deleted immediately and is not part of the material set."
-    ]
+    ],
+    "video_master": {
+      "status": "technical_validation_passed_owner_story_review_pending",
+      "source_commit": "86b8ec1ace4f2e52ca4a1f0e902172b144be6561",
+      "source_worktree_dirty": false,
+      "duration_seconds": 239,
+      "resolution": [1920, 1080],
+      "fps": 30,
+      "encoded_frames": 7170,
+      "browser_frames_received": 1610,
+      "browser_final_absolute_ms": 238936,
+      "maximum_encoder_lateness_ms": 10.293,
+      "bytes": 5116854,
+      "streams": "H.264 video only; no audio stream, subtitle stream, or webpage subtitle layer",
+      "black_frames": 0,
+      "review_points_checked": 31,
+      "review_frame_mean_absolute_difference": "3.48/255",
+      "review_frame_maximum_absolute_difference": "7.05/255 at 11-outro.jpg; the title card remained correctly composed and the difference is rendering variance rather than annotation displacement",
+      "repository_policy": "The MP4, render manifest, extracted frames, and contact sheet remain under Git-ignored tmp/storyboard-video/claude-skill/."
+    }
   },
   "product_feedback": [
     {
@@ -143,7 +166,7 @@
     }
   ],
   "publication_gate": {
-    "status": "real_cli_cross_check_storyboard_and_dual_viewport_review_complete_owner_story_review_pending",
+    "status": "real_cli_cross_check_storyboard_dual_viewport_review_and_picture_master_technical_validation_complete_owner_story_review_pending",
     "remaining": [
       "Freeze narration only after the owner reviews the Chinese story.",
       "Do not publish the ignored raw request log or generated video from the main repository."

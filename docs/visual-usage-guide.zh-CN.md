@@ -261,6 +261,8 @@ python3 scripts/build-readme-storyboard-gif.py --check
 
 同日，“Skill 怎样被发现和加载”从 32 张旧式审阅帧迁移为时间线声明的 31 个稳定复核点，并重新生成真实 1920×1080 与 1024×576 两档画面。System、Tools 和协议视图标签已经能够自我解释，只保留轻描边；编号留给 Request 入口、调用、参数、回执、Raw 命中和最终证据。相关的调用与参数允许约半秒共存，焦点已经改变的标记交叉淡出，最终 Response 使用点击波纹后再出现单一证据编号。两档逐帧检查确认编号居中、框线未遮挡正文，并且不需要箭头。联系表和事实边界见 `assets/demo/source/claude-skill/manifest.json`。
 
+随后在干净提交 `86b8ec1ace4f2e52ca4a1f0e902172b144be6561` 完整录制该章 239 秒无声画面母版：7170 帧、1610 个浏览器重绘帧、约 4.88 MiB，浏览器最终时间为 238936ms，编码最大实时延迟 10.293ms。整片完整解码和黑帧检查通过；从成片重新抽取 31 个 `review_points` 逐张查看，完整三栏、编号居中、点击入口、Skill 正文、协议顺序和最终 Response 均未错位。与已审阅 1920×1080 帧比较的平均绝对像素差为 3.48/255，最大 7.05/255 出现在无标注的片尾标题卡，复核后确认属于浏览器渲染差异而不是标注位移。MP4、render manifest、抽帧和联系表仍只位于 Git 忽略的 `tmp/storyboard-video/claude-skill/`。
+
 同日，“子 Agent 在哪里运行，结果怎样回来”从 33 张未声明复核点的旧审阅图迁移为时间线中的 32 个稳定 `review_points`。multi-agent 镜头先用短波纹指示真实展开控件，再让两个分支编号 1、2 依次出现；Turn 2 / Turn 3 对照保留旧编号，但在新阶段出现前通过 `dim_ms` 退为次要；最终 Response 也改为点击波纹后只保留一个证据编号。第一轮自审还发现 Turn 2 降级状态比“显示 Turn 3”的字幕晚约一秒，修正时码后只重渲染相关帧。真实 1920×1080 与 1024×576 两档均通过，未使用箭头。联系表和事实边界见 `assets/demo/source/claude-subagents/manifest.json`。
 
 同日，“自研 Harness 怎样通过通用协议先接入”用真实 `pma observe` 包装两条确定性 Source：OpenAI Responses 与 Anthropic Messages 都是 1 Turn / 2 Request，只完成列目录、回传结果和最终回答。第一轮 Raw 暴露了仓库工作目录，因此整批素材被拒绝并改用固定 `/tmp/pma-custom-harness-demo/public-project` 后重录。25 个稳定状态随后分别在 1920×1080 与 1024×576 下逐张放大检查：编号按旁白逐个出现；OpenAI 上下行对照保留两个同级重点；Anthropic 的 `tool_use` 在 `tool_result` 出现后降权；其余独立焦点交叉淡出。框、编号和字幕已经足以引导视线，所以没有添加箭头。完整镜头脚本、校验值和脱敏边界见 `assets/demo/source/custom-harness/manifest.json`。
