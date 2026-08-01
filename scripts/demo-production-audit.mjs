@@ -64,6 +64,19 @@ function auditStoryboardCatalog() {
     "storyboard review capture script must use timeline review points and frozen browser capture",
   );
 
+  const videoExportScript = path.join(root, "scripts", "export-storyboard-video.mjs");
+  assertFile(videoExportScript, "storyboard video export script");
+  assertTrackable(videoExportScript, "storyboard video export script");
+  scanTextPrivacy(videoExportScript, "storyboard video export script");
+  const videoExportSource = fs.readFileSync(videoExportScript, "utf8");
+  assert(
+    videoExportSource.includes("Page.startScreencast")
+      && videoExportSource.includes('url.searchParams.set("subtitles"')
+      && videoExportSource.includes("publishable_picture_master")
+      && videoExportSource.includes("ffprobe"),
+    "storyboard video export must record the real webpage, support a clean subtitle-free master, and verify MP4 output",
+  );
+
   for (const name of ["index.html", "player.css", "player.js", "README.md", "catalog.zh-CN.json"]) {
     const file = path.join(storyboardRoot, name);
     assertFile(file, "storyboard player artifact");
@@ -155,6 +168,8 @@ function auditStoryboardCatalog() {
     "storyboard player must resolve the mapped guide section");
   assert(player.includes("review.artifacts") && player.includes("showModal"),
     "storyboard player must render the catalog review contract");
+  assert(player.includes("timelineReady") && player.includes("subtitlesVisible"),
+    "storyboard player must expose export readiness and a clean subtitle-free playback mode");
   totals.catalogEntries = catalog.chapters.length;
 }
 

@@ -7,9 +7,11 @@ const reviewMode = params.get("review") === "1";
 const startScene = Number.parseInt(params.get("scene") || "0", 10);
 const startElapsedMs = Number.parseInt(params.get("at_ms") || "0", 10);
 const autoplay = params.get("autoplay") !== "0";
+const subtitlesVisible = params.get("subtitles") !== "0";
 
 if (presentMode) document.body.classList.add("present");
 if (reviewMode) document.body.classList.add("review");
+if (!subtitlesVisible) document.body.classList.add("no-subtitles");
 
 const elements = {
   visual: document.querySelector(".visual"),
@@ -89,6 +91,8 @@ function setControlsDisabled(disabled) {
 }
 
 function renderLoading(message = "正在载入故事板") {
+  document.body.dataset.timelineReady = "0";
+  delete document.body.dataset.timelineError;
   setPlaying(false);
   setControlsDisabled(true);
   elements.image.hidden = true;
@@ -103,6 +107,8 @@ function renderLoading(message = "正在载入故事板") {
 }
 
 function renderLoadError(error) {
+  document.body.dataset.timelineReady = "error";
+  document.body.dataset.timelineError = error instanceof Error ? error.message : String(error);
   setPlaying(false);
   setControlsDisabled(true);
   elements.image.hidden = true;
@@ -284,6 +290,7 @@ async function loadTimeline(timelineUrl, { sceneIndex = 0, elapsedMs = 0, update
   state.sceneElapsed = Number.isFinite(elapsedMs)
     ? Math.max(0, Math.min(elapsedMs / 1000, sceneDuration - 0.001))
     : 0;
+  document.body.dataset.timelineDurationMs = String(Math.round(timeline.duration_seconds * 1000));
 
   populateChapterSelect();
   populateReviewPointSelect();
@@ -291,6 +298,7 @@ async function loadTimeline(timelineUrl, { sceneIndex = 0, elapsedMs = 0, update
   elements.reviewPointSelect.disabled = (timeline.review_points || []).length === 0;
   populateReviewSheet(currentCatalogChapter());
   renderScene({ resetElapsed: false });
+  document.body.dataset.timelineReady = "1";
   if (updateUrl) updateLocation();
 }
 
@@ -526,6 +534,9 @@ function updateProgress() {
   const duration = state.timeline.duration_seconds;
   elements.scrubber.value = String(Math.round((absolute / duration) * 1000));
   elements.timecode.value = `${formatTime(absolute)} / ${formatTime(duration)}`;
+  document.body.dataset.sceneIndex = String(state.sceneIndex);
+  document.body.dataset.sceneElapsedMs = String(Math.round(state.sceneElapsed * 1000));
+  document.body.dataset.absoluteMs = String(Math.round(absolute * 1000));
   updateSubtitle(scene);
   syncReviewPointSelection();
 }
@@ -533,6 +544,7 @@ function updateProgress() {
 function setPlaying(next) {
   state.playing = next;
   state.lastFrameTime = null;
+  document.body.dataset.playing = next ? "1" : "0";
   elements.toggle.textContent = next ? "暂停" : "播放";
 }
 

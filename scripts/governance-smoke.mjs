@@ -22,6 +22,7 @@ const requiredFiles = [
   ".github/pull_request_template.md",
   "assets/demo/media-budget.json",
   "scripts/capture-storyboard-review-frames.mjs",
+  "scripts/export-storyboard-video.mjs",
   "scripts/documentation-impact-summary.mjs",
 ];
 
@@ -175,6 +176,15 @@ assert.equal(reviewCaptureHelp.status, 0, `storyboard capture help failed:\n${re
 assert.match(reviewCaptureHelp.stdout, /<chapter-id>/);
 assert.match(reviewCaptureHelp.stdout, /--output-root/);
 assert.match(reviewCaptureHelp.stdout, /PMA_STORYBOARD_BROWSER/);
+
+const videoExportHelp = spawnSync(process.execPath, [
+  "scripts/export-storyboard-video.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(videoExportHelp.status, 0, `storyboard video export help failed:\n${videoExportHelp.stderr}`);
+assert.match(videoExportHelp.stdout, /<chapter-id>/);
+assert.match(videoExportHelp.stdout, /--include-subtitles/);
+assert.match(videoExportHelp.stdout, /1920x1080 picture master/);
 
 const demoProduction = spawnSync(process.execPath, ["scripts/demo-production-audit.mjs"], {
   encoding: "utf8",

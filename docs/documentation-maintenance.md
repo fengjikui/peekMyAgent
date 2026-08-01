@@ -13,6 +13,7 @@
 - `scripts/build-readme-media.py` 可从保留的原始帧重新生成标注图和慢速 GIF；
 - `scripts/build-demo-video.py` 可从已验收素材重新生成中文 MP4、旁白、字幕、封面与中性时间线；
 - `scripts/capture-storyboard-review-frames.mjs <chapter>` 可直接读取 catalog 与时间线，用环回服务器和一次性 Chrome 重建 1920×1080 / 1024×576 审阅帧及联系表；它验证真实 JPEG 像素，不需要 Playwright，也不会自动删除失效旧帧；
+- `scripts/export-storyboard-video.mjs <chapter>` 可把任意 catalog 章节的真实网页播放录制为 1920×1080、30 fps、H.264 干净画面母版；默认无网页字幕、音轨或字幕轨，切片和带字幕内部预览使用显式参数，旁车 render manifest 记录精确 HEAD、工作区状态、工具版本、范围、帧数和环回隐私边界；
 - `assets/demo/storyboard/` 可从章节时间线非破坏性播放真实 Viewer 帧、字幕、聚焦框、标注和转场；统一 catalog 还把十个演示章节映射到对应中文手册小节，并保存问题、观众、Source 边界、审阅状态、下一道门与五类资料入口；`review=1` 可冻结指定时点用于逐帧验收，制作模式可以直接打开，成片模式不会显示；`scripts/demo-storyboard-smoke.mjs` 检查镜头连续性、可读时长、素材路径与箭头草稿；
 - `scripts/demo-production-audit.mjs` 跨章节核对 manifest、旁白、时间线、SRT、Source 图片、双尺寸审阅帧的真实像素、Git 可追踪性、媒体体积预算、章节审阅合同与常见隐私哨兵；带 `review_points` 的章节可用 `--strict` 要求两档帧与稳定时点逐一对应；`smoke:governance` 会调用这项生产审计；
 - `scripts/documentation-consistency-audit.mjs` 核对中英文 README、快速开始、用户手册首页与十个任务章节的本地链接和章节锚点；同时检查 Node.js 要求、九条核心 CLI 事实、英文首页的支持协议/主 GIF/中文深读入口，以及十个演示章节到真实中文标题和审阅合同的映射；它已经由 `smoke:governance` 调用；
@@ -99,7 +100,7 @@ Target SHA:
 - 重录时只使用非敏感项目与确定性上游；
 - 保存原始帧、标注图、生成脚本和 manifest；
 - 对每帧检查 2048×1056 与 900～1100px 预览；
-- 视频素材同时检查 1920×1080 合成帧、整片抽帧、字幕时码、响度和编辑交接清单；
+- 视频素材先从网页时间线导出无字幕干净母版；同时检查 1920×1080、30 fps、无黑边、转场前后、编号逐次出现、整片抽帧、字幕时码、响度和编辑交接清单，发布画面的 render manifest 必须来自干净工作树且标记 `publishable_picture_master: true`；
 - 运行 `git diff --check`、Markdown 安全、治理、链接与对应轨迹 `--verify`；
 - 运行 `node scripts/documentation-consistency-audit.mjs`；功能分支再附上 `--base <base SHA> --target HEAD --json` 的影响报告；
 - 报告精确验证 SHA 和仍未覆盖的风险。

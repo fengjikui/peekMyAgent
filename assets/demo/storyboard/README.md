@@ -28,6 +28,7 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html
 - `scene=6`：直接打开从 0 开始计数的指定镜头；
 - `at_ms=18000`：从当前镜头内的指定毫秒位置渲染，适合直接复核渐进标注，不必真实等待；
 - `review=1`：把 `at_ms` 对应的标注状态冻结为静态审查帧，并关闭淡入、镜头运动与点击动画；只用于逐帧验收，不进入正式播放或录屏；
+- `subtitles=0`：隐藏网页字幕层，用于生成可复用到其他语言的干净画面母版；默认审阅播放仍显示字幕；
 - `timeline=/assets/.../timeline.zh-CN.json`：直接载入指定章节，章节选择器会同步当前值。
 
 例如在 1920×1080 浏览器中复核 Skill 正文 Raw 镜头：
@@ -57,6 +58,35 @@ node scripts/capture-storyboard-review-frames.mjs codex-compact \
 ```
 
 脚本只覆盖时间线当前声明的同名帧，不会擅自删除旧文件；复核点被删除或改名后，严格生产审计会报告多余文件，再由制作者明确处理。
+
+## 一条命令导出视频画面母版
+
+审阅帧通过后，使用同一 catalog 和网页时间线直接录制真实 DOM / SVG 动画。无需手工调整浏览器窗口，也不把静态联系表重新伪装成视频：
+
+```bash
+node scripts/export-storyboard-video.mjs quickstart
+```
+
+默认输出到 `tmp/storyboard-video/quickstart/pma-quickstart-picture.mp4`，旁边同时生成 `.render.json`。母版固定为 1920×1080、30 fps、H.264；没有音轨和字幕轨，网页字幕层也默认隐藏。浏览器仅从临时环回服务器读取仓库素材，MP4 与 render manifest 都位于 Git 忽略目录。
+
+首次检查新章节时先导出一个包含目标转场或编号交接的切片：
+
+```bash
+node scripts/export-storyboard-video.mjs quickstart \
+  --start-seconds 78 \
+  --duration-seconds 16 \
+  --output tmp/storyboard-video/quickstart/system-sequence.mp4
+```
+
+需要确认电影式字幕位置时显式传入 `--include-subtitles`；这只生成内部字幕预览，不替代独立 SRT，也不能作为多语言干净母版：
+
+```bash
+node scripts/export-storyboard-video.mjs quickstart \
+  --include-subtitles \
+  --output tmp/storyboard-video/quickstart/pma-quickstart-captioned-preview.mp4
+```
+
+脚本先把浏览器连续画面流编码到同目录临时文件，核对分辨率、帧率、帧数、时长、视频编码以及不存在音频/字幕流后才替换目标。render manifest 记录精确 HEAD、工作区是否干净、源时间线、浏览器、FFmpeg、范围、帧数和隐私边界；只有“干净工作区、整章、无网页字幕”同时成立时，`publishable_picture_master` 才为 `true`。正式发布仍必须真实观看成片并抽查转场、渐进编号和末帧。
 
 ## 统一入口视觉复核记录
 

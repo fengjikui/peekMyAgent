@@ -83,6 +83,7 @@
 - 制作模式提供“章节审阅”面板，在一处显示目标问题、观众、Source 边界、当前状态、下一道确认门，以及旁白、字幕、manifest 和两档联系表；这些信息来自同一 catalog，不另建手工状态页；
 - 画面、字幕和标注全部来自章节 JSON，以便翻译或界面更新时局部替换；
 - `review=1` 只用于稳定审查帧：按 `at_ms` 冻结当时已经出现、弱化或退出的标注，停止画面淡入、镜头运动和点击波纹动画；正式播放不得携带该参数；
+- `subtitles=0` 用于干净画面母版：只隐藏网页字幕层，不改变镜头、标注、点击波纹或转场；带字幕内部预览必须显式选择，不能覆盖干净母版；
 - 未来可增加局部放大，但默认保持完整三栏，只有证据在全屏尺寸仍无法阅读时才启用。
 
 统一章节清单保存在 `assets/demo/storyboard/catalog.zh-CN.json`。每项必须声明 `timeline`、`guide`、`guide_section` 与 `review`；`review` 固定包含问题、观众、Source 边界、发布状态、下一道确认门，以及旁白、字幕、manifest、1920 联系表和 1024 联系表。文档映射只能指向纳入审计的中文公开文档和其中真实存在的标题，审阅资料必须真实存在且可进入 Git。新增、删除或重命名章节时必须同步清单；生产审计要求 catalog 与所有同时具有 manifest 和时间线的可发布章节完全一致。
@@ -127,6 +128,29 @@ node scripts/demo-production-audit.mjs --strict codex-compact
 ```
 
 第一次尝试新镜头时使用 `--output-root tmp/<chapter>-review-candidate`，原尺寸和联系表检查通过后再写入 catalog 声明的正式目录。该脚本不删除失效旧帧；严格审计会把多余文件作为显式问题交给制作者判断，避免自动清理误删人工素材。
+
+### 从网页时间线导出干净视频母版
+
+逐帧审阅完成后，再录制真实网页播放，而不是从 review JPEG 反向拼接动画：
+
+```bash
+node scripts/export-storyboard-video.mjs claude-tool-loop
+```
+
+脚本按真实时间播放章节，使用 Chrome / Chromium / Edge 的 CDP 连续画面流和 FFmpeg 生成 1920×1080、30 fps、H.264 MP4。默认隐藏网页字幕且不创建音轨或字幕轨，后续由独立 SRT、授权配音和 `compose-demo-video.py` 生成语言版本。完整四分钟章节会按真实时长录制，不能为了加快生产而压缩关键阅读镜头。
+
+第一次只录目标切片，确认转场和渐进标注以后再跑全章：
+
+```bash
+node scripts/export-storyboard-video.mjs quickstart \
+  --start-seconds 78 \
+  --duration-seconds 16 \
+  --output tmp/storyboard-video/quickstart/system-sequence.mp4
+```
+
+输出旁边的 `.render.json` 是该次画面的交接证据。它记录精确 HEAD、工作区状态、源时间线、浏览器和 FFmpeg 版本、起止范围、编码帧数、是否显示字幕以及环回隐私边界。只有干净工作树上的整章无字幕导出才标记 `publishable_picture_master: true`；切片、脏工作树候选或带字幕预览都只能用于内部审阅。大体积 MP4 继续保存在 `tmp/`、Release 或对象存储，不进入主仓库。
+
+生成成功仍不能代替观看。每章至少抽查：第一帧、每次场景转场前后、每个编号新增前后、旧编号降权或退出后的稳定帧、字幕安全区和末帧；确认没有黑边、浏览器控制器、提前出现的编号、空白帧、字幕大黑框或敏感内容。
 
 如果只需要从已经复核的帧重建联系表，继续使用统一联系表脚本；不能用一张缩略联系表反向证明原始帧尺寸：
 

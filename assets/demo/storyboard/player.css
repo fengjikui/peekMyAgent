@@ -253,6 +253,10 @@ select {
     -1px 0 1px rgb(0 0 0 / 90%);
 }
 
+body.no-subtitles .subtitle {
+  display: none;
+}
+
 .controls {
   display: grid;
   grid-template-areas:

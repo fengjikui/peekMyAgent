@@ -18,7 +18,31 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html?timeline=/assets/demo/s
 
 故事板约 4 分 05 秒、51 条单句字幕、36 个稳定审阅点；协议和 Raw 镜头分别保留 23 秒和 22 秒。36 个状态已经在 1920×1080 与 1024×576 下复核。第一轮修正了三个偏到相邻标签的聚焦框，第二轮移除了会遮住右栏标题的重复编号；标签只用轻描边，证据才编号，需要保留的旧重点通过 `dim_ms` 降为次要。详细来源和 QA 结果见 `assets/demo/source/claude-tool-loop/manifest.json`。
 
-当前 v0.2 尚未合成配音或发布 MP4。正式公开前仍需所有者确认中文故事，再决定使用已授权的真人或合成配音。`scripts/build-claude-tool-loop-video.py` 只保留为 v0.1 旧母版构建器，不会渲染当前网页时间线。
+当前 v0.2 尚未合成配音或发布 MP4。正式公开前仍需所有者确认中文故事，再决定使用已授权的真人或合成配音。`scripts/build-claude-tool-loop-video.py` 只保留为 v0.1 旧母版构建器；当前网页时间线统一由 `scripts/export-storyboard-video.mjs` 录制。
+
+## 通用网页画面母版导出
+
+十个 catalog 章节现在共用同一个画面导出入口：
+
+```bash
+node scripts/export-storyboard-video.mjs quickstart
+node scripts/export-storyboard-video.mjs claude-tool-loop
+```
+
+它自行启动只监听 `127.0.0.1` 的临时静态服务器和一次性 Chrome profile，以 `present=1&autoplay=0&subtitles=0` 打开当前章节，再把真实网页播放产生的连续画面流实时交给 FFmpeg。默认结果是严格 1920×1080、30 fps、H.264 的无声干净母版：Viewer 截图铺满画幅，没有浏览器控制栏、黑边、网页字幕、音轨或字幕轨。
+
+时间线尚在调整时先录切片；例如快速上手从第 78 秒开始的 16 秒会完整覆盖编号 1→2→3 的交接：
+
+```bash
+node scripts/export-storyboard-video.mjs quickstart \
+  --start-seconds 78 \
+  --duration-seconds 16 \
+  --output tmp/storyboard-video/quickstart/system-sequence.mp4
+```
+
+需要审阅字幕构图时加 `--include-subtitles`。这会保留网页中底部居中的白字与细描边，但仍不写入独立字幕流；它是内部视觉预览，不是多语言母版。正式字幕仍以同时间线生成的 SRT 为准，并在配音确定后由 `compose-demo-video.py` 烧录。
+
+每次导出都会生成 `.render.json`，记录精确 commit、工作区是否干净、源时间线、浏览器 / FFmpeg、范围、帧数、字幕状态和隐私边界。脚本在核对编码、分辨率、帧率、帧数、时长以及不存在音频/字幕流以后才替换输出；只有干净工作区的整章无字幕结果才标为可发布画面母版。MP4 和旁车记录默认写入 `tmp/`，不会增加仓库克隆体积。
 
 ## 为什么没有把 GIF 简单连起来
 
@@ -52,7 +76,7 @@ CapCut Desktop 和 Web 当前都提供自动字幕、字幕校正和时间线编
 2. 通过 PMA 启动真实 Harness；录制启动命令、在 Claude Code 等 Harness 中输入请求与执行结果，再切换到 Viewer 录制对应证据。
 3. 原始操作帧保持完整浏览器尺寸。把真实截图放进可重复播放的 HTML 时间线，用 DOM/SVG 实现编号、红框、箭头、鼠标点击、局部放大和镜头转场。
 4. HTML 模板同时读取镜头时码和字幕安全区。字幕使用一至两行白字与细描边，不使用大面积黑框；每个镜头单独检查是否遮挡 Viewer 的时间线、右栏详情、按钮或当前箭头目标。
-5. 从 HTML 时间线生成不含配音的画面母版，并输出中文旁白审阅稿、发布显示 SRT 和配音 SRT。产品所有者在剪映中使用配音 SRT 批量生成已授权音色，只导出完整音频轨。
+5. 使用 `export-storyboard-video.mjs` 从 HTML 时间线生成不含配音和网页字幕的画面母版，并输出中文旁白审阅稿、发布显示 SRT 和配音 SRT。产品所有者在剪映中使用配音 SRT 批量生成已授权音色，只导出完整音频轨。
 6. 使用仓库脚本将画面、音频和字幕合成最终预览，统一到约 -16 LUFS，并检查时长、音画同步、字幕位置、隐私和文件大小。
 7. 多语言版本复用同一画面和镜头数据，重新翻译、分段和校时，再为每种语言生成独立配音；只有 UI 事实需要本地化时才重录界面。
 
