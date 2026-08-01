@@ -5,3 +5,9 @@ node_modules/
 tmp/
 *.log
 .local/
+
+# Reproducible demo-video outputs are published through Releases/CDN instead of Git.
+assets/demo/video/**/*.mp4
+assets/demo/video/**/*.m4a
+assets/demo/source/video/**/frames/
+assets/demo/source/video/**/clips/

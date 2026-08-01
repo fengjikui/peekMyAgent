@@ -2,6 +2,8 @@
 
 本文记录 peekMyAgent 中文产品演示 v0.1 的工具选择、镜头脚本、编辑交接和验收结果。成片仍是供产品所有者审阅的初剪，不等于最终宣传片。
 
+面向 Claude Code 机制的五支独立视频脚本见[用 PMA 看懂 Claude Code：中文视频系列脚本](video-series-claude-code.zh-CN.md)。
+
 ## 为什么没有把 GIF 简单连起来
 
 文档 GIF 只回答一个局部问题，缺少完整叙事、旁白、字幕和章节过渡。视频需要先说明“普通日志为什么不够”，再依次证明请求上下文、工具证据、原生协议、上下文变化和子 Agent 的价值。
@@ -63,6 +65,8 @@ python3 scripts/build-demo-video.py
 - `assets/demo/video/pma-core-tour.zh-CN-cover.png`；
 - `assets/demo/source/video/timeline.zh-CN.json`；
 - `assets/demo/source/video/frames/*.png`。
+
+其中 MP4、M4A 和合成帧是可重复生成的大体积结果，默认被 Git 忽略；主仓库只保留脚本、时间线、字幕、封面、manifest 与发布 catalog。成片通过 GitHub Releases 或对象存储分发，规则见[演示视频的存储与发布策略](media-publishing.zh-CN.md)。
 
 `timeline.zh-CN.json` 不是 ChatCut 或剪映的原生工程文件。它是稳定的镜头交接记录，让人工编辑可以按照精确时码重建，而不必从成片倒推镜头。
 

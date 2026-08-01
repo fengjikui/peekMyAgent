@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "distribution_policy": "docs/media-publishing.zh-CN.md",
+  "videos": [
+    {
+      "id": "pma-core-tour",
+      "language": "zh-CN",
+      "title": "peekMyAgent 中文核心能力演示 v0.1",
+      "status": "local_draft",
+      "source_commit": "75c40becf090a4ee7093bd0cbcfe614282c92997",
+      "published_url": null,
+      "local_output": "assets/demo/video/pma-core-tour.zh-CN.mp4",
+      "cover": "assets/demo/video/pma-core-tour.zh-CN-cover.png",
+      "subtitles": "assets/demo/video/pma-core-tour.zh-CN.srt",
+      "duration_seconds": 144.443,
+      "size_bytes": 6496031,
+      "sha256": "5eff1d667f31cad3d7efe7d667008a3d89a8138c8e4ec37dd3061ad90618e830",
+      "publication_note": "本地审阅初剪；完成最终旁白、逐帧复核和托管后再把状态改为 published。"
+    }
+  ]
+}

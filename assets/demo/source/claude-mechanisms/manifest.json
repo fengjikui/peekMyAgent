@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "title": "用 PMA 看懂 Claude Code：机制视频轨迹",
+  "language": "zh-CN",
+  "scenario_script": "scripts/claude-mechanisms-media-demo.mjs",
+  "viewer": {
+    "viewport_css_pixels": { "width": 2048, "height": 1056 },
+    "theme": "Claude",
+    "ui_language": "zh-CN"
+  },
+  "sources": [
+    {
+      "id": "claude-tool-loop",
+      "protocol": "Anthropic Messages",
+      "workspace": "/demo/claude-tool-loop",
+      "requests": 2,
+      "turns": 1,
+      "publication_status": "ready_for_capture",
+      "expected": [
+        "request 1 exposes Read, Glob, and Bash tool definitions",
+        "the model returns Read tool_use read_hello",
+        "request 2 contains the matching tool_result and final text"
+      ]
+    },
+    {
+      "id": "claude-skill-load",
+      "protocol": "Anthropic Messages",
+      "workspace": "/demo/claude-skill",
+      "requests": 4,
+      "turns": 1,
+      "publication_status": "ready_for_capture_after_real_cli_cross_check",
+      "expected": [
+        "request 1 exposes the generic Skill tool and a short discoverable description",
+        "request 2 closes the generic Skill tool call",
+        "request 3 is classified as Skill / Harness injection",
+        "request 4 returns a Read result used by the final response"
+      ]
+    },
+    {
+      "id": "claude-five-request-plan",
+      "protocol": "Anthropic Messages",
+      "workspace": "/demo/claude-planning",
+      "requests": 8,
+      "turns": 4,
+      "requests_per_turn": [1, 1, 1, 5],
+      "publication_status": "ready_for_capture_after_real_cli_cross_check",
+      "expected": [
+        "the final Turn exposes a five-request Request Rail",
+        "TaskCreate, two Read calls, TaskUpdate, and the final plan stay in one Turn"
+      ]
+    },
+    {
+      "id": "claude-compact-contract",
+      "protocol": "Anthropic Messages",
+      "workspace": "/demo/claude-compact-contract",
+      "requests": 2,
+      "publication_status": "internal_contract_only",
+      "expected": ["request 2 is classified as a compact mechanism request"],
+      "restriction": "Do not publish this synthetic Source as evidence of current Claude Code post-compaction wire behavior. Replace it with a real compact-before/after trace first."
+    }
+  ],
+  "reused_source": {
+    "id": "two-readonly-subagents",
+    "generator": "scripts/user-guide-media-demo.mjs",
+    "manifest": "assets/demo/source/user-guide/manifest.json"
+  },
+  "privacy": {
+    "external_requests": false,
+    "real_credentials": false,
+    "real_user_files": false,
+    "paths": "fictional /demo paths only",
+    "authorization": "synthetic values redacted by Viewer"
+  },
+  "capture_rules": {
+    "viewport": "2048x1056",
+    "theme": "Claude",
+    "minimum_normal_scene_seconds": 8,
+    "minimum_complex_scene_seconds": 15,
+    "visual_review": "Inspect every annotated frame at full size and 1024px preview before acceptance."
+  },
+  "viewer_visual_audit": {
+    "audited_at": "2026-08-01",
+    "viewer_viewport": { "width": 2048, "height": 1056 },
+    "theme": "Claude",
+    "panel_widths_css_pixels": {
+      "session_sidebar": 252,
+      "timeline": 1028,
+      "evidence_detail": 760
+    },
+    "detail_tabs": {
+      "labels": ["完整请求", "协议视图", "System", "Tools", "Harness", "History", "Message", "Metadata"],
+      "last_tab_right_edge_x": 1731,
+      "panel_right_edge_x": 2048,
+      "remaining_space_css_pixels": 317
+    },
+    "checked_scenarios": [
+      "tool-loop full timeline",
+      "request 1 full detail with all eight tabs",
+      "planning Turn 4 with five-item Request Rail and four-item Turn Rail"
+    ],
+    "result": "passed for source capture; annotations still require per-frame review"
+  }
+}

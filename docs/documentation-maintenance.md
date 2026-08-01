@@ -8,8 +8,11 @@
 - `docs/user-guide.md` 是任务式用户手册入口；
 - `scripts/readme-media-demo.mjs` 可重建快速上手轨迹；
 - `scripts/user-guide-media-demo.mjs --verify` 可重建并断言上下文、迟到结果和子 Agent 三条轨迹；
+- `scripts/claude-mechanisms-media-demo.mjs --verify` 可重建并断言 Claude 工具闭环、Skill、五 Request 规划和 compact 分类合约；
 - `scripts/build-readme-media.py` 可从保留的原始帧重新生成标注图和慢速 GIF；
 - `scripts/build-demo-video.py` 可从已验收素材重新生成中文 MP4、旁白、字幕、封面与中性时间线；
+- `docs/media-publishing.zh-CN.md` 规定主仓库只跟踪轻量、可复现的制作资料，成片通过 Releases 或对象存储发布；
+- `docs/video-series-claude-code.zh-CN.md` 保存工具闭环、Skill、子 Agent、上下文压缩和多步规划五支独立视频的事实边界与逐镜头脚本；
 - `docs/visual-usage-guide.zh-CN.md` 定义逐帧视觉验收门禁；
 - `assets/demo/source/*/manifest.json` 记录视口、主题、协议、帧时长、隐私和预期语义。
 

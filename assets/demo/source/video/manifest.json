@@ -17,6 +17,13 @@
     "assets/demo/source/user-guide/manifest.json"
   ],
   "generator": "python3 scripts/build-demo-video.py",
+  "distribution": {
+    "tracked_in_main_repository": false,
+    "publish_status": "local_draft",
+    "catalog": "assets/demo/video/catalog.json",
+    "published_url": null,
+    "policy": "docs/media-publishing.zh-CN.md"
+  },
   "editor_handoff": {
     "video": "assets/demo/video/pma-core-tour.zh-CN.mp4",
     "voice": "assets/demo/video/pma-core-tour.zh-CN-voice.m4a",

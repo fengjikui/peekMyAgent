@@ -1,14 +1,17 @@
 # peekMyAgent 中文视频初剪
 
-本目录保存可审阅、可继续回编的中文产品演示 v0.1。成片使用公开的确定性 Viewer 素材，不包含真实 Capture、API Key、用户源码或本地隐私路径。
+本目录保存可审阅、可继续回编的中文产品演示 v0.1 的轻量交接文件。成片使用公开的确定性 Viewer 素材，不包含真实 Capture、API Key、用户源码或本地隐私路径。
+
+MP4、独立旁白和生成帧默认只在本地生成，不纳入主仓库。公开播放地址通过 `catalog.json` 管理；详细规则见 [`docs/media-publishing.zh-CN.md`](../../../docs/media-publishing.zh-CN.md)。
 
 ## 交付文件
 
 | 文件 | 用途 |
 | --- | --- |
-| `pma-core-tour.zh-CN.mp4` | 1920×1080 中文讲解成片，包含 AAC 旁白和可开关的简体中文字幕轨 |
+| `catalog.json` | 视频版本、校验值、产品 commit 与公开 URL 的唯一目录 |
+| `pma-core-tour.zh-CN.mp4` | 本地生成且被 Git 忽略的 1920×1080 中文讲解成片 |
 | `pma-core-tour.zh-CN.srt` | 独立字幕，可导入或作为 ChatCut、剪映等编辑器的校时参考 |
-| `pma-core-tour.zh-CN-voice.m4a` | 归一化到约 -16 LUFS 的独立旁白轨，便于替换或重新混音 |
+| `pma-core-tour.zh-CN-voice.m4a` | 本地生成且被 Git 忽略的独立旁白轨，便于替换或重新混音 |
 | `pma-core-tour.zh-CN-cover.png` | 1920×1080 封面 |
 
 中性的逐镜头记录保存在 `../source/video/timeline.zh-CN.json`。它不是任何剪辑器的原生工程格式，而是为了以后重剪时保留镜头顺序、时码、旁白、字幕和素材来源。
@@ -32,6 +35,8 @@ python3 scripts/build-demo-video.py --voice Tingting --rate 175
 ```bash
 python3 scripts/build-demo-video.py --no-voice
 ```
+
+生成完成不代表可以公开发布。完成逐帧和隐私验收后，把 MP4 上传到 GitHub Release 或对象存储，再更新 `catalog.json`；不要直接 `git add -f`。
 
 ## 交给 ChatCut 或剪映继续精修
 

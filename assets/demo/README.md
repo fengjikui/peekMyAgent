@@ -4,7 +4,7 @@
 
 快速上手之后的上下文变化、迟到工具结果和子 Agent 素材见 [`user-guide/README.md`](user-guide/README.md)。
 
-约 2 分 24 秒的中文核心能力视频初剪、配音、字幕和封面见 [`video/README.md`](video/README.md)。
+约 2 分 24 秒的中文核心能力视频初剪生成方法、字幕、封面和发布状态见 [`video/README.md`](video/README.md)。MP4 与独立配音默认在本地生成，不进入主仓库。
 
 ## 当前主素材
 
@@ -44,13 +44,21 @@ node scripts/user-guide-media-demo.mjs --port 43113
 
 它会生成上下文演进、迟到工具结果和 Claude Code 双子 Agent 三个 Source。完整场景与隐私记录见 `source/user-guide/manifest.json`。
 
+生成 Claude Code 工具闭环、Skill、五 Request 多步规划和 compact 分类合约 Source：
+
+```bash
+node scripts/claude-mechanisms-media-demo.mjs --port 43114
+```
+
+其中 compact Source 只用于验证 PMA 的分类契约；正式视频必须替换为当前 Claude Code 的真实压缩前后轨迹。逐镜头脚本见 `docs/video-series-claude-code.zh-CN.md`。
+
 将已验收素材剪成中文讲解视频：
 
 ```bash
 python3 scripts/build-demo-video.py
 ```
 
-脚本生成 MP4、M4A、SRT、封面、11 张合成帧和编辑器中性时间线。镜头脚本、ChatCut / 剪映调研与验收结果见 `docs/video-production.zh-CN.md`。
+脚本在本地生成 MP4、M4A、SRT、封面、11 张合成帧和编辑器中性时间线。镜头脚本、ChatCut / 剪映调研与验收结果见 `docs/video-production.zh-CN.md`；发布和仓库体积规则见 `docs/media-publishing.zh-CN.md`。
 
 ## 制作规则
 
