@@ -10,6 +10,8 @@ PMA 不是用来“破解隐藏提示词”的工具，只用于你自己授权�
 
 ![PMA 快速上手](../assets/demo/quickstart-tool-loop.gif)
 
+如果更习惯视频，可以先查看[约 2 分 24 秒的中文核心能力视频初剪](../assets/demo/video/pma-core-tour.zh-CN.mp4)。它依次讲解完整执行链、System、工具结果、来源跳转、原生协议、上下文变化和子 Agent。
+
 ## 按任务选择章节
 
 | 我现在想做什么 | 阅读 |

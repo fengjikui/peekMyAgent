@@ -4,6 +4,8 @@
 
 快速上手之后的上下文变化、迟到工具结果和子 Agent 素材见 [`user-guide/README.md`](user-guide/README.md)。
 
+约 2 分 24 秒的中文核心能力视频初剪、配音、字幕和封面见 [`video/README.md`](video/README.md)。
+
 ## 当前主素材
 
 - `quickstart-tool-loop.gif`：从用户请求到工具闭环、最终回答和原始协议的慢速主 GIF，42.7 秒。
@@ -41,6 +43,14 @@ node scripts/user-guide-media-demo.mjs --port 43113
 ```
 
 它会生成上下文演进、迟到工具结果和 Claude Code 双子 Agent 三个 Source。完整场景与隐私记录见 `source/user-guide/manifest.json`。
+
+将已验收素材剪成中文讲解视频：
+
+```bash
+python3 scripts/build-demo-video.py
+```
+
+脚本生成 MP4、M4A、SRT、封面、11 张合成帧和编辑器中性时间线。镜头脚本、ChatCut / 剪映调研与验收结果见 `docs/video-production.zh-CN.md`。
 
 ## 制作规则
 

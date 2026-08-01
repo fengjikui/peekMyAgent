@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "title": "peekMyAgent 中文核心能力演示 v0.1",
+  "language": "zh-CN",
+  "format": {
+    "resolution": [1920, 1080],
+    "fps": 30,
+    "container_duration_seconds": 144.443,
+    "timeline_duration_seconds": 144.301,
+    "video_codec": "H.264",
+    "audio_codec": "AAC",
+    "subtitle_codec": "mov_text",
+    "target_loudness_lufs": -16
+  },
+  "source_manifests": [
+    "assets/demo/source/quickstart/manifest.json",
+    "assets/demo/source/user-guide/manifest.json"
+  ],
+  "generator": "python3 scripts/build-demo-video.py",
+  "editor_handoff": {
+    "video": "assets/demo/video/pma-core-tour.zh-CN.mp4",
+    "voice": "assets/demo/video/pma-core-tour.zh-CN-voice.m4a",
+    "subtitles": "assets/demo/video/pma-core-tour.zh-CN.srt",
+    "cover": "assets/demo/video/pma-core-tour.zh-CN-cover.png",
+    "timeline": "assets/demo/source/video/timeline.zh-CN.json",
+    "native_chatcut_or_capcut_project": false
+  },
+  "narration": {
+    "provider": "macOS system voice",
+    "voice": "Tingting",
+    "rate": 185,
+    "purpose": "review draft placeholder",
+    "public_release_note": "confirm distribution terms or replace with licensed narration before public release"
+  },
+  "privacy": {
+    "external_model_requests": false,
+    "real_credentials": false,
+    "real_user_files": false,
+    "real_user_capture": false,
+    "paths": "fictional /demo paths inherited from source manifests",
+    "music": null
+  },
+  "visual_review": {
+    "full_resolution_frames": "passed",
+    "contact_sheet": "passed",
+    "video_midpoint_frames": "passed",
+    "caption_alignment": "passed",
+    "key_content_occlusion": "none observed",
+    "minimum_ui_scene_duration_seconds": 11
+  }
+}
