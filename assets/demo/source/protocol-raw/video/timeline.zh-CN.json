@@ -172,7 +172,7 @@
           "focus": [62.7, 13.8, 36.7, 10.2],
           "label_box": [60.1, 15.5, 2.4, 4.4],
           "delay_ms": 9300,
-          "draft": "随后标出两条搜索结果和 JSONPath；不添加箭头，结果本身已经紧邻搜索框。"
+          "draft": "编号 1 与编号 2 交叉淡出，随后只保留两条搜索结果和 JSONPath；不添加箭头，结果本身已经紧邻搜索框。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
@@ -279,7 +279,7 @@
           "focus": [65.0, 69.0, 31.8, 16.5],
           "label_box": [62.4, 72.0, 2.4, 4.4],
           "delay_ms": 11500,
-          "draft": "再标出 response fidelity 与 capture_lifecycle；避开最底部字幕安全区。"
+          "draft": "编号 1 降权保留，编号 2 再标出 response fidelity 与 capture_lifecycle，让上下行来源可以对照；避开最底部字幕安全区。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }

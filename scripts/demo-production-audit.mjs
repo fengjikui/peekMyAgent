@@ -285,6 +285,7 @@ function auditChapter(chapterDir) {
     `${chapterName} timeline needs resolution`);
   assert(Array.isArray(timeline.scenes) && timeline.scenes.length > 0,
     `${chapterName} timeline needs scenes`);
+  auditAnnotationSequence(chapterName, timeline.scenes);
 
   const expectedSrt = renderSrt(timeline);
   const actualSrt = fs.readFileSync(subtitlePath, "utf8");
@@ -338,6 +339,43 @@ function auditChapter(chapterDir) {
   totals.subtitleCues += timeline.scenes.reduce((sum, scene) => sum + (scene.subtitle_cues?.length || 0), 0);
   totals.sourceImages += sourceFiles.size;
   totals.reviewFrames += desktopReview.length + compactReview.length;
+}
+
+function auditAnnotationSequence(chapterName, scenes) {
+  const priorFocusHandoff = /(保留|渐隐|淡出|替换|退出|降(?:低|权)|交叉|消失|退场|弱化|接管|不与|只留)/;
+  for (const [sceneIndex, scene] of scenes.entries()) {
+    const sceneLabel = scene.id || sceneIndex + 1;
+    const badges = (scene.overlays || []).filter((overlay) => overlay.type === "badge");
+    if (badges.length < 2) continue;
+
+    const delays = [];
+    const labels = [];
+    for (const [badgeIndex, badge] of badges.entries()) {
+      assert(Number.isInteger(badge.delay_ms) && badge.delay_ms >= 0,
+        `${chapterName} scene ${sceneLabel} badge ${badgeIndex + 1} needs an explicit non-negative delay_ms`);
+      assert(typeof badge.label === "string" && /^\d+(?:\.\d+)?$/.test(badge.label),
+        `${chapterName} scene ${sceneLabel} badge ${badgeIndex + 1} needs a numeric sequence label`);
+      assert(typeof badge.draft === "string" && badge.draft.trim().length >= 12,
+        `${chapterName} scene ${sceneLabel} badge ${badge.label} must document its placement and sequence`);
+      if (badgeIndex > 0) {
+        assert(priorFocusHandoff.test(badge.draft),
+          `${chapterName} scene ${sceneLabel} badge ${badge.label} must say whether the prior focus remains, dims, or exits`);
+      }
+      delays.push(badge.delay_ms);
+      labels.push(Number(badge.label));
+    }
+
+    assert(new Set(delays).size === delays.length,
+      `${chapterName} scene ${sceneLabel} numbered badges must appear at distinct times, not all at once`);
+    assert(new Set(labels).size === labels.length,
+      `${chapterName} scene ${sceneLabel} numbered badges must not reuse a sequence label`);
+    for (let index = 1; index < badges.length; index += 1) {
+      assert(delays[index] > delays[index - 1],
+        `${chapterName} scene ${sceneLabel} numbered badges must be declared in appearance order`);
+      assert(labels[index] > labels[index - 1],
+        `${chapterName} scene ${sceneLabel} numbered badges must advance with the narration`);
+    }
+  }
 }
 
 function auditReadmeGifCandidate(chapterName, production) {

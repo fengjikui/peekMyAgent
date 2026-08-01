@@ -86,7 +86,7 @@
           "focus": [43.0, 17.2, 16.4, 4.5],
           "label_box": [40.2, 17.6, 2.4, 4.4],
           "delay_ms": 10000,
-          "draft": "随后标出 Request 1 用户消息右侧的详情入口；不画箭头，按钮就在聚焦区域内。"
+          "draft": "编号 1 与编号 2 交叉淡出，随后只保留 Request 1 用户消息右侧的详情入口；不画箭头，按钮就在聚焦区域内。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
@@ -128,7 +128,7 @@
           "focus": [62.7, 18.4, 36.5, 47.5],
           "label_box": [60.0, 36.0, 2.4, 4.4],
           "delay_ms": 14200,
-          "draft": "随后聚焦三块 System 原文；框不覆盖底部字幕安全区。"
+          "draft": "编号 1 与编号 2 交叉淡出，随后只保留三块 System 原文；框不覆盖底部字幕安全区。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
@@ -277,7 +277,7 @@
           "focus": [62.7, 18.0, 36.5, 18.2],
           "label_box": [60.0, 23.5, 2.4, 4.4],
           "delay_ms": 14000,
-          "draft": "再聚焦 list_directory 组，框内同时包含中文说明与未改变的工具名、path、max_depth。"
+          "draft": "编号 1 降权保留，编号 2 再聚焦 list_directory 组，便于对照缓存状态和具体内容；框内同时包含中文说明与未改变的工具名、path、max_depth。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
@@ -312,7 +312,7 @@
           "focus": [64.0, 68.0, 33.0, 21.0],
           "label_box": [61.3, 77.0, 2.4, 4.4],
           "delay_ms": 13000,
-          "draft": "再聚焦原始工具定义、英文 description 和参数 schema；下边界避开字幕安全区。"
+          "draft": "编号 1 降权保留，编号 2 再聚焦原始工具定义、英文 description 和参数 schema，让脱敏状态与 Raw 正文同时可对照；下边界避开字幕安全区。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
