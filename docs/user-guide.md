@@ -107,7 +107,7 @@ PMA 会明确区分：
 5. 同步中文版事实，再更新英文及其他语言；
 6. 把产品缺口记录为反馈，不在文档任务中顺手修改主线功能。
 7. 运行 `node scripts/documentation-consistency-audit.mjs`，核对章节入口、链接、锚点与核心 CLI 事实；功能分支可再用 `--base <SHA> --json` 生成受影响章节清单。
-8. 新增或重命名演示章节时，同步 `assets/demo/storyboard/catalog.zh-CN.json` 中的 `guide` 与 `guide_section`，确保制作端画面能回到对应中文事实。
+8. 新增或重命名演示章节时，同步 `assets/demo/storyboard/catalog.zh-CN.json` 中的文档映射与 `review` 合同，确保制作端画面能回到对应中文事实，并能直接打开旁白、字幕、manifest 和两档联系表。
 
 素材来源、箭头草稿、帧时长和验收门禁见[图文与演示素材说明](visual-usage-guide.zh-CN.md)。
 

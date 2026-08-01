@@ -213,6 +213,7 @@ export function runDocumentationConsistencyAudit({ log = true } = {}) {
     chapters: chapterDocs.length,
     cliFacts: cliFacts.length,
     demoMappings: 0,
+    demoReviews: 0,
   };
 
   for (const relativePath of auditedPublicDocs) {
@@ -235,7 +236,7 @@ export function runDocumentationConsistencyAudit({ log = true } = {}) {
   }
 
   const storyboardCatalog = JSON.parse(readRepoFile("assets/demo/storyboard/catalog.zh-CN.json"));
-  assert.equal(storyboardCatalog.schema_version, 2, "storyboard catalog schema_version must be 2");
+  assert.equal(storyboardCatalog.schema_version, 3, "storyboard catalog schema_version must be 3");
   assert(Array.isArray(storyboardCatalog.chapters) && storyboardCatalog.chapters.length > 0,
     "storyboard catalog must contain chapters");
   for (const chapter of storyboardCatalog.chapters) {
@@ -248,6 +249,22 @@ export function runDocumentationConsistencyAudit({ log = true } = {}) {
     assert(headings.has(githubHeadingSlug(chapter.guide_section)),
       `storyboard chapter ${chapter.id} maps to a missing heading: ${chapter.guide_section}`);
     summary.demoMappings += 1;
+
+    assert.equal(typeof chapter.review?.question, "string",
+      `storyboard chapter ${chapter.id} needs a review question`);
+    assert(["draft", "owner-review", "ready-for-voice", "published"].includes(chapter.review?.status),
+      `storyboard chapter ${chapter.id} has an unsupported review status`);
+    assert.equal(typeof chapter.review?.next_gate, "string",
+      `storyboard chapter ${chapter.id} needs a next review gate`);
+    for (const [artifact, href] of Object.entries(chapter.review?.artifacts || {})) {
+      assert.match(href, /^\/assets\/demo\//,
+        `storyboard chapter ${chapter.id} review artifact ${artifact} must stay under /assets/demo`);
+      assertFile(resolveRepoPath(href.slice(1)),
+        `storyboard chapter ${chapter.id} review artifact ${artifact}`);
+    }
+    assert.equal(Object.keys(chapter.review?.artifacts || {}).length, 5,
+      `storyboard chapter ${chapter.id} must expose five review artifacts`);
+    summary.demoReviews += 1;
   }
 
   const chineseReadme = readRepoFile("README.zh-CN.md");
@@ -309,7 +326,8 @@ export function runDocumentationConsistencyAudit({ log = true } = {}) {
         + summary.anchors + " anchors, "
         + summary.chapters + " chapters, "
         + summary.cliFacts + " CLI facts, "
-        + summary.demoMappings + " demo mappings",
+        + summary.demoMappings + " demo mappings, "
+        + summary.demoReviews + " review contracts",
     );
   }
   return summary;

@@ -32,6 +32,33 @@ const elements = {
   reviewPointSelect: document.querySelector(".review-point-select"),
   reviewSummary: document.querySelector(".review-summary"),
   guideLink: document.querySelector(".guide-link"),
+  reviewSheetOpen: document.querySelector(".review-sheet-open"),
+  reviewSheet: document.querySelector(".review-sheet"),
+  reviewSheetClose: document.querySelector(".review-sheet-close"),
+  reviewSheetTitle: document.querySelector(".review-sheet-title"),
+  reviewSheetStatus: document.querySelector(".review-sheet-status"),
+  reviewSheetMetrics: document.querySelector(".review-sheet-metrics"),
+  reviewSheetQuestion: document.querySelector(".review-sheet-question-copy"),
+  reviewSheetAudience: document.querySelector(".review-sheet-audience"),
+  reviewSheetSource: document.querySelector(".review-sheet-source"),
+  reviewSheetBoundary: document.querySelector(".review-sheet-boundary"),
+  reviewSheetNextGate: document.querySelector(".review-sheet-next-gate"),
+  reviewSheetArtifacts: document.querySelector(".review-sheet-artifacts"),
+};
+
+const reviewStatusLabels = {
+  draft: "制作中",
+  "owner-review": "等待中文故事审阅",
+  "ready-for-voice": "故事已确认，可进入配音",
+  published: "已发布",
+};
+
+const reviewArtifactLabels = {
+  narration: ["旁白", "逐镜头中文故事母稿"],
+  subtitles: ["字幕", "与时间线对齐的 SRT"],
+  manifest: ["来源", "Source、版本与隐私边界"],
+  review_1920: ["1920", "桌面尺寸渐进标注联系表"],
+  review_1024: ["1024", "README 宽度渐进标注联系表"],
 };
 
 const state = {
@@ -53,6 +80,7 @@ function setControlsDisabled(disabled) {
     elements.scrubber,
     elements.chapterSelect,
     elements.reviewPointSelect,
+    elements.reviewSheetOpen,
   ]) {
     element.disabled = disabled;
   }
@@ -69,6 +97,7 @@ function renderLoading(message = "正在载入故事板") {
   elements.cardFooter.textContent = "章节载入后可以直接选择稳定复核点。";
   elements.reviewSummary.value = message;
   elements.guideLink.hidden = true;
+  if (elements.reviewSheet.open) elements.reviewSheet.close();
 }
 
 function renderLoadError(error) {
@@ -82,6 +111,7 @@ function renderLoadError(error) {
   elements.cardFooter.textContent = error instanceof Error ? error.message : String(error);
   elements.reviewSummary.value = "请检查本地静态服务器和章节路径";
   elements.guideLink.hidden = true;
+  if (elements.reviewSheet.open) elements.reviewSheet.close();
 }
 
 function formatTime(totalSeconds) {
@@ -140,7 +170,7 @@ function populateReviewPointSelect() {
     `${points.length} 个渐进复核点`,
   ].join(" · ");
 
-  const chapter = state.catalog?.chapters.find((item) => item.timeline === state.timelineUrl);
+  const chapter = currentCatalogChapter();
   if (chapter?.guide && chapter?.guide_section) {
     elements.guideLink.href = `${chapter.guide}#${markdownHeadingSlug(chapter.guide_section)}`;
     elements.guideLink.textContent = `对应章节：${chapter.guide_section}`;
@@ -149,6 +179,62 @@ function populateReviewPointSelect() {
   } else {
     elements.guideLink.hidden = true;
   }
+}
+
+function currentCatalogChapter() {
+  return state.catalog?.chapters.find((item) => item.timeline === state.timelineUrl) || null;
+}
+
+function subtitleCueCount() {
+  return state.timeline.scenes.reduce(
+    (total, scene) => total + (scene.subtitle_cues || []).length,
+    0,
+  );
+}
+
+function populateReviewSheet(chapter) {
+  const review = chapter?.review;
+  elements.reviewSheetOpen.disabled = !review;
+  elements.reviewSheetOpen.hidden = !review;
+  if (!review) return;
+
+  elements.reviewSheetTitle.textContent = chapter.label;
+  elements.reviewSheetStatus.textContent = reviewStatusLabels[review.status] || review.status;
+  elements.reviewSheetStatus.dataset.status = review.status;
+  elements.reviewSheetMetrics.textContent = [
+    `${state.timeline.scenes.length} 个镜头`,
+    `${subtitleCueCount()} 条字幕`,
+    `${(state.timeline.review_points || []).length} 个复核点`,
+    formatTime(state.timeline.duration_seconds),
+  ].join(" · ");
+  elements.reviewSheetQuestion.textContent = review.question;
+  elements.reviewSheetAudience.textContent = review.audience;
+  elements.reviewSheetSource.textContent = review.source.label;
+  elements.reviewSheetBoundary.textContent = review.source.boundary;
+  elements.reviewSheetNextGate.textContent = review.next_gate;
+
+  elements.reviewSheetArtifacts.replaceChildren(
+    ...Object.entries(review.artifacts).map(([key, href]) => {
+      const [kind, label] = reviewArtifactLabels[key] || [key, key];
+      const link = document.createElement("a");
+      link.href = href;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.title = href;
+
+      const kindNode = document.createElement("span");
+      kindNode.className = "review-artifact-kind";
+      kindNode.textContent = kind;
+      const labelNode = document.createElement("span");
+      labelNode.className = "review-artifact-label";
+      labelNode.textContent = label;
+      const openNode = document.createElement("span");
+      openNode.className = "review-artifact-open";
+      openNode.textContent = "打开";
+      link.append(kindNode, labelNode, openNode);
+      return link;
+    }),
+  );
 }
 
 function markdownHeadingSlug(value) {
@@ -201,6 +287,7 @@ async function loadTimeline(timelineUrl, { sceneIndex = 0, elapsedMs = 0, update
   populateReviewPointSelect();
   setControlsDisabled(false);
   elements.reviewPointSelect.disabled = (timeline.review_points || []).length === 0;
+  populateReviewSheet(currentCatalogChapter());
   renderScene({ resetElapsed: false });
   if (updateUrl) updateLocation();
 }
@@ -490,6 +577,14 @@ elements.reviewPointSelect.addEventListener("change", () => {
   state.sceneElapsed = point.at_ms / 1000;
   renderScene({ resetElapsed: false });
   updateLocation({ scene: point.scene, atMs: point.at_ms });
+});
+
+elements.reviewSheetOpen.addEventListener("click", () => {
+  if (!elements.reviewSheetOpen.disabled) elements.reviewSheet.showModal();
+});
+elements.reviewSheetClose.addEventListener("click", () => elements.reviewSheet.close());
+elements.reviewSheet.addEventListener("click", (event) => {
+  if (event.target === elements.reviewSheet) elements.reviewSheet.close();
 });
 
 window.addEventListener("keydown", (event) => {

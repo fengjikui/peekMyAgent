@@ -6,7 +6,7 @@
 
 Claude Code 工具调用章节也已完成 v0.2 迁移：4 分 05 秒故事、51 条字幕、10 张无烧录标注的 Viewer 原始帧，以及两档各 36 张网页标注审阅帧位于 `source/claude-tool-loop/`。这条 Source 是确定性 Anthropic 教学轨迹；不得把它写成真实 provider 会话，真实 CLI 的交叉核对边界以 manifest 为准。
 
-Claude Code 的 Skill、子 Agent、上下文压缩和多步规划章节分别位于 `source/claude-skill/`、`source/claude-subagents/`、`source/claude-compact/` 与 `source/claude-planning/`。已脱敏 Viewer 原图和双尺寸审阅帧属于可重建母稿；真实请求日志仍只保留在 Git 忽略的 `tmp/`。Skill 章已经把 31 个渐进状态写回时间线；子 Agent 章也已写入 32 个稳定复核点，并用点击波纹、顺序编号和 `dim_ms` 区分展开、分支与异步回流；多步规划章已经把 28 个稳定复核点写回时间线，并用像素审计纠正了早期“目录名为 1920、文件实际只有 1280×720”的问题。六章可以从 `storyboard/index.html` 的章节与复核点选择器统一审阅，并从同一制作控制区打开对应中文手册小节；目录与文档映射契约保存在 `storyboard/catalog.zh-CN.json`。
+Claude Code 的 Skill、子 Agent、上下文压缩和多步规划章节分别位于 `source/claude-skill/`、`source/claude-subagents/`、`source/claude-compact/` 与 `source/claude-planning/`。已脱敏 Viewer 原图和双尺寸审阅帧属于可重建母稿；真实请求日志仍只保留在 Git 忽略的 `tmp/`。Skill 章已经把 31 个渐进状态写回时间线；子 Agent 章也已写入 32 个稳定复核点，并用点击波纹、顺序编号和 `dim_ms` 区分展开、分支与异步回流；多步规划章已经把 28 个稳定复核点写回时间线，并用像素审计纠正了早期“目录名为 1920、文件实际只有 1280×720”的问题。六章可以从 `storyboard/index.html` 的章节与复核点选择器统一审阅，并从同一制作控制区打开对应中文手册小节或“章节审阅”面板；问题、观众、Source 边界、待确认门与五类审阅资料都保存在 `storyboard/catalog.zh-CN.json`，不再依赖另一张手工状态表。
 
 快速上手之后的上下文变化、迟到工具结果和子 Agent 素材见 [`user-guide/README.md`](user-guide/README.md)。
 

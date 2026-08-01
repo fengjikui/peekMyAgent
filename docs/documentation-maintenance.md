@@ -11,9 +11,9 @@
 - `scripts/claude-mechanisms-media-demo.mjs --verify` 保留 Claude 机制的合成分类合约；Skill、子 Agent、压缩和多步规划的当前发布事实分别以四个 `claude-*-real-cli-probe.mjs`、对应 manifest 和双尺寸审阅帧为准；
 - `scripts/build-readme-media.py` 可从保留的原始帧重新生成标注图和慢速 GIF；
 - `scripts/build-demo-video.py` 可从已验收素材重新生成中文 MP4、旁白、字幕、封面与中性时间线；
-- `assets/demo/storyboard/` 可从章节时间线非破坏性播放真实 Viewer 帧、字幕、聚焦框、标注和转场；统一 catalog 还把六个演示章节映射到对应中文手册小节，制作模式可以直接打开，成片模式不会显示；`scripts/demo-storyboard-smoke.mjs` 检查镜头连续性、可读时长、素材路径与箭头草稿；
-- `scripts/demo-production-audit.mjs` 跨章节核对 manifest、旁白、时间线、SRT、Source 图片、双尺寸审阅帧的真实像素、Git 可追踪性、媒体体积预算与常见隐私哨兵；带 `review_points` 的章节可用 `--strict` 要求两档帧与稳定时点逐一对应；`smoke:governance` 会调用这项生产审计；
-- `scripts/documentation-consistency-audit.mjs` 核对中英文 README、快速开始、用户手册首页与十个任务章节的本地链接和章节锚点；同时检查 Node.js 要求、九条核心 CLI 事实、英文首页的支持协议/主 GIF/中文深读入口，以及六个演示章节到真实中文标题的映射；它已经由 `smoke:governance` 调用；
+- `assets/demo/storyboard/` 可从章节时间线非破坏性播放真实 Viewer 帧、字幕、聚焦框、标注和转场；统一 catalog 还把六个演示章节映射到对应中文手册小节，并保存问题、观众、Source 边界、审阅状态、下一道门与五类资料入口；制作模式可以直接打开，成片模式不会显示；`scripts/demo-storyboard-smoke.mjs` 检查镜头连续性、可读时长、素材路径与箭头草稿；
+- `scripts/demo-production-audit.mjs` 跨章节核对 manifest、旁白、时间线、SRT、Source 图片、双尺寸审阅帧的真实像素、Git 可追踪性、媒体体积预算、章节审阅合同与常见隐私哨兵；带 `review_points` 的章节可用 `--strict` 要求两档帧与稳定时点逐一对应；`smoke:governance` 会调用这项生产审计；
+- `scripts/documentation-consistency-audit.mjs` 核对中英文 README、快速开始、用户手册首页与十个任务章节的本地链接和章节锚点；同时检查 Node.js 要求、九条核心 CLI 事实、英文首页的支持协议/主 GIF/中文深读入口，以及六个演示章节到真实中文标题和审阅合同的映射；它已经由 `smoke:governance` 调用；
 - 同一脚本的 `--base` / `--changed-file` 模式会把功能变更映射成受影响文档与演示素材；JSON 同时包含精确目标 SHA、解析后的 base SHA、工作区状态、去重后的必查文档/演示、验证命令和隐私限制，可以直接作为文档 Agent 的任务载荷；
 - `docs/media-publishing.zh-CN.md` 规定主仓库只跟踪轻量、可复现的制作资料，成片通过 Releases 或对象存储发布；
 - `docs/video-series-claude-code.zh-CN.md` 保存工具闭环、Skill、子 Agent、上下文压缩和多步规划五支独立视频的事实边界与逐镜头脚本；

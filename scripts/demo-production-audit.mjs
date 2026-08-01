@@ -26,6 +26,7 @@ const totals = {
   reviewFrames: 0,
   catalogEntries: 0,
   guideMappings: 0,
+  reviewContracts: 0,
   trackableMediaFiles: 0,
   trackableMediaBytes: 0,
 };
@@ -45,6 +46,7 @@ console.log([
   `${totals.reviewFrames} review frames,`,
   `${totals.catalogEntries} catalog entries,`,
   `${totals.guideMappings} guide mappings,`,
+  `${totals.reviewContracts} review contracts,`,
   `${totals.trackableMediaFiles} trackable media files,`,
   `${formatMiB(totals.trackableMediaBytes)} trackable media`,
 ].join(" "));
@@ -58,12 +60,14 @@ function auditStoryboardCatalog() {
   }
 
   const catalog = readJson(catalogPath);
-  assert(catalog.schema_version === 2, "storyboard catalog schema_version must be 2");
+  assert(catalog.schema_version === 3, "storyboard catalog schema_version must be 3");
   assert(Array.isArray(catalog.chapters) && catalog.chapters.length > 0,
     "storyboard catalog must contain chapters");
 
   const ids = new Set();
   const timelines = new Set();
+  const reviewStatuses = new Set(["draft", "owner-review", "ready-for-voice", "published"]);
+  const reviewArtifacts = ["narration", "subtitles", "manifest", "review_1920", "review_1024"];
   for (const [index, chapter] of catalog.chapters.entries()) {
     const label = `storyboard catalog chapters[${index}]`;
     assert(typeof chapter.id === "string" && chapter.id.length > 0, `${label} needs an id`);
@@ -89,6 +93,35 @@ function auditStoryboardCatalog() {
     assert(markdownHeadings(fs.readFileSync(guide, "utf8")).includes(chapter.guide_section),
       `${label}.guide_section must name a real Markdown heading: ${chapter.guide_section}`);
     totals.guideMappings += 1;
+
+    const review = chapter.review;
+    assert(review && typeof review === "object" && !Array.isArray(review),
+      `${label}.review is required`);
+    for (const field of ["question", "audience", "next_gate"]) {
+      assert(typeof review[field] === "string" && review[field].trim().length >= 12,
+        `${label}.review.${field} must be a concrete sentence`);
+    }
+    assert(reviewStatuses.has(review.status),
+      `${label}.review.status must be one of ${[...reviewStatuses].join(", ")}`);
+    assert(review.source && typeof review.source === "object" && !Array.isArray(review.source),
+      `${label}.review.source is required`);
+    for (const field of ["label", "boundary"]) {
+      assert(typeof review.source[field] === "string" && review.source[field].trim().length >= 12,
+        `${label}.review.source.${field} must be a concrete sentence`);
+    }
+    assert(review.artifacts && typeof review.artifacts === "object" && !Array.isArray(review.artifacts),
+      `${label}.review.artifacts is required`);
+    assert(equalArrays(Object.keys(review.artifacts).sort(), [...reviewArtifacts].sort()),
+      `${label}.review.artifacts must contain ${reviewArtifacts.join(", ")}`);
+    for (const artifact of reviewArtifacts) {
+      const href = review.artifacts[artifact];
+      assert(typeof href === "string" && href.startsWith("/assets/demo/"),
+        `${label}.review.artifacts.${artifact} must stay under /assets/demo`);
+      const artifactPath = path.join(root, href.slice(1));
+      assertFile(artifactPath, `${label} review artifact ${artifact}`);
+      assertTrackable(artifactPath, `${label} review artifact ${artifact}`);
+    }
+    totals.reviewContracts += 1;
   }
 
   assert(ids.has(catalog.default_chapter), "storyboard catalog default_chapter must name a chapter");
@@ -102,10 +135,14 @@ function auditStoryboardCatalog() {
     "storyboard player must expose chapter and review-point controls");
   assert(html.includes("guide-link"),
     "storyboard player must expose the mapped Chinese guide in review mode");
+  assert(html.includes("review-sheet-open") && html.includes("review-sheet-artifacts"),
+    "storyboard player must expose the chapter review sheet in production mode");
   assert(player.includes("catalog.zh-CN.json") && player.includes("review_points"),
     "storyboard player must load the catalog and timeline review points");
   assert(player.includes("guide_section") && player.includes("markdownHeadingSlug"),
     "storyboard player must resolve the mapped guide section");
+  assert(player.includes("review.artifacts") && player.includes("showModal"),
+    "storyboard player must render the catalog review contract");
   totals.catalogEntries = catalog.chapters.length;
 }
 

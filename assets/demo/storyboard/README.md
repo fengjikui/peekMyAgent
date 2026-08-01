@@ -35,7 +35,7 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html
 http://127.0.0.1:43115/assets/demo/storyboard/index.html?present=1&autoplay=0&scene=6&at_ms=18000
 ```
 
-`catalog.zh-CN.json` 是统一章节目录。每个条目必须同时声明时间线、对应中文文档和真实标题。新增可发布章节时，必须同步增加 catalog 条目；`demo-production-audit.mjs` 与 `documentation-consistency-audit.mjs` 会拒绝缺失章节、错误路径、未纳入中文公开文档审计的文件或不存在的小节标题。
+`catalog.zh-CN.json` 是统一章节目录和审阅状态源。每个条目必须同时声明时间线、对应中文文档、真实标题，以及 `review` 中的目标问题、观众、Source 边界、状态、下一道确认门和五类审阅资料。点击制作控制区的“章节审阅”即可在同一页面打开这份合同；它不会进入 `present=1` 成片。新增可发布章节时必须同步增加 catalog 条目；`demo-production-audit.mjs` 与 `documentation-consistency-audit.mjs` 会拒绝缺失章节、错误路径、失效资料、未纳入中文公开文档审计的文件或不存在的小节标题。
 
 ## 统一入口视觉复核记录
 
@@ -48,6 +48,7 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html?present=1&autoplay=0&sc
 - 子 Agent 分支交接实测为“只有 1 → 短暂 1+2 → 只有 2”，异步完成对照实测为“1 → 1 降级 → 降级的 1 与当前 2 共存”；
 - 从复核点继续播放后，选择器会立即退出旧选中状态，避免把已经离开的时刻误显示为当前复核点。
 - 六个章节分别映射到快速上手、工具四层证据、Skill 四层模型、子 Agent 机制流程、上下文压缩判断和七 Request 多步规划小节；1920×1080 与 1024×576 均无水平溢出，`present=1` 下文档入口不可见。
+- 六个章节的审阅面板分别显示本章问题、目标观众、真实 / 确定性 Source 边界、待确认门，以及旁白、SRT、manifest、1920 与 1024 联系表入口；这些入口同样只存在于制作模式。
 
 加载子 Agent 章节：
 
