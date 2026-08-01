@@ -251,6 +251,8 @@ python3 scripts/build-readme-storyboard-gif.py --check
 
 2026-08-02，“一次工具调用到底发生了什么”迁移到 v0.2 网页故事板，并对 36 个状态分别执行 1920×1080 与 1024×576 复核。第一轮发现 Metadata、tool_result 和 Response 的聚焦框向右偏到相邻标签或空白；校正后第二轮又发现标签编号遮住右栏标题。最终规则改为“自带名称的标签只用轻描边，编号留给证据”，并用 `dim_ms` 让来源状态在调用参数出现后退为次要。两档联系表、逐帧修正记录和确定性 Source 边界见 `assets/demo/source/claude-tool-loop/manifest.json`。
 
+同日又在干净提交 `4bb27179a4e893cc986e7016a87515a0a0066314` 完整录制该章 245 秒无声画面母版：7350 帧、1805 个浏览器重绘帧、约 4.55 MiB，浏览器最终时间为 244939ms，编码最大实时延迟 52.654ms。整片完整解码和黑帧检查通过；从成片重新抽取 36 个 `review_points` 逐张查看，三栏、点击入口、协议顺序、Raw 和最终 Response 均无遮挡或错位。与已审阅 1920×1080 帧比较的平均绝对像素差为 1.47/255，最大 3.96/255，发生在正常 Raw 交叉淡化帧。MP4、render manifest、抽帧和联系表仍只位于 Git 忽略的 `tmp/storyboard-video/claude-tool-loop/`。
+
 同日，“上下文压缩究竟改变了什么”从每镜头只保存最终状态的九张旧审阅图，迁移为 15 个稳定复核点。两个“详情”镜头分别保存点击波纹和右栏证据状态；Turn / Request 层级、新 History 的两部分、规则输入与结果、时间线分类与 Harness 原文四组关系都让编号 1 先出现，编号 2 出现时再通过 `dim_ms` 把编号 1 降为次要。15 个状态已经分别在真实 1920×1080 与 1024×576 下复核，未使用箭头。联系表和事实边界见 `assets/demo/source/claude-compact/manifest.json`。
 
 同日又完成了独立的 Codex compact 章节。真实 Codex App Server 轨迹先生成 4 个普通 Turn 和 5 次模型请求，再从 Request 4 的 `request_kind=compaction`、九项 input、Harness checkpoint 提示和 Request 5 重组后的 History 逐层核对。20 个稳定状态分别在 1920×1080 与 1024×576 下审查：入口镜头只冻结一个点击波纹；协议顺序按 1→2 展开；History 按 1→2→3 展开，其中编号 1 在编号 2 出现时降级、在编号 3 出现前退出，编号 2 只作为弱化对照保留。首次取帧误在 700ms 页面淡入期间截图，整批发白，因此全部拒绝；播放器随后增加仅供制作验收的 `review=1` 冻结模式，关闭页面转场和标注动画，但不改变正常播放。重录后编号、框线、点击中心、字幕安全区和双尺寸构图均通过，未使用箭头。联系表和事实边界见 `assets/demo/source/codex-compact/manifest.json`。

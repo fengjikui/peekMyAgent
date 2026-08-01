@@ -2,7 +2,7 @@
   "schema_version": 2,
   "title": "用 PMA 看懂 Claude Code：一次工具调用",
   "language": "zh-CN",
-  "chapter_status": "deterministic_teaching_trace_story_narration_storyboard_and_dual_viewport_review_v0_2",
+  "chapter_status": "deterministic_teaching_trace_story_narration_storyboard_dual_viewport_review_and_picture_master_technical_validation_v0_2",
   "source": {
     "viewer_source_commit": "dded809e7e5883989e9b01c60bf6a54ec6c7a8a0",
     "verified_worktree_head": "674222577f415c1b2775acefd337844ea6efd74c",
@@ -102,6 +102,9 @@
     "subtitles": "assets/demo/video/pma-claude-tool-loop.zh-CN.srt",
     "storyboard_player": "assets/demo/storyboard/index.html",
     "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/claude-tool-loop/pma-claude-tool-loop-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "technical validation passed at exact source commit 4bb27179a4e893cc986e7016a87515a0a0066314; owner story review is still pending",
     "repository_policy": "The ten public raw Viewer frames and both v0.2 review directories are tracked so a clean clone can play and audit the storyboard; v0.1 baked frames, local video, and audio remain ignored.",
     "legacy_video_builder": "scripts/build-claude-tool-loop-video.py; v0.1 baked-frame path only, not the v0.2 storyboard renderer",
     "legacy_video": "assets/demo/video/pma-claude-tool-loop.zh-CN.mp4; local and Git-ignored",
@@ -140,10 +143,29 @@
       "The source-navigation scene retains a dimmed source-state outline when the call parameters appear, preserving causality without two equally strong numbered markers.",
       "The final-response click pulse was reviewed against the actual Details button center.",
       "The old recording/review and video/frames directories are v0.1 comparison artifacts and are not v0.2 publication sources."
-    ]
+    ],
+    "video_master": {
+      "status": "technical_validation_passed_owner_story_review_pending",
+      "source_commit": "4bb27179a4e893cc986e7016a87515a0a0066314",
+      "source_worktree_dirty": false,
+      "duration_seconds": 245,
+      "resolution": [1920, 1080],
+      "fps": 30,
+      "encoded_frames": 7350,
+      "browser_frames_received": 1805,
+      "browser_final_absolute_ms": 244939,
+      "maximum_encoder_lateness_ms": 52.654,
+      "bytes": 4771788,
+      "streams": "H.264 video only; no audio stream, subtitle stream, or webpage subtitle layer",
+      "black_frames": 0,
+      "review_points_checked": 36,
+      "review_frame_mean_absolute_difference": "1.47/255",
+      "review_frame_maximum_absolute_difference": "3.96/255 at 09b-raw-crossfade.jpg",
+      "repository_policy": "The MP4, render manifest, extracted frames, and contact sheet remain under Git-ignored tmp/storyboard-video/claude-tool-loop/."
+    }
   },
   "publication_gate": {
-    "status": "storyboard_and_dual_viewport_review_complete_owner_story_review_pending",
+    "status": "storyboard_dual_viewport_review_and_picture_master_technical_validation_complete_owner_story_review_pending",
     "remaining": [
       "Freeze the Chinese story only after the owner reviews it.",
       "Before describing this exact two-request scenario as current real Claude Code behavior, replace or cross-check it with a fresh real-CLI Capture at an exact Claude Code version.",
