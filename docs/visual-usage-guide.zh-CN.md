@@ -252,15 +252,16 @@ python3 scripts/build-readme-storyboard-gif.py --check
 
 同日，“子 Agent 在哪里运行，结果怎样回来”从 33 张未声明复核点的旧审阅图迁移为时间线中的 32 个稳定 `review_points`。multi-agent 镜头先用短波纹指示真实展开控件，再让两个分支编号 1、2 依次出现；Turn 2 / Turn 3 对照保留旧编号，但在新阶段出现前通过 `dim_ms` 退为次要；最终 Response 也改为点击波纹后只保留一个证据编号。第一轮自审还发现 Turn 2 降级状态比“显示 Turn 3”的字幕晚约一秒，修正时码后只重渲染相关帧。真实 1920×1080 与 1024×576 两档均通过，未使用箭头。联系表和事实边界见 `assets/demo/source/claude-subagents/manifest.json`。
 
+同日，“自研 Harness 怎样通过通用协议先接入”用真实 `pma observe` 包装两条确定性 Source：OpenAI Responses 与 Anthropic Messages 都是 1 Turn / 2 Request，只完成列目录、回传结果和最终回答。第一轮 Raw 暴露了仓库工作目录，因此整批素材被拒绝并改用固定 `/tmp/pma-custom-harness-demo/public-project` 后重录。25 个稳定状态随后分别在 1920×1080 与 1024×576 下逐张放大检查：编号按旁白逐个出现；OpenAI 上下行对照保留两个同级重点；Anthropic 的 `tool_use` 在 `tool_result` 出现后降权；其余独立焦点交叉淡出。框、编号和字幕已经足以引导视线，所以没有添加箭头。完整镜头脚本、校验值和脱敏边界见 `assets/demo/source/custom-harness/manifest.json`。
+
 ## 下一阶段素材优先级
 
 上下文变化、迟到工具结果和 Claude Code 子 Agent 已在用户手册素材 v0.1 中完成。通过用户审阅后，再独立制作：
 
-1. 从协议视图进入 Raw Inspector、核对原生 JSON 与脱敏记录；
-2. 自研 Harness 通过 OpenAI / Anthropic 通用桥完成一次端到端接入；
-3. System / Tools 分块翻译，并展示原文与译文如何对应；
-4. 使用真实长会话展示上下文压缩，并明确区分 Codex、Claude Code 等 Harness 的已验证事实；
-5. 使用真人口播或已授权旁白，对中文视频初剪做第二轮 ChatCut / 剪映精修。
+1. 从协议视图进入 Raw Inspector、核对更多原生 JSON 异常与脱敏记录；
+2. System / Tools 分块翻译，并展示原文与译文如何对应；
+3. 使用真实长会话展示上下文压缩，并明确区分 Codex、Claude Code 等 Harness 的已验证事实；
+4. 使用真人口播或已授权旁白，对中文视频初剪做第二轮 ChatCut / 剪映精修。
 
 每个新主题仍只回答一个核心问题，并先用真实产品证据确认功能存在，不能把 roadmap 写成已实现。
 

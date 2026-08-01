@@ -6,7 +6,7 @@
 
 Claude Code 工具调用章节也已完成 v0.2 迁移：4 分 05 秒故事、51 条字幕、10 张无烧录标注的 Viewer 原始帧，以及两档各 36 张网页标注审阅帧位于 `source/claude-tool-loop/`。这条 Source 是确定性 Anthropic 教学轨迹；不得把它写成真实 provider 会话，真实 CLI 的交叉核对边界以 manifest 为准。
 
-Claude Code 的 Skill、子 Agent、上下文压缩和多步规划章节分别位于 `source/claude-skill/`、`source/claude-subagents/`、`source/claude-compact/` 与 `source/claude-planning/`。已脱敏 Viewer 原图和双尺寸审阅帧属于可重建母稿；真实请求日志仍只保留在 Git 忽略的 `tmp/`。Skill 章已经把 31 个渐进状态写回时间线；子 Agent 章也已写入 32 个稳定复核点，并用点击波纹、顺序编号和 `dim_ms` 区分展开、分支与异步回流；多步规划章已经把 28 个稳定复核点写回时间线，并用像素审计纠正了早期“目录名为 1920、文件实际只有 1280×720”的问题。六章可以从 `storyboard/index.html` 的章节与复核点选择器统一审阅，并从同一制作控制区打开对应中文手册小节或“章节审阅”面板；问题、观众、Source 边界、待确认门与五类审阅资料都保存在 `storyboard/catalog.zh-CN.json`，不再依赖另一张手工状态表。
+Claude Code 的 Skill、子 Agent、上下文压缩和多步规划章节分别位于 `source/claude-skill/`、`source/claude-subagents/`、`source/claude-compact/` 与 `source/claude-planning/`。自研 Harness 的 OpenAI / Anthropic 通用协议接入章节位于 `source/custom-harness/`，使用真实 `pma observe` 和确定性 loopback 假上游生成两条无敏感信息的工具闭环。已脱敏 Viewer 原图和双尺寸审阅帧属于可重建母稿；真实请求日志仍只保留在 Git 忽略的 `tmp/`。Skill 章已经把 31 个渐进状态写回时间线；子 Agent 章也已写入 32 个稳定复核点，并用点击波纹、顺序编号和 `dim_ms` 区分展开、分支与异步回流；多步规划章已经把 28 个稳定复核点写回时间线，并用像素审计纠正了早期“目录名为 1920、文件实际只有 1280×720”的问题。七章可以从 `storyboard/index.html` 的章节与复核点选择器统一审阅，并从同一制作控制区打开对应中文手册小节或“章节审阅”面板；问题、观众、Source 边界、待确认门与五类审阅资料都保存在 `storyboard/catalog.zh-CN.json`，不再依赖另一张手工状态表。
 
 快速上手之后的上下文变化、迟到工具结果和子 Agent 素材见 [`user-guide/README.md`](user-guide/README.md)。
 
@@ -36,6 +36,7 @@ Claude Code 的 Skill、子 Agent、上下文压缩和多步规划章节分别�
 - `source/claude-subagents/`：真实 Claude Code CLI 的 3 Turn / 8 Request 子 Agent 生命周期、11 张原始帧、32 个渐进 `review_points` 和两档联系表。
 - `source/claude-compact/`：真实 compact 前后请求、旁白、41 条字幕、五张原始帧、15 个渐进 `review_points` 和两档联系表。
 - `source/claude-planning/`：4 Turn / 10 Request 多步任务、54 条字幕、28 个 `review_points` 和两档联系表。
+- `source/custom-harness/`：真实 `pma observe` 包装的 OpenAI Responses / Anthropic Messages 双协议工具闭环、8 张原始帧、47 条字幕、25 个渐进 `review_points` 和两档联系表。
 
 旧版 `dashboard-overview*`、`chat-upstream-context*` 和 `tool-call-loop*` 暂时保留，方便比较界面变化；当前中文版 README 不再引用它们。
 
@@ -72,6 +73,14 @@ node scripts/user-guide-media-demo.mjs --port 43113
 
 它会生成上下文演进、迟到工具结果和 Claude Code 双子 Agent 三个 Source。完整场景与隐私记录见 `source/user-guide/manifest.json`。
 
+生成自研 Harness 的通用协议桥 Source：
+
+```bash
+node scripts/custom-harness-protocol-demo.mjs
+```
+
+脚本会创建固定虚构目录、启动确定性 OpenAI / Anthropic loopback 上游，并分别通过真实 `pma observe` 生成 1 Turn / 2 Request 的工具闭环。它不会访问外部模型；终端提示出现后按 `Ctrl-C` 清理临时 Viewer 与上游。
+
 生成 Claude Code 工具闭环、Skill、五 Request 多步规划和 compact 分类合约 Source：
 
 ```bash
@@ -94,7 +103,7 @@ python3 scripts/build-demo-video.py
 node scripts/demo-production-audit.mjs
 ```
 
-它会读取图片字节核对真实像素，不接受只凭 `review-1920` 目录名或 manifest 声明尺寸；同时检查 SRT 是否仍由时间线生成、Source 与审阅帧能否进入干净克隆、六章是否映射到真实中文标题、所有下一次提交可纳入的演示媒体是否仍在体积预算内，以及常见本机路径和凭据形态。治理 smoke 会再次调用同一生产审计。
+它会读取图片字节核对真实像素，不接受只凭 `review-1920` 目录名或 manifest 声明尺寸；同时检查 SRT 是否仍由时间线生成、Source 与审阅帧能否进入干净克隆、七章是否映射到真实中文标题、所有下一次提交可纳入的演示媒体是否仍在体积预算内，以及常见本机路径和凭据形态。治理 smoke 会再次调用同一生产审计。
 
 ## 制作规则
 

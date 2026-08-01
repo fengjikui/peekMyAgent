@@ -27,6 +27,30 @@
       }
     },
     {
+      "id": "custom-harness",
+      "label": "自研 Harness：通用协议接入",
+      "timeline": "/assets/demo/source/custom-harness/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/custom-harness.md",
+      "guide_section": "真实例子：两次 Request 的目录工具闭环",
+      "review": {
+        "question": "不开发专用 adapter，怎样先看清自研 Harness 的请求、工具结果和原始协议？",
+        "audience": "正在开发 OpenAI / Anthropic 兼容 Harness 的开发者",
+        "source": {
+          "label": "真实 pma observe + 确定性 OpenAI / Anthropic 假上游",
+          "boundary": "包装生命周期来自真实 CLI；模型回复固定生成，只证明 PMA 的协议观察能力，不代表远端模型质量。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅中文故事和协议边界，再决定是否进入正式配音与成片。",
+        "artifacts": {
+          "narration": "/assets/demo/source/custom-harness/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-custom-harness.zh-CN.srt",
+          "manifest": "/assets/demo/source/custom-harness/manifest.json",
+          "review_1920": "/assets/demo/source/custom-harness/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/custom-harness/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
       "id": "claude-tool-loop",
       "label": "Claude Code：一次工具调用",
       "timeline": "/assets/demo/source/claude-tool-loop/video/timeline.zh-CN.json",
