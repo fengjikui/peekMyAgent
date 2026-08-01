@@ -31,6 +31,8 @@ COVER_TITLE = "看见 Agent 真正发送给模型的内容"
 COVER_BODY = "请求 · System · 工具结果 · 原生协议 · 上下文变化 · 子 Agent"
 COVER_SOURCE_IMAGE = "assets/demo/quickstart/01-trace.png"
 COVER_LABEL = "从一次最小会话，追到每一层真实证据"
+SHOW_UI_CAPTION_PANEL = True
+EMBED_SUBTITLE_TRACK = True
 
 WIDTH = 1920
 HEIGHT = 1080
@@ -359,6 +361,9 @@ def render_ui_scene(scene: Scene, font_path: Path) -> Image.Image:
     image.paste(screenshot, (40, 58))
     draw.rounded_rectangle((39, 57, 1880, 1008), radius=10, outline=(70, 91, 117), width=2)
 
+    if not SHOW_UI_CAPTION_PANEL:
+        return image
+
     caption_box = (75, 933, 1845, 1063)
     overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
     overlay_draw = ImageDraw.Draw(overlay)
@@ -514,8 +519,10 @@ def verify_outputs(final_video: Path, srt_path: Path, timeline_path: Path, expec
         raise SystemExit("video verification failed: expected 30 fps")
     if not audio or audio.get("codec_name") != "aac":
         raise SystemExit("video verification failed: expected AAC audio")
-    if not subtitles or subtitles.get("codec_name") != "mov_text":
+    if EMBED_SUBTITLE_TRACK and (not subtitles or subtitles.get("codec_name") != "mov_text"):
         raise SystemExit("video verification failed: expected mov_text subtitles")
+    if not EMBED_SUBTITLE_TRACK and subtitles:
+        raise SystemExit("video verification failed: clean master unexpectedly contains subtitles")
     actual_duration = float(metadata["format"]["duration"])
     if abs(actual_duration - expected_duration) > 0.2:
         raise SystemExit(
@@ -607,44 +614,48 @@ def build_video(args: argparse.Namespace) -> None:
         srt_path = OUTPUT_DIR / f"{OUTPUT_BASENAME}.srt"
         srt_path.write_text("\n".join(srt_blocks), encoding="utf-8")
         final_video = OUTPUT_DIR / f"{OUTPUT_BASENAME}.mp4"
-        run(
-            [
-                "ffmpeg",
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-y",
-                "-i",
-                str(base_video),
-                "-i",
-                str(srt_path),
-                "-map",
-                "0:v:0",
-                "-map",
-                "0:a:0",
-                "-map",
-                "1:0",
-                "-c:v",
-                "copy",
-                "-af",
-                "loudnorm=I=-16:TP=-1.5:LRA=7",
-                "-c:a",
-                "aac",
-                "-b:a",
-                "160k",
-                "-ar",
-                "48000",
+        mux_command = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(base_video),
+        ]
+        if EMBED_SUBTITLE_TRACK:
+            mux_command += ["-i", str(srt_path)]
+        mux_command += [
+            "-map",
+            "0:v:0",
+            "-map",
+            "0:a:0",
+        ]
+        if EMBED_SUBTITLE_TRACK:
+            mux_command += ["-map", "1:0"]
+        mux_command += [
+            "-c:v",
+            "copy",
+            "-af",
+            "loudnorm=I=-16:TP=-1.5:LRA=7",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "160k",
+            "-ar",
+            "48000",
+        ]
+        if EMBED_SUBTITLE_TRACK:
+            mux_command += [
                 "-c:s",
                 "mov_text",
                 "-metadata:s:s:0",
                 "language=zho",
                 "-metadata:s:s:0",
                 "title=中文（简体）",
-                "-movflags",
-                "+faststart",
-                str(final_video),
             ]
-        )
+        mux_command += ["-movflags", "+faststart", str(final_video)]
+        run(mux_command)
         voice_path = OUTPUT_DIR / f"{OUTPUT_BASENAME}-voice.m4a"
         run(
             [

@@ -51,6 +51,12 @@
     "voice": "assets/demo/video/pma-claude-tool-loop.zh-CN-voice.m4a",
     "subtitles": "assets/demo/video/pma-claude-tool-loop.zh-CN.srt",
     "cover": "assets/demo/video/pma-claude-tool-loop.zh-CN-cover.png",
+    "narration_review_script": "assets/demo/source/claude-tool-loop/narration.zh-CN.md",
+    "clean_master": {
+      "burned_caption_panel": false,
+      "embedded_subtitle_track": false,
+      "sidecar_subtitles": "assets/demo/video/pma-claude-tool-loop.zh-CN.srt"
+    },
     "video_and_voice_git_policy": "ignored; publish through a Release or CDN after owner approval"
   },
   "privacy": {
@@ -67,7 +73,7 @@
     "layout": "full three-column Viewer retained",
     "video": "1920x1080, 30 fps, H.264",
     "audio": "AAC, 48 kHz, stereo, -16.0 LUFS integrated, -3.3 dBFS true peak",
-    "subtitles": "embedded mov_text plus standalone SRT",
+    "subtitles": "standalone SRT only; the clean master has no embedded subtitle track or burned caption panel",
     "duration_seconds": 242.945,
     "result": "passed for local owner review; narration remains an internal system-TTS placeholder"
   }

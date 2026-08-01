@@ -30,9 +30,9 @@
       "timeline": "assets/demo/source/claude-tool-loop/video/timeline.zh-CN.json",
       "manifest": "assets/demo/source/claude-tool-loop/manifest.json",
       "duration_seconds": 242.945,
-      "size_bytes": 9884899,
-      "sha256": "6ea1cd62c058da77abdab546ee62a75a410a3c8f069dac514b27f304447803aa",
-      "publication_note": "已完成本地逐帧和技术验收；系统 TTS 仍是内部审阅占位，所有者确认内容与旁白后再托管成片。"
+      "size_bytes": 9489644,
+      "sha256": "6ab760d39ec1543255f186be4ec8e37c31eb0a11f516d9bf58224a57cd889589",
+      "publication_note": "干净画面母版：无底部说明黑框、无烧录或内嵌字幕；独立 SRT 和系统 TTS 仅供审阅，所有者确认内容与正式配音后再托管成片。"
     }
   ]
 }

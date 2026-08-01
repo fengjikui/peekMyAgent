@@ -90,10 +90,11 @@ notes/
 - 成片：`assets/demo/video/pma-claude-tool-loop.zh-CN.mp4`，本地生成、Git 忽略；
 - 字幕与封面：`assets/demo/video/pma-claude-tool-loop.zh-CN.srt`、`pma-claude-tool-loop.zh-CN-cover.png`；
 - 可重建时间线：`assets/demo/source/claude-tool-loop/video/timeline.zh-CN.json`；
+- 中文旁白审阅稿：`assets/demo/source/claude-tool-loop/narration.zh-CN.md`；
 - Source、原始镜头、隐私和 QA 记录：`assets/demo/source/claude-tool-loop/manifest.json`；
 - 构建脚本：`python3 scripts/build-claude-tool-loop-video.py --voice Tingting --rate 175`。
 
-本地初剪实际约 4 分 03 秒。协议和 Raw 镜头分别保留 22 秒与 21 秒；系统语音仍是内部审阅占位，不代表最终发布旁白。
+本地初剪实际约 4 分 03 秒。协议和 Raw 镜头分别保留 22 秒与 21 秒；干净母版不带底部说明黑框、不烧录或内嵌字幕。系统语音仍是内部审阅占位，不代表最终发布旁白。
 
 ---
 

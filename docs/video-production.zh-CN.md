@@ -14,7 +14,7 @@ python3 scripts/build-claude-tool-loop-video.py --voice Tingting --rate 175
 
 它使用 2048×1056 Claude 主题的真实 Viewer 操作帧，演示一个不需要项目背景的最小任务：读取 `README.md` 第一行并回答项目名。内容依次覆盖完整时间线、Metadata、System、Tools、`tool_use`、`tool_result`、来源跳转、Anthropic Messages、Raw Inspector 和最终 Response。
 
-成片约 4 分 03 秒，1920×1080、30 fps；协议和 Raw 镜头分别保留约 22 秒和 21 秒。MP4 与独立旁白轨只在本地生成并被 Git 忽略，字幕、封面、可重建时间线和 manifest 留在仓库。详细来源和 QA 结果见 `assets/demo/source/claude-tool-loop/manifest.json`。
+成片约 4 分 03 秒，1920×1080、30 fps；协议和 Raw 镜头分别保留约 22 秒和 21 秒。MP4 是不带底部说明黑框、不烧录字幕、也不内嵌字幕轨的干净母版。MP4 与独立旁白轨只在本地生成并被 Git 忽略，独立 SRT、中文旁白审阅稿、封面、可重建时间线和 manifest 留在仓库。详细来源和 QA 结果见 `assets/demo/source/claude-tool-loop/manifest.json`。
 
 当前旁白使用 macOS `Tingting` 系统语音，只用于内容和节奏审阅。正式公开前仍需所有者确认文案，再替换为已授权的真人或合成配音。
 
@@ -39,6 +39,20 @@ ChatCut 网页编辑器已经可以打开，但当前工作环境停在账户认
 CapCut Desktop 和 Web 当前都提供自动字幕、字幕校正和时间线编辑；官方建议生成后人工复核文本、时码与样式。[CapCut 自动字幕说明](https://www.capcut.com/help/how-to-recognise-subtitles)
 
 它适合产品所有者最后调整字体、转场和配音。本仓库不保存剪映专有工程，避免项目格式变化后无法重建；独立 SRT 和 M4A 是交接边界。
+
+截至 2026-08-01，[剪映官网](https://www.jianying.com/)明确提供文本朗读、热门音色、关键帧、多时间线和智能剪辑等桌面能力；本机剪映专业版也可以通过 Computer Use 读取并操作。官方公开站点和帮助文档中尚未找到面向通用桌面剪辑的正式 MCP 或 CLI，因此当前不把第三方草稿生成器当成可依赖的生产接口。
+
+推荐分工是：仓库脚本负责确定性画面、镜头时码、旁白稿和多语言 SRT；剪映负责授权音色、字幕样式、少量关键帧动效和最终人工审美。对剪映的 UI 自动化只承担可复核的重复步骤，不直接修改未备份的长期草稿，也不自动确认可能消耗会员或积分的 AI 操作。
+
+### 多语言版本
+
+每个语言版本都从干净母版和旁白审阅稿开始，而不是从带硬字幕的中文成片反推：
+
+1. 先冻结中文旁白的事实和镜头边界；
+2. 翻译 `narration.zh-CN.md`，同时生成目标语言 SRT；
+3. 目标语言较长时按语义重新校时，不机械压缩语速；
+4. 需要完整本地化时，重新录制目标语言 Viewer UI 和标题卡；
+5. 在剪映中选择目标语言音色并只添加字幕、配音与轻动效。
 
 ### 本轮为什么使用 FFmpeg
 

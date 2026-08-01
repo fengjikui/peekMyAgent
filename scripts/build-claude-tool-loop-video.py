@@ -9,6 +9,7 @@ before handing the frames to the shared FFmpeg video builder.
 from __future__ import annotations
 
 import importlib.util
+import json
 import math
 import sys
 from dataclasses import dataclass
@@ -234,6 +235,8 @@ def configure_builder(builder, images: dict[str, str]) -> None:
     builder.COVER_BODY = "用户 · Claude Code · 远端模型 · tool_use · tool_result"
     builder.COVER_SOURCE_IMAGE = images["01-overview"]
     builder.COVER_LABEL = "从用户请求，追到模型最终回答"
+    builder.SHOW_UI_CAPTION_PANEL = False
+    builder.EMBED_SUBTITLE_TRACK = False
     Scene = builder.Scene
     builder.SCENES = (
         Scene(
@@ -349,6 +352,42 @@ def configure_builder(builder, images: dict[str, str]) -> None:
     )
 
 
+def clock(seconds: float) -> str:
+    total = int(round(seconds))
+    minutes, secs = divmod(total, 60)
+    return f"{minutes:02}:{secs:02}"
+
+
+def export_narration_script() -> Path:
+    timeline_path = VIDEO_SOURCE_DIR / "timeline.zh-CN.json"
+    timeline = json.loads(timeline_path.read_text(encoding="utf-8"))
+    lines = [
+        "# 《一次工具调用到底发生了什么》中文旁白审阅稿",
+        "",
+        "本稿与本地干净画面母版使用同一时间线。视频不烧录字幕，也不内嵌字幕轨；发布时可将独立 SRT、目标语言翻译和授权配音交给剪映等编辑器。",
+        "",
+        f"- 总时长：约 {clock(timeline['duration_seconds'])}",
+        "- 画面语言：中文 Viewer / Claude 主题",
+        "- 当前旁白：macOS Tingting，仅作节奏占位",
+        "- 术语原则：`tool_use`、`tool_result`、System、Raw、Harness 保留英文写法",
+        "",
+    ]
+    for scene in timeline["scenes"]:
+        lines += [
+            f"## {clock(scene['start_seconds'])}–{clock(scene['end_seconds'])}　{scene['title']}",
+            "",
+            f"画面重点：{scene['caption']}",
+            "",
+            "旁白：",
+            "",
+            scene["narration"],
+            "",
+        ]
+    target = VIDEO_SOURCE_DIR.parent / "narration.zh-CN.md"
+    target.write_text("\n".join(lines), encoding="utf-8")
+    return target
+
+
 def main() -> None:
     prepare_only = "--prepare-only" in sys.argv
     if prepare_only:
@@ -366,6 +405,8 @@ def main() -> None:
         print(f"composite frames: {builder.FRAME_DIR}")
         return
     builder.build_video(builder.parse_args())
+    narration_path = export_narration_script()
+    print(f"narration: {narration_path}")
 
 
 if __name__ == "__main__":
