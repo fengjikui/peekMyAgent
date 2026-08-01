@@ -77,8 +77,8 @@ assert.match(prTemplate, /Documentation handoff target SHA/);
 
 const documentationSummary = runDocumentationConsistencyAudit();
 assert.equal(documentationSummary.documents, 14);
-assert.equal(documentationSummary.demoMappings, 9);
-assert.equal(documentationSummary.demoReviews, 9);
+assert.equal(documentationSummary.demoMappings, 10);
+assert.equal(documentationSummary.demoReviews, 10);
 const documentationImpact = buildDocumentationImpact([
   "bin/peekmyagent.mjs",
   "src/viewer/agent-graph-view.js",

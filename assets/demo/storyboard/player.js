@@ -3,11 +3,13 @@ const catalogUrl = "/assets/demo/storyboard/catalog.zh-CN.json";
 const fallbackTimelineUrl = "/assets/demo/source/quickstart/video/timeline.zh-CN.json";
 const requestedTimelineUrl = params.get("timeline");
 const presentMode = params.get("present") === "1";
+const reviewMode = params.get("review") === "1";
 const startScene = Number.parseInt(params.get("scene") || "0", 10);
 const startElapsedMs = Number.parseInt(params.get("at_ms") || "0", 10);
 const autoplay = params.get("autoplay") !== "0";
 
 if (presentMode) document.body.classList.add("present");
+if (reviewMode) document.body.classList.add("review");
 
 const elements = {
   visual: document.querySelector(".visual"),
@@ -356,6 +358,22 @@ function scheduleOverlays(scene, elapsedMs = 0) {
   clearOverlayTimers();
   elements.annotationLayer.replaceChildren();
   elements.annotationLines.replaceChildren();
+
+  if (reviewMode) {
+    for (const overlay of scene.overlays || []) {
+      const delay = overlay.delay_ms || 0;
+      const effectiveEnd = Number.isFinite(overlay.end_ms)
+        ? overlay.end_ms
+        : overlay.type === "click" ? delay + 1000 : Number.POSITIVE_INFINITY;
+      if (delay > elapsedMs || effectiveEnd <= elapsedMs) continue;
+
+      const nodes = renderOverlay(overlay);
+      if (Number.isFinite(overlay.dim_ms) && overlay.dim_ms <= elapsedMs) {
+        for (const node of nodes) node.classList.add("annotation-dim");
+      }
+    }
+    return;
+  }
 
   for (const overlay of scene.overlays || []) {
     const delay = overlay.delay_ms || 0;

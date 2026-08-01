@@ -656,6 +656,25 @@ body.present .controls {
   display: none;
 }
 
+body.review .visual.is-transitioning,
+body.review .product-frame,
+body.review .annotation-lines polyline,
+body.review .focus-box,
+body.review .callout-label,
+body.review .click-pulse {
+  animation: none;
+  transition: none;
+}
+
+body.review .visual.is-transitioning,
+body.review .annotation-lines polyline,
+body.review .focus-box,
+body.review .callout-label,
+body.review .click-pulse {
+  opacity: 1;
+  transform: none;
+}
+
 @keyframes scene-fade {
   from { opacity: .18; }
   to { opacity: 1; }

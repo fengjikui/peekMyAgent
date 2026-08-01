@@ -146,6 +146,7 @@ const impactRules = [
     ],
     demos: [
       "Claude Code 上下文压缩 Source 与双尺寸审阅帧",
+      "Codex 上下文压缩 Source、provider 边界与双尺寸审阅帧",
       "Context Delta / System diff 画面",
     ],
   },

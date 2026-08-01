@@ -195,6 +195,30 @@
       }
     },
     {
+      "id": "codex-compact",
+      "label": "Codex：上下文压缩",
+      "timeline": "/assets/demo/source/codex-compact/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/requests-context.md",
+      "guide_section": "真实例子：Codex 手动 compact 前后发生了什么",
+      "review": {
+        "question": "Codex 手动 compact 时发出了什么请求，下一次 History 又怎样保留事实、摘要与项目规则？",
+        "audience": "想理解 Codex 长会话、上下文重组和 provider 差异的 Harness 使用者与开发者",
+        "source": {
+          "label": "Codex App Server 0.144.6 真实运行 + 确定性 OpenAI Responses 假上游",
+          "boundary": "App Server 生命周期和请求组装来自真实安装；本 Source 使用 PMA 自定义 provider 的本地摘要路径，不声称录到了 OpenAI / Azure 的远端 compact 端点。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅 Codex 与 Claude Code 的差异是否讲清，再决定是否进入正式配音与成片。",
+        "artifacts": {
+          "narration": "/assets/demo/source/codex-compact/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-codex-compact.zh-CN.srt",
+          "manifest": "/assets/demo/source/codex-compact/manifest.json",
+          "review_1920": "/assets/demo/source/codex-compact/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/codex-compact/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
       "id": "claude-planning",
       "label": "Claude Code：多步规划",
       "timeline": "/assets/demo/source/claude-planning/video/timeline.zh-CN.json",

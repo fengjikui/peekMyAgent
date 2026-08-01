@@ -248,6 +248,8 @@ python3 scripts/build-readme-storyboard-gif.py --check
 
 同日，“上下文压缩究竟改变了什么”从每镜头只保存最终状态的九张旧审阅图，迁移为 15 个稳定复核点。两个“详情”镜头分别保存点击波纹和右栏证据状态；Turn / Request 层级、新 History 的两部分、规则输入与结果、时间线分类与 Harness 原文四组关系都让编号 1 先出现，编号 2 出现时再通过 `dim_ms` 把编号 1 降为次要。15 个状态已经分别在真实 1920×1080 与 1024×576 下复核，未使用箭头。联系表和事实边界见 `assets/demo/source/claude-compact/manifest.json`。
 
+同日又完成了独立的 Codex compact 章节。真实 Codex App Server 轨迹先生成 4 个普通 Turn 和 5 次模型请求，再从 Request 4 的 `request_kind=compaction`、九项 input、Harness checkpoint 提示和 Request 5 重组后的 History 逐层核对。20 个稳定状态分别在 1920×1080 与 1024×576 下审查：入口镜头只冻结一个点击波纹；协议顺序按 1→2 展开；History 按 1→2→3 展开，其中编号 1 在编号 2 出现时降级、在编号 3 出现前退出，编号 2 只作为弱化对照保留。首次取帧误在 700ms 页面淡入期间截图，整批发白，因此全部拒绝；播放器随后增加仅供制作验收的 `review=1` 冻结模式，关闭页面转场和标注动画，但不改变正常播放。重录后编号、框线、点击中心、字幕安全区和双尺寸构图均通过，未使用箭头。联系表和事实边界见 `assets/demo/source/codex-compact/manifest.json`。
+
 同日，“Skill 怎样被发现和加载”从 32 张旧式审阅帧迁移为时间线声明的 31 个稳定复核点，并重新生成真实 1920×1080 与 1024×576 两档画面。System、Tools 和协议视图标签已经能够自我解释，只保留轻描边；编号留给 Request 入口、调用、参数、回执、Raw 命中和最终证据。相关的调用与参数允许约半秒共存，焦点已经改变的标记交叉淡出，最终 Response 使用点击波纹后再出现单一证据编号。两档逐帧检查确认编号居中、框线未遮挡正文，并且不需要箭头。联系表和事实边界见 `assets/demo/source/claude-skill/manifest.json`。
 
 同日，“子 Agent 在哪里运行，结果怎样回来”从 33 张未声明复核点的旧审阅图迁移为时间线中的 32 个稳定 `review_points`。multi-agent 镜头先用短波纹指示真实展开控件，再让两个分支编号 1、2 依次出现；Turn 2 / Turn 3 对照保留旧编号，但在新阶段出现前通过 `dim_ms` 退为次要；最终 Response 也改为点击波纹后只保留一个证据编号。第一轮自审还发现 Turn 2 降级状态比“显示 Turn 3”的字幕晚约一秒，修正时码后只重渲染相关帧。真实 1920×1080 与 1024×576 两档均通过，未使用箭头。联系表和事实边界见 `assets/demo/source/claude-subagents/manifest.json`。
@@ -262,7 +264,7 @@ python3 scripts/build-readme-storyboard-gif.py --check
 
 上下文变化、迟到工具结果和 Claude Code 子 Agent 已在用户手册素材 v0.1 中完成。通过用户审阅后，再独立制作：
 
-1. 使用真实长会话对比 Codex 与 Claude Code 的上下文压缩，并严格区分各 Harness 已验证事实；
+1. 由所有者审阅当前 Codex / Claude Code 手动压缩对照；通过后再单独研究自动阈值与 OpenAI / Azure 远端 compact 路径，不把未录到的机制写成现状；
 2. 为协议与 Raw 排错章、翻译章增加所有者审阅后的正式配音与成片；
 3. 使用真人口播或已授权旁白，对中文视频初剪做第二轮 ChatCut / 剪映精修。
 

@@ -108,6 +108,46 @@ Request 5 的 `History` 不再逐字携带最早两组用户与 Assistant 消息
 
 这次实验只覆盖手动 `/compact`，不能据此推断自动接近上下文上限时的所有行为。PMA 的维护命令 `pma compact` 也与 Claude Code `/compact` 无关。
 
+### 真实例子：Codex 手动 compact 前后发生了什么
+
+这条实验轨迹运行真实 Codex App Server 0.144.6，先用三个普通 Turn 建立三项公开事实：项目代号是 Blue Lantern，入口是 `README.md`，`guide.md` 解释观察步骤；随后调用 `thread/compact/start`，再发送一次压缩后检查点。确定性本地 OpenAI Responses 假上游只返回固定公开文本，不使用真实凭证或远端模型。
+
+PMA 最终显示 4 个普通 Turn、5 次模型请求。压缩 Request 4 留在 Turn 3 内，说明它是 Harness 内部动作，不是一条新的真实用户任务。在 `Metadata` 中，PMA 从精确捕获的 `x-codex-turn-metadata.request_kind=compaction` 得到以下归因：
+
+- 发起者：Harness；
+- 机制 / 操作：上下文压缩；
+- 原始请求类型：`compaction`；
+- 证据传输层：Capture Proxy，精确捕获。
+
+![Codex 压缩请求的精确归因](../../assets/demo/source/codex-compact/recording/review-1920/02c-compaction-attribution.jpg)
+
+Request 4 的 `协议视图`列出 9 个 OpenAI Responses input item。三组用户消息与 Assistant 回复仍按原始顺序存在，最后一项是 Codex 合成的 checkpoint 提示。`Harness` 将它整理成 `harness_compact`，同时保留 `messages[8]` 的来源位置；确定性上游随后返回一份接续摘要。
+
+![压缩请求中的完整 input 顺序](../../assets/demo/source/codex-compact/recording/review-1920/03c-protocol-sequence.jpg)
+
+压缩后的 Request 5 不再逐条重发前三个 Assistant 回复。它的 `History` 包含三部分：
+
+1. 三个仍然保留的真实用户事实；
+2. 一条“另一位模型已经生成摘要”的接续消息，正文带着本次公开摘要；
+3. 重新注入的权限、运行环境和项目 `AGENTS.md`。
+
+当前检查点问题仍单独位于 `Message`，不会与摘要或项目规则混在一起。最终固定回复还能复述三项事实，证明这条压缩后请求携带了足够的接续信息；它不用于评价远端模型能力。
+
+![Codex 压缩后重新组装的 History](../../assets/demo/source/codex-compact/recording/review-1920/06c-rules-reinjected.jpg)
+
+不要把这条轨迹外推为 Codex 的唯一压缩协议。当前 PMA 为精确捕获配置的是具名自定义 provider，所以 Codex 走本地摘要路径：压缩请求仍发往 `/v1/responses`，并由 `request_kind=compaction` 区分。当前 Codex 对内建 OpenAI 或识别出的 Azure Responses provider 还可以使用单独的 `/v1/responses/compact` 远端路径；那条路径可能返回 opaque compaction item，但本 Source 没有录到它。
+
+Codex 与上面的 Claude Code 轨迹也不能只套用一个“压缩模板”：
+
+| 观察点 | 本章 Codex Source | 上面的 Claude Code Source |
+| --- | --- | --- |
+| 上行协议 | OpenAI Responses | Anthropic Messages |
+| 压缩请求 | `/v1/responses` + `request_kind=compaction` | 普通 Messages 请求中的 `harness_compact` |
+| 压缩结果 | 可读的 handoff summary | Claude Code 的结构化 continuation summary |
+| 后续 History | 保留选中的真实用户消息，用摘要接替较早 Assistant 历史，再注入当前规则 | 用 continuation summary 接续较早会话，并保留该 Harness 所需的最近消息和 compact 记录 |
+
+两条实验都只覆盖手动压缩。判断实际项目时，应先看当前 Source 的端点、原始字段和前后 History，再描述具体机制。
+
 ## 翻译长提示词
 
 顶部的 `界面` 控制 Viewer 自身语言，旁边的 `翻译` 控制请求材料要译成哪一种语言。两者互不替代：把界面切成中文，不会自动改写 Capture 中的英文 System 或 Tools。
