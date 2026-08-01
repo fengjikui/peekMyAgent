@@ -16,7 +16,7 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html
 
 播放器默认打开五分钟快速上手。非成片模式的控制区包含两级选择器：
 
-- `章节`：直接切换快速上手、自研 Harness 通用协议、协议与 Raw 排错、工具调用、Skill、子 Agent、上下文压缩和多步规划；
+- `章节`：直接切换快速上手、自研 Harness 通用协议、协议与 Raw 排错、System / Tools 翻译、工具调用、Skill、子 Agent、上下文压缩和多步规划；
 - `复核点`：跳到时间线声明的稳定 `review_points`，播放器自动暂停并更新可分享 URL；
 - `对应章节`：打开 catalog 为当前演示声明的中文用户手册小节，让素材审阅和功能事实复核使用同一个入口；
 - 选择器只属于制作审阅界面，`present=1` 时与其他控制器一起隐藏，不进入画面母版。
@@ -44,11 +44,11 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html?present=1&autoplay=0&sc
 - 1920×1080 制作模式首屏完整显示 16:9 舞台、播放控制、章节和复核点选择器，没有水平或垂直溢出；
 - 1024×576 制作模式保持 973×547 的完整舞台和零水平溢出，向下滚动后两级选择器完整可见；
 - `present=1` 在两档尺寸下分别严格占满 1920×1080 与 1024×576，控制区均为 `display: none`；
-- 八个 catalog 章节全部可以切换，分别载入 `28、25、20、36、31、32、15、28` 个复核点；
+- 九个 catalog 章节全部可以切换，分别载入 `28、25、20、18、36、31、32、15、28` 个复核点；
 - 子 Agent 分支交接实测为“只有 1 → 短暂 1+2 → 只有 2”，异步完成对照实测为“1 → 1 降级 → 降级的 1 与当前 2 共存”；
 - 从复核点继续播放后，选择器会立即退出旧选中状态，避免把已经离开的时刻误显示为当前复核点。
-- 八个章节分别映射到快速上手、通用协议工具闭环、协议与 Raw 排错、工具四层证据、Skill 四层模型、子 Agent 机制流程、上下文压缩判断和七 Request 多步规划小节；1920×1080 与 1024×576 均无水平溢出，`present=1` 下文档入口不可见。
-- 八个章节的审阅面板分别显示本章问题、目标观众、真实 / 确定性 Source 边界、待确认门，以及旁白、SRT、manifest、1920 与 1024 联系表入口；这些入口同样只存在于制作模式。
+- 九个章节分别映射到快速上手、通用协议工具闭环、协议与 Raw 排错、System / Tools 翻译、工具四层证据、Skill 四层模型、子 Agent 机制流程、上下文压缩判断和七 Request 多步规划小节；1920×1080 与 1024×576 均无水平溢出，`present=1` 下文档入口不可见。
+- 九个章节的审阅面板分别显示本章问题、目标观众、真实 / 确定性 Source 边界、待确认门，以及旁白、SRT、manifest、1920 与 1024 联系表入口；这些入口同样只存在于制作模式。
 
 加载子 Agent 章节：
 
@@ -86,6 +86,12 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html?timeline=/assets/demo/s
 http://127.0.0.1:43115/assets/demo/storyboard/index.html?timeline=/assets/demo/source/protocol-raw/video/timeline.zh-CN.json
 ```
 
+加载 System / Tools 翻译章节：
+
+```text
+http://127.0.0.1:43115/assets/demo/storyboard/index.html?timeline=/assets/demo/source/translation/video/timeline.zh-CN.json
+```
+
 加载 Claude Code 工具调用章节：
 
 ```text
@@ -98,7 +104,7 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html?timeline=/assets/demo/s
 node scripts/demo-storyboard-smoke.mjs assets/demo/source/claude-skill/video/timeline.zh-CN.json
 ```
 
-快速上手、自研 Harness、协议与 Raw 排错、Claude Code 工具调用、Skill、子 Agent、上下文压缩和多步规划时间线都声明了 `review_points`。每个点包含稳定名称、镜头序号和镜头内毫秒位置，用来重复生成“旧重点、交叉淡化、新重点、保留但降级”两种视口的逐帧审阅稿。编号必须按讲解顺序逐个出现；前一编号是否保留、降级或退出由镜头中的比较关系决定，不能在镜头开始时一次叠出全部编号。契约检查会拒绝同一时刻出现的多个数字编号；旧编号若在新编号出现一秒后仍然存在，则必须已经通过 `dim_ms` 退为次要。它也会拒绝重复名称、越界镜头或超出镜头时长的复核点：
+快速上手、自研 Harness、协议与 Raw 排错、System / Tools 翻译、Claude Code 工具调用、Skill、子 Agent、上下文压缩和多步规划时间线都声明了 `review_points`。每个点包含稳定名称、镜头序号和镜头内毫秒位置，用来重复生成“旧重点、交叉淡化、新重点、保留但降级”两种视口的逐帧审阅稿。编号必须按讲解顺序逐个出现；前一编号是否保留、降级或退出由镜头中的比较关系决定，不能在镜头开始时一次叠出全部编号。契约检查会拒绝同一时刻出现的多个数字编号；旧编号若在新编号出现一秒后仍然存在，则必须已经通过 `dim_ms` 退为次要。它也会拒绝重复名称、越界镜头或超出镜头时长的复核点：
 
 ```bash
 node scripts/demo-storyboard-smoke.mjs \
@@ -118,6 +124,14 @@ node scripts/demo-storyboard-smoke.mjs \
 node scripts/demo-storyboard-smoke.mjs \
   assets/demo/source/protocol-raw/video/timeline.zh-CN.json
 node scripts/demo-production-audit.mjs --strict protocol-raw
+```
+
+System / Tools 翻译章节：
+
+```bash
+node scripts/demo-storyboard-smoke.mjs \
+  assets/demo/source/translation/video/timeline.zh-CN.json
+node scripts/demo-production-audit.mjs --strict translation
 ```
 
 Skill 章节同时执行可发布性严格检查：
@@ -155,7 +169,7 @@ node scripts/timeline-subtitles-to-srt.mjs \
 
 播放器不会替代真实页面录制。`source_image` 必须来自当前 PMA Viewer，故事板只负责组织镜头和非破坏性标注。
 
-标注以 `delay_ms` 控制出现；需要在后续重点出现时淡出的标注可以增加相对本镜头的 `end_ms`。不写 `end_ms` 表示保留到镜头结束，适合需要同时比较的编号；继续保留但需要退为次要时增加 `dim_ms`。编号表示讲解顺序，不是一次展示的图例：1、2、3、4 必须跟随旁白逐个出现，不能在镜头开始时同时铺满。下一项出现时，上一项采用以下两种策略之一，并写进 `draft`：
+标注以 `delay_ms` 控制出现；需要在后续重点出现时淡出的标注可以增加相对本镜头的 `end_ms`。不写 `end_ms` 表示保留到镜头结束，适合需要同时比较的编号；继续保留但需要退为次要时增加 `dim_ms`。编号表示讲解顺序，不是一次展示的图例：1、2、3、4 必须跟随旁白逐个出现，不能在镜头开始时同时铺满。讲完 1 之后才允许出现 2；讲完 2 之后才允许出现 3，以此类推。下一项出现时，上一项采用以下两种策略之一，并写进 `draft`：
 
 - 仍需比较、回看或建立因果关系时，保留上一项，再叠加下一项；
 - 讲解焦点已经转移、保留会增加噪声时，让上一项先渐隐或与下一项交叉淡化；通常保留约 0.4～0.7 秒的交接时间，交接完成后只留下当前重点；

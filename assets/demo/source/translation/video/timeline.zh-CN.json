@@ -1,0 +1,342 @@
+{
+  "version": 1,
+  "title": "翻译不改原文：读懂长 System 与 Tools",
+  "resolution": [1920, 1080],
+  "source_viewport": [1920, 1080],
+  "fps": 30,
+  "duration_seconds": 208,
+  "theme": "codex",
+  "subtitle_layout": {
+    "position": "bottom-center",
+    "bottom_percent": 5.2,
+    "max_width_percent": 72,
+    "max_lines": 2,
+    "background": "none",
+    "outline": "subtle"
+  },
+  "review_points": [
+    { "name": "00-intro", "scene": 0, "at_ms": 3000 },
+    { "name": "01a-target-language", "scene": 1, "at_ms": 3500 },
+    { "name": "01b-request-detail", "scene": 1, "at_ms": 12500 },
+    { "name": "02a-system-tab", "scene": 2, "at_ms": 2500 },
+    { "name": "02b-source-mode", "scene": 2, "at_ms": 8200 },
+    { "name": "02c-source-blocks", "scene": 2, "at_ms": 16500 },
+    { "name": "03a-system-cache", "scene": 3, "at_ms": 6500 },
+    { "name": "03b-system-cards-with-dim", "scene": 3, "at_ms": 17500 },
+    { "name": "04a-translated-constraint", "scene": 4, "at_ms": 6500 },
+    { "name": "04b-expanded-source-with-dim", "scene": 4, "at_ms": 16500 },
+    { "name": "05a-tools-tab", "scene": 5, "at_ms": 2500 },
+    { "name": "05b-list-directory-source", "scene": 5, "at_ms": 8500 },
+    { "name": "05c-read-file-source-with-dim", "scene": 5, "at_ms": 16000 },
+    { "name": "06a-tools-cache", "scene": 6, "at_ms": 6500 },
+    { "name": "06b-tool-identifiers-with-dim", "scene": 6, "at_ms": 18500 },
+    { "name": "07a-redacted-header", "scene": 7, "at_ms": 6500 },
+    { "name": "07b-original-tool-body-with-dim", "scene": 7, "at_ms": 17500 },
+    { "name": "08-outro", "scene": 8, "at_ms": 4500 }
+  ],
+  "scenes": [
+    {
+      "id": "00-intro",
+      "title": "翻译不替代原文",
+      "start_seconds": 0,
+      "end_seconds": 16,
+      "source_image": null,
+      "card": {
+        "eyebrow": "peekMyAgent · 翻译与原文",
+        "headline": "看懂更快，事实仍回到原文",
+        "steps": ["选择目标语言", "按块阅读译文", "随时展开原文"],
+        "footer": "场景：三块 System + 两个 Tools，全部来自公开确定性数据"
+      },
+      "narration": "Agent 的 System 和工具说明经常很长，而且可能使用英文。PMA 的翻译层可以帮助阅读，但它不会重写 Capture；只要结论涉及精确字段，仍然要回到对应原文。",
+      "subtitle_cues": [
+        "System 和工具说明经常很长。",
+        "它们也可能使用你不熟悉的语言。",
+        "PMA 的翻译层帮助阅读。",
+        "但精确事实仍然回到原文。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    },
+    {
+      "id": "01-open-request",
+      "title": "先选目标语言，再打开请求",
+      "start_seconds": 16,
+      "end_seconds": 36,
+      "source_image": "/assets/demo/source/translation/recording/raw/01-overview.png",
+      "narration": "这个任务没有业务背景：用户只问新用户先读哪个文件。Request 一得到目录工具调用，Request 二回传结果并回答。顶部翻译选择中文简体，再点 Request 一的详情，才能进入这次模型上行的证据。",
+      "subtitle_cues": [
+        "任务只是询问新用户先读哪个文件。",
+        "Request 1 产生目录工具调用。",
+        "Request 2 回传结果并给出回答。",
+        "顶部先选择翻译目标语言。",
+        "再打开 Request 1 的详情。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [83.5, 2.2, 8.4, 3.0],
+          "label_box": [80.8, 1.8, 2.4, 4.4],
+          "delay_ms": 700,
+          "end_ms": 10800,
+          "draft": "先标出顶部翻译目标语言；编号 2 出现时交叉淡出，避免把全局设置和请求入口误认为同一个动作。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [43.0, 17.2, 16.4, 4.5],
+          "label_box": [40.2, 17.6, 2.4, 4.4],
+          "delay_ms": 10000,
+          "draft": "随后标出 Request 1 用户消息右侧的详情入口；不画箭头，按钮就在聚焦区域内。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "02-system-source",
+      "title": "System 原文先建立来源结构",
+      "start_seconds": 36,
+      "end_seconds": 60,
+      "source_image": "/assets/demo/source/translation/recording/raw/02-system-source.png",
+      "narration": "进入 System 时先保持原文。右栏显示三个 system message，分别是角色说明、安全约束和回答约定；顶部同时显示三分之三已经缓存。缓存命中只表示辅助译文存在，下面这三块英文仍然是原始请求事实。",
+      "subtitle_cues": [
+        "进入 System 后先保持原文。",
+        "右栏保留三个 system message。",
+        "它们分别是角色、约束和回答约定。",
+        "顶部显示 3/3 已缓存。",
+        "缓存命中不改变下面的英文原文。"
+      ],
+      "overlays": [
+        {
+          "type": "focus",
+          "focus": [68.1, 6.2, 3.1, 2.8],
+          "delay_ms": 300,
+          "end_ms": 4700,
+          "draft": "System 标签已经命名，只用轻描边说明点击结果。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.7, 13.3, 8.0, 3.2],
+          "label_box": [60.0, 12.8, 2.4, 4.4],
+          "delay_ms": 4800,
+          "end_ms": 15000,
+          "draft": "先说明当前是原文模式；编号 2 出现时交叉淡出，来源块成为当前重点。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.7, 18.4, 36.5, 47.5],
+          "label_box": [60.0, 36.0, 2.4, 4.4],
+          "delay_ms": 14200,
+          "draft": "随后聚焦三块 System 原文；框不覆盖底部字幕安全区。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "03-system-translated",
+      "title": "三块 System 分别翻译",
+      "start_seconds": 60,
+      "end_seconds": 88,
+      "source_image": "/assets/demo/source/translation/recording/raw/03-system-translated.png",
+      "narration": "切到中文简体后，三块内容仍然保持原来的边界：第一张说明角色，第二张保留项目符号，第三张保留编号步骤。PMA 没有把它们合成一段摘要，因此你仍然知道每句译文来自哪一个 system message。",
+      "subtitle_cues": [
+        "现在切到中文简体。",
+        "三个来源块仍然分别显示。",
+        "安全约束保留项目符号。",
+        "回答约定保留编号步骤。",
+        "译文没有被合并成脱离来源的摘要。",
+        "每张卡片仍对应一个 system message。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [83.5, 13.3, 10.5, 3.2],
+          "label_box": [80.9, 12.8, 2.4, 4.4],
+          "delay_ms": 700,
+          "dim_ms": 12500,
+          "draft": "先解释 3/3 缓存状态；卡片出现时降权保留，说明状态与下方三块对应。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.7, 18.2, 36.5, 42.5],
+          "label_box": [60.0, 35.0, 2.4, 4.4],
+          "delay_ms": 12500,
+          "draft": "再聚焦三张译文卡片；编号 1 已降权，不添加重复文字卡。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "04-system-bilingual",
+      "title": "在同一张卡片展开对应原文",
+      "start_seconds": 88,
+      "end_seconds": 114,
+      "source_image": "/assets/demo/source/translation/recording/raw/04-system-bilingual.png",
+      "narration": "展开第二张卡片的原文，中文约束和英文 Safety rules 出现在同一个区域。这样既能快速阅读，也能核对只读、不得修改、保留文件名和命令名是否完整，没有依赖另一份脱离上下文的翻译文档。",
+      "subtitle_cues": [
+        "展开第二张卡片的原文。",
+        "中文约束与英文 Safety rules 同屏出现。",
+        "只读要求可以逐条核对。",
+        "不得修改文件也没有被省略。",
+        "文件名和命令名仍要求保持原样。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.7, 28.0, 36.5, 15.5],
+          "label_box": [60.0, 32.0, 2.4, 4.4],
+          "delay_ms": 700,
+          "dim_ms": 12000,
+          "draft": "先读第二张卡片的中文约束；原文出现后降权保留，建立逐项对照。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.7, 42.3, 36.5, 13.8],
+          "label_box": [60.0, 47.0, 2.4, 4.4],
+          "delay_ms": 12000,
+          "draft": "再聚焦展开的英文原文；编号 1 已降权，二者共同保留用于比较。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "05-tools-source",
+      "title": "Tools 先按工具查看原文",
+      "start_seconds": 114,
+      "end_seconds": 136,
+      "source_image": "/assets/demo/source/translation/recording/raw/05-tools-source.png",
+      "narration": "再进入 Tools，并切回原文。这里声明了 list directory 和 read file 两个工具；每个工具的说明和参数说明都单独分组。工具名和 path、max depth、start line、end line 是协议标识符，不应被翻译。",
+      "subtitle_cues": [
+        "接着进入 Tools 并切回原文。",
+        "这里声明了两个简单工具。",
+        "list_directory 有两项参数说明。",
+        "read_file 有三项参数说明。",
+        "工具名和参数名是协议标识符。"
+      ],
+      "overlays": [
+        {
+          "type": "focus",
+          "focus": [71.2, 6.2, 2.8, 2.8],
+          "delay_ms": 300,
+          "end_ms": 4700,
+          "draft": "Tools 标签已经命名，只用轻描边说明切换结果。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.7, 18.0, 36.5, 18.2],
+          "label_box": [60.0, 23.5, 2.4, 4.4],
+          "delay_ms": 4800,
+          "dim_ms": 13500,
+          "draft": "先读取 list_directory；read_file 出现时降权保留，说明两者是同一次上行中的并列声明。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.7, 37.0, 36.5, 22.5],
+          "label_box": [60.0, 44.0, 2.4, 4.4],
+          "delay_ms": 13500,
+          "draft": "再读取 read_file；编号 1 已降权，两组仍同时可见。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "06-tools-translated",
+      "title": "只翻译说明文字，保留 schema 标识符",
+      "start_seconds": 136,
+      "end_seconds": 166,
+      "source_image": "/assets/demo/source/translation/recording/raw/06-tools-translated.png",
+      "narration": "切到中文后，工具用途和参数说明变得容易阅读，但 list directory、path 和 max depth 仍然保持原样。顶部七分之七表示这次 Tools 区块的七条可翻译材料都命中缓存；它不表示整个 JSON schema 被改写成中文。",
+      "subtitle_cues": [
+        "现在切换到 Tools 中文译文。",
+        "工具用途和参数说明变为中文。",
+        "list_directory 仍保持原名。",
+        "path 与 max_depth 也没有翻译。",
+        "7/7 指七条说明材料命中缓存。",
+        "它不表示 JSON schema 被改写。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [83.5, 13.3, 10.5, 3.2],
+          "label_box": [80.9, 12.8, 2.4, 4.4],
+          "delay_ms": 700,
+          "dim_ms": 14000,
+          "draft": "先解释 7/7 缓存状态；具体工具出现时降权保留。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.7, 18.0, 36.5, 18.2],
+          "label_box": [60.0, 23.5, 2.4, 4.4],
+          "delay_ms": 14000,
+          "draft": "再聚焦 list_directory 组，框内同时包含中文说明与未改变的工具名、path、max_depth。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "07-capture-original",
+      "title": "最后用完整请求确认 Capture 没有变化",
+      "start_seconds": 166,
+      "end_seconds": 192,
+      "source_image": "/assets/demo/source/translation/recording/raw/07-capture-original.png",
+      "narration": "最后回到完整请求。Authorization 已按规则脱敏，request body 里的工具名、英文 description 和参数 schema 仍是捕获到的原始内容。翻译缓存只是 Viewer 的辅助状态，不会成为新的上行请求，也不会覆盖 Raw。",
+      "subtitle_cues": [
+        "最后回到 Request 1 的完整请求。",
+        "Authorization 已按规则脱敏。",
+        "body 中仍是原始英文 description。",
+        "工具名和参数 schema 也没有变化。",
+        "翻译缓存不会覆盖 Capture Raw。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [64.0, 38.0, 33.0, 27.5],
+          "label_box": [61.3, 47.5, 2.4, 4.4],
+          "delay_ms": 700,
+          "dim_ms": 13000,
+          "draft": "先标出 header_redactions 与 [REDACTED:header]；body 证据出现时降权保留。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [64.0, 68.0, 33.0, 21.0],
+          "label_box": [61.3, 77.0, 2.4, 4.4],
+          "delay_ms": 13000,
+          "draft": "再聚焦原始工具定义、英文 description 和参数 schema；下边界避开字幕安全区。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "08-outro",
+      "title": "形成可重复的翻译阅读顺序",
+      "start_seconds": 192,
+      "end_seconds": 208,
+      "source_image": null,
+      "card": {
+        "eyebrow": "阅读闭环",
+        "headline": "译文帮助理解，原文负责定案",
+        "steps": ["目标语言", "分块译文", "对应原文", "完整 Raw"],
+        "footer": "PMA 翻译缓存是辅助状态，不是新的 Capture 事实"
+      },
+      "narration": "完整顺序是：先选择目标语言，在 System 或 Tools 中按块阅读译文，需要时展开对应原文，涉及精确字段再回到 Raw。翻译帮助理解，原文负责定案。",
+      "subtitle_cues": [
+        "先选择目标语言。",
+        "再按块阅读 System 或 Tools 译文。",
+        "需要时展开对应原文。",
+        "精确字段最终回到 Raw。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    }
+  ]
+}

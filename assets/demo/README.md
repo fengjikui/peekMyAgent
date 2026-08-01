@@ -6,7 +6,7 @@
 
 Claude Code 工具调用章节也已完成 v0.2 迁移：4 分 05 秒故事、51 条字幕、10 张无烧录标注的 Viewer 原始帧，以及两档各 36 张网页标注审阅帧位于 `source/claude-tool-loop/`。这条 Source 是确定性 Anthropic 教学轨迹；不得把它写成真实 provider 会话，真实 CLI 的交叉核对边界以 manifest 为准。
 
-Claude Code 的 Skill、子 Agent、上下文压缩和多步规划章节分别位于 `source/claude-skill/`、`source/claude-subagents/`、`source/claude-compact/` 与 `source/claude-planning/`。自研 Harness 的 OpenAI / Anthropic 通用协议接入章节位于 `source/custom-harness/`；从错误 call id 追到 HTTP 400 的协议排错章节位于 `source/protocol-raw/`。两章都使用真实 PMA 捕获和确定性 loopback 假上游，不访问外部模型。已脱敏 Viewer 原图和双尺寸审阅帧属于可重建母稿；真实请求日志仍只保留在 Git 忽略的 `tmp/`。Skill 章已经把 31 个渐进状态写回时间线；子 Agent 章也已写入 32 个稳定复核点，并用点击波纹、顺序编号和 `dim_ms` 区分展开、分支与异步回流；多步规划章已经把 28 个稳定复核点写回时间线，并用像素审计纠正了早期“目录名为 1920、文件实际只有 1280×720”的问题。八章可以从 `storyboard/index.html` 的章节与复核点选择器统一审阅，并从同一制作控制区打开对应中文手册小节或“章节审阅”面板；问题、观众、Source 边界、待确认门与五类审阅资料都保存在 `storyboard/catalog.zh-CN.json`，不再依赖另一张手工状态表。
+Claude Code 的 Skill、子 Agent、上下文压缩和多步规划章节分别位于 `source/claude-skill/`、`source/claude-subagents/`、`source/claude-compact/` 与 `source/claude-planning/`。自研 Harness 的 OpenAI / Anthropic 通用协议接入章节位于 `source/custom-harness/`；从错误 call id 追到 HTTP 400 的协议排错章节位于 `source/protocol-raw/`；System / Tools 分块翻译、对应原文和 Raw 兜底章节位于 `source/translation/`。后三章都使用真实 PMA 捕获和确定性 loopback 假上游，不访问外部模型。已脱敏 Viewer 原图和双尺寸审阅帧属于可重建母稿；真实请求日志仍只保留在 Git 忽略的 `tmp/`。Skill 章已经把 31 个渐进状态写回时间线；子 Agent 章也已写入 32 个稳定复核点，并用点击波纹、顺序编号和 `dim_ms` 区分展开、分支与异步回流；翻译章使用 18 个稳定复核点证明编号按旁白逐个出现、原文与译文可对照且缓存不覆盖 Capture；多步规划章已经把 28 个稳定复核点写回时间线，并用像素审计纠正了早期“目录名为 1920、文件实际只有 1280×720”的问题。九章可以从 `storyboard/index.html` 的章节与复核点选择器统一审阅，并从同一制作控制区打开对应中文手册小节或“章节审阅”面板；问题、观众、Source 边界、待确认门与五类审阅资料都保存在 `storyboard/catalog.zh-CN.json`，不再依赖另一张手工状态表。
 
 快速上手之后的上下文变化、迟到工具结果和子 Agent 素材见 [`user-guide/README.md`](user-guide/README.md)。
 
@@ -38,6 +38,7 @@ Claude Code 的 Skill、子 Agent、上下文压缩和多步规划章节分别�
 - `source/claude-planning/`：4 Turn / 10 Request 多步任务、54 条字幕、28 个 `review_points` 和两档联系表。
 - `source/custom-harness/`：真实 `pma observe` 包装的 OpenAI Responses / Anthropic Messages 双协议工具闭环、8 张原始帧、47 条字幕、25 个渐进 `review_points` 和两档联系表。
 - `source/protocol-raw/`：真实 Capture Proxy 捕获的错误 call id → HTTP 400 → 修正成功闭环、8 张原始帧、51 条字幕、20 个渐进 `review_points` 和两档联系表。
+- `source/translation/`：真实 Capture Proxy、确定性模型 / 翻译假上游生成的 1 Turn / 2 Request 工具闭环、7 张原始帧、45 条字幕、18 个渐进 `review_points` 和两档联系表。
 
 旧版 `dashboard-overview*`、`chat-upstream-context*` 和 `tool-call-loop*` 暂时保留，方便比较界面变化；当前中文版 README 不再引用它们。
 
@@ -90,6 +91,14 @@ node scripts/protocol-raw-debug-demo.mjs
 
 脚本通过真实 Capture Proxy 生成 1 Turn / 3 Request：先取得工具调用，再故意回传错误 call id 并捕获 HTTP 400，最后修正并验证完整闭环。全部请求只访问 loopback，使用固定公开测试路径和占位认证值。
 
+生成 System / Tools 翻译 Source：
+
+```bash
+node scripts/translation-viewer-demo.mjs
+```
+
+脚本通过真实 Capture Proxy 生成 1 Turn / 2 Request，并用真实翻译接口和确定性本地翻译上游写入 3 个 System、7 个 Tools 缓存块。全部数据公开且固定，只证明 Viewer 的分块、缓存、原文对照与 Raw 保留行为；终端提示出现后按 `Ctrl-C` 停止临时服务。
+
 生成 Claude Code 工具闭环、Skill、五 Request 多步规划和 compact 分类合约 Source：
 
 ```bash
@@ -112,7 +121,7 @@ python3 scripts/build-demo-video.py
 node scripts/demo-production-audit.mjs
 ```
 
-它会读取图片字节核对真实像素，不接受只凭 `review-1920` 目录名或 manifest 声明尺寸；同时检查 SRT 是否仍由时间线生成、Source 与审阅帧能否进入干净克隆、八章是否映射到真实中文标题、所有下一次提交可纳入的演示媒体是否仍在体积预算内，以及常见本机路径和凭据形态。治理 smoke 会再次调用同一生产审计。
+它会读取图片字节核对真实像素，不接受只凭 `review-1920` 目录名或 manifest 声明尺寸；同时检查 SRT 是否仍由时间线生成、Source 与审阅帧能否进入干净克隆、九章是否映射到真实中文标题、所有下一次提交可纳入的演示媒体是否仍在体积预算内，以及常见本机路径和凭据形态。治理 smoke 会再次调用同一生产审计。
 
 ## 制作规则
 
@@ -121,7 +130,7 @@ node scripts/demo-production-audit.mjs
 - 保留全屏桌面信息密度；当前基准视口为 2048×1056，右侧详情标签后必须有明显余量。
 - 一帧只传达一个重点，普通阅读画面至少 2.5～4 秒；v0.2 候选版按内容复杂度使用 3～7.5 秒，协议画面最长。
 - v0.1 素材仍使用蓝框点击、红框结果；v0.2 网页故事板统一使用轻描边、小编号和短点击波纹。标签本身已有名称时不重复编号。
-- 编号按旁白逐步出现；独立焦点交叉淡出，需要保留因果关系时用 `dim_ms` 把旧重点降为次要。
+- 编号按旁白逐步出现，讲完 1 才出现 2；独立焦点交叉淡出，需要保留对照或因果关系时用 `dim_ms` 把旧重点降为次要，不能在镜头开始时一次叠出全部编号。
 - 每条箭头必须先确定起点、终点、控制点和禁行区；生成后逐张打开完整分辨率图和 README 宽度预览，自审不满意就局部返工。完整门禁见 `docs/visual-usage-guide.zh-CN.md#逐帧视觉验收门禁`。
 - 尽量将 GIF 控制在 8 MiB 内；当前发布版小于 2 MiB，v0.2 候选版约 5.6 MiB。
 - 保存原始帧、标注图、manifest 和生成脚本，以便 UI 更新后局部重录。

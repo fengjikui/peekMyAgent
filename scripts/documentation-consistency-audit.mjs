@@ -220,7 +220,7 @@ const impactRules = [
       "docs/user-guide/requests-context.md",
       "docs/visual-usage-guide.zh-CN.md",
     ],
-    demos: ["对应 Harness 主题素材与翻译画面"],
+    demos: ["translation 真实 Capture Proxy Source、原文对照帧与双尺寸审阅素材"],
   },
   {
     id: "privacy-data",

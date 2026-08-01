@@ -9,11 +9,12 @@
 - `scripts/readme-media-demo.mjs` 可重建快速上手轨迹；
 - `scripts/user-guide-media-demo.mjs --verify` 可重建并断言上下文、迟到结果和子 Agent 三条轨迹；
 - `scripts/claude-mechanisms-media-demo.mjs --verify` 保留 Claude 机制的合成分类合约；Skill、子 Agent、压缩和多步规划的当前发布事实分别以四个 `claude-*-real-cli-probe.mjs`、对应 manifest 和双尺寸审阅帧为准；
+- `scripts/translation-viewer-demo.mjs` 可通过真实 Capture Proxy、真实翻译接口与两个确定性 loopback 上游重建 3 个 System、7 个 Tools 翻译块及原文兜底场景；
 - `scripts/build-readme-media.py` 可从保留的原始帧重新生成标注图和慢速 GIF；
 - `scripts/build-demo-video.py` 可从已验收素材重新生成中文 MP4、旁白、字幕、封面与中性时间线；
-- `assets/demo/storyboard/` 可从章节时间线非破坏性播放真实 Viewer 帧、字幕、聚焦框、标注和转场；统一 catalog 还把八个演示章节映射到对应中文手册小节，并保存问题、观众、Source 边界、审阅状态、下一道门与五类资料入口；制作模式可以直接打开，成片模式不会显示；`scripts/demo-storyboard-smoke.mjs` 检查镜头连续性、可读时长、素材路径与箭头草稿；
+- `assets/demo/storyboard/` 可从章节时间线非破坏性播放真实 Viewer 帧、字幕、聚焦框、标注和转场；统一 catalog 还把九个演示章节映射到对应中文手册小节，并保存问题、观众、Source 边界、审阅状态、下一道门与五类资料入口；制作模式可以直接打开，成片模式不会显示；`scripts/demo-storyboard-smoke.mjs` 检查镜头连续性、可读时长、素材路径与箭头草稿；
 - `scripts/demo-production-audit.mjs` 跨章节核对 manifest、旁白、时间线、SRT、Source 图片、双尺寸审阅帧的真实像素、Git 可追踪性、媒体体积预算、章节审阅合同与常见隐私哨兵；带 `review_points` 的章节可用 `--strict` 要求两档帧与稳定时点逐一对应；`smoke:governance` 会调用这项生产审计；
-- `scripts/documentation-consistency-audit.mjs` 核对中英文 README、快速开始、用户手册首页与十个任务章节的本地链接和章节锚点；同时检查 Node.js 要求、九条核心 CLI 事实、英文首页的支持协议/主 GIF/中文深读入口，以及八个演示章节到真实中文标题和审阅合同的映射；它已经由 `smoke:governance` 调用；
+- `scripts/documentation-consistency-audit.mjs` 核对中英文 README、快速开始、用户手册首页与十个任务章节的本地链接和章节锚点；同时检查 Node.js 要求、九条核心 CLI 事实、英文首页的支持协议/主 GIF/中文深读入口，以及九个演示章节到真实中文标题和审阅合同的映射；它已经由 `smoke:governance` 调用；
 - 同一脚本的 `--base` / `--changed-file` 模式会把功能变更映射成受影响文档与演示素材；JSON 同时包含精确目标 SHA、解析后的 base SHA、工作区状态、去重后的必查文档/演示、验证命令和隐私限制，可以直接作为文档 Agent 的任务载荷；
 - `.github/workflows/release-check.yml` 已在每个 PR 增加只读 `Documentation impact` job：它检出精确 head SHA，以 PR base SHA 到 head SHA 的 merge-base 范围生成 JSON，再把受影响文档、演示 Source、验证命令和隐私限制写入 GitHub Job Summary；job 只有 `contents: read`，不会评论 PR、创建 issue、读取 secrets 或发布素材；
 - `scripts/documentation-impact-summary.mjs` 负责校验 JSON 中的 head/base SHA 并生成防 Markdown 注入的摘要；路径很多时完整变更列表折叠显示，必查文档和演示保持在首屏；
@@ -36,7 +37,7 @@
 | 子 Agent 归因与多 Agent 看板 | 子 Agent 章节 | Claude Code 子 Agent 真实 CLI Source 与双尺寸审阅帧 |
 | 上下文压缩或多步任务状态 | 请求与上下文、工具调用 | compact / planning 真实 CLI Source 与双尺寸审阅帧 |
 | 协议投影、Raw Inspector、搜索或 provenance | 协议与 Raw、自研 Harness | `protocol-raw` 真实 Capture Proxy Source、双尺寸审阅帧与脱敏 manifest |
-| 翻译、语言目录与主题 | 请求与上下文、素材说明 | 对应 Harness 主题素材 |
+| 翻译、语言目录与主题 | 请求与上下文、素材说明 | `translation` 真实 Capture Proxy Source、确定性翻译缓存、原文对照帧与双尺寸审阅素材 |
 | 隐私、导入导出、清理或卸载 | 安全清理、排障 | manifest 隐私字段与公开前检查 |
 | 任一进入中文核心视频的 Viewer 画面或术语 | 视频制作说明、用户手册入口 | 对应合成帧、字幕、旁白与整片中点抽帧 |
 

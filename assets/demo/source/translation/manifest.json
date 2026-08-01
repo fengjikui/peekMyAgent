@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "title": "翻译不改原文：读懂长 System 与 Tools",
+  "language": "zh-CN",
+  "chapter_status": "owner_review_v0_1",
+  "source": {
+    "generator": "scripts/translation-viewer-demo.mjs",
+    "scenario_id": "translation-viewer-demo",
+    "product_baseline_sha": "b8d3df178eaa406f9409ad7560adcb0936dec8de",
+    "workspace": "/tmp/pma-translation-viewer-demo/public-project",
+    "protocol": "OpenAI Responses",
+    "sources": 1,
+    "turns": 1,
+    "requests": 2,
+    "system_translation_blocks": 3,
+    "tool_translation_blocks": 7,
+    "external_requests": false,
+    "real_credentials": false,
+    "model_responses": "deterministic loopback fake upstream",
+    "translation_responses": "deterministic loopback OpenAI-compatible fake upstream",
+    "capture_transport": "real PMA Capture Proxy",
+    "translation_interface": "real PMA request-scoped translation generation and cache"
+  },
+  "teaching_contract": {
+    "audiences": [
+      "第一次阅读英文 Agent 上下文的 PMA 用户",
+      "需要核对 System 与 Tools schema 的 Harness 开发者",
+      "计划制作多语言文档但不希望翻译覆盖事实源的维护者"
+    ],
+    "question": "怎样快速读懂长 System 和 Tools，同时保留每块译文的对应原文与完整 Raw？",
+    "takeaway": "先选择目标语言，在 System / Tools 中按块切换译文，必要时展开对应原文，精确字段最终回到完整请求；翻译缓存不修改 Capture。",
+    "explicit_limits": [
+      "The deterministic translation fixture proves Viewer and cache behavior, not remote translation quality.",
+      "A cache hit means one extracted material has a translation entry; it does not prove the whole request was translated.",
+      "Tool names, parameter names, JSON keys, file paths, and schema structure remain source identifiers.",
+      "Translated prose is an auxiliary reading layer; source text and Raw remain the evidence of record.",
+      "The fixture covers public English materials only and must not be used to claim universal language quality."
+    ]
+  },
+  "viewer": {
+    "source_viewport_css_pixels": { "width": 1920, "height": 1080 },
+    "output_canvas": { "width": 1920, "height": 1080 },
+    "theme": "Codex",
+    "ui_language": "zh-CN",
+    "target_translation_language": "zh-CN",
+    "capture_mode": "Codex in-app Browser",
+    "browser_layout": "full three-pane layout",
+    "black_frame": false
+  },
+  "facts": [
+    "Request 1 sends three system messages and two tool definitions, then receives a list_directory function_call.",
+    "Request 2 sends the matching function_call_output and receives the final Assistant response.",
+    "The System view reports 3/3 cached and renders three separate translated cards.",
+    "The second translated System card can expand its exact English source in place.",
+    "The Tools view reports 7/7 cached and groups translated descriptions under list_directory and read_file.",
+    "Tool and parameter identifiers remain list_directory, read_file, path, max_depth, start_line, and end_line in both modes.",
+    "The complete request still contains the original English descriptions and [REDACTED:header] authorization evidence."
+  ],
+  "raw_frames": [
+    "recording/raw/01-overview.png",
+    "recording/raw/02-system-source.png",
+    "recording/raw/03-system-translated.png",
+    "recording/raw/04-system-bilingual.png",
+    "recording/raw/05-tools-source.png",
+    "recording/raw/06-tools-translated.png",
+    "recording/raw/07-capture-original.png"
+  ],
+  "raw_frame_sha256": {
+    "01-overview.png": "57d050684b57f674a524cb05d6c7b44a44ed555a5f1bfede415ac2f400454f46",
+    "02-system-source.png": "c4ef4d179f7223fea19734ef94cdd770bc64959b441753a35379bf7b65da7734",
+    "03-system-translated.png": "d6e1974eabecb2b38a6dd8eaaff8fed340385725837d54e435ce99c0fda334e1",
+    "04-system-bilingual.png": "c106a93c52f30309206dffa1da9fcb1226e42b9a492c18c4a71cf232b142e223",
+    "05-tools-source.png": "e3709ab0de74e7626d0a920ff199b9a54df01f72970aa07e56000db6b15efaa9",
+    "06-tools-translated.png": "64bf61988a3567685db1c92a98d680d97d01921908f8060ca609cfbac656fcb0",
+    "07-capture-original.png": "441dc13602dfba8c53a1520b2f6bcbbaab35d99c67bdb95abff4c516c0ffaba2"
+  },
+  "production": {
+    "narration": "assets/demo/source/translation/narration.zh-CN.md",
+    "timeline": "assets/demo/source/translation/video/timeline.zh-CN.json",
+    "subtitles": "assets/demo/video/pma-translation-system-tools.zh-CN.srt",
+    "storyboard_player": "assets/demo/storyboard/index.html",
+    "audio": "not_started; handled by the separate voice-tuning workflow"
+  },
+  "privacy": {
+    "paths": "only the fixed disposable /tmp/pma-translation-viewer-demo/public-project path is visible",
+    "request_body": "public deterministic English instructions, Chinese user request, and synthetic tool definitions only",
+    "tool_results": "README.md and guide.md names only",
+    "translation_cache": "contains only the ten public fixture translations",
+    "headers": "placeholder authorization value is redacted before persistence",
+    "prohibited": ["API keys", "real prompts", "user source", "home-directory paths", "external captures"]
+  },
+  "product_feedback": [
+    "The Tools translation toolbar did not show the declared-versus-invoked filter for this OpenAI Responses Capture even though Request 1 contains a visible list_directory call. The chapter must not claim that filter until the product behavior is separately verified or fixed."
+  ],
+  "visual_review": {
+    "captured_at": "2026-08-02",
+    "raw_frame_result": "passed for exact 1920x1080 dimensions, full three-pane layout, Codex theme, readable right-pane tabs, fixed disposable paths, and visible translation cache status",
+    "annotation_result": "passed for all 18 timeline-declared progressive states at 1920x1080 and the same 18 states at 1024x576",
+    "review_contract": "video/timeline.zh-CN.json#review_points",
+    "review_notes": [
+      "The first user-message detail button does not identify a Request; the chapter uses the following Assistant detail button to open Request 1 evidence.",
+      "No arrows were added because each translated card keeps its source directly below it and the right-pane tabs already establish the click destination.",
+      "The first target-language annotation initially framed the search box; it was moved to the actual translation selector and both sizes were rerendered.",
+      "The bilingual source frame initially included the following System card; it was tightened to the expanded Safety rules block and both sizes were rerendered.",
+      "Numbered evidence appears in narrated order. Earlier numbers either exit for an independent focus or remain dimmed only when the later point must be compared with them.",
+      "Badge centers, focus bounds, bottom-centered subtitles, and full three-pane geometry were visually inspected at both output sizes."
+    ]
+  },
+  "publication_gate": {
+    "status": "owner_review_pending",
+    "remaining": [
+      "Freeze the Chinese story only after owner review.",
+      "Do not publish local MP4 or audio files from the main repository."
+    ]
+  }
+}

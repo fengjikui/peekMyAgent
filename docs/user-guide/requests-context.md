@@ -110,9 +110,29 @@ Request 5 的 `History` 不再逐字携带最早两组用户与 Assistant 消息
 
 ## 翻译长提示词
 
-顶部可以分别选择界面语言和翻译目标语言。翻译视图按 System、Tools schema 与 Harness 注入分块，允许只处理需要阅读的材料。翻译内容是辅助阅读层，不修改 Capture，也不能替代原文。
+顶部的 `界面` 控制 Viewer 自身语言，旁边的 `翻译` 控制请求材料要译成哪一种语言。两者互不替代：把界面切成中文，不会自动改写 Capture 中的英文 System 或 Tools。
 
-公开分享翻译截图前仍要检查原文、译文、工具 schema 和缓存内容是否含有隐私信息。
+这组公开演示只有一个无需业务背景的任务：“请告诉我新用户先读哪个文件，以及为什么。”Request 1 带着三块 System 和两个工具定义上行，模型提出 `list_directory` 调用；Request 2 带回目录结果并回答 `README.md`。它适合用来观察翻译，而不需要先理解某个真实项目。
+
+实际阅读顺序是：
+
+1. 顶部 `翻译` 选择 `中文（简体）`，再打开目标 Request 的 `详情`；
+2. 进入 `System`，先保持 `原文`，确认来源块数量和英文事实；
+3. 切到 `中文（简体）`，逐块阅读译文；需要精确核对时，在同一张卡片展开 `原文`；
+4. 进入 `Tools`，用同样顺序检查工具说明和参数说明；
+5. 结论涉及工具名、参数名或 schema 时，回到 `完整请求` 确认 Raw。
+
+![同一张 System 卡片中的中文约束与英文原文](../../assets/demo/source/translation/recording/review-1920/04b-expanded-source-with-dim.png)
+
+编号 1 是第二块 System 的中文约束；讲解到逐字核对时，编号 1 保留但降低权重，编号 2 才出现并只框住对应英文 `Safety rules`。三块 System 不会被合并成一段脱离来源的摘要，项目符号和编号结构也仍可逐块对应。
+
+![Tools 译文中的中文说明与未改变的 schema 标识符](../../assets/demo/source/translation/recording/review-1920/06b-tool-identifiers-with-dim.png)
+
+Tools 视图只翻译可读说明。`list_directory`、`read_file`、`path`、`max_depth`、`start_line` 和 `end_line` 仍是原始协议标识符。顶部 `7/7 已缓存` 表示当前 Tools 区块抽取出的七条可翻译材料都有缓存条目；它不表示整个 JSON schema 被改写，也不证明整个请求的所有内容都已翻译。
+
+翻译缓存是 Viewer 的辅助状态，不会成为新的模型上行，也不会覆盖 Capture。`完整请求` 仍保留英文 description、工具 schema 和脱敏后的 header 证据。演示中的译文来自确定性本地假上游，只证明当前分块、缓存、切换和原文兜底行为，不用于评价远端翻译模型质量。
+
+公开分享翻译截图前，必须同时检查原文、译文、工具 schema 和本地缓存是否含有提示词、源码、路径或其他隐私信息。译文更易阅读，不等于更适合公开。
 
 ## 本章复核清单
 

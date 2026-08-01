@@ -75,6 +75,30 @@
       }
     },
     {
+      "id": "translation",
+      "label": "翻译：System 与 Tools 原文对照",
+      "timeline": "/assets/demo/source/translation/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/requests-context.md",
+      "guide_section": "翻译长提示词",
+      "review": {
+        "question": "怎样快速读懂长 System 和 Tools，同时保留每块译文的对应原文与完整 Raw？",
+        "audience": "阅读外语 Agent 上下文、核对工具 schema 或维护多语言资料的用户与 Harness 开发者",
+        "source": {
+          "label": "真实 Capture Proxy + 确定性模型 / 翻译假上游",
+          "boundary": "请求、翻译缓存和 Viewer 操作来自真实 PMA；模型回复与译文固定生成，只证明产品交互和原文保留行为，不代表远端翻译质量。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅中文翻译故事和原文兜底边界，再决定是否进入正式配音与成片。",
+        "artifacts": {
+          "narration": "/assets/demo/source/translation/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-translation-system-tools.zh-CN.srt",
+          "manifest": "/assets/demo/source/translation/manifest.json",
+          "review_1920": "/assets/demo/source/translation/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/translation/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
       "id": "claude-tool-loop",
       "label": "Claude Code：一次工具调用",
       "timeline": "/assets/demo/source/claude-tool-loop/video/timeline.zh-CN.json",
