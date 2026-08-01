@@ -446,7 +446,7 @@ Server 的主要路由包括 source/view/request、translation、watch 控制、
 
 需要真实账号、provider、Claude Code、OpenClaw 或 Codex 的实验单独列在 [手动集成 smoke 矩阵](manual-integration-smoke-matrix.md)，避免让发布门禁依赖外部状态。
 
-日常开发按 [分级测试与批次检查策略](validation-strategy.md) 执行：低风险改动逐次运行聚焦测试，最多累计 3 个代码提交。PR 候选只运行一次 GitHub Actions 三平台完整矩阵；合入 `main` 后运行精确 merge commit 的快速版本、包和治理完整性检查；发布再验证精确 Tag、main ancestry、包内容和 OIDC provenance，不重复相同树的三平台矩阵。本机完整 profile 只用于门禁自身变化、平台复现、无托管 CI 或仍有未知影响的场景。
+日常开发按 [分级测试与批次检查策略](validation-strategy.md) 执行：低风险改动逐次运行聚焦测试，最多累计 3 个代码提交。PR 候选只运行一次 GitHub Actions 三平台完整矩阵；并行的只读 `Documentation impact` job 检出精确 PR head SHA，以 base...head 范围生成结构化影响 JSON，校验 head/base 身份后把必查文档、演示 Source、验证命令和隐私限制写入 Job Summary。它只有 `contents: read`，不会评论、创建 issue、读取 secrets 或替代真实 Viewer 复核。合入 `main` 后运行精确 merge commit 的快速版本、包和治理完整性检查；发布再验证精确 Tag、main ancestry、包内容和 OIDC provenance，不重复相同树的三平台矩阵。本机完整 profile 只用于门禁自身变化、平台复现、无托管 CI 或仍有未知影响的场景。
 
 ## 维护约定
 

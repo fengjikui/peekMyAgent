@@ -55,6 +55,8 @@ Before opening a pull request, run the smallest checks that cover your change:
 
 Low-risk local commits may be tested and committed with focused checks, then grouped into a batch of at most three code commits. The pull-request matrix is the default full checkpoint. Run a local full host profile only when the gate itself changes, a platform failure needs reproduction, hosted CI is unavailable, or wider impact remains unexplained. See the [tiered validation strategy](docs/validation-strategy.md) for the exact reset and escalation rules.
 
+Every pull request also receives a read-only `Documentation impact` Job Summary. Inspect its exact head/base SHA, required documents, demo Sources, and privacy restrictions; update the listed artifacts or explain with concrete evidence why public behavior is unchanged. The summary is advisory and does not replace real Viewer review.
+
 If your change affects an adapter, include the relevant smoke result and describe whether it used a fake command, a fixture, or a real agent.
 
 ## Adapter Contributions

@@ -15,12 +15,14 @@
 - `scripts/demo-production-audit.mjs` 跨章节核对 manifest、旁白、时间线、SRT、Source 图片、双尺寸审阅帧的真实像素、Git 可追踪性、媒体体积预算、章节审阅合同与常见隐私哨兵；带 `review_points` 的章节可用 `--strict` 要求两档帧与稳定时点逐一对应；`smoke:governance` 会调用这项生产审计；
 - `scripts/documentation-consistency-audit.mjs` 核对中英文 README、快速开始、用户手册首页与十个任务章节的本地链接和章节锚点；同时检查 Node.js 要求、九条核心 CLI 事实、英文首页的支持协议/主 GIF/中文深读入口，以及六个演示章节到真实中文标题和审阅合同的映射；它已经由 `smoke:governance` 调用；
 - 同一脚本的 `--base` / `--changed-file` 模式会把功能变更映射成受影响文档与演示素材；JSON 同时包含精确目标 SHA、解析后的 base SHA、工作区状态、去重后的必查文档/演示、验证命令和隐私限制，可以直接作为文档 Agent 的任务载荷；
+- `.github/workflows/release-check.yml` 已在每个 PR 增加只读 `Documentation impact` job：它检出精确 head SHA，以 PR base SHA 到 head SHA 的 merge-base 范围生成 JSON，再把受影响文档、演示 Source、验证命令和隐私限制写入 GitHub Job Summary；job 只有 `contents: read`，不会评论 PR、创建 issue、读取 secrets 或发布素材；
+- `scripts/documentation-impact-summary.mjs` 负责校验 JSON 中的 head/base SHA 并生成防 Markdown 注入的摘要；路径很多时完整变更列表折叠显示，必查文档和演示保持在首屏；
 - `docs/media-publishing.zh-CN.md` 规定主仓库只跟踪轻量、可复现的制作资料，成片通过 Releases 或对象存储发布；
 - `docs/video-series-claude-code.zh-CN.md` 保存工具闭环、Skill、子 Agent、上下文压缩和多步规划五支独立视频的事实边界与逐镜头脚本；
 - `docs/visual-usage-guide.zh-CN.md` 定义逐帧视觉验收门禁；
 - `assets/demo/source/*/manifest.json` 记录视口、主题、协议、帧时长、隐私和预期语义。
 
-这些能力可以发现确定性轨迹、素材生成失败和核心中文文档漂移，也能生成“变更文件 → 受影响文档 / 演示”的结构化报告；当前还没有自动监听 `origin/main` 并创建外部文档任务。
+这些能力可以发现确定性轨迹、素材生成失败和核心中文文档漂移，也能在 PR 上主动生成“变更文件 → 受影响文档 / 演示”的只读交接；当前还没有自动监听合并后的 `origin/main`、创建外部文档任务或唤醒另一个 Codex 任务。
 
 ## 功能到文档的影响矩阵
 
@@ -40,16 +42,16 @@
 
 功能 Agent 不需要直接重录所有素材，但必须在 PR 或交接中明确“影响 / 不影响”的矩阵行，并提供精确候选 SHA。
 
-## 推荐的主动触发流程
+## 主动触发流程
 
-后续接入自动化时使用以下流程：
+当前 PR 检查与后续合并事件自动化共用以下流程：
 
-1. 监听 `origin/main` 新 commit 或已合并 PR 的变更文件；
+1. 当前 PR 事件读取精确 head/base 及其变更文件；后续外部自动化再监听 `origin/main` 新 commit 或已合并 PR；
 2. 根据上表映射到受影响章节和场景。仓库内可以直接运行：
 
    ```bash
-   node scripts/documentation-consistency-audit.mjs --base origin/main
-   node scripts/documentation-consistency-audit.mjs --base origin/main --json
+   node scripts/documentation-consistency-audit.mjs --base origin/main --target HEAD
+   node scripts/documentation-consistency-audit.mjs --base origin/main --target HEAD --json
    ```
 
    对尚未提交或由其他系统传入的单个路径，也可以重复使用 `--changed-file`：
@@ -61,16 +63,17 @@
      --json
    ```
 
-   无参数运行只执行一致性门禁，不生成影响报告。JSON 中 `working_tree_dirty: true` 表示载荷仍基于未提交工作区，不能当作可复现的共享目标；交接前应提交到独立分支并重新生成；
+   `--target` 与 `--base` 同时使用时按 merge-base 范围计算已提交变更，适合 PR 和可复现交接；只写 `--base` 时仍会把当前工作区与 base 比较，适合本地修改中的预览。无参数运行只执行一致性门禁，不生成影响报告。JSON 中 `working_tree_dirty: true` 表示当前检出仍有未提交内容，不能把它当作已完整包含这些修改的共享目标；交接前应提交到独立分支并重新生成；
 3. 运行确定性 `--verify` 和现有文档检查；
-4. 如果功能路径变化、对应文档/manifest 没有同步，创建一个文档更新任务；
-5. 任务必须携带目标 SHA、变更摘要、受影响章节、需要重录的 Source 和隐私限制；
-6. 文档 Agent 在该 SHA 上操作真实 Viewer，局部重录和重新验收；
-7. 中文事实稳定后再同步英文及其他语言。
+4. PR job 把匹配结果写入只读 Job Summary；功能贡献者更新对应文档/manifest，或记录公开行为未变化的具体证据；
+5. 后续若接入外部自动化，才由受信任的合并事件创建或唤醒文档更新任务；
+6. 任务必须携带目标 SHA、变更摘要、受影响章节、需要重录的 Source 和隐私限制；
+7. 文档 Agent 在该 SHA 上操作真实 Viewer，局部重录和重新验收；
+8. 中文事实稳定后再同步英文及其他语言。
 
-主动触发只负责创建明确任务，不能自动把 roadmap 文案发布为当前功能，也不能在没有视觉复核时自动提交新截图。
+当前 PR 检查只生成明确交接，不创建任务。后续外部触发即使负责创建任务，也不能自动把 roadmap 文案发布为当前功能，或在没有视觉复核时自动提交新截图。
 
-`.github/pull_request_template.md` 已要求功能贡献者附上这份影响证据，或明确说明为什么 UI 文案、交互、协议事实和公开行为均未变化。它是进入外部自动监听前的人工触发门，不等于 GitHub 已经自动创建文档任务。
+`.github/pull_request_template.md` 已要求功能贡献者检查自动生成的 Job Summary，并附上更新或“不影响”的证据。GitHub 现在会主动产出只读交接，但仍不会自动创建外部文档任务；视觉判断和真实 Harness 复核继续由人或文档 Agent 完成。
 
 ## 功能 Agent 的最小交接
 
@@ -96,9 +99,9 @@ Target SHA:
 - 对每帧检查 2048×1056 与 900～1100px 预览；
 - 视频素材同时检查 1920×1080 合成帧、整片抽帧、字幕时码、响度和编辑交接清单；
 - 运行 `git diff --check`、Markdown 安全、治理、链接与对应轨迹 `--verify`；
-- 运行 `node scripts/documentation-consistency-audit.mjs`；功能分支再附上 `--base <目标 SHA> --json` 的影响报告；
+- 运行 `node scripts/documentation-consistency-audit.mjs`；功能分支再附上 `--base <base SHA> --target HEAD --json` 的影响报告；
 - 报告精确验证 SHA 和仍未覆盖的风险。
 
 ## 下一步自动化边界
 
-“变更文件 → 影响矩阵 → 带精确 SHA 的 JSON 交接 → PR 人工确认”现在已经可以在仓库内执行。下一阶段可以把这份 JSON 接入受信任的 GitHub 工作流或 Codex 自动化，用来创建或唤醒文档任务。接入前仍要决定任务承载位置、去重规则、失败重试和谁确认真实 UI 录制；当前仓库尚未自动创建外部任务。
+“变更文件 → 影响矩阵 → 带精确 SHA 的 JSON 交接 → PR Job Summary → 人工确认”现在已经由权限受限的只读 GitHub 工作流执行。下一阶段可以在合并后的 `origin/main` 事件上复用同一 JSON，通过 Codex 自动化创建或唤醒文档任务。接入前仍要决定任务承载位置、去重键（建议使用 target SHA + impact id）、失败重试、关闭条件和谁确认真实 UI 录制；当前仓库尚未自动创建外部任务。

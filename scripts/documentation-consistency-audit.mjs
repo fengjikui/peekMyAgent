@@ -123,7 +123,7 @@ const impactRules = [
     id: "request-context",
     label: "请求详情与上下文变化",
     patterns: [
-      /^src\/viewer\/.*(?:upstream-detail|request-detail|history|context|system-diff|request-composition)/i,
+      /^src\/(?:viewer|trace)\/.*(?:upstream-detail|request-detail|history|context|system-diff|request-composition)/i,
     ],
     docs: [
       "README.md",
@@ -131,6 +131,23 @@ const impactRules = [
       "docs/user-guide/protocol-raw.md",
     ],
     demos: ["上下文变化 Source", "Context Delta / System diff 画面"],
+  },
+  {
+    id: "context-lifecycle",
+    label: "上下文压缩、重组与生命周期",
+    patterns: [
+      /^(?:src|scripts)\/.*(?:context-delta|context-chain|compact|compaction|system-diff|history)/i,
+    ],
+    docs: [
+      "README.md",
+      "docs/user-guide/requests-context.md",
+      "docs/user-guide/protocol-raw.md",
+      "docs/user-guide/tools-results.md",
+    ],
+    demos: [
+      "Claude Code 上下文压缩 Source 与双尺寸审阅帧",
+      "Context Delta / System diff 画面",
+    ],
   },
   {
     id: "tools",
@@ -165,6 +182,23 @@ const impactRules = [
     demos: ["Claude Code 子 Agent Source 与双尺寸审阅帧"],
   },
   {
+    id: "agent-planning",
+    label: "Agent 机制流程与多步规划",
+    patterns: [
+      /^src\/viewer\/turn-story-/i,
+      /^scripts\/.*(?:claude-planning|turn-story)/i,
+    ],
+    docs: [
+      "README.md",
+      "docs/user-guide/requests-context.md",
+      "docs/user-guide/tools-results.md",
+    ],
+    demos: [
+      "Claude Code 多步规划 Source 与双尺寸审阅帧",
+      "工具、Skill、子 Agent、压缩机制流程代表帧",
+    ],
+  },
+  {
     id: "protocol-and-raw",
     label: "协议投影、Raw Inspector 与 provenance",
     patterns: [
@@ -192,7 +226,7 @@ const impactRules = [
     id: "privacy-data",
     label: "隐私、Trace、清理、导入导出",
     patterns: [
-      /^(?:src|bin|scripts)\/.*(?:privacy|security|trace-bundle|import|export|clear|compact|uninstall|retention)/i,
+      /^(?:src|bin|scripts)\/.*(?:privacy|security|trace-bundle|import|export|clear|uninstall|retention)/i,
     ],
     docs: [
       "README.md",
@@ -347,11 +381,11 @@ export function buildDocumentationImpact(changedFiles) {
   return { changed_files: normalizedFiles, impacts };
 }
 
-export function buildDocumentationHandoff(impact, { base = null } = {}) {
+export function buildDocumentationHandoff(impact, { base = null, target = null } = {}) {
   const requiredDocs = [...new Set(impact.impacts.flatMap((item) => item.required_docs))].sort();
   const requiredDemos = [...new Set(impact.impacts.flatMap((item) => item.required_demos))].sort();
   return {
-    target_sha: resolveGitRevision("HEAD"),
+    target_sha: resolveGitRevision(target || "HEAD"),
     base_sha: base ? resolveGitRevision(base) : null,
     working_tree_dirty: gitOutput(["status", "--porcelain"]).trim().length > 0,
     requires_documentation_review: impact.impacts.length > 0,
@@ -487,15 +521,17 @@ function normalizeRepoRelative(file) {
 }
 
 function parseArguments(argv) {
-  const options = { changedFiles: [], base: null, json: false };
+  const options = { changedFiles: [], base: null, target: null, json: false };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--json") {
       options.json = true;
     } else if (argument === "--changed-file") {
-      options.changedFiles.push(argv[++index] || "");
+      options.changedFiles.push(readOptionValue(argv, ++index, argument));
     } else if (argument === "--base") {
-      options.base = argv[++index] || "";
+      options.base = readOptionValue(argv, ++index, argument);
+    } else if (argument === "--target") {
+      options.target = readOptionValue(argv, ++index, argument);
     } else {
       throw new Error("unknown argument: " + argument);
     }
@@ -503,12 +539,19 @@ function parseArguments(argv) {
   return options;
 }
 
-function changedFilesFromBase(base) {
-  const result = spawnSync("git", ["diff", "--name-only", base, "--"], {
+function readOptionValue(argv, index, flag) {
+  const value = argv[index];
+  if (!value || value.startsWith("--")) throw new Error(`${flag} requires a value`);
+  return value;
+}
+
+function changedFilesFromBase(base, target = null) {
+  const revision = target ? `${base}...${target}` : base;
+  const result = spawnSync("git", ["diff", "--name-only", revision, "--"], {
     cwd: root,
     encoding: "utf8",
   });
-  assert.equal(result.status, 0, "git diff failed for documentation impact base " + base);
+  assert.equal(result.status, 0, "git diff failed for documentation impact range " + revision);
   return result.stdout.split(/\r?\n/).filter(Boolean);
 }
 
@@ -541,13 +584,19 @@ function printImpact(impact) {
 
 function main() {
   const options = parseArguments(process.argv.slice(2));
+  if (options.target && !options.base) {
+    throw new Error("--target requires --base");
+  }
   const summary = runDocumentationConsistencyAudit({ log: !options.json });
   const changedFiles = [
     ...options.changedFiles,
-    ...(options.base ? changedFilesFromBase(options.base) : []),
+    ...(options.base ? changedFilesFromBase(options.base, options.target) : []),
   ];
   const impact = buildDocumentationImpact(changedFiles);
-  const handoff = buildDocumentationHandoff(impact, { base: options.base });
+  const handoff = buildDocumentationHandoff(impact, {
+    base: options.base,
+    target: options.target,
+  });
   if (options.json) {
     process.stdout.write(JSON.stringify({ summary, handoff, impact }, null, 2) + "\n");
   } else if (changedFiles.length > 0) {

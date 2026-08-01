@@ -11,8 +11,9 @@ What changed?
 
 ## Documentation And Demo Impact
 
-- [ ] I ran `node scripts/documentation-consistency-audit.mjs --base <base SHA> --json` for user-visible CLI, Viewer, capture, protocol, privacy, or Harness changes.
-- Required Chinese documents:
+- [ ] I inspected the read-only `Documentation impact` Job Summary for this PR.
+- [ ] For local verification, I ran `node scripts/documentation-consistency-audit.mjs --base <base SHA> --target HEAD --json` for user-visible CLI, Viewer, capture, protocol, privacy, or Harness changes.
+- Required documents (Chinese first; include English fact parity when listed):
 - Required demo Sources or frames:
 - If no documentation update is needed, evidence that UI copy, interaction, protocol facts, and public behavior are unchanged:
 - Documentation handoff target SHA:

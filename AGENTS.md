@@ -65,6 +65,7 @@ git rev-parse origin/main
 - Low-risk local commits MAY be grouped into one push, but a batch MUST NOT exceed three consecutive low-risk code commits since the last successful local or hosted full platform profile.
 - High-risk changes, unexplained failures, handoffs, and release checkpoints MUST NOT wait for a later batch.
 - Documentation-only commits MAY share a later push with the next code batch. They require their focused governance checks, not an automatic local full profile.
+- Pull requests run a read-only `Documentation impact` job against the exact PR head SHA and base SHA. Contributors MUST inspect its Job Summary for mapped documents and demo Sources, then either update them or record concrete evidence that public behavior is unchanged. The advisory does not publish documentation, create an issue, or replace real Viewer review.
 
 ### Real-machine validation
 
@@ -230,3 +231,4 @@ Use a GitHub issue, pull request, or other shared tracker for this report. Do no
 - Audit, experiment, and retrospective documents preserve evidence and reasoning.
 - Do not present planned behavior as implemented behavior.
 - Any feature, copy, API, schema, platform, or security change MUST update the corresponding documentation in the same pull request.
+- A user-visible pull request MUST keep the automated documentation-impact handoff with its validation evidence. A clean advisory summary is not proof by itself when changed behavior falls outside the current path mapping.

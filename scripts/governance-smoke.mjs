@@ -6,6 +6,10 @@ import {
   buildDocumentationImpact,
   runDocumentationConsistencyAudit,
 } from "./documentation-consistency-audit.mjs";
+import {
+  renderDocumentationImpactSummary,
+  validateDocumentationImpactPayload,
+} from "./documentation-impact-summary.mjs";
 
 const requiredFiles = [
   "CONTRIBUTING.md",
@@ -17,6 +21,7 @@ const requiredFiles = [
   ".github/ISSUE_TEMPLATE/config.yml",
   ".github/pull_request_template.md",
   "assets/demo/media-budget.json",
+  "scripts/documentation-impact-summary.mjs",
 ];
 
 for (const file of requiredFiles) {
@@ -29,6 +34,7 @@ assert.match(contributing, /release:check/);
 assert.match(contributing, /Do not commit captured sessions/i);
 assert.match(contributing, /Adapter Contributions/);
 assert.match(contributing, /tiered validation strategy/i);
+assert.match(contributing, /Documentation impact/);
 
 const validationStrategy = fs.readFileSync("docs/validation-strategy.md", "utf8");
 assert.match(validationStrategy, /Level 0/);
@@ -37,6 +43,7 @@ assert.match(validationStrategy, /Level 2/);
 assert.match(validationStrategy, /最多 3 个低风险代码提交/);
 assert.match(validationStrategy, /一次 PR 托管三平台矩阵/);
 assert.match(validationStrategy, /main.*不重复已经通过的同树三平台矩阵/);
+assert.match(validationStrategy, /Documentation impact/);
 
 const security = fs.readFileSync("SECURITY.md", "utf8");
 assert.match(security, /Do not post secrets/i);
@@ -64,6 +71,8 @@ assert.match(prTemplate, /Manual integration smokes are listed separately/);
 assert.match(prTemplate, /Capture Boundary/);
 assert.match(prTemplate, /Documentation And Demo Impact/);
 assert.match(prTemplate, /documentation-consistency-audit\.mjs --base/);
+assert.match(prTemplate, /--target HEAD/);
+assert.match(prTemplate, /Documentation impact.*Job Summary/);
 assert.match(prTemplate, /Documentation handoff target SHA/);
 
 const documentationSummary = runDocumentationConsistencyAudit();
@@ -91,6 +100,71 @@ assert.deepEqual(documentationHandoff.impact_ids, ["cli-and-lifecycle", "subagen
 assert(documentationHandoff.required_docs.includes("docs/user-guide/subagents.md"));
 assert(documentationHandoff.required_demos.includes("协议视图、Raw Inspector 与脱敏 JSON"));
 assert.equal(documentationHandoff.validation_commands.at(-1), "git diff --check");
+const mechanismImpact = buildDocumentationImpact([
+  "src/trace/context-delta.mjs",
+  "scripts/claude-compact-real-cli-probe.mjs",
+  "src/viewer/turn-story-model.js",
+  "scripts/claude-planning-real-cli-probe.mjs",
+]);
+assert.deepEqual(
+  mechanismImpact.impacts.map((impact) => impact.id),
+  ["timeline-navigation", "request-context", "context-lifecycle", "agent-planning"],
+);
+assert(mechanismImpact.impacts
+  .find((impact) => impact.id === "context-lifecycle")
+  .required_demos.includes("Claude Code 上下文压缩 Source 与双尺寸审阅帧"));
+assert(mechanismImpact.impacts
+  .find((impact) => impact.id === "agent-planning")
+  .required_demos.includes("Claude Code 多步规划 Source 与双尺寸审阅帧"));
+const impactPayload = {
+  summary: documentationSummary,
+  handoff: documentationHandoff,
+  impact: documentationImpact,
+};
+const impactMarkdown = renderDocumentationImpactSummary(impactPayload, {
+  expectedTarget: documentationHandoff.target_sha,
+});
+assert.match(impactMarkdown, /^# Documentation and demo impact/m);
+assert.match(impactMarkdown, /Review required/);
+assert.match(impactMarkdown, /docs\/user-guide\/subagents\.md/);
+assert.match(impactMarkdown, /协议视图、Raw Inspector 与脱敏 JSON/);
+assert.match(impactMarkdown, /does not publish documentation/);
+assert.throws(
+  () => validateDocumentationImpactPayload(impactPayload, { expectedTarget: "0".repeat(40) }),
+  /target mismatch/,
+);
+
+const noImpact = buildDocumentationImpact(["src/core/internal-only-refactor.mjs"]);
+const noImpactMarkdown = renderDocumentationImpactSummary({
+  summary: documentationSummary,
+  handoff: buildDocumentationHandoff(noImpact),
+  impact: noImpact,
+});
+assert.match(noImpactMarkdown, /No mapped boundary/);
+assert.match(noImpactMarkdown, /not proof that documentation is unaffected/);
+
+const escapedImpact = buildDocumentationImpact(["src/core/<script>alert(1)</script>.mjs"]);
+const escapedMarkdown = renderDocumentationImpactSummary({
+  summary: documentationSummary,
+  handoff: buildDocumentationHandoff(escapedImpact),
+  impact: escapedImpact,
+});
+assert.doesNotMatch(escapedMarkdown, /<script>/);
+assert.match(escapedMarkdown, /&lt;script&gt;/);
+
+const exactRange = spawnSync(process.execPath, [
+  "scripts/documentation-consistency-audit.mjs",
+  "--base",
+  "HEAD",
+  "--target",
+  "HEAD",
+  "--json",
+], { encoding: "utf8" });
+assert.equal(exactRange.status, 0, `exact range audit failed:\n${exactRange.stderr}`);
+const exactRangePayload = JSON.parse(exactRange.stdout);
+assert.deepEqual(exactRangePayload.impact.changed_files, []);
+assert.equal(exactRangePayload.handoff.target_sha, documentationHandoff.target_sha);
+assert.equal(exactRangePayload.handoff.base_sha, documentationHandoff.target_sha);
 
 const demoProduction = spawnSync(process.execPath, ["scripts/demo-production-audit.mjs"], {
   encoding: "utf8",
