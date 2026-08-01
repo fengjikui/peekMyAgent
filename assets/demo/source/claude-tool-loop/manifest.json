@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "title": "用 PMA 看懂 Claude Code：一次工具调用",
+  "language": "zh-CN",
+  "publication_status": "local_draft",
+  "viewer_commit": "dded809e7e5883989e9b01c60bf6a54ec6c7a8a0",
+  "recorded_at": "2026-08-01",
+  "source": {
+    "id": "claude-tool-loop",
+    "generator": "scripts/claude-mechanisms-media-demo.mjs",
+    "protocol": "Anthropic Messages",
+    "workspace": "/demo/claude-tool-loop",
+    "turns": 1,
+    "requests": 2,
+    "task": "请读取 README.md 第一行，告诉我项目名；不要修改文件。",
+    "declared_tools": ["Read", "Glob", "Bash"],
+    "selected_tool": {
+      "name": "Read",
+      "id": "read_hello",
+      "input": { "file_path": "README.md", "offset": 1, "limit": 1 }
+    },
+    "tool_result": "# hello-agent",
+    "final_response": "项目名是 hello-agent。"
+  },
+  "recording": {
+    "viewer_viewport_css_pixels": { "width": 2048, "height": 1056 },
+    "export_resolution": { "width": 1920, "height": 1080 },
+    "theme": "Claude",
+    "ui_language": "zh-CN",
+    "raw_frames": "assets/demo/source/claude-tool-loop/recording/raw/",
+    "annotated_review_frames": "assets/demo/source/claude-tool-loop/recording/review/",
+    "git_policy": "Raw, annotated, composite and QA frames stay local and are ignored; the capture and annotation recipe remains tracked."
+  },
+  "shots": [
+    { "id": "01-overview", "source": "02-overview.png", "focus": "one Turn's complete mechanism flow" },
+    { "id": "02-metadata", "source": "03-metadata.png", "focus": "model and common request parameters" },
+    { "id": "03-system", "source": "04-system.png", "focus": "actual System field" },
+    { "id": "04-tools", "source": "05-tools.png", "focus": "Read, Glob and Bash definitions" },
+    { "id": "05-tool-use", "source": "06-tool-use.png", "focus": "tool_use id and Read input" },
+    { "id": "06-tool-result", "source": "07-tool-result.png", "focus": "matching tool_result and output" },
+    { "id": "07-source-jump", "source": "08-source-jump.png", "focus": "result-to-call source navigation" },
+    { "id": "08-protocol", "source": "09-protocol.png", "focus": "assistant/tool_use followed by user/tool_result" },
+    { "id": "09-raw", "source": "10-raw-search.png", "focus": "raw request body and header redactions" },
+    { "id": "10-final", "source": "11-final-response.png", "focus": "final model response" }
+  ],
+  "build": {
+    "script": "scripts/build-claude-tool-loop-video.py",
+    "command": "python3 scripts/build-claude-tool-loop-video.py --voice Tingting --rate 175",
+    "timeline": "assets/demo/source/claude-tool-loop/video/timeline.zh-CN.json",
+    "video": "assets/demo/video/pma-claude-tool-loop.zh-CN.mp4",
+    "voice": "assets/demo/video/pma-claude-tool-loop.zh-CN-voice.m4a",
+    "subtitles": "assets/demo/video/pma-claude-tool-loop.zh-CN.srt",
+    "cover": "assets/demo/video/pma-claude-tool-loop.zh-CN-cover.png",
+    "video_and_voice_git_policy": "ignored; publish through a Release or CDN after owner approval"
+  },
+  "privacy": {
+    "external_model_requests": false,
+    "real_credentials": false,
+    "real_user_files": false,
+    "real_private_paths": false,
+    "network_access_by_demo_agent": false,
+    "headers": "synthetic values; sensitive fields shown redacted by the actual Viewer"
+  },
+  "qa": {
+    "annotated_frames_reviewed_at_source_resolution": 10,
+    "video_midpoint_frames_reviewed": 12,
+    "layout": "full three-column Viewer retained",
+    "video": "1920x1080, 30 fps, H.264",
+    "audio": "AAC, 48 kHz, stereo, -16.0 LUFS integrated, -3.3 dBFS true peak",
+    "subtitles": "embedded mov_text plus standalone SRT",
+    "duration_seconds": 242.945,
+    "result": "passed for local owner review; narration remains an internal system-TTS placeholder"
+  }
+}

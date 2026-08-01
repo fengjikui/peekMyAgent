@@ -4,6 +4,20 @@
 
 面向 Claude Code 机制的五支独立视频脚本见[用 PMA 看懂 Claude Code：中文视频系列脚本](video-series-claude-code.zh-CN.md)。
 
+## 第一支独立机制视频：本地 v0.1
+
+“用户—Claude Code—远端模型”的工具调用视频已经生成本地初剪：
+
+```bash
+python3 scripts/build-claude-tool-loop-video.py --voice Tingting --rate 175
+```
+
+它使用 2048×1056 Claude 主题的真实 Viewer 操作帧，演示一个不需要项目背景的最小任务：读取 `README.md` 第一行并回答项目名。内容依次覆盖完整时间线、Metadata、System、Tools、`tool_use`、`tool_result`、来源跳转、Anthropic Messages、Raw Inspector 和最终 Response。
+
+成片约 4 分 03 秒，1920×1080、30 fps；协议和 Raw 镜头分别保留约 22 秒和 21 秒。MP4 与独立旁白轨只在本地生成并被 Git 忽略，字幕、封面、可重建时间线和 manifest 留在仓库。详细来源和 QA 结果见 `assets/demo/source/claude-tool-loop/manifest.json`。
+
+当前旁白使用 macOS `Tingting` 系统语音，只用于内容和节奏审阅。正式公开前仍需所有者确认文案，再替换为已授权的真人或合成配音。
+
 ## 为什么没有把 GIF 简单连起来
 
 文档 GIF 只回答一个局部问题，缺少完整叙事、旁白、字幕和章节过渡。视频需要先说明“普通日志为什么不够”，再依次证明请求上下文、工具证据、原生协议、上下文变化和子 Agent 的价值。

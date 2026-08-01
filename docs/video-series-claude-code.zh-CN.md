@@ -36,7 +36,7 @@
 
 | 编号 | 标题 | 核心问题 | 建议长度 | 当前素材基础 |
 | --- | --- | --- | ---: | --- |
-| 1 | 一次工具调用到底发生了什么 | 用户、Claude Code、远端模型如何完成一次 Read | 3～4 分钟 | 新建最小 Anthropic 轨迹 |
+| 1 | 一次工具调用到底发生了什么 | 用户、Claude Code、远端模型如何完成一次 Read | 约 4 分钟 | 本地 v0.1 已完成，待所有者审阅与正式配音 |
 | 2 | Skill 是怎样被发现和加载的 | 为什么描述先出现、正文到使用时才进入上下文 | 3～4 分钟 | `Skill / Harness 注入` 契约已有 |
 | 3 | 子 Agent 在哪里运行，结果怎样回来 | 父级启动、独立上下文、内部工具、结果回流 | 4～5 分钟 | 已有两分支确定性 Source |
 | 4 | 上下文压缩究竟改变了什么 | 什么时候压缩、哪些内容被摘要、哪些会重新注入 | 4～5 分钟 | compact 分类已有；正式发布前需补真实 Claude Code 长会话 |
@@ -84,6 +84,16 @@ notes/
 | 13. 总结 | 三角色简图重新出现，逐段高亮 | 用户目标 → 结构化请求 → tool use → 本地执行 → tool result → 最终文本 | 模型没有越过 Harness 直接碰电脑；PMA 让每一步都可检查 | 形成可复述结论 | 12 秒 |
 
 视频中不说“Claude Code 一定选择最优工具”。只说“本次 Capture 证明模型从已声明工具中返回了 Read 调用”。
+
+### v0.1 实际产出
+
+- 成片：`assets/demo/video/pma-claude-tool-loop.zh-CN.mp4`，本地生成、Git 忽略；
+- 字幕与封面：`assets/demo/video/pma-claude-tool-loop.zh-CN.srt`、`pma-claude-tool-loop.zh-CN-cover.png`；
+- 可重建时间线：`assets/demo/source/claude-tool-loop/video/timeline.zh-CN.json`；
+- Source、原始镜头、隐私和 QA 记录：`assets/demo/source/claude-tool-loop/manifest.json`；
+- 构建脚本：`python3 scripts/build-claude-tool-loop-video.py --voice Tingting --rate 175`。
+
+本地初剪实际约 4 分 03 秒。协议和 Raw 镜头分别保留 22 秒与 21 秒；系统语音仍是内部审阅占位，不代表最终发布旁白。
 
 ---
 
@@ -219,7 +229,7 @@ Claude Code 当前工具参考列出了 TaskCreate / TaskUpdate 等任务工具�
 
 | 机制 | 可立即使用的仓库证据 | 正式发布前还需什么 |
 | --- | --- | --- |
-| 工具闭环 | `scripts/claude-mechanisms-media-demo.mjs` 的 2 Request Anthropic Source；已在 2048×1056 Claude 主题实页复核 | 逐帧录制、标注和成片验收 |
+| 工具闭环 | `scripts/claude-mechanisms-media-demo.mjs` 的 2 Request Anthropic Source；2048×1056 Claude 主题本地 v0.1 已完成逐帧与成片验收 | 所有者内容审阅、正式配音与托管 |
 | Skill | `scripts/claude-internal-request-turn-smoke.mjs` 的 `Skill / Harness 注入`；Skill tool 语义契约 | 用当前 Claude Code 版本补一条实际 Skill 调用作交叉核对 |
 | 子 Agent | `scripts/user-guide-media-demo.mjs` 与现有 Claude 主题多 Agent 素材 | 重新检查当前按钮名称和 2048×1056 布局 |
 | 压缩 | `scripts/current-entry-smoke.mjs` 的 compact 分类 | 必须取得真实压缩前后请求，不能只用合成 History 宣传实际机制 |

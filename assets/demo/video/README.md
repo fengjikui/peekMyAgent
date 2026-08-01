@@ -13,6 +13,10 @@ MP4、独立旁白和生成帧默认只在本地生成，不纳入主仓库。�
 | `pma-core-tour.zh-CN.srt` | 独立字幕，可导入或作为 ChatCut、剪映等编辑器的校时参考 |
 | `pma-core-tour.zh-CN-voice.m4a` | 本地生成且被 Git 忽略的独立旁白轨，便于替换或重新混音 |
 | `pma-core-tour.zh-CN-cover.png` | 1920×1080 封面 |
+| `pma-claude-tool-loop.zh-CN.mp4` | 本地生成且被 Git 忽略的“用户—Claude Code—远端模型”独立成片 |
+| `pma-claude-tool-loop.zh-CN.srt` | 第一支 Claude Code 机制视频的可编辑中文字幕 |
+| `pma-claude-tool-loop.zh-CN-voice.m4a` | 本地生成且被 Git 忽略的占位旁白轨 |
+| `pma-claude-tool-loop.zh-CN-cover.png` | 第一支 Claude Code 机制视频封面 |
 
 中性的逐镜头记录保存在 `../source/video/timeline.zh-CN.json`。它不是任何剪辑器的原生工程格式，而是为了以后重剪时保留镜头顺序、时码、旁白、字幕和素材来源。
 
@@ -35,6 +39,20 @@ python3 scripts/build-demo-video.py --voice Tingting --rate 175
 ```bash
 python3 scripts/build-demo-video.py --no-voice
 ```
+
+生成第一支 Claude Code 工具调用视频：
+
+```bash
+python3 scripts/build-claude-tool-loop-video.py --voice Tingting --rate 175
+```
+
+只重建标注图、封面和合成帧，供逐帧审阅：
+
+```bash
+python3 scripts/build-claude-tool-loop-video.py --prepare-only
+```
+
+对应的 Source、视口、镜头来源、脱敏边界与 QA 记录见 `../source/claude-tool-loop/manifest.json`。本地 v0.1 约 4 分 03 秒，使用 2048×1056 Claude 主题 Viewer 实页素材；MP4 和 M4A 不进入主仓库。
 
 生成完成不代表可以公开发布。完成逐帧和隐私验收后，把 MP4 上传到 GitHub Release 或对象存储，再更新 `catalog.json`；不要直接 `git add -f`。
 

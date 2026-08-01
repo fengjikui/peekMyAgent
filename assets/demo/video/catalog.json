@@ -16,6 +16,23 @@
       "size_bytes": 6496031,
       "sha256": "5eff1d667f31cad3d7efe7d667008a3d89a8138c8e4ec37dd3061ad90618e830",
       "publication_note": "本地审阅初剪；完成最终旁白、逐帧复核和托管后再把状态改为 published。"
+    },
+    {
+      "id": "pma-claude-tool-loop",
+      "language": "zh-CN",
+      "title": "用 PMA 看懂 Claude Code：一次工具调用 v0.1",
+      "status": "local_draft",
+      "source_commit": "dded809e7e5883989e9b01c60bf6a54ec6c7a8a0",
+      "published_url": null,
+      "local_output": "assets/demo/video/pma-claude-tool-loop.zh-CN.mp4",
+      "cover": "assets/demo/video/pma-claude-tool-loop.zh-CN-cover.png",
+      "subtitles": "assets/demo/video/pma-claude-tool-loop.zh-CN.srt",
+      "timeline": "assets/demo/source/claude-tool-loop/video/timeline.zh-CN.json",
+      "manifest": "assets/demo/source/claude-tool-loop/manifest.json",
+      "duration_seconds": 242.945,
+      "size_bytes": 9884899,
+      "sha256": "6ea1cd62c058da77abdab546ee62a75a410a3c8f069dac514b27f304447803aa",
+      "publication_note": "已完成本地逐帧和技术验收；系统 TTS 仍是内部审阅占位，所有者确认内容与旁白后再托管成片。"
     }
   ]
 }

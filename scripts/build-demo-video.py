@@ -24,6 +24,13 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "assets" / "demo" / "video"
 SOURCE_DIR = ROOT / "assets" / "demo" / "source" / "video"
 FRAME_DIR = SOURCE_DIR / "frames"
+OUTPUT_BASENAME = "pma-core-tour.zh-CN"
+VIDEO_TITLE = "peekMyAgent 中文核心能力演示"
+COVER_EYEBROW = "peekMyAgent · 中文产品演示"
+COVER_TITLE = "看见 Agent 真正发送给模型的内容"
+COVER_BODY = "请求 · System · 工具结果 · 原生协议 · 上下文变化 · 子 Agent"
+COVER_SOURCE_IMAGE = "assets/demo/quickstart/01-trace.png"
+COVER_LABEL = "从一次最小会话，追到每一层真实证据"
 
 WIDTH = 1920
 HEIGHT = 1080
@@ -53,6 +60,8 @@ class Scene:
     min_duration: float
     image: str | None = None
     accent: tuple[int, int, int] = BLUE
+    card_line: str | None = None
+    footer: str | None = None
 
 
 SCENES = (
@@ -280,7 +289,16 @@ def render_title_scene(scene: Scene, font_path: Path) -> Image.Image:
     caption_lines = wrap_text(draw, scene.caption, body_font, 1450)
     draw_centered_lines(draw, caption_lines, body_font, (210, 520, 1710, 670), MUTED, 16)
 
-    if scene.scene_id == "00-intro":
+    if scene.card_line:
+        rounded_panel(draw, (270, 730, 1650, 865), PANEL, scene.accent, 2, 24)
+        card_font = font(font_path, 34)
+        card_lines = wrap_text(draw, scene.card_line, card_font, 1260)
+        draw_centered_lines(draw, card_lines[:2], card_font, (315, 750, 1605, 845), WHITE, 12)
+        if scene.footer:
+            footer_lines = wrap_text(draw, scene.footer, pill_font, 1450)
+            draw_centered_lines(draw, footer_lines[:2], pill_font, (220, 895, 1700, 970), MUTED, 10)
+        draw.text((110, 1010), "Claude Code 机制演示 · v0.1", font=pill_font, fill=scene.accent)
+    elif scene.scene_id == "00-intro":
         pills = ("请求与上下文", "工具调用与结果", "原始协议", "子 Agent")
         widths = [draw.textbbox((0, 0), item, font=pill_font)[2] + 76 for item in pills]
         total = sum(widths) + 30 * (len(pills) - 1)
@@ -366,14 +384,14 @@ def render_cover(font_path: Path) -> None:
     body_font = font(font_path, 32)
     pill_font = font(font_path, 26)
 
-    draw.text((105, 80), "peekMyAgent · 中文产品演示", font=eyebrow_font, fill=BLUE)
-    title_lines = ["看见 Agent 真正发送给模型的内容"]
+    draw.text((105, 80), COVER_EYEBROW, font=eyebrow_font, fill=BLUE)
+    title_lines = [COVER_TITLE]
     draw_centered_lines(draw, title_lines, title_font, (100, 150, 1820, 300), WHITE, 12)
-    body = "请求 · System · 工具结果 · 原生协议 · 上下文变化 · 子 Agent"
+    body = COVER_BODY
     body_bounds = draw.textbbox((0, 0), body, font=body_font)
     draw.text(((WIDTH - (body_bounds[2] - body_bounds[0])) / 2, 320), body, font=body_font, fill=MUTED)
 
-    source = Image.open(ROOT / "assets/demo/quickstart/01-trace.png").convert("RGB")
+    source = Image.open(ROOT / COVER_SOURCE_IMAGE).convert("RGB")
     shot = source.resize((1520, 784), Image.Resampling.LANCZOS)
     shot = shot.crop((0, 0, 1520, 600))
     panel = (200, 415, 1720, 1015)
@@ -382,12 +400,12 @@ def render_cover(font_path: Path) -> None:
     overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
     odraw = ImageDraw.Draw(overlay)
     odraw.rounded_rectangle((260, 910, 1660, 1000), radius=20, fill=(8, 17, 31, 238), outline=BLUE + (255,), width=2)
-    label = "从一次最小会话，追到每一层真实证据"
+    label = COVER_LABEL
     bounds = odraw.textbbox((0, 0), label, font=pill_font)
     odraw.text(((WIDTH - (bounds[2] - bounds[0])) / 2, 936), label, font=pill_font, fill=WHITE + (255,))
     background = Image.alpha_composite(background.convert("RGBA"), overlay).convert("RGB")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    background.save(OUTPUT_DIR / "pma-core-tour.zh-CN-cover.png", optimize=True)
+    background.save(OUTPUT_DIR / f"{OUTPUT_BASENAME}-cover.png", optimize=True)
 
 
 def timestamp(seconds: float, separator: str = ",") -> str:
@@ -564,7 +582,7 @@ def build_video(args: argparse.Namespace) -> None:
             "".join(f"file '{path.as_posix()}'\n" for path in clip_paths),
             encoding="utf-8",
         )
-        base_video = temp_dir / "pma-core-tour-base.mp4"
+        base_video = temp_dir / f"{OUTPUT_BASENAME}-base.mp4"
         run(
             [
                 "ffmpeg",
@@ -586,9 +604,9 @@ def build_video(args: argparse.Namespace) -> None:
             ]
         )
 
-        srt_path = OUTPUT_DIR / "pma-core-tour.zh-CN.srt"
+        srt_path = OUTPUT_DIR / f"{OUTPUT_BASENAME}.srt"
         srt_path.write_text("\n".join(srt_blocks), encoding="utf-8")
-        final_video = OUTPUT_DIR / "pma-core-tour.zh-CN.mp4"
+        final_video = OUTPUT_DIR / f"{OUTPUT_BASENAME}.mp4"
         run(
             [
                 "ffmpeg",
@@ -627,7 +645,7 @@ def build_video(args: argparse.Namespace) -> None:
                 str(final_video),
             ]
         )
-        voice_path = OUTPUT_DIR / "pma-core-tour.zh-CN-voice.m4a"
+        voice_path = OUTPUT_DIR / f"{OUTPUT_BASENAME}-voice.m4a"
         run(
             [
                 "ffmpeg",
@@ -655,7 +673,7 @@ def build_video(args: argparse.Namespace) -> None:
         json.dumps(
             {
                 "version": 1,
-                "title": "peekMyAgent 中文核心能力演示",
+                "title": VIDEO_TITLE,
                 "resolution": [WIDTH, HEIGHT],
                 "fps": FPS,
                 "duration_seconds": round(cursor, 3),
@@ -671,16 +689,16 @@ def build_video(args: argparse.Namespace) -> None:
     )
 
     verify_outputs(
-        OUTPUT_DIR / "pma-core-tour.zh-CN.mp4",
-        OUTPUT_DIR / "pma-core-tour.zh-CN.srt",
+        OUTPUT_DIR / f"{OUTPUT_BASENAME}.mp4",
+        OUTPUT_DIR / f"{OUTPUT_BASENAME}.srt",
         timeline_path,
         cursor,
     )
 
-    print(f"video: {OUTPUT_DIR / 'pma-core-tour.zh-CN.mp4'}")
-    print(f"subtitles: {OUTPUT_DIR / 'pma-core-tour.zh-CN.srt'}")
-    print(f"voice: {OUTPUT_DIR / 'pma-core-tour.zh-CN-voice.m4a'}")
-    print(f"cover: {OUTPUT_DIR / 'pma-core-tour.zh-CN-cover.png'}")
+    print(f"video: {OUTPUT_DIR / f'{OUTPUT_BASENAME}.mp4'}")
+    print(f"subtitles: {OUTPUT_DIR / f'{OUTPUT_BASENAME}.srt'}")
+    print(f"voice: {OUTPUT_DIR / f'{OUTPUT_BASENAME}-voice.m4a'}")
+    print(f"cover: {OUTPUT_DIR / f'{OUTPUT_BASENAME}-cover.png'}")
     print(f"timeline: {timeline_path}")
     print(f"duration: {cursor:.3f}s")
 
