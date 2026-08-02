@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>PMA 演示故事板</title>
-    <link rel="stylesheet" href="./player.css">
+    <link rel="stylesheet" href="./player.css?v=4">
   </head>
   <body>
     <main class="shell">
@@ -61,6 +61,24 @@
             </div>
           </div>
         </div>
+        <section class="annotation-editor" aria-label="标注编辑器" hidden>
+          <div class="annotation-editor-copy">
+            <p class="annotation-editor-eyebrow">本地审阅草稿</p>
+            <strong class="annotation-editor-selection">点击画面中的标注框开始调整</strong>
+            <output class="annotation-editor-status" aria-live="polite">拖动框体移动，拖四角调整大小。</output>
+          </div>
+          <div class="annotation-editor-fields" aria-label="标注坐标">
+            <label>X <input data-edit-coordinate="x" type="number" min="0" max="100" step="0.05"></label>
+            <label>Y <input data-edit-coordinate="y" type="number" min="0" max="100" step="0.05"></label>
+            <label>W <input data-edit-coordinate="w" type="number" min="0.1" max="100" step="0.05"></label>
+            <label>H <input data-edit-coordinate="h" type="number" min="0.1" max="100" step="0.05"></label>
+          </div>
+          <div class="annotation-editor-actions">
+            <button type="button" data-edit-action="copy">复制调整 JSON</button>
+            <button type="button" data-edit-action="download">下载调整 JSON</button>
+            <button type="button" data-edit-action="reset-scene">重置本镜头</button>
+          </div>
+        </section>
       </section>
     </main>
 
@@ -100,6 +118,6 @@
         <nav class="review-sheet-artifacts" aria-label="本章审阅资料"></nav>
       </article>
     </dialog>
-    <script type="module" src="./player.js?v=2"></script>
+    <script type="module" src="./player.js?v=4"></script>
   </body>
 </html>

@@ -3,16 +3,19 @@ const catalogUrl = "/assets/demo/storyboard/catalog.zh-CN.json";
 const fallbackTimelineUrl = "/assets/demo/source/quickstart/video/timeline.zh-CN.json";
 const requestedTimelineUrl = params.get("timeline");
 const requestedPlanUrl = params.get("plan");
+const editMode = params.get("edit") === "1";
 const presentMode = params.get("present") === "1";
-const reviewMode = params.get("review") === "1";
+const reviewMode = params.get("review") === "1" || editMode;
 const startScene = Number.parseInt(params.get("scene") || "0", 10);
 const startElapsedMs = Number.parseInt(params.get("at_ms") || "0", 10);
-const autoplay = params.get("autoplay") !== "0";
+const autoplay = params.get("autoplay") !== "0" && !editMode;
 const subtitlesVisible = params.get("subtitles") !== "0";
 
-if (presentMode) document.body.classList.add("present");
+if (presentMode && !editMode) document.body.classList.add("present");
 if (reviewMode) document.body.classList.add("review");
+if (editMode) document.body.classList.add("edit-mode");
 if (!subtitlesVisible) document.body.classList.add("no-subtitles");
+document.body.dataset.editMode = editMode ? "1" : "0";
 
 const elements = {
   visual: document.querySelector(".visual"),
@@ -51,6 +54,13 @@ const elements = {
   reviewSheetBoundary: document.querySelector(".review-sheet-boundary"),
   reviewSheetNextGate: document.querySelector(".review-sheet-next-gate"),
   reviewSheetArtifacts: document.querySelector(".review-sheet-artifacts"),
+  annotationEditor: document.querySelector(".annotation-editor"),
+  annotationEditorSelection: document.querySelector(".annotation-editor-selection"),
+  annotationEditorStatus: document.querySelector(".annotation-editor-status"),
+  annotationEditorInputs: [...document.querySelectorAll("[data-edit-coordinate]")],
+  annotationEditorCopy: document.querySelector('[data-edit-action="copy"]'),
+  annotationEditorDownload: document.querySelector('[data-edit-action="download"]'),
+  annotationEditorResetScene: document.querySelector('[data-edit-action="reset-scene"]'),
 };
 
 const reviewStatusLabels = {
@@ -78,7 +88,15 @@ const state = {
   playing: false,
   lastFrameTime: null,
   overlayTimers: [],
+  annotationDrafts: {},
+  editSelection: null,
 };
+
+if (editMode) {
+  elements.annotationEditor.hidden = false;
+  elements.annotationLayer.removeAttribute("aria-hidden");
+  for (const input of elements.annotationEditorInputs) input.disabled = true;
+}
 
 function setControlsDisabled(disabled) {
   for (const element of [
@@ -317,6 +335,7 @@ async function loadTimeline(timelineUrl, { sceneIndex = 0, elapsedMs = 0, update
   state.timeline = timeline;
   state.timelineUrl = timelineUrl;
   state.sourceKind = "timeline";
+  loadAnnotationDrafts();
   document.body.dataset.storyTheme = timeline.theme || "codex";
   document.body.dataset.sourceKind = "timeline";
   state.sceneIndex = Number.isFinite(sceneIndex)
@@ -331,6 +350,10 @@ async function loadTimeline(timelineUrl, { sceneIndex = 0, elapsedMs = 0, update
   populateChapterSelect();
   populateReviewPointSelect();
   setControlsDisabled(false);
+  if (editMode) {
+    elements.toggle.disabled = true;
+    elements.scrubber.disabled = true;
+  }
   elements.reviewPointSelect.disabled = (timeline.review_points || []).length === 0;
   populateReviewSheet(currentCatalogChapter());
   renderScene({ resetElapsed: false });
@@ -401,6 +424,7 @@ async function loadReadmePlan(planUrl, { sceneIndex = 0, elapsedMs = 0, updateUr
   state.timeline = timeline;
   state.timelineUrl = planUrl;
   state.sourceKind = "plan";
+  state.annotationDrafts = {};
   document.body.dataset.storyTheme = timeline.theme;
   document.body.dataset.sourceKind = "plan";
   state.sceneIndex = Number.isFinite(sceneIndex)
@@ -415,6 +439,11 @@ async function loadReadmePlan(planUrl, { sceneIndex = 0, elapsedMs = 0, updateUr
   populateChapterSelect();
   populateReviewPointSelect();
   setControlsDisabled(false);
+  if (editMode) {
+    elements.toggle.disabled = true;
+    elements.scrubber.disabled = true;
+    elements.annotationEditorStatus.value = "README 精简版使用已生成图片；请切换到完整章节的复核点调整源标注。";
+  }
   elements.reviewPointSelect.disabled = false;
   populateReviewSheet(null);
   renderScene({ resetElapsed: false });
@@ -448,13 +477,273 @@ function focusBoxWithPadding([x, y, width, height], padding = [0, 0]) {
   ];
 }
 
-function renderOverlay(overlay) {
+function roundCoordinate(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function annotationDraftKey(sceneIndex, overlayIndex, field) {
+  return `${sceneIndex}:${overlayIndex}:${field}`;
+}
+
+function annotationDraftStorageKey() {
+  return `pma-storyboard-annotation-drafts:${state.timelineUrl}`;
+}
+
+function loadAnnotationDrafts() {
+  state.annotationDrafts = {};
+  if (!editMode || state.sourceKind !== "timeline") return;
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(annotationDraftStorageKey()) || "null");
+    if (saved?.schema_version === 1 && saved.timeline === state.timelineUrl && saved.changes) {
+      state.annotationDrafts = saved.changes;
+    }
+  } catch {
+    elements.annotationEditorStatus.value = "已有本地草稿无法读取，已从仓库坐标重新开始。";
+  }
+}
+
+function persistAnnotationDrafts() {
+  if (!editMode || state.sourceKind !== "timeline") return;
+  window.localStorage.setItem(annotationDraftStorageKey(), JSON.stringify({
+    schema_version: 1,
+    timeline: state.timelineUrl,
+    changes: state.annotationDrafts,
+  }));
+}
+
+function overlayWithDraft(overlay, overlayIndex) {
+  if (!editMode) return overlay;
+  const next = { ...overlay };
+  for (const field of ["focus", "label_box", "click", "route"]) {
+    const value = state.annotationDrafts[annotationDraftKey(state.sceneIndex, overlayIndex, field)];
+    if (Array.isArray(value)) next[field] = value;
+  }
+  return next;
+}
+
+function clearEditSelection() {
+  state.editSelection?.node?.classList.remove("is-edit-selected");
+  state.editSelection = null;
+  if (!editMode) return;
+  elements.annotationEditorSelection.textContent = "点击画面中的标注框开始调整";
+  for (const input of elements.annotationEditorInputs) {
+    input.value = "";
+    input.disabled = true;
+  }
+}
+
+function displayedBox(node, field) {
+  const x = Number.parseFloat(node.style.left) || 0;
+  const y = Number.parseFloat(node.style.top) || 0;
+  if (field === "click") return [x, y, 0, 0];
+  return [
+    x,
+    y,
+    Number.parseFloat(node.style.width) || 0,
+    Number.parseFloat(node.style.height) || 0,
+  ];
+}
+
+function updateEditorInputs(box, field) {
+  const coordinates = { x: box[0], y: box[1], w: box[2], h: box[3] };
+  for (const input of elements.annotationEditorInputs) {
+    const coordinate = input.dataset.editCoordinate;
+    const sizeDisabled = field === "click" && (coordinate === "w" || coordinate === "h");
+    input.disabled = sizeDisabled;
+    input.value = sizeDisabled ? "" : String(roundCoordinate(coordinates[coordinate]));
+  }
+}
+
+function selectEditableAnnotation(node) {
+  state.editSelection?.node?.classList.remove("is-edit-selected");
+  node.classList.add("is-edit-selected");
+  const overlayIndex = Number(node.dataset.overlayIndex);
+  const field = node.dataset.editField;
+  state.editSelection = {
+    node,
+    overlayIndex,
+    field,
+    padding: [
+      Number.parseFloat(node.dataset.paddingX) || 0,
+      Number.parseFloat(node.dataset.paddingY) || 0,
+    ],
+  };
+  const fieldLabel = field === "focus" ? "聚焦框" : field === "label_box" ? "编号或文字" : "点击波纹";
+  elements.annotationEditorSelection.textContent = [
+    `镜头 ${String(state.sceneIndex + 1).padStart(2, "0")}`,
+    `标注 ${overlayIndex + 1}`,
+    fieldLabel,
+  ].join(" · ");
+  elements.annotationEditorStatus.value = "坐标显示当前可见范围；调整会自动保存为本地草稿。";
+  updateEditorInputs(displayedBox(node, field), field);
+}
+
+function setDisplayedBox(node, field, box) {
+  node.style.left = `${box[0]}%`;
+  node.style.top = `${box[1]}%`;
+  if (field !== "click") {
+    node.style.width = `${box[2]}%`;
+    node.style.height = `${box[3]}%`;
+  }
+}
+
+function commitEditSelection(box) {
+  const selection = state.editSelection;
+  if (!selection) return;
+  const [paddingX, paddingY] = selection.padding;
+  let value;
+  if (selection.field === "focus") {
+    value = [
+      box[0] + paddingX,
+      box[1] + paddingY,
+      box[2] - paddingX * 2,
+      box[3] - paddingY * 2,
+    ];
+  } else if (selection.field === "click") {
+    value = box.slice(0, 2);
+  } else {
+    value = box;
+  }
+  state.annotationDrafts[annotationDraftKey(
+    state.sceneIndex,
+    selection.overlayIndex,
+    selection.field,
+  )] = value.map(roundCoordinate);
+  persistAnnotationDrafts();
+  elements.annotationEditorStatus.value = "已保存到当前浏览器；仓库时间线尚未改变。";
+}
+
+function constrainEditableBox(box, field, padding = [0, 0]) {
+  if (field === "click") {
+    return [
+      Math.max(0, Math.min(100, box[0])),
+      Math.max(0, Math.min(100, box[1])),
+      0,
+      0,
+    ];
+  }
+  const minimumWidth = field === "focus" ? Math.max(1, padding[0] * 2 + 0.2) : 1;
+  const minimumHeight = field === "focus" ? Math.max(1, padding[1] * 2 + 0.2) : 1;
+  const width = Math.max(minimumWidth, Math.min(100, box[2]));
+  const height = Math.max(minimumHeight, Math.min(100, box[3]));
+  return [
+    Math.max(0, Math.min(100 - width, box[0])),
+    Math.max(0, Math.min(100 - height, box[1])),
+    width,
+    height,
+  ];
+}
+
+function beginAnnotationPointerEdit(event) {
+  if (!editMode || event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  setPlaying(false);
+  const node = event.currentTarget;
+  selectEditableAnnotation(node);
+  const selection = state.editSelection;
+  const handle = event.target.closest("[data-resize-handle]")?.dataset.resizeHandle || "move";
+  const layerBox = elements.annotationLayer.getBoundingClientRect();
+  const start = displayedBox(node, selection.field);
+  const startClient = [event.clientX, event.clientY];
+  let changed = false;
+  node.setPointerCapture(event.pointerId);
+
+  const move = (moveEvent) => {
+    const dx = ((moveEvent.clientX - startClient[0]) / layerBox.width) * 100;
+    const dy = ((moveEvent.clientY - startClient[1]) / layerBox.height) * 100;
+    changed = changed || Math.abs(dx) > 0.005 || Math.abs(dy) > 0.005;
+    let next = [...start];
+    if (selection.field === "click" || handle === "move") {
+      next[0] += dx;
+      next[1] += dy;
+    } else {
+      if (handle.includes("w")) {
+        next[0] += dx;
+        next[2] -= dx;
+      }
+      if (handle.includes("e")) next[2] += dx;
+      if (handle.includes("n")) {
+        next[1] += dy;
+        next[3] -= dy;
+      }
+      if (handle.includes("s")) next[3] += dy;
+    }
+    next = constrainEditableBox(next, selection.field, selection.padding);
+    setDisplayedBox(node, selection.field, next);
+    updateEditorInputs(next, selection.field);
+  };
+
+  const finish = () => {
+    node.removeEventListener("pointermove", move);
+    node.removeEventListener("pointerup", finish);
+    node.removeEventListener("pointercancel", finish);
+    const box = displayedBox(node, selection.field);
+    if (changed) {
+      commitEditSelection(box);
+    } else {
+      elements.annotationEditorStatus.value = "已选择标注；拖动框体，或修改下方精确坐标。";
+    }
+  };
+
+  node.addEventListener("pointermove", move);
+  node.addEventListener("pointerup", finish);
+  node.addEventListener("pointercancel", finish);
+}
+
+function makeAnnotationEditable(node, overlayIndex, field, padding = [0, 0], resizable = false) {
+  if (!editMode) return;
+  node.classList.add("editable-annotation");
+  node.dataset.overlayIndex = String(overlayIndex);
+  node.dataset.editField = field;
+  node.dataset.paddingX = String(padding[0] || 0);
+  node.dataset.paddingY = String(padding[1] || 0);
+  node.addEventListener("pointerdown", beginAnnotationPointerEdit);
+  if (resizable) {
+    for (const corner of ["nw", "ne", "sw", "se"]) {
+      const handle = document.createElement("span");
+      handle.className = "annotation-edit-handle";
+      handle.dataset.resizeHandle = corner;
+      handle.setAttribute("aria-hidden", "true");
+      node.append(handle);
+    }
+  }
+}
+
+function annotationDraftExport() {
+  return {
+    schema_version: 1,
+    timeline: state.timelineUrl,
+    generated_at: new Date().toISOString(),
+    source_url: window.location.href,
+    changes: Object.entries(state.annotationDrafts).map(([key, value]) => {
+      const [sceneIndex, overlayIndex, field] = key.split(":");
+      const scene = state.timeline.scenes[Number(sceneIndex)];
+      const overlay = scene?.overlays?.[Number(overlayIndex)];
+      return {
+        scene_index: Number(sceneIndex),
+        scene_id: scene?.id,
+        overlay_index: Number(overlayIndex),
+        field,
+        value,
+        draft: overlay?.draft,
+      };
+    }),
+  };
+}
+
+function annotationDraftJson() {
+  return `${JSON.stringify(annotationDraftExport(), null, 2)}\n`;
+}
+
+function renderOverlay(overlay, overlayIndex) {
   const nodes = [];
   if (overlay.focus) {
     const focus = document.createElement("div");
     focus.className = "focus-box";
     if (overlay.focus_style) focus.classList.add(`focus-box--${overlay.focus_style}`);
     setPercentBox(focus, focusBoxWithPadding(overlay.focus, overlay.focus_padding));
+    makeAnnotationEditable(focus, overlayIndex, "focus", overlay.focus_padding, true);
     elements.annotationLayer.append(focus);
     nodes.push(focus);
   }
@@ -465,6 +754,7 @@ function renderOverlay(overlay) {
     label.textContent = overlay.label;
     label.title = overlay.draft || "";
     setPercentBox(label, overlay.label_box);
+    makeAnnotationEditable(label, overlayIndex, "label_box");
     elements.annotationLayer.append(label);
     nodes.push(label);
   }
@@ -486,6 +776,7 @@ function renderOverlay(overlay) {
     pulse.className = "click-pulse";
     pulse.style.left = `${overlay.click[0]}%`;
     pulse.style.top = `${overlay.click[1]}%`;
+    makeAnnotationEditable(pulse, overlayIndex, "click");
     elements.annotationLayer.append(pulse);
     nodes.push(pulse);
   }
@@ -495,18 +786,20 @@ function renderOverlay(overlay) {
 
 function scheduleOverlays(scene, elapsedMs = 0) {
   clearOverlayTimers();
+  clearEditSelection();
   elements.annotationLayer.replaceChildren();
   elements.annotationLines.replaceChildren();
 
   if (reviewMode) {
-    for (const overlay of scene.overlays || []) {
+    for (const [overlayIndex, sourceOverlay] of (scene.overlays || []).entries()) {
+      const overlay = overlayWithDraft(sourceOverlay, overlayIndex);
       const delay = overlay.delay_ms || 0;
       const effectiveEnd = Number.isFinite(overlay.end_ms)
         ? overlay.end_ms
         : overlay.type === "click" ? delay + 1000 : Number.POSITIVE_INFINITY;
       if (delay > elapsedMs || effectiveEnd <= elapsedMs) continue;
 
-      const nodes = renderOverlay(overlay);
+      const nodes = renderOverlay(overlay, overlayIndex);
       if (Number.isFinite(overlay.dim_ms) && overlay.dim_ms <= elapsedMs) {
         for (const node of nodes) node.classList.add("annotation-dim");
       }
@@ -514,7 +807,8 @@ function scheduleOverlays(scene, elapsedMs = 0) {
     return;
   }
 
-  for (const overlay of scene.overlays || []) {
+  for (const [overlayIndex, sourceOverlay] of (scene.overlays || []).entries()) {
+    const overlay = overlayWithDraft(sourceOverlay, overlayIndex);
     const delay = overlay.delay_ms || 0;
     const effectiveEnd = Number.isFinite(overlay.end_ms)
       ? overlay.end_ms
@@ -522,7 +816,7 @@ function scheduleOverlays(scene, elapsedMs = 0) {
     if (effectiveEnd <= elapsedMs) continue;
 
     const showOverlay = () => {
-      const nodes = renderOverlay(overlay);
+      const nodes = renderOverlay(overlay, overlayIndex);
       if (Number.isFinite(overlay.dim_ms)) {
         const dimOverlay = () => {
           for (const node of nodes) node.classList.add("annotation-dim");
@@ -676,6 +970,7 @@ function updateProgress() {
 }
 
 function setPlaying(next) {
+  if (editMode) next = false;
   state.playing = next;
   state.lastFrameTime = null;
   if (next) document.body.classList.add("has-started");
@@ -765,6 +1060,66 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     setPlaying(!state.playing);
   }
+});
+
+for (const input of elements.annotationEditorInputs) {
+  input.addEventListener("input", () => {
+    const selection = state.editSelection;
+    if (!selection) return;
+    const next = displayedBox(selection.node, selection.field);
+    for (const coordinateInput of elements.annotationEditorInputs) {
+      const coordinate = coordinateInput.dataset.editCoordinate;
+      if (coordinateInput.disabled || coordinateInput.value === "") continue;
+      const index = { x: 0, y: 1, w: 2, h: 3 }[coordinate];
+      const value = Number.parseFloat(coordinateInput.value);
+      if (Number.isFinite(value)) next[index] = value;
+    }
+    const constrained = constrainEditableBox(next, selection.field, selection.padding);
+    setDisplayedBox(selection.node, selection.field, constrained);
+    updateEditorInputs(constrained, selection.field);
+    commitEditSelection(constrained);
+  });
+}
+
+elements.annotationEditorCopy.addEventListener("click", async () => {
+  const copy = annotationDraftJson();
+  try {
+    await navigator.clipboard.writeText(copy);
+    elements.annotationEditorStatus.value = "调整 JSON 已复制；可以直接粘贴回任务。";
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = copy;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.append(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+    elements.annotationEditorStatus.value = "调整 JSON 已复制；可以直接粘贴回任务。";
+  }
+});
+
+elements.annotationEditorDownload.addEventListener("click", () => {
+  const blob = new Blob([annotationDraftJson()], { type: "application/json;charset=utf-8" });
+  const link = document.createElement("a");
+  const chapter = currentCatalogChapter()?.id || "storyboard";
+  link.href = URL.createObjectURL(blob);
+  link.download = `${chapter}-annotation-adjustments.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);
+  elements.annotationEditorStatus.value = "调整 JSON 已下载；文件不包含 Capture、提示词或本地路径。";
+});
+
+elements.annotationEditorResetScene.addEventListener("click", () => {
+  const prefix = `${state.sceneIndex}:`;
+  for (const key of Object.keys(state.annotationDrafts)) {
+    if (key.startsWith(prefix)) delete state.annotationDrafts[key];
+  }
+  persistAnnotationDrafts();
+  renderScene({ resetElapsed: false });
+  elements.annotationEditorStatus.value = "本镜头已恢复仓库中的原始坐标。";
 });
 
 renderLoading();

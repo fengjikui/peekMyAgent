@@ -80,8 +80,8 @@ for (const [index, scene] of timeline.scenes.entries()) {
       assertExpandedBox(overlay.focus, overlay.focus_padding, `${overlayLabel}.focus with padding`);
     }
     if (overlay.focus_style !== undefined) {
-      assert(["control", "stacked"].includes(overlay.focus_style),
-        `${overlayLabel}.focus_style must be control or stacked`);
+      assert(["control", "stacked", "spotlight"].includes(overlay.focus_style),
+        `${overlayLabel}.focus_style must be control, stacked, or spotlight`);
     }
     if (overlay.route) {
       assert(Array.isArray(overlay.route) && overlay.route.length >= 2, `${overlayLabel}.route needs at least two points`);

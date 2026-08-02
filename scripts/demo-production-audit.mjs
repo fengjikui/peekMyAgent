@@ -265,6 +265,9 @@ function auditStoryboardCatalog() {
     "storyboard player must expose export readiness and a clean subtitle-free playback mode");
   assert(player.includes('params.get("plan")') && player.includes("readmePlanToTimeline"),
     "storyboard player must support README GIF plan playback");
+  assert(player.includes('params.get("edit")') && player.includes("annotationDraftExport")
+    && html.includes("annotation-editor"),
+    "storyboard player must support local editable annotation review and JSON handoff");
   totals.catalogEntries = catalog.chapters.length;
 }
 
