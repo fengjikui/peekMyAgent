@@ -23,6 +23,7 @@ const requiredFiles = [
   "assets/demo/media-budget.json",
   "scripts/capture-storyboard-review-frames.mjs",
   "scripts/export-storyboard-video.mjs",
+  "scripts/generate-storyboard-review-index.mjs",
   "scripts/documentation-impact-summary.mjs",
 ];
 
@@ -185,6 +186,40 @@ assert.equal(videoExportHelp.status, 0, `storyboard video export help failed:\n$
 assert.match(videoExportHelp.stdout, /<chapter-id>/);
 assert.match(videoExportHelp.stdout, /--include-subtitles/);
 assert.match(videoExportHelp.stdout, /1920x1080 picture master/);
+
+const reviewIndexHelp = spawnSync(process.execPath, [
+  "scripts/generate-storyboard-review-index.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(reviewIndexHelp.status, 0, `storyboard review index help failed:\n${reviewIndexHelp.stderr}`);
+assert.match(reviewIndexHelp.stdout, /--require-videos/);
+assert.match(reviewIndexHelp.stdout, /--video-root/);
+assert.match(reviewIndexHelp.stdout, /--check/);
+
+const reviewIndexCheck = spawnSync(process.execPath, [
+  "scripts/generate-storyboard-review-index.mjs",
+  "--check",
+], { encoding: "utf8" });
+assert.equal(reviewIndexCheck.status, 0,
+  `storyboard review index check failed:\n${reviewIndexCheck.stdout}${reviewIndexCheck.stderr}`);
+assert.match(reviewIndexCheck.stdout, /10 chapters/);
+
+const reviewIndexEmptyCheck = spawnSync(process.execPath, [
+  "scripts/generate-storyboard-review-index.mjs",
+  "--check",
+  "--video-root",
+  "tmp/storyboard-review-index-empty",
+], { encoding: "utf8" });
+assert.equal(reviewIndexEmptyCheck.status, 0,
+  `empty storyboard review index check failed:\n${reviewIndexEmptyCheck.stdout}${reviewIndexEmptyCheck.stderr}`);
+assert.match(reviewIndexEmptyCheck.stdout, /0 local videos, 0 verified picture masters/);
+
+const demoProductionImpact = buildDocumentationImpact([
+  "scripts/generate-storyboard-review-index.mjs",
+]);
+assert.deepEqual(demoProductionImpact.impacts.map((impact) => impact.id), ["demo-production"]);
+assert(demoProductionImpact.impacts[0].required_docs.includes("docs/demo-chapter-production.zh-CN.md"));
+assert(demoProductionImpact.impacts[0].required_demos.some((item) => item.includes("本地审片首页")));
 
 const demoProduction = spawnSync(process.execPath, ["scripts/demo-production-audit.mjs"], {
   encoding: "utf8",

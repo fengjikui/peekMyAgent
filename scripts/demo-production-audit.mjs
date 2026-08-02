@@ -78,6 +78,19 @@ function auditStoryboardCatalog() {
     "storyboard video export must record the real webpage, support a clean subtitle-free master, and verify MP4 output",
   );
 
+  const reviewIndexScript = path.join(root, "scripts", "generate-storyboard-review-index.mjs");
+  assertFile(reviewIndexScript, "storyboard review index generator");
+  assertTrackable(reviewIndexScript, "storyboard review index generator");
+  scanTextPrivacy(reviewIndexScript, "storyboard review index generator");
+  const reviewIndexSource = fs.readFileSync(reviewIndexScript, "utf8");
+  assert(
+    reviewIndexSource.includes("catalog.zh-CN.json")
+      && reviewIndexSource.includes("review-index.html")
+      && reviewIndexSource.includes("data-video-preview")
+      && reviewIndexSource.includes("--require-videos"),
+    "storyboard review index must derive chapter links from catalog and distinguish verified local videos",
+  );
+
   for (const name of ["index.html", "player.css", "player.js", "README.md", "catalog.zh-CN.json"]) {
     const file = path.join(storyboardRoot, name);
     assertFile(file, "storyboard player artifact");

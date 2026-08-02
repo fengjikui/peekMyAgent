@@ -224,6 +224,22 @@ const impactRules = [
     demos: ["translation 真实 Capture Proxy Source、原文对照帧与双尺寸审阅素材"],
   },
   {
+    id: "demo-production",
+    label: "演示 catalog、网页故事板、审片入口与媒体生产工具",
+    patterns: [
+      /^assets\/demo\/storyboard\//i,
+      /^assets\/demo\/source\/[^/]+\/(?:manifest\.json|narration\.zh-CN\.md|video\/)/i,
+      /^scripts\/.*(?:storyboard|demo-production|timeline-subtitles|demo-video)/i,
+    ],
+    docs: [
+      "docs/demo-chapter-production.zh-CN.md",
+      "docs/visual-usage-guide.zh-CN.md",
+      "docs/video-production.zh-CN.md",
+      "docs/documentation-maintenance.md",
+    ],
+    demos: ["统一章节 catalog、HTML 动效模板、本地审片首页、双尺寸复核帧与干净画面母版"],
+  },
+  {
     id: "privacy-data",
     label: "隐私、Trace、清理、导入导出",
     patterns: [

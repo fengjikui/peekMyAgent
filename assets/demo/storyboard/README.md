@@ -14,6 +14,20 @@ python3 -m http.server 43115 --bind 127.0.0.1
 http://127.0.0.1:43115/assets/demo/storyboard/index.html
 ```
 
+如果需要一次看到十章的 HTML、干净播放和本地 MP4，而不是逐个拼接链接，先生成 Git 忽略的统一审片首页：
+
+```bash
+node scripts/generate-storyboard-review-index.mjs --require-videos
+```
+
+再打开：
+
+```text
+http://127.0.0.1:43115/tmp/storyboard-video/review-index.html
+```
+
+这张首页直接读取 `catalog.zh-CN.json`、各章时间线和本地 render manifest，显示标题、时长、镜头、字幕、复核点、Source 边界、审阅状态与下一道门。每章提供可点击的 HTML 模板、无字幕干净播放、正式 MP4、页内视频预览和对应中文章节；其他试剪只在折叠区标为历史素材。页面不会嵌入视频、Capture 或本机绝对路径，重新生成也不会把 `tmp/` 中的文件加入 Git。没有本地视频的克隆仍可生成页面；交接正式母版时增加 `--require-videos`，要求十章视频和 render manifest 全部通过合同核对。
+
 播放器默认打开五分钟快速上手。非成片模式的控制区包含两级选择器：
 
 - `章节`：直接切换快速上手、自研 Harness 通用协议、协议与 Raw 排错、System / Tools 翻译、工具调用、Skill、子 Agent、Claude Code / Codex 上下文压缩和多步规划；

@@ -29,6 +29,8 @@
 9. **干净画面母版**：不含配音；发布版可以单独合成字幕与授权音轨。
 10. **验收与来源记录**：产品 SHA、Source、素材文件、脱敏说明、逐帧结论、未覆盖风险。
 
+十章之间的所有者审阅不再依靠聊天里手工维护链接。运行 `node scripts/generate-storyboard-review-index.mjs --require-videos` 会在 Git 忽略的 `tmp/storyboard-video/review-index.html` 生成统一审片首页：每章同时给出 HTML 动效模板、无字幕干净播放、本地 MP4、页内预览、中文事实章节、Source 边界和下一道门。页面只链接仓库相对路径，不复制视频、Capture 或本机绝对路径；历史试剪与正式母版分开展示。
+
 ## 章节推进状态
 
 | 顺序 | 章节 | 当前状态 | 下一道门 |
@@ -149,6 +151,14 @@ node scripts/export-storyboard-video.mjs quickstart \
 ```
 
 输出旁边的 `.render.json` 是该次画面的交接证据。它记录精确 HEAD、工作区状态、源时间线、浏览器和 FFmpeg 版本、起止范围、编码帧数、是否显示字幕以及环回隐私边界。只有干净工作树上的整章无字幕导出才标记 `publishable_picture_master: true`；切片、脏工作树候选或带字幕预览都只能用于内部审阅。大体积 MP4 继续保存在 `tmp/`、Release 或对象存储，不进入主仓库。
+
+多章母版导出或替换后，重新生成统一审片首页并要求所有正式母版合同通过：
+
+```bash
+node scripts/generate-storyboard-review-index.mjs --require-videos
+```
+
+默认入口是 `http://127.0.0.1:43115/tmp/storyboard-video/review-index.html`。页面中的“HTML 模板”用于逐句、逐标注审阅，“干净播放”用于检查正式画面层，“打开 MP4 / 页内播放”用于检查编码结果；三者不能互相替代。
 
 生成成功仍不能代替观看。每章至少抽查：第一帧、每次场景转场前后、每个编号新增前后、旧编号降权或退出后的稳定帧、字幕安全区和末帧；确认没有黑边、浏览器控制器、提前出现的编号、空白帧、字幕大黑框或敏感内容。
 
