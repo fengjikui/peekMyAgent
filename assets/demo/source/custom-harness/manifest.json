@@ -80,6 +80,12 @@
     "timeline": "assets/demo/source/custom-harness/video/timeline.zh-CN.json",
     "subtitles": "assets/demo/video/pma-custom-harness.zh-CN.srt",
     "storyboard_player": "assets/demo/storyboard/index.html",
+    "review_capture": "node scripts/capture-storyboard-review-frames.mjs custom-harness",
+    "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/custom-harness/pma-custom-harness-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "technical validation passed at exact source commit b1016742c113ecdb09cb76d6a18696f81a284fcb; owner Chinese story review is still pending",
+    "repository_policy": "The eight public Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, fake-upstream logs, and audio remain ignored.",
     "audio": "not_started; handled by the separate voice-tuning workflow"
   },
   "official_references": [
@@ -109,7 +115,37 @@
       "The OpenAI input/output comparison crossfades from the three input Items to the final Assistant message; the Anthropic tool_use region is retained and dimmed when tool_result becomes the active evidence.",
       "A pre-export frame audit found four review points sampled just before the named handoff and found the OpenAI protocol focus boxes one section too high. The checkpoints were moved into the real overlap/completed states, and the two boxes were realigned to the three input Items and the downstream Assistant message before the picture master was accepted.",
       "No arrows were added because focus frames and progressive numbering provide a clearer route without crossing readable content."
-    ]
+    ],
+    "video_master": {
+      "status": "technical_validation_passed_owner_story_review_pending",
+      "source_commit": "b1016742c113ecdb09cb76d6a18696f81a284fcb",
+      "source_worktree_dirty": false,
+      "duration_seconds": 251,
+      "resolution": [1920, 1080],
+      "fps": 30,
+      "encoded_frames": 7530,
+      "browser_frames_received": 1322,
+      "browser_final_absolute_ms": 250970,
+      "maximum_encoder_lateness_ms": 67.239,
+      "container_bytes": 5326410,
+      "stream": "H.264 video only; no audio stream, subtitle stream, or webpage subtitle layer",
+      "external_requests": false,
+      "publishable_picture_master": true,
+      "full_decode": "passed",
+      "black_frame_count": 0,
+      "video_review_points": 25,
+      "video_review_contact_sheet": "tmp/storyboard-video/custom-harness/review-full-timeline/contact-sheet.jpg; local and Git-ignored",
+      "comparison_crop": "1920x900, excluding the approved webpage-subtitle region because the picture master intentionally hides that layer",
+      "comparison_mean_abs_diff_255": 1.411,
+      "comparison_max_frame_mean_abs_diff_255": 1.978,
+      "comparison_max_frame": "08b-header-redaction",
+      "qa_notes": [
+        "All 25 frames were re-extracted from the final MP4 at the corrected timeline review points and visually inspected at original size.",
+        "The three handoff checkpoints contain the intended short overlap; completed states keep only the new marker unless an explicit comparison requires the old marker to remain dimmed.",
+        "OpenAI input Items and the downstream Assistant message are framed separately; Anthropic tool_use remains dimmed only to compare it with the later tool_result.",
+        "The maximum frame-mean difference occurs in the Raw header-redaction scene and was confirmed as normal browser/encoder rendering variation rather than a shifted annotation."
+      ]
+    }
   },
   "publication_gate": {
     "status": "owner-review",
