@@ -2,7 +2,7 @@
   "schema_version": 1,
   "title": "一个用户请求为什么会变成七次模型往返",
   "language": "zh-CN",
-  "chapter_status": "real_cli_trace_story_narration_raw_capture_and_dual_viewport_storyboard_review_v0_2",
+  "chapter_status": "real_cli_trace_story_narration_raw_capture_dual_viewport_review_and_picture_master_v0_2",
   "product_sha": "674222577f415c1b2775acefd337844ea6efd74c",
   "source": {
     "generator": "scripts/claude-planning-real-cli-probe.mjs",
@@ -107,6 +107,10 @@
     "subtitles": "assets/demo/video/pma-claude-planning.zh-CN.srt",
     "storyboard_player": "assets/demo/storyboard/index.html",
     "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/claude-planning/pma-claude-planning-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "technical validation passed at exact source commit d6b8e8720955354984822cf9b8f9d67d1cb6b66e; owner Chinese story review is still pending",
+    "repository_policy": "The public Viewer frames and both review directories remain tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, raw request log, and audio remain ignored.",
     "audio": "not_started; handled by the separate voice-tuning workflow"
   },
   "official_references": [
@@ -135,7 +139,9 @@
       "Independent focus changes crossfade the earlier marker into the next marker; the completed state contains only the new marker.",
       "No arrow was needed in this chapter because marker placement and focus boxes establish every relationship without crossing readable content.",
       "Subtitles remain bottom-centered at both review sizes and do not cover the selected tab, highlighted evidence, or final response.",
-      "The first production audit found that the directory named review-1920 still contained 1280x720 files. All 28 desktop states were re-rendered in present mode at an exact 1920x1080 viewport, pixel dimensions were verified from image bytes, and both contact sheets were rebuilt."
+      "The first production audit found that the directory named review-1920 still contained 1280x720 files. All 28 desktop states were re-rendered in present mode at an exact 1920x1080 viewport, pixel dimensions were verified from image bytes, and both contact sheets were rebuilt.",
+      "A 274-second clean picture master was recorded from exact source commit d6b8e8720955354984822cf9b8f9d67d1cb6b66e: 8220 encoded frames, 1927 browser redraw frames, 1920x1080 at 30 fps, H.264 video only, 7,540,908 bytes, browser final time 273944ms, and maximum encoder lateness 53.032ms.",
+      "Full decode and black-frame checks passed. All 28 review points were extracted again from the MP4 and inspected; mean absolute pixel difference from the approved 1920x1080 review set was 4.65/255, with the 7.50/255 maximum on the unannotated intro card. The progressive marker states and focus boxes remained aligned."
     ],
     "annotation_policy": [
       "Numbered markers are timed teaching beats, not a static legend.",
@@ -147,7 +153,7 @@
     ]
   },
   "publication_gate": {
-    "status": "real_cli_cross_check_raw_capture_and_dual_viewport_storyboard_review_complete_owner_story_review_pending",
+    "status": "real_cli_cross_check_raw_capture_dual_viewport_review_and_picture_master_technical_validation_complete_owner_story_review_pending",
     "remaining": [
       "Freeze narration only after the owner reviews the Chinese story.",
       "Do not publish the ignored raw request log or generated video from the main repository."

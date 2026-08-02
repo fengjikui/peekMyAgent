@@ -107,6 +107,7 @@ node scripts/export-storyboard-video.mjs quickstart \
 - 干净提交 `02720e350dcef1c6320d18ccafd9ef10da2b7a2b` 已完整录制 254 秒 Claude Code 子 Agent 母版；7620 帧和 32 个复核点通过完整解码、黑帧、三栏构图、multi-agent 点击、分支交接、Turn 降权对照、最终 Response 与无字幕层检查。该候选仍只保存在 Git 忽略目录，所有者中文故事审阅尚未完成。
 - 干净提交 `28d66330bfa44edb9b5521158af81fc21b109fc1` 已完整录制 242 秒 Claude Code 上下文压缩母版；7260 帧和 15 个复核点通过完整解码、黑帧、两级导航、History 重建、规则重载、渐进编号与无字幕层检查。该候选仍只保存在 Git 忽略目录，所有者中文故事审阅尚未完成。
 - 干净提交 `e94bf4891fa95b5b53afd5bf22f411d54571a3be` 已完整录制 250 秒 Codex 上下文压缩母版；7500 帧和 20 个复核点通过完整解码、黑帧、两级导航、Metadata 归因、协议顺序、History 1→2→3 与无字幕层检查。该候选仍只保存在 Git 忽略目录，所有者中文故事审阅尚未完成。
+- 干净提交 `d6b8e8720955354984822cf9b8f9d67d1cb6b66e` 已完整录制 274 秒 Claude Code 多步规划母版；8220 帧和 28 个复核点通过完整解码、黑帧、Turn / Request 两级导航、任务状态、文件证据、Message / History 边界、协议顺序、渐进编号与无字幕层检查。该候选仍只保存在 Git 忽略目录，所有者中文故事审阅尚未完成。
 
 加载子 Agent 章节：
 
