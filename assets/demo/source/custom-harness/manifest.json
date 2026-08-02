@@ -107,6 +107,7 @@
       "All screenshots use an exact 1920x1080 browser viewport with no document overflow.",
       "Right-pane tabs remain comfortably spaced at full desktop width instead of filling the row.",
       "The OpenAI input/output comparison crossfades from the three input Items to the final Assistant message; the Anthropic tool_use region is retained and dimmed when tool_result becomes the active evidence.",
+      "A pre-export frame audit found four review points sampled just before the named handoff and found the OpenAI protocol focus boxes one section too high. The checkpoints were moved into the real overlap/completed states, and the two boxes were realigned to the three input Items and the downstream Assistant message before the picture master was accepted.",
       "No arrows were added because focus frames and progressive numbering provide a clearer route without crossing readable content."
     ]
   },

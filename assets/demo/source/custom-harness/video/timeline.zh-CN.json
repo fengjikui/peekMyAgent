@@ -18,7 +18,7 @@
     { "name": "00-intro", "scene": 0, "at_ms": 3000 },
     { "name": "01-command", "scene": 1, "at_ms": 7000 },
     { "name": "02a-source", "scene": 2, "at_ms": 3600 },
-    { "name": "02b-flow-crossfade", "scene": 2, "at_ms": 8900 },
+    { "name": "02b-flow-crossfade", "scene": 2, "at_ms": 9250 },
     { "name": "02c-tool-loop", "scene": 2, "at_ms": 11200 },
     { "name": "03a-metadata-tab", "scene": 3, "at_ms": 2600 },
     { "name": "03b-parameters", "scene": 3, "at_ms": 8200 },
@@ -26,14 +26,14 @@
     { "name": "04a-tools-tab", "scene": 4, "at_ms": 2600 },
     { "name": "04b-tool-schema", "scene": 4, "at_ms": 8200 },
     { "name": "05a-tool-call", "scene": 5, "at_ms": 3800 },
-    { "name": "05b-call-crossfade", "scene": 5, "at_ms": 9800 },
+    { "name": "05b-call-crossfade", "scene": 5, "at_ms": 10250 },
     { "name": "05c-call-arguments", "scene": 5, "at_ms": 12200 },
     { "name": "06a-tool-result", "scene": 6, "at_ms": 4200 },
-    { "name": "06b-result-crossfade", "scene": 6, "at_ms": 10400 },
+    { "name": "06b-result-crossfade", "scene": 6, "at_ms": 10850 },
     { "name": "06c-result-body", "scene": 6, "at_ms": 12800 },
     { "name": "07a-protocol-tab", "scene": 7, "at_ms": 2800 },
     { "name": "07b-openai-input", "scene": 7, "at_ms": 8800 },
-    { "name": "07c-openai-output", "scene": 7, "at_ms": 17200 },
+    { "name": "07c-openai-output", "scene": 7, "at_ms": 18450 },
     { "name": "08a-raw-request", "scene": 8, "at_ms": 4200 },
     { "name": "08b-header-redaction", "scene": 8, "at_ms": 10400 },
     { "name": "09a-anthropic-provider", "scene": 9, "at_ms": 3600 },
@@ -290,8 +290,8 @@
         {
           "type": "badge",
           "label": "1",
-          "focus": [62.6, 19.8, 36.7, 25.3],
-          "label_box": [60.1, 17.2, 2.4, 4.4],
+          "focus": [62.6, 45.0, 36.7, 14.3],
+          "label_box": [60.1, 42.4, 2.4, 4.4],
           "delay_ms": 5800,
           "end_ms": 18100,
           "draft": "出现顺序：编号 1 先聚焦 OpenAI 上行的三类原生 Item，并说明 assistant/tool 是 Viewer 语义标签；保留关系：下行出现后焦点转移；淡出时点：与编号 2 交叉约 0.7 秒。"
@@ -299,8 +299,8 @@
         {
           "type": "badge",
           "label": "2",
-          "focus": [62.6, 45.0, 36.7, 14.0],
-          "label_box": [60.1, 42.4, 2.4, 4.4],
+          "focus": [62.6, 65.0, 36.7, 14.0],
+          "label_box": [60.1, 62.4, 2.4, 4.4],
           "delay_ms": 17400,
           "draft": "出现顺序：编号 2 接管模型下行与最终 Assistant 条目；保留关系：编号 1 交接后消失；淡出时点：镜头结束。"
         }
