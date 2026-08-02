@@ -111,4 +111,4 @@ PMA 会明确区分：
 
 素材来源、箭头草稿、帧时长和验收门禁见[图文与演示素材说明](visual-usage-guide.zh-CN.md)。
 
-功能 Agent 与文档 Agent 的影响矩阵、交接格式和后续主动触发设计见[用户文档与演示素材持续更新机制](documentation-maintenance.md)。
+功能 Agent 与文档 Agent 的影响矩阵、交接格式、当前主工作区 heartbeat 和仓库级触发边界见[用户文档与演示素材持续更新机制](documentation-maintenance.md)。

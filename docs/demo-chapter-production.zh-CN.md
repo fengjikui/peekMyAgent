@@ -202,4 +202,4 @@ python3 scripts/build-demo-contact-sheet.py \
 
 ## 功能更新后的主动触发
 
-功能到文档的影响映射仍以[用户文档与演示素材持续更新机制](documentation-maintenance.md)为准。后续自动化只负责在 `origin/main` 变化时创建携带精确 SHA、受影响章节和需重录 Source 的文档任务；它不能跳过真实页面复核，也不能自动发布未经审视的截图。
+功能到文档的影响映射仍以[用户文档与演示素材持续更新机制](documentation-maintenance.md)为准。产品所有者主工作区的 heartbeat 会在 `origin/main` 变化后生成携带精确 SHA、受影响章节和需重录 Source 的文档任务；它不能跳过真实页面复核，也不能自动发布未经审视的截图。共享 GitHub 工作流继续只生成只读 Job Summary，不会因克隆仓库而自动创建本地调度。

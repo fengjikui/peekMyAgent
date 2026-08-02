@@ -1,6 +1,6 @@
 # 用户文档与演示素材持续更新机制
 
-本文定义功能 Agent 与文档 Agent 之间的长期协作方式。它区分当前已经具备的检查基础与尚未接入的主动触发计划，不能把计划写成已运行的自动化。
+本文定义功能 Agent 与文档 Agent 之间的长期协作方式。它区分共享仓库门禁、产品所有者主工作区已经启用的 Codex heartbeat，以及尚未接入的 GitHub 合并事件触发；不能把某一台机器上的本地自动化写成所有贡献者都具备的仓库能力。
 
 ## 当前已经具备
 
@@ -20,12 +20,13 @@
 - 同一脚本的 `--base` / `--changed-file` 模式会把功能变更映射成受影响文档与演示素材；JSON 同时包含精确目标 SHA、解析后的 base SHA、工作区状态、去重后的必查文档/演示、验证命令和隐私限制，可以直接作为文档 Agent 的任务载荷；
 - `.github/workflows/release-check.yml` 已在每个 PR 增加只读 `Documentation impact` job：它检出精确 head SHA，以 PR base SHA 到 head SHA 的 merge-base 范围生成 JSON，再把受影响文档、演示 Source、验证命令和隐私限制写入 GitHub Job Summary；job 只有 `contents: read`，不会评论 PR、创建 issue、读取 secrets 或发布素材；
 - `scripts/documentation-impact-summary.mjs` 负责校验 JSON 中的 head/base SHA 并生成防 Markdown 注入的摘要；路径很多时完整变更列表折叠显示，必查文档和演示保持在首屏；
+- 产品所有者的主文档工作区已启用名为 `peekMyAgent documentation and demo drift monitor` 的 Codex heartbeat：每天本地时间 10:00 轻量轮询一次 `origin/main`，用 Git 忽略的 `tmp/documentation-main-monitor.json` 保存最后扫描 SHA，并复用同一 JSON 影响映射唤醒当前长期文档任务；没有新 SHA 或没有映射边界时不通知、不截图、不运行大检查；
 - `docs/media-publishing.zh-CN.md` 规定主仓库只跟踪轻量、可复现的制作资料，成片通过 Releases 或对象存储发布；
 - `docs/video-series-claude-code.zh-CN.md` 保存工具闭环、Skill、子 Agent、上下文压缩和多步规划五支独立视频的事实边界与逐镜头脚本；
 - `docs/visual-usage-guide.zh-CN.md` 定义逐帧视觉验收门禁；
 - `assets/demo/source/*/manifest.json` 记录视口、主题、协议、帧时长、隐私和预期语义。
 
-这些能力可以发现确定性轨迹、素材生成失败和核心中文文档漂移，也能在 PR 上主动生成“变更文件 → 受影响文档 / 演示”的只读交接；当前还没有自动监听合并后的 `origin/main`、创建外部文档任务或唤醒另一个 Codex 任务。
+这些能力可以发现确定性轨迹、素材生成失败和核心中文文档漂移，也能在 PR 上主动生成“变更文件 → 受影响文档 / 演示”的只读交接。主工作区 heartbeat 已能在合并后轮询 `origin/main` 并唤醒当前 Codex 文档任务；GitHub 仓库本身仍没有在 push 事件上创建 issue、外部任务或写回 PR 的权限。
 
 ## 功能到文档的影响矩阵
 
@@ -47,9 +48,9 @@
 
 ## 主动触发流程
 
-当前 PR 检查与后续合并事件自动化共用以下流程：
+当前 PR 检查、主工作区 heartbeat 与未来的仓库级合并事件自动化共用以下流程：
 
-1. 当前 PR 事件读取精确 head/base 及其变更文件；后续外部自动化再监听 `origin/main` 新 commit 或已合并 PR；
+1. PR 事件读取精确 head/base 及其变更文件；主工作区 heartbeat 每天比较本地检查点与 `origin/main`；未来的仓库级自动化可以改为直接消费受信任的合并事件；
 2. 根据上表映射到受影响章节和场景。仓库内可以直接运行：
 
    ```bash
@@ -69,14 +70,23 @@
    `--target` 与 `--base` 同时使用时按 merge-base 范围计算已提交变更，适合 PR 和可复现交接；只写 `--base` 时仍会把当前工作区与 base 比较，适合本地修改中的预览。无参数运行只执行一致性门禁，不生成影响报告。JSON 中 `working_tree_dirty: true` 表示当前检出仍有未提交内容，不能把它当作已完整包含这些修改的共享目标；交接前应提交到独立分支并重新生成；
 3. 运行确定性 `--verify` 和现有文档检查；
 4. PR job 把匹配结果写入只读 Job Summary；功能贡献者更新对应文档/manifest，或记录公开行为未变化的具体证据；
-5. 后续若接入外部自动化，才由受信任的合并事件创建或唤醒文档更新任务；
+5. 主工作区 heartbeat 在发现新 SHA 后生成同结构 JSON，按 `target SHA + impact_ids` 去重；存在映射边界时唤醒当前长期文档任务，没有映射时只更新检查点；
 6. 任务必须携带目标 SHA、变更摘要、受影响章节、需要重录的 Source 和隐私限制；
 7. 文档 Agent 在该 SHA 上操作真实 Viewer，局部重录和重新验收；
 8. 中文事实稳定后再同步英文及其他语言。
 
-当前 PR 检查只生成明确交接，不创建任务。后续外部触发即使负责创建任务，也不能自动把 roadmap 文案发布为当前功能，或在没有视觉复核时自动提交新截图。
+当前 PR 检查只生成明确交接，不创建任务。主工作区 heartbeat 可以唤醒文档任务，但不能自动把 roadmap 文案发布为当前功能，或在没有视觉复核时自动提交新截图。
 
-`.github/pull_request_template.md` 已要求功能贡献者检查自动生成的 Job Summary，并附上更新或“不影响”的证据。GitHub 现在会主动产出只读交接，但仍不会自动创建外部文档任务；视觉判断和真实 Harness 复核继续由人或文档 Agent 完成。
+`.github/pull_request_template.md` 已要求功能贡献者检查自动生成的 Job Summary，并附上更新或“不影响”的证据。GitHub 现在会主动产出只读交接；主工作区 heartbeat 负责合并后的低频补漏；视觉判断和真实 Harness 复核继续由人或文档 Agent 完成。
+
+## 当前工作区 heartbeat 合同
+
+- 调度：每天本地时间 10:00 运行一次；只有 `origin/main` SHA 变化时才执行影响映射；
+- 检查点：`tmp/documentation-main-monitor.json` 只保存 `schema_version`、`last_scanned_sha` 和用于去重的 `last_notified_key`，受 `.gitignore` 保护，不是共享项目状态；
+- 任务载荷：必须包含精确 base/target SHA、变更文件、影响 id、必查文档、必查演示、验证命令和敏感数据限制；
+- 自动执行边界：允许只读核对当前仓库和真实 Viewer，并对明确的低风险文档漂移按小批更新；不允许修改产品运行时、协议适配或 Bug，不允许自动发布视频，也不允许覆盖其他贡献者的工作树；
+- 通知：没有 SHA 变化、没有映射边界或同一 `target SHA + impact_ids` 已通知时保持安静；只在出现新影响、实际完成更新、验证失败或需要产品所有者决定时通知；
+- 降级：本地 heartbeat 不可用时，PR 的只读 `Documentation impact` 仍是共享最低保证；其他机器不会因为克隆仓库而自动获得该调度。
 
 ## 功能 Agent 的最小交接
 
@@ -107,4 +117,4 @@ Target SHA:
 
 ## 下一步自动化边界
 
-“变更文件 → 影响矩阵 → 带精确 SHA 的 JSON 交接 → PR Job Summary → 人工确认”现在已经由权限受限的只读 GitHub 工作流执行。下一阶段可以在合并后的 `origin/main` 事件上复用同一 JSON，通过 Codex 自动化创建或唤醒文档任务。接入前仍要决定任务承载位置、去重键（建议使用 target SHA + impact id）、失败重试、关闭条件和谁确认真实 UI 录制；当前仓库尚未自动创建外部任务。
+“变更文件 → 影响矩阵 → 带精确 SHA 的 JSON 交接 → PR Job Summary → 人工确认”已经由权限受限的只读 GitHub 工作流执行；主工作区 heartbeat 又补上了“合并后轮询 → 去重 → 唤醒当前文档任务”。下一阶段若需要所有维护者共享同一触发，仍应在受信任的 `main` push 事件上复用同一 JSON，并明确任务承载位置、失败重试、关闭条件和谁确认真实 UI 录制。仓库级工作流在这些权限和治理问题确定前继续保持只读。
