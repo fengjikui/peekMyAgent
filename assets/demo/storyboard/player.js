@@ -319,12 +319,23 @@ function setPercentBox(node, [x, y, width, height]) {
   node.style.height = `${height}%`;
 }
 
+function focusBoxWithPadding([x, y, width, height], padding = [0, 0]) {
+  const [paddingX, paddingY] = padding;
+  return [
+    x - paddingX,
+    y - paddingY,
+    width + paddingX * 2,
+    height + paddingY * 2,
+  ];
+}
+
 function renderOverlay(overlay) {
   const nodes = [];
   if (overlay.focus) {
     const focus = document.createElement("div");
     focus.className = "focus-box";
-    setPercentBox(focus, overlay.focus);
+    if (overlay.focus_style) focus.classList.add(`focus-box--${overlay.focus_style}`);
+    setPercentBox(focus, focusBoxWithPadding(overlay.focus, overlay.focus_padding));
     elements.annotationLayer.append(focus);
     nodes.push(focus);
   }

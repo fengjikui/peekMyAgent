@@ -123,6 +123,10 @@ node scripts/capture-storyboard-review-frames.mjs claude-planning \
 - `subtitles=0` 用于干净画面母版：只隐藏网页字幕层，不改变镜头、标注、点击波纹或转场；带字幕内部预览必须显式选择，不能覆盖干净母版；
 - 未来可增加局部放大，但默认保持完整三栏，只有证据在全屏尺寸仍无法阅读时才启用。
 
+聚焦框的坐标表示目标内容本身，额外呼吸空间使用 `focus_padding: [horizontal, vertical]` 单独声明。普通内容区域在 1920×1080 中左右扩展约 12～18px、上下扩展约 7～10px；紧凑控件使用 `focus_style: "control"`，上下扩展约 4～7px。上下相邻的比较项使用 `focus_style: "stacked"`，左右边界对齐，共享边附近只扩展约 3～5px，并保留 4～8px 可见间隔。框线固定在约 2px，圆角保持 8～10px，阴影只用于从 Viewer 原边界中分离标注，不能让聚焦框看起来像新增卡片。
+
+中文是当前唯一内容母版。后续制作英语或其他语言时，必须同步替换标题卡、`narration`、`subtitle_cues`、SRT、网页补充文字、README 文案和发布帖文案；命令、协议字段和产品原生标识不翻译。跨语言复用的只能是没有烘焙字幕和旁白的干净画面母版。
+
 统一章节清单保存在 `assets/demo/storyboard/catalog.zh-CN.json`。每项必须声明 `timeline`、`guide`、`guide_section` 与 `review`；`review` 固定包含问题、观众、Source 边界、发布状态、下一道确认门、可执行的 `story` 叙事合同、产品新鲜度边界，以及旁白、字幕、manifest、1920 联系表和 1024 联系表。`review.freshness.verified_product_sha` 指向已经完成真实产品复核的共享 `main` 提交；manifest 仍保留原始采集提交，两者不能互相覆盖。文档映射只能指向纳入审计的中文公开文档和其中真实存在的标题，审阅资料必须真实存在且可进入 Git。新增、删除或重命名章节时必须同步清单；生产审计要求 catalog 与所有同时具有 manifest 和时间线的可发布章节完全一致。
 
 `story` 不是自动评价文案“好不好听”，而是防止已经确认的叙事骨架在后续改版中静默丢失。每章必须声明：30 秒内结束的开场镜头及其旁白 / 字幕关键短语、60 秒内明确 PMA 价值的镜头、至少两个来自真实 Viewer 画面的证据镜头，以及最后一幕的可复述结论。`demo-production-audit.mjs` 会把这些引用与当前时间线逐项核对，同时检查 manifest 仍有观众、问题、结论和不讲范围；人工故事审阅仍是发布门，关键短语门禁不能替代人的理解。

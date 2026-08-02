@@ -261,10 +261,22 @@ body[data-story-theme="codex-and-claude"] {
 }
 
 .focus-box {
-  border: max(2px, .18vw) solid var(--accent);
-  border-radius: clamp(6px, .65vw, 14px);
-  box-shadow: 0 0 0 max(1px, .11vw) rgb(255 255 255 / 92%), 0 8px 22px rgb(117 68 46 / 15%);
-  background: var(--accent-soft);
+  border: clamp(1.75px, .11vw, 2.25px) solid var(--accent);
+  border-radius: clamp(7px, .42vw, 9px);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 78%), 0 4px 14px rgb(117 68 46 / 9%);
+  background: rgb(176 107 72 / 8%);
+}
+
+.focus-box--control {
+  border-radius: clamp(5px, .3vw, 7px);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 72%);
+  background: rgb(176 107 72 / 5%);
+}
+
+.focus-box--stacked {
+  border-radius: clamp(6px, .34vw, 8px);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 72%);
+  background: rgb(176 107 72 / 6%);
 }
 
 .callout-label {

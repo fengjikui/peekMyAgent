@@ -357,6 +357,7 @@
         {
           "type": "focus",
           "focus": [62.6, 12.9, 36.7, 9.0],
+          "focus_padding": [0.45, 0.50],
           "delay_ms": 350,
           "end_ms": 6800,
           "draft": "Anthropic Messages 标题和 Claude 配色已经清楚说明协议，只用轻描边建立当前范围；在角色对比开始前淡出。"
@@ -364,19 +365,23 @@
         {
           "type": "badge",
           "label": "1",
-          "focus": [62.6, 47.4, 36.7, 7.8],
-          "label_box": [60.1, 44.8, 2.4, 4.4],
+          "focus": [62.85, 48.0, 36.1, 6.3],
+          "focus_padding": [0.45, 0.25],
+          "focus_style": "stacked",
+          "label_box": [59.5, 45.55, 2.4, 4.4],
           "delay_ms": 7100,
           "dim_ms": 18700,
-          "draft": "出现顺序：编号 1 先聚焦 assistant/tool_use；保留关系：编号 2 出现后继续保留用于角色对照，但通过 dim_ms 退为次要；淡出时点：镜头结束。"
+          "draft": "出现顺序：编号 1 先聚焦 assistant/tool_use；左右各留约九像素呼吸空间，上下只留约三像素；编号 2 出现后继续保留用于角色对照，但通过 dim_ms 退为次要。"
         },
         {
           "type": "badge",
           "label": "2",
-          "focus": [62.6, 54.7, 36.7, 7.8],
-          "label_box": [60.1, 52.1, 2.4, 4.4],
+          "focus": [62.85, 55.2, 36.1, 6.0],
+          "focus_padding": [0.45, 0.25],
+          "focus_style": "stacked",
+          "label_box": [59.5, 52.75, 2.4, 4.4],
           "delay_ms": 18700,
-          "draft": "出现顺序：编号 2 后出现并聚焦 user/tool_result；保留关系：编号 1 已降权，二者共同建立 Anthropic 原生角色对照；淡出时点：镜头结束。"
+          "draft": "出现顺序：编号 2 后出现并聚焦 user/tool_result；两框左右边界对齐、共享边只留约四像素，避免相邻区域被扩成松散卡片；编号 1 已降权，共同建立原生角色对照。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }

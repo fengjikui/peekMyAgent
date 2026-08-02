@@ -74,6 +74,15 @@ for (const [index, scene] of timeline.scenes.entries()) {
     if (overlay.type === "focus") assertBox(overlay.focus, `${overlayLabel}.focus`);
     if (overlay.type === "click") assertPoint(overlay.click, `${overlayLabel}.click`);
     if (overlay.focus) assertBox(overlay.focus, `${overlayLabel}.focus`);
+    if (overlay.focus_padding !== undefined) {
+      assert(overlay.focus, `${overlayLabel}.focus_padding requires a focus box`);
+      assertPadding(overlay.focus_padding, `${overlayLabel}.focus_padding`);
+      assertExpandedBox(overlay.focus, overlay.focus_padding, `${overlayLabel}.focus with padding`);
+    }
+    if (overlay.focus_style !== undefined) {
+      assert(["control", "stacked"].includes(overlay.focus_style),
+        `${overlayLabel}.focus_style must be control or stacked`);
+    }
     if (overlay.route) {
       assert(Array.isArray(overlay.route) && overlay.route.length >= 2, `${overlayLabel}.route needs at least two points`);
       for (const [pointIndex, point] of overlay.route.entries()) {
@@ -138,6 +147,17 @@ function assertBox(value, label) {
 function assertPoint(value, label) {
   assert(Array.isArray(value) && value.length === 2, `${label} must be [x, y]`);
   assert(value.every((item) => Number.isFinite(item) && item >= 0 && item <= 100), `${label} must stay inside the frame`);
+}
+
+function assertPadding(value, label) {
+  assert(Array.isArray(value) && value.length === 2, `${label} must be [horizontal, vertical]`);
+  assert(value.every((item) => Number.isFinite(item) && item >= 0), `${label} values must be non-negative`);
+}
+
+function assertExpandedBox([x, y, width, height], [paddingX, paddingY], label) {
+  assert(x - paddingX >= 0 && y - paddingY >= 0, `${label} must start inside the frame`);
+  assert(x + width + paddingX <= 100 && y + height + paddingY <= 100,
+    `${label} must stay inside the frame`);
 }
 
 function validateTitleCard(card, label) {

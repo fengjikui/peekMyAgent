@@ -126,6 +126,7 @@
           "type": "badge",
           "label": "1",
           "focus": [13.4, 13.3, 47.6, 8.2],
+          "focus_padding": [0.45, 0.55],
           "label_box": [11.1, 10.4, 2.6, 5.0],
           "delay_ms": 600,
           "draft": "编号 1 只聚焦 Turn 1 的机制流程；放在中栏左上外缘，不加箭头，不遮用户请求或流程文字。"
@@ -152,6 +153,8 @@
           "type": "badge",
           "label": "1",
           "focus": [58.5, 22.0, 2.4, 3.8],
+          "focus_padding": [0.28, 0.35],
+          "focus_style": "control",
           "label_box": [56.0, 18.8, 2.6, 5.0],
           "delay_ms": 400,
           "end_ms": 6300,
@@ -160,6 +163,8 @@
         {
           "type": "focus",
           "focus": [68.5, 6.5, 2.9, 3.0],
+          "focus_padding": [0.25, 0.30],
+          "focus_style": "control",
           "delay_ms": 5600,
           "end_ms": 11100,
           "draft": "System 标签已有清楚名称，只用轻描边接管焦点；编号 1 在交接后消失，避免圆形编号遮挡相邻标签。"
@@ -168,6 +173,7 @@
           "type": "badge",
           "label": "2",
           "focus": [63.5, 18.5, 35.7, 16.5],
+          "focus_padding": [0.50, 0.65],
           "label_box": [59.0, 15.3, 2.6, 5.0],
           "delay_ms": 10400,
           "draft": "标签描边交叉淡出后，编号 2 聚焦 System 的实际 body_instructions；编号贴在分栏左侧留白，不遮字段名和正文。"
@@ -193,6 +199,7 @@
           "type": "badge",
           "label": "1",
           "focus": [13.4, 50.0, 47.6, 7.2],
+          "focus_padding": [0.45, 0.45],
           "label_box": [11.1, 47.0, 2.6, 5.0],
           "delay_ms": 400,
           "end_ms": 6300,
@@ -201,6 +208,8 @@
         {
           "type": "focus",
           "focus": [89.0, 6.5, 4.0, 3.0],
+          "focus_padding": [0.25, 0.30],
+          "focus_style": "control",
           "delay_ms": 5600,
           "end_ms": 11100,
           "draft": "tool_result 标签已有清楚名称，只用轻描边接管焦点；编号 1 交接后消失，避免遮挡 Metadata。"
@@ -209,6 +218,7 @@
           "type": "badge",
           "label": "2",
           "focus": [63.6, 19.2, 35.6, 20.5],
+          "focus_padding": [0.50, 0.65],
           "label_box": [59.0, 16.0, 2.6, 5.0],
           "delay_ms": 10400,
           "draft": "标签描边交叉淡出后，编号 2 聚焦右栏调用标识和目录清单；编号放在分栏左侧留白，不遮 README.md 或其他返回内容。"
@@ -234,6 +244,8 @@
           "type": "badge",
           "label": "1",
           "focus": [58.2, 43.6, 2.8, 4.0],
+          "focus_padding": [0.25, 0.35],
+          "focus_style": "control",
           "label_box": [55.6, 40.5, 2.6, 5.0],
           "delay_ms": 450,
           "end_ms": 8200,
@@ -243,6 +255,7 @@
           "type": "badge",
           "label": "2",
           "focus": [63.5, 6.2, 35.8, 30.2],
+          "focus_padding": [0.40, 0.55],
           "label_box": [59.0, 10.2, 2.6, 5.0],
           "delay_ms": 7500,
           "draft": "编号 2 聚焦右栏来源提示、返回按钮和 function_call 参数；编号 1 在交接后退出，编号 2 留在分栏左侧留白，不遮右栏标题。"
@@ -273,6 +286,8 @@
         {
           "type": "focus",
           "focus": [64.8, 6.3, 3.1, 3.0],
+          "focus_padding": [0.25, 0.30],
+          "focus_style": "control",
           "delay_ms": 6300,
           "end_ms": 10400,
           "draft": "点击波纹消失后，只用轻描边标记已有名称的 Response 标签；不加圆形编号遮挡相邻标签。"
@@ -281,6 +296,7 @@
           "type": "badge",
           "label": "1",
           "focus": [63.6, 25.5, 35.5, 27.2],
+          "focus_padding": [0.55, 0.65],
           "label_box": [59.6, 22.3, 2.6, 5.0],
           "delay_ms": 9700,
           "draft": "Response 标签描边交叉淡出后，编号 1 聚焦右栏 thinking 与 output_text；编号不遮正文，字幕保持底部居中。"
@@ -305,6 +321,8 @@
         {
           "type": "focus",
           "focus": [65.5, 6.4, 2.7, 3.0],
+          "focus_padding": [0.25, 0.30],
+          "focus_style": "control",
           "delay_ms": 400,
           "end_ms": 8000,
           "draft": "协议视图标签已有清楚名称，只用轻描边说明页面来源；不加圆形编号遮挡完整请求或 System。"
@@ -313,6 +331,7 @@
           "type": "badge",
           "label": "1",
           "focus": [63.6, 14.0, 35.6, 68.0],
+          "focus_padding": [0.50, 0.55],
           "label_box": [59.0, 11.0, 2.6, 5.0],
           "delay_ms": 7300,
           "draft": "标签描边交叉淡出后，编号 1 聚焦 provider、模型、工具和上行原生顺序；编号留在分栏左侧，不遮字段。"
@@ -338,6 +357,8 @@
           "type": "badge",
           "label": "1",
           "focus": [61.5, 12.0, 1.2, 10.5],
+          "focus_padding": [0.18, 0.45],
+          "focus_style": "control",
           "label_box": [59.0, 9.0, 2.6, 5.0],
           "delay_ms": 500,
           "dim_ms": 10000,
@@ -347,6 +368,7 @@
           "type": "badge",
           "label": "2",
           "focus": [13.5, 7.0, 47.3, 5.0],
+          "focus_padding": [0.45, 0.40],
           "label_box": [11.0, 4.1, 2.6, 5.0],
           "delay_ms": 10000,
           "draft": "编号 2 后出现，聚焦中栏顶部 Request Rail；编号 1 保留用于层级对照，不加跨区箭头，不遮请求位置文字。"
