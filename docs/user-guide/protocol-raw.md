@@ -36,13 +36,13 @@ Viewer 当前能解析并展示以下协议证据：
 
 先展开主时间线底部的“幕后请求时间线”，再点 Request 2 的 `详情`。失败请求不会因为 Request 3 已经成功而消失，但它不会自动占据主阅读顺序；这一步能避免只看到最终答案就错过中间异常。
 
-![在幕后请求时间线中定位失败的 Request 2](../../assets/demo/source/protocol-raw/recording/review-1920/01b-request-2.png)
+![在幕后请求时间线中定位失败的 Request 2](../../assets/demo/source/protocol-raw/recording/review-1920/01b-request-2.jpg)
 
 切到 `协议视图` 后，Viewer 按捕获到的 `input` 原始顺序展示四个上行项，并把人为加入的非标准测试项 `compatibility_note` 标成 `Schema 未识别`。这个提示只说明投影器不认识该项，**不代表它属于 OpenAI 官方 schema，也不能据此断言它导致失败**。打开 `完整请求`，在 Raw 中搜索 `call_list_`，才能同时看到 `$.input[1].call_id` 的正确值和 `$.input[3].call_id` 的错误值。
 
 接着从协议页打开 `完整下行`，把 Response 切到 `原文`。上游错误对象明确给出 `invalid_tool_output`、参数位置 `input[3].call_id`，下方 capture 元数据记录 HTTP 400；这是错误原因的直接证据。
 
-![Response 原文同时保留错误对象和 HTTP 400](../../assets/demo/source/protocol-raw/recording/review-1920/05b-http-400-with-dim.png)
+![Response 原文同时保留错误对象和 HTTP 400](../../assets/demo/source/protocol-raw/recording/review-1920/05b-http-400-with-dim.jpg)
 
 最后查看 `完整请求` 底部的 provenance：本例中 request 与 response 的 `fidelity` 都是 `exact`，关联置信度也来自同一 Capture 生命周期。它证明原始交换被完整保存，但不代表客户端请求在语义上正确。切到 Request 3，用同一个 Raw 查询和协议视图复查，才能完成“发现异常 → 核对原因 → 验证修正”的闭环。
 

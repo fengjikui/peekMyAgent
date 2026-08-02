@@ -11,6 +11,8 @@ const timeline = JSON.parse(fs.readFileSync(timelinePath, "utf8"));
 
 assertPositivePair(timeline.resolution, "resolution");
 assertPositivePair(timeline.source_viewport, "source_viewport");
+assert(["codex", "claude", "codex-and-claude"].includes(timeline.theme),
+  "theme must be codex, claude, or codex-and-claude");
 assert(Number.isFinite(timeline.duration_seconds) && timeline.duration_seconds > 0, "duration_seconds must be positive");
 assert(Array.isArray(timeline.scenes) && timeline.scenes.length > 0, "scenes must not be empty");
 
@@ -53,6 +55,8 @@ for (const [index, scene] of timeline.scenes.entries()) {
   } else {
     assert(scene.card && typeof scene.card.headline === "string", `${label} without source_image needs a title card`);
   }
+
+  if (scene.card) validateTitleCard(scene.card, `${label}.card`);
 
   if (scene.transition) {
     const serialized = JSON.stringify(scene.transition).toLowerCase();
@@ -134,6 +138,24 @@ function assertBox(value, label) {
 function assertPoint(value, label) {
   assert(Array.isArray(value) && value.length === 2, `${label} must be [x, y]`);
   assert(value.every((item) => Number.isFinite(item) && item >= 0 && item <= 100), `${label} must stay inside the frame`);
+}
+
+function validateTitleCard(card, label) {
+  assertShortText(card.eyebrow, 40, `${label}.eyebrow`);
+  assertShortText(card.headline, 34, `${label}.headline`);
+  assert(Array.isArray(card.steps) && card.steps.length >= 1 && card.steps.length <= 4,
+    `${label}.steps must contain one to four launch-style beats`);
+  for (const [index, step] of card.steps.entries()) {
+    assertShortText(step, 30, `${label}.steps[${index}]`);
+  }
+  if (card.footer !== undefined) assertShortText(card.footer, 68, `${label}.footer`);
+}
+
+function assertShortText(value, maximumCharacters, label) {
+  assert(typeof value === "string" && value.trim().length > 0, `${label} must be non-empty text`);
+  assert(!value.includes("\n"), `${label} must stay on one authored line`);
+  assert([...value].length <= maximumCharacters,
+    `${label} exceeds the ${maximumCharacters}-character launch-card limit`);
 }
 
 function assert(condition, message) {

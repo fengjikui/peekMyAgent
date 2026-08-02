@@ -106,7 +106,7 @@
           "boundary": "请求、响应和 provenance 来自真实代理捕获；HTTP 400 由固定 loopback 上游按错误 call id 确定性生成，不代表 provider 事故。"
         },
         "status": "owner-review",
-        "next_gate": "审阅中文排错故事与未知字段边界，再决定是否进入正式配音与成片。",
+        "next_gate": "审阅中文排错故事与发布会式 v0.2 收束页；通过后重导母版，再决定是否进入配音。",
         "freshness": {
           "product_impact_ids": ["harness-capture", "viewer-surface", "request-context", "tools", "protocol-and-raw", "privacy-data"]
         },
@@ -376,7 +376,7 @@
           "boundary": "App Server 生命周期和请求组装来自真实安装；本 Source 使用 PMA 自定义 provider 的本地摘要路径，不声称录到了 OpenAI / Azure 的远端 compact 端点。"
         },
         "status": "owner-review",
-        "next_gate": "审阅 Codex 与 Claude Code 的差异是否讲清，再决定是否进入正式配音与成片。",
+        "next_gate": "审阅 Codex 与 Claude Code 的差异和发布会式 v0.2 收束页；通过后重导母版，再决定是否进入配音。",
         "freshness": {
           "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "context-lifecycle", "protocol-and-raw", "translation-theme"]
         },

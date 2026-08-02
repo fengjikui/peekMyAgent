@@ -350,11 +350,8 @@
       "card": {
         "eyebrow": "同叫 compact，协议路径并不相同",
         "headline": "先看证据，再说机制",
-        "steps": [
-          "PMA + Codex：/responses + 可读摘要",
-          "OpenAI / Azure：可用 /responses/compact",
-          "Claude Code：Anthropic continuation 结构"
-        ]
+        "steps": ["Codex：Responses", "API：compact", "Claude：continuation"],
+        "footer": "OpenAI / Azure 可用 /responses/compact；实际路径以 provider 为准"
       },
       "narration": "最后记住差异。当前 PMA 的自定义 provider 让 Codex 走本地摘要压缩：普通 /responses 请求加 request_kind=compaction，结果是可读摘要。内建 OpenAI 或 Azure provider 可以改走专用 /responses/compact，返回形态可能是 opaque compaction item。Claude Code 的 Anthropic Messages 压缩又有自己的 continuation 结构。PMA 的价值不是把它们说成同一种机制，而是让每条真实路径都能被点开核对。",
       "subtitle_cues": [

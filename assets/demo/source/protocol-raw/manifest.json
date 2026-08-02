@@ -2,7 +2,7 @@
   "schema_version": 1,
   "title": "协议视图与 Raw：定位一次 call id 异常",
   "language": "zh-CN",
-  "chapter_status": "owner_review_v0_1",
+  "chapter_status": "launch_style_review_v0_2_owner_review_pending",
   "source": {
     "generator": "scripts/protocol-raw-debug-demo.mjs",
     "scenario_id": "protocol-raw-debug-demo",
@@ -78,11 +78,11 @@
     "timeline": "assets/demo/source/protocol-raw/video/timeline.zh-CN.json",
     "subtitles": "assets/demo/video/pma-protocol-raw-debug.zh-CN.srt",
     "storyboard_player": "assets/demo/storyboard/index.html",
-    "review_capture": "node scripts/capture-storyboard-review-frames.mjs protocol-raw",
+    "review_capture": "node scripts/capture-storyboard-review-frames.mjs protocol-raw --quality 70",
     "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
     "picture_master_exporter": "scripts/export-storyboard-video.mjs",
     "picture_master_candidate": "tmp/storyboard-video/protocol-raw/pma-protocol-raw-picture-full.mp4; local and Git-ignored",
-    "picture_master_status": "technical validation passed at exact source commit 2d616e5e61461c2dd421bf12130ff116619b543d; owner Chinese story review is still pending",
+    "picture_master_status": "the v0.1 technical master at 2d616e5e61461c2dd421bf12130ff116619b543d is historical reference only; the launch-style v0.2 outro requires re-export after owner story review",
     "repository_policy": "The eight public Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, fake-upstream logs, and audio remain ignored.",
     "audio": "not_started; handled by the separate voice-tuning workflow"
   },
@@ -99,7 +99,7 @@
   "visual_review": {
     "captured_at": "2026-08-02",
     "raw_frame_result": "passed for exact 1920x1080 dimensions, full three-pane layout, Codex theme, readable right-pane tabs, and fixed disposable paths",
-    "annotation_result": "passed: all 20 timeline-declared states were rendered and inspected at exact 1920x1080 and 1024x576; badges are centered, subtitles remain bottom-centered, focus regions do not cover evidence, and no arrows are required",
+    "annotation_result": "passed: all 20 timeline-declared states were regenerated as JPEG and inspected at exact 1920x1080 and 1024x576; badges are centered, subtitles remain bottom-centered, focus regions do not cover evidence, and no arrows are required",
     "review_contract": "video/timeline.zh-CN.json#review_points",
     "review_notes": [
       "The first overview and protocol recapture were rejected because a Raw query persisted after changing sections and because the active Request had changed to Request 3.",
@@ -107,10 +107,13 @@
       "The Response frame uses the explicit source/original display mode so the HTTP error body is visible instead of the organized empty-message state.",
       "After the protocol wording changed, the first 1024x576 recapture of 02b was rejected because the browser compositor had not settled after resizing from 1920x1080; the frame was re-recorded only after asserting a 1024x576 viewport and full-canvas visual bounds.",
       "No arrows are used because the right-pane search results and numbered focus regions already provide direct spatial correspondence.",
-      "Progressive states were checked individually: the next number appears only after the previous point has been explained; a previous number either exits for an independent focus or remains dimmed for a comparison."
+      "Progressive states were checked individually: the next number appears only after the previous point has been explained; a previous number either exits for an independent focus or remains dimmed for a comparison.",
+      "The launch-style v0.2 outro combines provenance and correction verification into one final beat, keeping the diagnostic sequence to four scan-friendly steps at both review sizes.",
+      "The early palette PNG review set was replaced with the current generator's JPEG output so future capture commands no longer create duplicate filename stems.",
+      "Tracked review proxies use JPEG quality 70 to keep the full demo catalog below its media budget; the eight lossless original Source frames remain unchanged and are the fidelity reference."
     ],
     "video_master": {
-      "status": "technical_validation_passed_owner_story_review_pending",
+      "status": "historical_v0_1_reference_only_reexport_required",
       "source_commit": "2d616e5e61461c2dd421bf12130ff116619b543d",
       "source_worktree_dirty": false,
       "duration_seconds": 238,
@@ -145,9 +148,10 @@
     }
   },
   "publication_gate": {
-    "status": "owner_review_pending",
+    "status": "launch_style_v0_2_owner_review_pending",
     "remaining": [
       "Freeze the Chinese story only after owner review.",
+      "Re-export and revalidate the picture master because the v0.1 MP4 predates the launch-style outro revision.",
       "Do not publish local MP4 or audio files from the main repository."
     ]
   }

@@ -364,7 +364,7 @@
       "card": {
         "eyebrow": "排错闭环",
         "headline": "先找异常 Request，再核对原始字段",
-        "steps": ["时间线", "协议路径", "Raw / Response", "provenance", "修正验证"],
+        "steps": ["时间线定位", "协议路径", "Raw / Response", "provenance + 验证"],
         "footer": "PMA 负责保留证据；错误原因仍以协议与上游响应为准"
       },
       "narration": "完整顺序是：先在时间线定位异常 Request，用协议视图找到层级，再到 Raw 和 Response 核对字段与错误，最后检查 provenance 并用修正后的请求验证。PMA 负责把证据连起来，但不会替你猜测协议里没有写明的原因。",
