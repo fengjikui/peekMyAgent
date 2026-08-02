@@ -2,6 +2,7 @@ const params = new URLSearchParams(window.location.search);
 const catalogUrl = "/assets/demo/storyboard/catalog.zh-CN.json";
 const fallbackTimelineUrl = "/assets/demo/source/quickstart/video/timeline.zh-CN.json";
 const requestedTimelineUrl = params.get("timeline");
+const requestedPlanUrl = params.get("plan");
 const presentMode = params.get("present") === "1";
 const reviewMode = params.get("review") === "1";
 const startScene = Number.parseInt(params.get("scene") || "0", 10);
@@ -33,7 +34,9 @@ const elements = {
   previous: document.querySelector('[data-action="previous"]'),
   next: document.querySelector('[data-action="next"]'),
   chapterSelect: document.querySelector(".chapter-select"),
+  chapterFieldLabel: document.querySelector(".chapter-field-label"),
   reviewPointSelect: document.querySelector(".review-point-select"),
+  reviewPointFieldLabel: document.querySelector(".review-point-field-label"),
   reviewSummary: document.querySelector(".review-summary"),
   guideLink: document.querySelector(".guide-link"),
   reviewSheetOpen: document.querySelector(".review-sheet-open"),
@@ -69,6 +72,7 @@ const state = {
   catalog: null,
   timeline: null,
   timelineUrl: null,
+  sourceKind: "timeline",
   sceneIndex: 0,
   sceneElapsed: 0,
   playing: false,
@@ -130,7 +134,9 @@ function formatTime(totalSeconds) {
 
 function updateLocation({ scene = null, atMs = null } = {}) {
   const next = new URLSearchParams(window.location.search);
-  next.set("timeline", state.timelineUrl);
+  next.delete("timeline");
+  next.delete("plan");
+  next.set(state.sourceKind === "plan" ? "plan" : "timeline", state.timelineUrl);
   if (scene === null) next.delete("scene");
   else next.set("scene", String(scene));
   if (atMs === null) next.delete("at_ms");
@@ -140,43 +146,69 @@ function updateLocation({ scene = null, atMs = null } = {}) {
 
 function populateChapterSelect() {
   const chapters = state.catalog?.chapters || [];
+  const readmePlanUrl = requestedPlanUrl || (state.sourceKind === "plan" ? state.timelineUrl : null);
   elements.chapterSelect.replaceChildren(
     ...chapters.map((chapter) => {
       const option = document.createElement("option");
       option.value = chapter.timeline;
+      option.dataset.sourceKind = "timeline";
       option.textContent = chapter.label;
       return option;
     }),
   );
-  if (!chapters.some((chapter) => chapter.timeline === state.timelineUrl)) {
+  if (readmePlanUrl) {
+    const option = document.createElement("option");
+    option.value = readmePlanUrl;
+    option.dataset.sourceKind = "plan";
+    option.textContent = "README 首屏精简版";
+    elements.chapterSelect.prepend(option);
+  }
+  if (state.sourceKind !== "plan" && !chapters.some((chapter) => chapter.timeline === state.timelineUrl)) {
     const option = document.createElement("option");
     option.value = state.timelineUrl;
+    option.dataset.sourceKind = "timeline";
     option.textContent = state.timeline?.title || "自定义章节";
     elements.chapterSelect.append(option);
   }
   elements.chapterSelect.value = state.timelineUrl;
+  elements.chapterFieldLabel.textContent = state.sourceKind === "plan" ? "版本" : "章节";
+  elements.chapterSelect.setAttribute(
+    "aria-label",
+    state.sourceKind === "plan" ? "选择演示版本" : "选择演示章节",
+  );
 }
 
 function populateReviewPointSelect() {
   const points = state.timeline.review_points || [];
+  const isPlan = state.sourceKind === "plan";
   const placeholder = document.createElement("option");
   placeholder.value = "";
-  placeholder.textContent = points.length ? "选择一个稳定复核点" : "本章没有声明复核点";
+  placeholder.textContent = points.length
+    ? isPlan ? "选择一个 README 镜头" : "选择一个稳定复核点"
+    : isPlan ? "README 计划没有镜头" : "本章没有声明复核点";
   elements.reviewPointSelect.replaceChildren(
     placeholder,
     ...points.map((point, index) => {
       const option = document.createElement("option");
       option.value = String(index);
-      option.textContent = `${String(index + 1).padStart(2, "0")} · ${point.name}`;
+      const label = isPlan ? state.timeline.scenes[point.scene]?.title : point.name;
+      option.textContent = `${String(index + 1).padStart(2, "0")} · ${label}`;
       return option;
     }),
   );
   elements.reviewPointSelect.disabled = points.length === 0;
-  elements.reviewSummary.value = [
-    `${state.timeline.scenes.length} 个镜头`,
-    `${formatTime(state.timeline.duration_seconds)}`,
-    `${points.length} 个渐进复核点`,
-  ].join(" · ");
+  elements.reviewPointFieldLabel.textContent = isPlan ? "镜头" : "复核点";
+  elements.reviewPointSelect.setAttribute(
+    "aria-label",
+    isPlan ? "选择 README 镜头" : "选择渐进标注复核点",
+  );
+  elements.reviewSummary.value = isPlan
+    ? `${state.timeline.scenes.length} 个镜头 · ${formatTime(state.timeline.duration_seconds)} · README GIF 精简版`
+    : [
+        `${state.timeline.scenes.length} 个镜头`,
+        `${formatTime(state.timeline.duration_seconds)}`,
+        `${points.length} 个渐进复核点`,
+      ].join(" · ");
 
   const chapter = currentCatalogChapter();
   if (chapter?.guide && chapter?.guide_section) {
@@ -190,6 +222,7 @@ function populateReviewPointSelect() {
 }
 
 function currentCatalogChapter() {
+  if (state.sourceKind === "plan") return null;
   return state.catalog?.chapters.find((item) => item.timeline === state.timelineUrl) || null;
 }
 
@@ -283,7 +316,9 @@ async function loadTimeline(timelineUrl, { sceneIndex = 0, elapsedMs = 0, update
 
   state.timeline = timeline;
   state.timelineUrl = timelineUrl;
+  state.sourceKind = "timeline";
   document.body.dataset.storyTheme = timeline.theme || "codex";
+  document.body.dataset.sourceKind = "timeline";
   state.sceneIndex = Number.isFinite(sceneIndex)
     ? Math.max(0, Math.min(timeline.scenes.length - 1, sceneIndex))
     : 0;
@@ -298,6 +333,90 @@ async function loadTimeline(timelineUrl, { sceneIndex = 0, elapsedMs = 0, update
   setControlsDisabled(false);
   elements.reviewPointSelect.disabled = (timeline.review_points || []).length === 0;
   populateReviewSheet(currentCatalogChapter());
+  renderScene({ resetElapsed: false });
+  document.body.dataset.timelineReady = "1";
+  if (updateUrl) updateLocation();
+}
+
+function readmePlanToTimeline(plan) {
+  if (plan?.schema_version !== 1 || !Array.isArray(plan.shots) || plan.shots.length === 0) {
+    throw new Error("README GIF 计划没有可播放镜头");
+  }
+  if (!Array.isArray(plan.resolution) || plan.resolution.length !== 2 || !plan.source_directory) {
+    throw new Error("README GIF 计划缺少画面尺寸或素材目录");
+  }
+
+  const sourceRoot = `/${String(plan.source_directory).replace(/^\/+|\/+$/g, "")}`;
+  let elapsedMs = 0;
+  const scenes = plan.shots.map((shot, index) => {
+    if (!shot.frame || !Number.isFinite(shot.hold_ms) || shot.hold_ms <= 0) {
+      throw new Error(`README GIF 镜头 ${index + 1} 缺少画面或停留时间`);
+    }
+    const startMs = elapsedMs;
+    elapsedMs += shot.hold_ms;
+    return {
+      id: `readme-${String(index + 1).padStart(2, "0")}`,
+      title: shot.purpose,
+      start_seconds: startMs / 1000,
+      end_seconds: elapsedMs / 1000,
+      source_image: `${sourceRoot}/${shot.frame}`,
+      subtitle_cues: [],
+      transition: { type: "crossfade", duration_ms: plan.fade_ms || 600 },
+    };
+  });
+
+  return {
+    version: plan.schema_version,
+    title: plan.title,
+    resolution: plan.resolution,
+    source_viewport: plan.resolution,
+    duration_seconds: elapsedMs / 1000,
+    theme: "codex",
+    readme_plan: true,
+    review_points: scenes.map((scene, index) => ({
+      name: plan.shots[index].frame,
+      scene: index,
+      at_ms: 0,
+    })),
+    scenes,
+  };
+}
+
+async function preloadTimelineImages(timeline) {
+  await Promise.all(timeline.scenes.map((scene) => new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener("load", resolve, { once: true });
+    image.addEventListener("error", () => reject(new Error(`无法载入 README 镜头：${scene.source_image}`)), { once: true });
+    image.src = scene.source_image;
+  })));
+}
+
+async function loadReadmePlan(planUrl, { sceneIndex = 0, elapsedMs = 0, updateUrl = false } = {}) {
+  renderLoading("正在载入 README 精简版");
+  const response = await fetch(planUrl);
+  if (!response.ok) throw new Error(`无法载入 README GIF 计划：${response.status}`);
+  const timeline = readmePlanToTimeline(await response.json());
+  await preloadTimelineImages(timeline);
+
+  state.timeline = timeline;
+  state.timelineUrl = planUrl;
+  state.sourceKind = "plan";
+  document.body.dataset.storyTheme = timeline.theme;
+  document.body.dataset.sourceKind = "plan";
+  state.sceneIndex = Number.isFinite(sceneIndex)
+    ? Math.max(0, Math.min(timeline.scenes.length - 1, sceneIndex))
+    : 0;
+  const sceneDuration = currentScene().end_seconds - currentScene().start_seconds;
+  state.sceneElapsed = Number.isFinite(elapsedMs)
+    ? Math.max(0, Math.min(elapsedMs / 1000, sceneDuration - 0.001))
+    : 0;
+  document.body.dataset.timelineDurationMs = String(Math.round(timeline.duration_seconds * 1000));
+
+  populateChapterSelect();
+  populateReviewPointSelect();
+  setControlsDisabled(false);
+  elements.reviewPointSelect.disabled = false;
+  populateReviewSheet(null);
   renderScene({ resetElapsed: false });
   document.body.dataset.timelineReady = "1";
   if (updateUrl) updateLocation();
@@ -609,7 +728,12 @@ elements.scrubber.addEventListener("input", () => {
 
 elements.chapterSelect.addEventListener("change", async () => {
   try {
-    await loadTimeline(elements.chapterSelect.value, { updateUrl: true });
+    const selected = elements.chapterSelect.selectedOptions[0];
+    if (selected?.dataset.sourceKind === "plan") {
+      await loadReadmePlan(elements.chapterSelect.value, { updateUrl: true });
+    } else {
+      await loadTimeline(elements.chapterSelect.value, { updateUrl: true });
+    }
   } catch (error) {
     renderLoadError(error);
   }
@@ -649,7 +773,11 @@ try {
   const catalog = await loadCatalog();
   const defaultChapter = catalog.chapters.find((chapter) => chapter.id === catalog.default_chapter);
   const timelineUrl = requestedTimelineUrl || defaultChapter?.timeline || fallbackTimelineUrl;
-  await loadTimeline(timelineUrl, { sceneIndex: startScene, elapsedMs: startElapsedMs });
+  if (requestedPlanUrl) {
+    await loadReadmePlan(requestedPlanUrl, { sceneIndex: startScene, elapsedMs: startElapsedMs });
+  } else {
+    await loadTimeline(timelineUrl, { sceneIndex: startScene, elapsedMs: startElapsedMs });
+  }
   window.requestAnimationFrame(tick);
   if (presentMode && autoplay) setPlaying(true);
 } catch (error) {

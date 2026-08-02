@@ -263,6 +263,8 @@ function auditStoryboardCatalog() {
     "storyboard player must render the catalog review contract");
   assert(player.includes("timelineReady") && player.includes("subtitlesVisible"),
     "storyboard player must expose export readiness and a clean subtitle-free playback mode");
+  assert(player.includes('params.get("plan")') && player.includes("readmePlanToTimeline"),
+    "storyboard player must support README GIF plan playback");
   totals.catalogEntries = catalog.chapters.length;
 }
 

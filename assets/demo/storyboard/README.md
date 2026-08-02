@@ -68,6 +68,12 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html?present=1&review=1&auto
 
 `catalog.zh-CN.json` 是统一章节目录和审阅状态源。每个条目必须同时声明时间线、对应中文文档、真实标题，以及 `review` 中的目标问题、观众、Source 边界、状态、下一道确认门、五类审阅资料和本章依赖的产品影响 id。点击制作控制区的“章节审阅”即可在同一页面打开这份合同；它不会进入 `present=1` 成片。新增可发布章节时必须同步增加 catalog 条目；`demo-production-audit.mjs` 与 `documentation-consistency-audit.mjs` 会拒绝缺失章节、错误路径、未知产品边界、失效资料、未纳入中文公开文档审计的文件或不存在的小节标题。
 
+根 README 的 74 秒主 GIF 是完整快速上手时间线的精简剪辑，不等同于 255 秒章节。通过 `plan` 参数可以让同一播放器直接读取 `readme-gif.zh-CN.json`，逐镜头手动检查 GIF 实际采用的 17 张画面、停留时间和用途说明：
+
+```text
+http://127.0.0.1:43115/assets/demo/storyboard/index.html?plan=%2Fassets%2Fdemo%2Fsource%2Fquickstart%2Freadme-gif.zh-CN.json&autoplay=0
+```
+
 改动产品、网页播放器、时间线或 Source 后，先检查哪些章节真的需要重看：
 
 ```bash
