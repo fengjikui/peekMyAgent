@@ -30,6 +30,17 @@ http://127.0.0.1:43115/tmp/storyboard-video/review-index.html
 
 审阅者可为每章选择“故事线通过 / 需要修改 / 暂缓决定”并留下短备注。记录只保存在当前浏览器的 `localStorage`，并按页面生成时的精确候选 SHA 隔离；切换候选提交不会沿用旧结论。只有点击“导出审阅 JSON”才会生成本地交接文件，页面不会上传数据，也不会自动修改 catalog 的发布状态。备注可能包含审阅者输入的敏感内容，分享导出文件前仍须人工检查；所有者确认后，由维护者手工更新 catalog 和对应文档。
 
+收到导出的 JSON 后，先把文件放在 Git 忽略的 `tmp/`，只做结构、候选提交和隐私检查；不要先复制备注到 issue 或聊天：
+
+```bash
+node scripts/storyboard-review-handoff.mjs \
+  --input tmp/storyboard-review/review.json \
+  --expected-target <完整的四十位候选提交> \
+  --check
+```
+
+默认摘要不会打印备注原文。需要整理修改清单时使用 `--output tmp/storyboard-review/summary.md`；只有明确需要阅读备注时才额外增加 `--show-notes`，且输出必须留在 `tmp/`。脚本会拒绝脏工作区候选、章节清单漂移、计数不一致和疑似密钥或隐私路径，而且不会回显命中的敏感值。`--allow-dirty` 只用于内部预览，不能据此更新 catalog；JSON 与含备注报告都不得进入 Git。
+
 播放器默认打开五分钟快速上手。非成片模式的控制区包含两级选择器：
 
 - `章节`：直接切换快速上手、自研 Harness 通用协议、协议与 Raw 排错、System / Tools 翻译、工具调用、Skill、子 Agent、Claude Code / Codex 上下文压缩和多步规划；

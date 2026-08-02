@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import {
   buildDocumentationHandoff,
   buildDocumentationImpact,
@@ -10,6 +11,10 @@ import {
   renderDocumentationImpactSummary,
   validateDocumentationImpactPayload,
 } from "./documentation-impact-summary.mjs";
+import {
+  renderStoryboardReviewSummary,
+  validateStoryboardReviewHandoff,
+} from "./storyboard-review-handoff.mjs";
 
 const requiredFiles = [
   "CONTRIBUTING.md",
@@ -24,6 +29,7 @@ const requiredFiles = [
   "scripts/capture-storyboard-review-frames.mjs",
   "scripts/export-storyboard-video.mjs",
   "scripts/generate-storyboard-review-index.mjs",
+  "scripts/storyboard-review-handoff.mjs",
   "scripts/documentation-impact-summary.mjs",
 ];
 
@@ -216,12 +222,172 @@ assert.equal(reviewIndexEmptyCheck.status, 0,
   `empty storyboard review index check failed:\n${reviewIndexEmptyCheck.stdout}${reviewIndexEmptyCheck.stderr}`);
 assert.match(reviewIndexEmptyCheck.stdout, /0 local videos, 0 verified picture masters/);
 
+const reviewHandoffHelp = spawnSync(process.execPath, [
+  "scripts/storyboard-review-handoff.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(reviewHandoffHelp.status, 0, `storyboard review handoff help failed:\n${reviewHandoffHelp.stderr}`);
+assert.match(reviewHandoffHelp.stdout, /--expected-target/);
+assert.match(reviewHandoffHelp.stdout, /--show-notes/);
+assert.match(reviewHandoffHelp.stdout, /never prints review note text/);
+assert.match(reviewHandoffHelp.stdout, /read-only with respect to catalog/);
+
+const storyboardCatalog = JSON.parse(fs.readFileSync("assets/demo/storyboard/catalog.zh-CN.json", "utf8"));
+const reviewTimestamp = "2026-08-02T00:00:00.000Z";
+const ownerReviewPayload = {
+  schema_version: 1,
+  kind: "peekmyagent_storyboard_owner_review",
+  candidate_sha: documentationHandoff.target_sha,
+  candidate_worktree_dirty: false,
+  exported_at: reviewTimestamp,
+  chapter_count: storyboardCatalog.chapters.length,
+  reviewed_count: storyboardCatalog.chapters.length,
+  decisions: storyboardCatalog.chapters.map((chapter, index) => ({
+    chapter_id: chapter.id,
+    chapter_label: chapter.label,
+    decision: index === 0 ? "changes" : "approved",
+    decision_label: index === 0 ? "需要修改" : "故事线通过",
+    note: index === 0 ? "02:14 请缩小 <script>alert(1)</script> 对应的聚焦框" : "",
+    updated_at: reviewTimestamp,
+  })),
+  privacy_notice: "Review notes are user-authored local data. Inspect them before sharing; they may contain sensitive text.",
+};
+const validatedOwnerReview = validateStoryboardReviewHandoff(ownerReviewPayload, {
+  catalog: storyboardCatalog,
+  expectedTarget: documentationHandoff.target_sha,
+});
+assert.equal(validatedOwnerReview.complete, true);
+assert.equal(validatedOwnerReview.counts.changes, 1);
+assert.equal(validatedOwnerReview.counts.approved, 9);
+assert.equal(validatedOwnerReview.noteCount, 1);
+
+const partialOwnerReview = structuredClone(ownerReviewPayload);
+for (const item of partialOwnerReview.decisions.slice(1)) {
+  item.decision = "pending";
+  item.decision_label = "未审阅";
+  item.updated_at = null;
+}
+partialOwnerReview.reviewed_count = 1;
+const validatedPartialReview = validateStoryboardReviewHandoff(partialOwnerReview, {
+  catalog: storyboardCatalog,
+});
+assert.equal(validatedPartialReview.complete, false);
+assert.equal(validatedPartialReview.counts.pending, 9);
+
+const safeOwnerReviewSummary = renderStoryboardReviewSummary(validatedOwnerReview);
+assert.match(safeOwnerReviewSummary, /默认隐藏/);
+assert.doesNotMatch(safeOwnerReviewSummary, /02:14/);
+assert.doesNotMatch(safeOwnerReviewSummary, /<script>/);
+const expandedOwnerReviewSummary = renderStoryboardReviewSummary(validatedOwnerReview, { showNotes: true });
+assert.match(expandedOwnerReviewSummary, /02:14/);
+assert.match(expandedOwnerReviewSummary, /&lt;script&gt;/);
+assert.doesNotMatch(expandedOwnerReviewSummary, /<script>/);
+
+const dirtyOwnerReview = structuredClone(ownerReviewPayload);
+dirtyOwnerReview.candidate_worktree_dirty = true;
+assert.throws(
+  () => validateStoryboardReviewHandoff(dirtyOwnerReview, { catalog: storyboardCatalog }),
+  /candidate_worktree_dirty is true/,
+);
+assert.equal(validateStoryboardReviewHandoff(dirtyOwnerReview, {
+  catalog: storyboardCatalog,
+  allowDirty: true,
+}).payload.candidate_worktree_dirty, true);
+assert.throws(
+  () => validateStoryboardReviewHandoff(ownerReviewPayload, {
+    catalog: storyboardCatalog,
+    expectedTarget: "0".repeat(40),
+  }),
+  /candidate SHA mismatch/,
+);
+
+const driftedOwnerReview = structuredClone(ownerReviewPayload);
+driftedOwnerReview.decisions.pop();
+assert.throws(
+  () => validateStoryboardReviewHandoff(driftedOwnerReview, { catalog: storyboardCatalog }),
+  /exactly one item for every catalog chapter/,
+);
+
+const unsafeOwnerReview = structuredClone(ownerReviewPayload);
+const privateFixtureValue = "api_key=fixture-private-value";
+unsafeOwnerReview.decisions[0].note = privateFixtureValue;
+let privacyFailure = null;
+try {
+  validateStoryboardReviewHandoff(unsafeOwnerReview, { catalog: storyboardCatalog });
+} catch (error) {
+  privacyFailure = error;
+}
+assert(privacyFailure instanceof Error);
+assert.match(privacyFailure.message, /failed privacy scan/);
+assert.doesNotMatch(privacyFailure.message, /fixture-private-value/);
+
+fs.mkdirSync("tmp", { recursive: true });
+const reviewHandoffTemp = fs.mkdtempSync(path.join("tmp", "storyboard-review-handoff-smoke-"));
+try {
+  const fixturePath = path.join(reviewHandoffTemp, "review.json");
+  fs.writeFileSync(fixturePath, `${JSON.stringify(ownerReviewPayload)}\n`, "utf8");
+  const reviewHandoffCheck = spawnSync(process.execPath, [
+    "scripts/storyboard-review-handoff.mjs",
+    "--input",
+    fixturePath,
+    "--expected-target",
+    documentationHandoff.target_sha,
+    "--check",
+  ], { encoding: "utf8" });
+  assert.equal(reviewHandoffCheck.status, 0,
+    `storyboard review handoff check failed:\n${reviewHandoffCheck.stdout}${reviewHandoffCheck.stderr}`);
+  assert.match(reviewHandoffCheck.stdout, /10\/10 reviewed/);
+  assert.match(reviewHandoffCheck.stdout, /1 changes/);
+  assert.doesNotMatch(reviewHandoffCheck.stdout, /02:14/);
+
+  const safeSummaryPath = path.join(reviewHandoffTemp, "summary.md");
+  const reviewHandoffSummary = spawnSync(process.execPath, [
+    "scripts/storyboard-review-handoff.mjs",
+    "--input",
+    fixturePath,
+    "--expected-target",
+    documentationHandoff.target_sha,
+    "--output",
+    safeSummaryPath,
+  ], { encoding: "utf8" });
+  assert.equal(reviewHandoffSummary.status, 0,
+    `storyboard review safe summary failed:\n${reviewHandoffSummary.stdout}${reviewHandoffSummary.stderr}`);
+  const safeSummaryFile = fs.readFileSync(safeSummaryPath, "utf8");
+  assert.match(safeSummaryFile, /默认隐藏/);
+  assert.doesNotMatch(safeSummaryFile, /02:14/);
+
+  const expandedSummaryPath = path.join(reviewHandoffTemp, "summary-with-notes.md");
+  const expandedHandoffSummary = spawnSync(process.execPath, [
+    "scripts/storyboard-review-handoff.mjs",
+    "--input",
+    fixturePath,
+    "--expected-target",
+    documentationHandoff.target_sha,
+    "--show-notes",
+    "--output",
+    expandedSummaryPath,
+  ], { encoding: "utf8" });
+  assert.equal(expandedHandoffSummary.status, 0,
+    `storyboard review expanded summary failed:\n${expandedHandoffSummary.stdout}${expandedHandoffSummary.stderr}`);
+  const expandedSummaryFile = fs.readFileSync(expandedSummaryPath, "utf8");
+  assert.match(expandedSummaryFile, /02:14/);
+  assert.match(expandedSummaryFile, /&lt;script&gt;/);
+  assert.doesNotMatch(expandedSummaryFile, /<script>/);
+} finally {
+  fs.rmSync(reviewHandoffTemp, { recursive: true, force: true });
+}
+
 const demoProductionImpact = buildDocumentationImpact([
   "scripts/generate-storyboard-review-index.mjs",
 ]);
 assert.deepEqual(demoProductionImpact.impacts.map((impact) => impact.id), ["demo-production"]);
 assert(demoProductionImpact.impacts[0].required_docs.includes("docs/demo-chapter-production.zh-CN.md"));
 assert(demoProductionImpact.impacts[0].required_demos.some((item) => item.includes("本地审片首页")));
+const reviewHandoffImpact = buildDocumentationImpact([
+  "scripts/storyboard-review-handoff.mjs",
+]);
+assert.deepEqual(reviewHandoffImpact.impacts.map((impact) => impact.id), ["demo-production"]);
+assert(reviewHandoffImpact.impacts[0].required_docs.includes("docs/documentation-maintenance.md"));
 
 const demoProduction = spawnSync(process.execPath, ["scripts/demo-production-audit.mjs"], {
   encoding: "utf8",

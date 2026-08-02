@@ -15,6 +15,7 @@
 - `scripts/capture-storyboard-review-frames.mjs <chapter>` 可直接读取 catalog 与时间线，用环回服务器和一次性 Chrome 重建 1920×1080 / 1024×576 审阅帧及联系表；它验证真实 JPEG 像素，不需要 Playwright，也不会自动删除失效旧帧；
 - `scripts/export-storyboard-video.mjs <chapter>` 可把任意 catalog 章节的真实网页播放录制为 1920×1080、30 fps、H.264 干净画面母版；默认无网页字幕、音轨或字幕轨，切片和带字幕内部预览使用显式参数，旁车 render manifest 记录精确 HEAD、工作区状态、工具版本、范围、帧数和环回隐私边界；
 - `scripts/generate-storyboard-review-index.mjs` 可把同一 catalog、时间线和本地 render manifest 汇成 Git 忽略的统一审片首页；十章的 HTML 模板、无字幕干净播放、本地 MP4、中文章节、Source 边界、状态和下一道门无需再手工拼链接，历史切片与正式母版分开显示；逐章结论和备注只存于按候选 SHA 隔离的浏览器 `localStorage`，由所有者显式导出带精确 SHA 的 JSON，页面不会上传数据或自动改 catalog；`--check` 可只验证页面合同，`--require-videos` 用于本机正式母版交接；
+- `scripts/storyboard-review-handoff.mjs` 负责接收上述 JSON：它核对 schema、精确候选 SHA、干净工作区、十章顺序、结论计数、时间戳和常见敏感内容哨兵；默认摘要隐藏备注原文，`--show-notes` 只能写入 Git 忽略的 `tmp/`，脚本不会修改 catalog、创建 GitHub 内容或发布媒体；
 - `assets/demo/storyboard/` 可从章节时间线非破坏性播放真实 Viewer 帧、字幕、聚焦框、标注和转场；统一 catalog 还把十个演示章节映射到对应中文手册小节，并保存问题、观众、Source 边界、审阅状态、下一道门与五类资料入口；`review=1` 可冻结指定时点用于逐帧验收，制作模式可以直接打开，成片模式不会显示；`scripts/demo-storyboard-smoke.mjs` 检查镜头连续性、可读时长、素材路径与箭头草稿；
 - `scripts/demo-production-audit.mjs` 跨章节核对 manifest、旁白、时间线、SRT、Source 图片、双尺寸审阅帧的真实像素、Git 可追踪性、媒体体积预算、章节审阅合同与常见隐私哨兵；带 `review_points` 的章节可用 `--strict` 要求两档帧与稳定时点逐一对应；`smoke:governance` 会调用这项生产审计；
 - `scripts/documentation-consistency-audit.mjs` 核对中英文 README、快速开始、用户手册首页与十个任务章节的本地链接和章节锚点；同时检查 Node.js 要求、九条核心 CLI 事实、英文首页的支持协议/主 GIF/中文深读入口，以及十个演示章节到真实中文标题和审阅合同的映射；它已经由 `smoke:governance` 调用；

@@ -162,6 +162,22 @@ node scripts/generate-storyboard-review-index.mjs --require-videos
 
 看完一章后，在同一卡片选择“故事线通过 / 需要修改 / 暂缓决定”，短备注尽量写成可执行的镜头反馈，例如具体时码、目标证据与遮挡问题。顶部进度只统计已经作出结论的章节；备注本身不会把“未审阅”算成完成。页面把记录保存在按候选 SHA 命名的 `localStorage` 键中，导出的 `peekmyagent_storyboard_owner_review` JSON 同时携带精确 SHA、工作区是否干净、各章结论、备注和时间戳。“清空本轮记录”需要在十五秒内再次点击确认，避免系统弹窗打断审片或单击误删。导出是用户主动动作，不代表发布批准；分享前先检查备注是否含真实提示词、源码、路径或密钥，再由维护者根据所有者确认手工更新 catalog。
 
+维护者收到 JSON 后按以下顺序处理，不能跳过候选提交检查：
+
+```bash
+node scripts/storyboard-review-handoff.mjs \
+  --input tmp/storyboard-review/review.json \
+  --expected-target <完整的四十位候选提交> \
+  --check
+
+node scripts/storyboard-review-handoff.mjs \
+  --input tmp/storyboard-review/review.json \
+  --expected-target <完整的四十位候选提交> \
+  --output tmp/storyboard-review/summary.md
+```
+
+第一条只验证 schema、当前十章清单、计数、UTC 时间戳、候选 commit 是否在本地可解析，以及备注中常见的凭据和隐私路径哨兵；失败消息不会回显命中的值。第二条生成不含备注原文的安全摘要。确需查看原文时显式增加 `--show-notes`，并把输出留在 `tmp/`；随后仍要人工脱敏。存在“需要修改”时，只改对应章和镜头，生成新 SHA 后重新审阅；所有章节都通过也只代表故事结论已收齐，catalog 的 `ready-for-voice` 仍由维护者人工推进。
+
 生成成功仍不能代替观看。每章至少抽查：第一帧、每次场景转场前后、每个编号新增前后、旧编号降权或退出后的稳定帧、字幕安全区和末帧；确认没有黑边、浏览器控制器、提前出现的编号、空白帧、字幕大黑框或敏感内容。
 
 如果只需要从已经复核的帧重建联系表，继续使用统一联系表脚本；不能用一张缩略联系表反向证明原始帧尺寸：

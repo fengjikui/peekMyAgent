@@ -94,6 +94,20 @@ function auditStoryboardCatalog() {
     "storyboard review index must derive chapter links from catalog, distinguish verified local videos, and export local owner review against an exact candidate SHA",
   );
 
+  const reviewHandoffScript = path.join(root, "scripts", "storyboard-review-handoff.mjs");
+  assertFile(reviewHandoffScript, "storyboard review handoff validator");
+  assertTrackable(reviewHandoffScript, "storyboard review handoff validator");
+  scanTextPrivacy(reviewHandoffScript, "storyboard review handoff validator");
+  const reviewHandoffSource = fs.readFileSync(reviewHandoffScript, "utf8");
+  assert(
+    reviewHandoffSource.includes("peekmyagent_storyboard_owner_review")
+      && reviewHandoffSource.includes("candidate_worktree_dirty")
+      && reviewHandoffSource.includes("privacyRules")
+      && reviewHandoffSource.includes("--show-notes")
+      && reviewHandoffSource.includes("read-only with respect to catalog"),
+    "storyboard review handoff must validate the exported schema, candidate cleanliness, privacy boundary, and explicit note disclosure",
+  );
+
   for (const name of ["index.html", "player.css", "player.js", "README.md", "catalog.zh-CN.json"]) {
     const file = path.join(storyboardRoot, name);
     assertFile(file, "storyboard player artifact");
