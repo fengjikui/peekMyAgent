@@ -267,16 +267,16 @@
     },
     {
       "id": "07-openai-protocol",
-      "title": "回到 OpenAI Responses 原生顺序",
+      "title": "区分 OpenAI Responses 原生 Item 与 Viewer 语义角色",
       "start_seconds": 157,
       "end_seconds": 186,
       "source_image": "/assets/demo/source/custom-harness/recording/raw/06-openai-protocol.png",
-      "narration": "摘要仍不够时，协议视图明确写出 OpenAI Responses。第二次上行按顺序包含用户消息、assistant 的 function call，以及 tool 角色的 function call output；下行才是最终 Assistant 消息。每一项都保留 JSON path，用来排查兼容层是否漏传或改错顺序。",
+      "narration": "摘要仍不够时，协议视图明确写出 OpenAI Responses。第二次上行按顺序包含 message、function call 和与 call id 匹配的 function call output 三类 Item；其中后两类在 wire 层没有原生 role，Viewer 为阅读统一补成 assistant 与 tool 语义标签。下行才是最终 Assistant message。每一项都保留 JSON path，用来排查兼容层是否漏传或改错顺序。",
       "subtitle_cues": [
         "协议视图明确识别 OpenAI Responses。",
-        "第二次上行包含用户消息和 function call。",
-        "随后是 tool 角色的 function call output。",
-        "最终 Assistant 消息位于模型下行。",
+        "第二次上行依次包含三类原生 Item。",
+        "Viewer 为调用和结果补充语义角色。",
+        "最终 Assistant message 位于模型下行。",
         "每一项都保留原始 JSON path。"
       ],
       "overlays": [
@@ -294,7 +294,7 @@
           "label_box": [60.1, 17.2, 2.4, 4.4],
           "delay_ms": 5800,
           "end_ms": 18100,
-          "draft": "出现顺序：编号 1 聚焦 OpenAI 上行工具与三条 input 顺序；保留关系：下行出现后焦点转移；淡出时点：与编号 2 交叉约 0.7 秒。"
+          "draft": "出现顺序：编号 1 先聚焦 OpenAI 上行的三类原生 Item，并说明 assistant/tool 是 Viewer 语义标签；保留关系：下行出现后焦点转移；淡出时点：与编号 2 交叉约 0.7 秒。"
         },
         {
           "type": "badge",

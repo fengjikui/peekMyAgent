@@ -23,7 +23,7 @@
 | 01:32–01:53 | Request 1 Tools | 模型只能根据工具说明和 schema 提出调用 | 标签轻描边 → 证据编号 1 |
 | 01:53–02:14 | 点击 `list_directory` 调用 | 模型下行是结构化意图，不是直接访问磁盘 | 编号 1 → 2 交叉淡化 |
 | 02:14–02:37 | 点击工具结果 | Harness 执行后，结果通过下一次请求回到模型 | 编号 1 → 2 交叉淡化 |
-| 02:37–03:06 | Request 2 协议视图 | OpenAI Responses 的 user / function_call / function_call_output / final output 原生顺序 | 标签轻描边；编号 1 → 2 |
+| 02:37–03:06 | Request 2 协议视图 | OpenAI Responses 的 Item 顺序，以及 Viewer 如何补充语义角色 | 标签轻描边；编号 1 → 2 交叉淡化 |
 | 03:06–03:28 | Request 1 完整请求 | Raw 保留请求字段并明确记录 Header 脱敏 | 标签轻描边 → 编号 1 |
 | 03:28–03:58 | 切换 Anthropic Source 与 Claude 配色，查看 Request 2 协议 | 同一入口按 wire 事实识别 Anthropic；tool_use 和 tool_result 原生 role 不被摘要改写 | 标题轻描边；1 降权后出现 2 |
 | 03:58–04:11 | 结尾卡：通用桥的能力与限制 | 先定位协议问题，再决定是否开发专用 adapter | 13 秒；无编号 |
@@ -56,9 +56,9 @@
 
 Harness 在本地列出目录，再把结果封装成第二次请求的 `function_call_output`。中栏说明它已关联调用，并提供“来源 #1”；右栏保留 call id 和实际 `entries`。这样可以检查结果是否确实回给了模型，而不是只看到终端说工具成功。
 
-### 02:37–03:06　回到 OpenAI Responses 原生顺序
+### 02:37–03:06　区分 OpenAI Responses 原生 Item 与 Viewer 语义角色
 
-摘要仍不够时，协议视图明确写出 OpenAI Responses。第二次上行按顺序包含用户消息、assistant 的 `function_call`，以及 tool 角色的 `function_call_output`；下行才是最终 Assistant 消息。每一项都保留 JSON path，用来排查兼容层是否漏传或改错顺序。
+摘要仍不够时，协议视图明确写出 OpenAI Responses。第二次上行按顺序包含 `message`、`function_call` 和与 call id 匹配的 `function_call_output` 三类 Item；其中后两类在 wire 层没有原生 role，Viewer 为阅读统一补成 assistant 与 tool 语义标签。下行才是最终 Assistant `message`。每一项都保留 JSON path，用来排查兼容层是否漏传或改错顺序。
 
 ### 03:06–03:28　Raw 保留完整请求，也显示脱敏事实
 

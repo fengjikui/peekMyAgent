@@ -88,7 +88,7 @@ Capture Proxy 应只绑定 loopback。认证 header 在持久化前按现有规�
 
 ![OpenAI Responses 中工具调用与结果回传的协议证据](../../assets/demo/source/custom-harness/recording/review-1920/07c-openai-output.png)
 
-OpenAI Responses 中，工具调用和结果分别表现为 `function_call` 与 `function_call_output`；Anthropic Messages 中，对应角色是 assistant 的 `tool_use` 与后续 user message 中的 `tool_result`。PMA 用捕获到的 wire path 和 body 识别协议，不靠 Source 名称猜测。
+OpenAI Responses 中，工具调用和结果分别是 `function_call` 与 `function_call_output` Item；它们在 wire 层没有原生 role，Viewer 为统一阅读补充 assistant / tool 语义标签。Anthropic Messages 中，对应的原生结构是 assistant message 中的 `tool_use` 与后续 user message 中的 `tool_result`。PMA 用捕获到的 wire path 和 body 识别协议，不靠 Source 名称猜测。
 
 可重复素材保存在 `assets/demo/source/custom-harness/`：`manifest.json` 记录 Source、产品 SHA、脱敏边界与原图校验值；`narration.zh-CN.md` 是完整镜头脚本；两档 `review-*` 目录用于检查 1920×1080 和 1024×576 下逐步出现的标注。重新生成 Source 时运行：
 
