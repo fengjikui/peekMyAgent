@@ -28,6 +28,7 @@ const requiredFiles = [
   ".github/ISSUE_TEMPLATE/config.yml",
   ".github/pull_request_template.md",
   "assets/demo/media-budget.json",
+  "scripts/capture-readme-source-frames.mjs",
   "scripts/capture-storyboard-review-frames.mjs",
   "scripts/export-storyboard-video.mjs",
   "scripts/demo-freshness-audit.mjs",
@@ -204,6 +205,15 @@ assert.equal(reviewCaptureHelp.status, 0, `storyboard capture help failed:\n${re
 assert.match(reviewCaptureHelp.stdout, /<chapter-id>/);
 assert.match(reviewCaptureHelp.stdout, /--output-root/);
 assert.match(reviewCaptureHelp.stdout, /PMA_STORYBOARD_BROWSER/);
+
+const readmeSourceCaptureHelp = spawnSync(process.execPath, [
+  "scripts/capture-readme-source-frames.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(readmeSourceCaptureHelp.status, 0,
+  `README Source capture help failed:\n${readmeSourceCaptureHelp.stderr}`);
+assert.match(readmeSourceCaptureHelp.stdout, /--output-root/);
+assert.match(readmeSourceCaptureHelp.stdout, /1920x1080/);
 
 const videoExportHelp = spawnSync(process.execPath, [
   "scripts/export-storyboard-video.mjs",

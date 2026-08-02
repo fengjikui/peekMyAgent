@@ -86,8 +86,8 @@ function auditChapter({ chapter, targetSha }) {
     .map((scene) => scene.source_image)
     .filter(Boolean)
     .map((href) => repoPathFromAssetHref(href, `${chapter.id} source image`)));
-  const generatorPath = normalizeGeneratorPath(manifest.source?.generator, chapter.id);
-  const generatorCommit = latestPathCommit(targetSha, [generatorPath], `${chapter.id} source generator`);
+  const generatorPaths = normalizeGeneratorPaths(manifest.source, chapter.id);
+  const generatorCommit = latestPathCommit(targetSha, generatorPaths, `${chapter.id} source generator`);
   const sourceCommit = latestPathCommit(targetSha, [manifestPath, ...sourceImages],
     `${chapter.id} Source evidence`);
   const sourceIncludesGenerator = commitIsAncestor(generatorCommit, sourceCommit);
@@ -124,7 +124,7 @@ function auditChapter({ chapter, targetSha }) {
     },
     source_recipe: {
       status: sourceStatus,
-      generator_path: generatorPath,
+      generator_paths: generatorPaths,
       generator_commit: generatorCommit,
       source_commit: sourceCommit,
       source_paths: uniqueSorted([manifestPath, ...sourceImages]),
@@ -141,8 +141,8 @@ function auditChapter({ chapter, targetSha }) {
 
 function resolveEvidenceCommit(manifest, chapterId) {
   const candidates = [
-    ["source.verified_origin_main", manifest.source?.verified_origin_main],
     ["source.product_baseline_sha", manifest.source?.product_baseline_sha],
+    ["source.verified_origin_main", manifest.source?.verified_origin_main],
     ["source.viewer_source_commit", manifest.source?.viewer_source_commit],
     ["product_sha", manifest.product_sha],
     ["source.verified_worktree_head", manifest.source?.verified_worktree_head],
@@ -153,14 +153,24 @@ function resolveEvidenceCommit(manifest, chapterId) {
   return { field: candidate[0], sha: candidate[1] };
 }
 
-function normalizeGeneratorPath(generator, chapterId) {
+function normalizeGeneratorPaths(source, chapterId) {
+  const generator = source?.generator;
   assert(typeof generator === "string" && generator.length > 0,
     `${chapterId} manifest needs source.generator`);
-  const normalized = generator.replaceAll("\\", "/").replace(/^\.\//, "");
-  assert(normalized.startsWith("scripts/") && !normalized.includes(".."),
-    `${chapterId} source.generator must be a repository script path`);
-  assert(fs.existsSync(path.join(root, normalized)), `${chapterId} source.generator does not exist`);
-  return normalized;
+  const inputs = source?.generator_inputs || [];
+  assert(Array.isArray(inputs), `${chapterId} source.generator_inputs must be an array`);
+  const normalizedPaths = [generator, ...inputs].map((value) => {
+    assert(typeof value === "string" && value.length > 0,
+      `${chapterId} source generator paths must be non-empty strings`);
+    const normalized = value.replaceAll("\\", "/").replace(/^\.\//, "");
+    assert(normalized.startsWith("scripts/") && !normalized.includes(".."),
+      `${chapterId} source generator must be a repository script path`);
+    assert(fs.existsSync(path.join(root, normalized)), `${chapterId} source generator does not exist`);
+    return normalized;
+  });
+  assert.equal(new Set(normalizedPaths).size, normalizedPaths.length,
+    `${chapterId} source generator paths must be unique`);
+  return normalizedPaths;
 }
 
 function isProductEvidenceFile(file) {

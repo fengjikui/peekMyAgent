@@ -59,6 +59,18 @@ console.log([
 ].join(" "));
 
 function auditStoryboardCatalog() {
+  const readmeSourceCaptureScript = path.join(root, "scripts", "capture-readme-source-frames.mjs");
+  assertFile(readmeSourceCaptureScript, "README Source capture script");
+  assertTrackable(readmeSourceCaptureScript, "README Source capture script");
+  scanTextPrivacy(readmeSourceCaptureScript, "README Source capture script");
+  const readmeSourceCapture = fs.readFileSync(readmeSourceCaptureScript, "utf8");
+  assert(
+    readmeSourceCapture.includes("readme-media-demo.mjs")
+      && readmeSourceCapture.includes("Page.captureScreenshot")
+      && readmeSourceCapture.includes("1920x1080"),
+    "README Source capture must operate the deterministic Viewer and enforce a full 1920x1080 frame",
+  );
+
   const narrativeContractScript = path.join(root, "scripts", "storyboard-narrative-contract.mjs");
   assertFile(narrativeContractScript, "storyboard narrative contract validator");
   assertTrackable(narrativeContractScript, "storyboard narrative contract validator");

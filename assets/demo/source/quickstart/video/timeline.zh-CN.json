@@ -2,7 +2,7 @@
   "version": 1,
   "title": "peekMyAgent 五分钟快速上手：第一次看清工具闭环",
   "resolution": [1920, 1080],
-  "source_viewport": [2048, 1056],
+  "source_viewport": [1920, 1080],
   "fps": 30,
   "duration_seconds": 255,
   "theme": "codex",
@@ -158,21 +158,19 @@
           "draft": "先标记 Request 1 用户消息旁的详情按钮，说明右栏来源；讲完后与编号 2 交叉淡化约 0.7 秒。"
         },
         {
-          "type": "badge",
-          "label": "2",
-          "focus": [69.0, 6.5, 3.8, 3.0],
-          "label_box": [61.0, 5.1, 2.6, 5.0],
+          "type": "focus",
+          "focus": [68.5, 6.5, 2.9, 3.0],
           "delay_ms": 5600,
           "end_ms": 11100,
-          "draft": "编号 2 接管右栏 System 标签；编号 1 在交接后消失；随后与正文重点交叉淡化，不保留多余标记。"
+          "draft": "System 标签已有清楚名称，只用轻描边接管焦点；编号 1 在交接后消失，避免圆形编号遮挡相邻标签。"
         },
         {
           "type": "badge",
-          "label": "3",
+          "label": "2",
           "focus": [63.5, 18.5, 35.7, 16.5],
-          "label_box": [61.0, 15.3, 2.6, 5.0],
+          "label_box": [59.0, 15.3, 2.6, 5.0],
           "delay_ms": 10400,
-          "draft": "最终只保留编号 3，聚焦 System 的实际 body_instructions；编号贴在分栏留白，不遮字段名和正文。"
+          "draft": "标签描边交叉淡出后，编号 2 聚焦 System 的实际 body_instructions；编号贴在分栏左侧留白，不遮字段名和正文。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
@@ -194,28 +192,26 @@
         {
           "type": "badge",
           "label": "1",
-          "focus": [13.4, 43.7, 47.6, 6.0],
-          "label_box": [11.1, 40.6, 2.6, 5.0],
+          "focus": [13.4, 50.0, 47.6, 7.2],
+          "label_box": [11.1, 47.0, 2.6, 5.0],
           "delay_ms": 400,
           "end_ms": 6300,
-          "draft": "先聚焦中栏 Request 2 的工具结果和来源链接；不加箭头；讲完选择动作后与编号 2 交叉淡化。"
+          "draft": "先聚焦中栏 Request 2 的 list_directory 工具结果和来源链接；不加箭头；框线不能误落到上一行工具调用。"
+        },
+        {
+          "type": "focus",
+          "focus": [89.0, 6.5, 4.0, 3.0],
+          "delay_ms": 5600,
+          "end_ms": 11100,
+          "draft": "tool_result 标签已有清楚名称，只用轻描边接管焦点；编号 1 交接后消失，避免遮挡 Metadata。"
         },
         {
           "type": "badge",
           "label": "2",
-          "focus": [89.2, 6.5, 5.0, 3.0],
-          "label_box": [61.0, 5.1, 2.6, 5.0],
-          "delay_ms": 5600,
-          "end_ms": 11100,
-          "draft": "编号 2 接管右栏 tool_result 标签；编号 1 交接后消失；随后切到结果正文，不同时保留三个编号。"
-        },
-        {
-          "type": "badge",
-          "label": "3",
           "focus": [63.6, 19.2, 35.6, 20.5],
-          "label_box": [61.0, 16.0, 2.6, 5.0],
+          "label_box": [59.0, 16.0, 2.6, 5.0],
           "delay_ms": 10400,
-          "draft": "编号 2 交叉淡出后，编号 3 最终只聚焦右栏调用标识和目录清单；编号放在分栏外缘，不遮 README.md 或其他返回内容。"
+          "draft": "标签描边交叉淡出后，编号 2 聚焦右栏调用标识和目录清单；编号放在分栏左侧留白，不遮 README.md 或其他返回内容。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
@@ -247,9 +243,9 @@
           "type": "badge",
           "label": "2",
           "focus": [63.5, 6.2, 35.8, 30.2],
-          "label_box": [61.0, 3.2, 2.6, 5.0],
+          "label_box": [59.0, 10.2, 2.6, 5.0],
           "delay_ms": 7500,
-          "draft": "编号 2 聚焦右栏来源提示、返回按钮和 function_call 参数；编号 1 在交接后消失，不跨栏连箭头。"
+          "draft": "编号 2 聚焦右栏来源提示、返回按钮和 function_call 参数；编号 1 在交接后退出，编号 2 留在分栏左侧留白，不遮右栏标题。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
@@ -275,21 +271,19 @@
           "draft": "详情按钮靠近底部字幕，因此不用编号和长框；只在按钮中心出现一次短点击波纹，约一秒后自行消失。"
         },
         {
-          "type": "badge",
-          "label": "1",
-          "focus": [69.5, 6.3, 4.4, 3.0],
-          "label_box": [61.0, 5.0, 2.6, 5.0],
+          "type": "focus",
+          "focus": [64.8, 6.3, 3.1, 3.0],
           "delay_ms": 6300,
           "end_ms": 10400,
-          "draft": "点击波纹已经消失后，编号 1 标记右栏 Response 标签；随后与编号 2 交叉淡化，不在底部留下视觉噪声。"
+          "draft": "点击波纹消失后，只用轻描边标记已有名称的 Response 标签；不加圆形编号遮挡相邻标签。"
         },
         {
           "type": "badge",
-          "label": "2",
+          "label": "1",
           "focus": [63.6, 25.5, 35.5, 27.2],
           "label_box": [59.6, 22.3, 2.6, 5.0],
           "delay_ms": 9700,
-          "draft": "最终只保留编号 2，聚焦右栏 thinking 与 output_text；编号不遮正文，字幕保持专业的底部居中位置。"
+          "draft": "Response 标签描边交叉淡出后，编号 1 聚焦右栏 thinking 与 output_text；编号不遮正文，字幕保持底部居中。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
@@ -309,21 +303,19 @@
       ],
       "overlays": [
         {
-          "type": "badge",
-          "label": "1",
-          "focus": [66.2, 6.4, 4.1, 3.0],
-          "label_box": [61.0, 5.0, 2.6, 5.0],
+          "type": "focus",
+          "focus": [65.5, 6.4, 2.7, 3.0],
           "delay_ms": 400,
           "end_ms": 8000,
-          "draft": "先标记右栏协议视图标签，说明页面来源；不加箭头；讲完切换动作后与编号 2 交叉淡化。"
+          "draft": "协议视图标签已有清楚名称，只用轻描边说明页面来源；不加圆形编号遮挡完整请求或 System。"
         },
         {
           "type": "badge",
-          "label": "2",
+          "label": "1",
           "focus": [63.6, 14.0, 35.6, 68.0],
-          "label_box": [61.0, 11.0, 2.6, 5.0],
+          "label_box": [59.0, 11.0, 2.6, 5.0],
           "delay_ms": 7300,
-          "draft": "编号 2 聚焦 provider、模型、工具和上行原生顺序；编号 1 交接后消失；大框边缘不遮字段。"
+          "draft": "标签描边交叉淡出后，编号 1 聚焦 provider、模型、工具和上行原生顺序；编号留在分栏左侧，不遮字段。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
