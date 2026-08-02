@@ -96,6 +96,8 @@ if (editMode) {
   elements.annotationEditor.hidden = false;
   elements.annotationLayer.removeAttribute("aria-hidden");
   for (const input of elements.annotationEditorInputs) input.disabled = true;
+  elements.previous.setAttribute("aria-label", "上一标注复核点");
+  elements.next.setAttribute("aria-label", "下一标注复核点");
 }
 
 function setControlsDisabled(disabled) {
@@ -310,6 +312,57 @@ function syncReviewPointSelection() {
     (point) => point.scene === state.sceneIndex && Math.abs(point.at_ms - elapsedMs) <= 2,
   );
   elements.reviewPointSelect.value = index === -1 ? "" : String(index);
+}
+
+function overlayIsActiveAt(overlay, elapsedMs) {
+  const delay = overlay.delay_ms || 0;
+  const effectiveEnd = Number.isFinite(overlay.end_ms)
+    ? overlay.end_ms
+    : overlay.type === "click" ? delay + 1000 : Number.POSITIVE_INFINITY;
+  return delay <= elapsedMs && effectiveEnd > elapsedMs;
+}
+
+function reviewPointHasEditableAnnotation(point) {
+  const scene = state.timeline.scenes[point.scene];
+  return (scene.overlays || []).some((overlay) => (
+    (overlay.focus || overlay.label_box || overlay.click)
+    && overlayIsActiveAt(overlay, point.at_ms)
+  ));
+}
+
+function moveEditableReviewPoint(delta) {
+  const candidates = (state.timeline.review_points || [])
+    .map((point, index) => ({ point, index }))
+    .filter(({ point }) => reviewPointHasEditableAnnotation(point));
+  if (!candidates.length) return;
+
+  const currentElapsedMs = Math.round(state.sceneElapsed * 1000);
+  const currentIndex = candidates.findIndex(({ point }) => (
+    point.scene === state.sceneIndex && Math.abs(point.at_ms - currentElapsedMs) <= 2
+  ));
+  let targetIndex;
+  if (currentIndex !== -1) {
+    targetIndex = Math.max(0, Math.min(candidates.length - 1, currentIndex + delta));
+  } else if (delta > 0) {
+    const nextIndex = candidates.findIndex(({ point }) => (
+      point.scene > state.sceneIndex
+      || (point.scene === state.sceneIndex && point.at_ms > currentElapsedMs)
+    ));
+    targetIndex = nextIndex === -1 ? candidates.length - 1 : nextIndex;
+  } else {
+    const previousIndex = candidates.findLastIndex(({ point }) => (
+      point.scene < state.sceneIndex
+      || (point.scene === state.sceneIndex && point.at_ms < currentElapsedMs)
+    ));
+    targetIndex = previousIndex === -1 ? 0 : previousIndex;
+  }
+
+  const target = candidates[targetIndex];
+  setPlaying(false);
+  state.sceneIndex = target.point.scene;
+  state.sceneElapsed = target.point.at_ms / 1000;
+  renderScene({ resetElapsed: false });
+  updateLocation({ scene: target.point.scene, atMs: target.point.at_ms });
 }
 
 async function loadCatalog() {
@@ -804,6 +857,10 @@ function scheduleOverlays(scene, elapsedMs = 0) {
         for (const node of nodes) node.classList.add("annotation-dim");
       }
     }
+    if (editMode && !elements.annotationLayer.querySelector(".editable-annotation")) {
+      elements.annotationEditorSelection.textContent = "当前复核点没有可编辑标注";
+      elements.annotationEditorStatus.value = "使用左右箭头跳到上一处或下一处有标注的复核点。";
+    }
     return;
   }
 
@@ -1014,8 +1071,8 @@ function tick(timestamp) {
 }
 
 elements.toggle.addEventListener("click", () => setPlaying(!state.playing));
-elements.previous.addEventListener("click", () => moveScene(-1));
-elements.next.addEventListener("click", () => moveScene(1));
+elements.previous.addEventListener("click", () => editMode ? moveEditableReviewPoint(-1) : moveScene(-1));
+elements.next.addEventListener("click", () => editMode ? moveEditableReviewPoint(1) : moveScene(1));
 elements.scrubber.addEventListener("input", () => {
   setPlaying(false);
   seekAbsolute((Number(elements.scrubber.value) / 1000) * state.timeline.duration_seconds);
@@ -1054,8 +1111,8 @@ elements.reviewSheet.addEventListener("click", (event) => {
 
 window.addEventListener("keydown", (event) => {
   if (event.target instanceof HTMLElement && event.target.matches("input, select, button, a")) return;
-  if (event.key === "ArrowLeft") moveScene(-1);
-  if (event.key === "ArrowRight") moveScene(1);
+  if (event.key === "ArrowLeft") editMode ? moveEditableReviewPoint(-1) : moveScene(-1);
+  if (event.key === "ArrowRight") editMode ? moveEditableReviewPoint(1) : moveScene(1);
   if (event.key === " ") {
     event.preventDefault();
     setPlaying(!state.playing);

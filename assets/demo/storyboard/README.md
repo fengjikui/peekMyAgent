@@ -73,7 +73,7 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html?present=1&review=1&auto
 http://127.0.0.1:43115/assets/demo/storyboard/index.html?edit=1&autoplay=0&timeline=%2Fassets%2Fdemo%2Fsource%2Fquickstart%2Fvideo%2Ftimeline.zh-CN.json&scene=3&at_ms=4000
 ```
 
-编辑结果只保存在当前浏览器的 `localStorage`，不会直接写入时间线或上传。可以在不同章节和复核点之间继续调整，再使用“复制调整 JSON”直接粘贴回任务，或下载 `<chapter>-annotation-adjustments.json`。交接文件只包含时间线地址、镜头、标注序号、字段和百分比坐标，不包含 Capture、提示词、源码或本机路径。“重置本镜头”只删除当前镜头的本地草稿。README 精简版 `plan=` 页面读取的是已经生成的 JPEG，因此只负责观看；需要修改其中的框时，应在完整快速上手时间线的同名复核点使用 `edit=1`。
+编辑结果只保存在当前浏览器的 `localStorage`，不会直接写入时间线或上传。编辑模式中的左右箭头只在实际含有框、编号或点击波纹的复核点之间移动，不会跳到标注尚未出现的镜头起点；下拉菜单仍保留全部复核点，便于核对无标注画面。可以在不同章节和复核点之间继续调整，再使用“复制调整 JSON”直接粘贴回任务，或下载 `<chapter>-annotation-adjustments.json`。交接文件只包含时间线地址、镜头、标注序号、字段和百分比坐标，不包含 Capture、提示词、源码或本机路径。“重置本镜头”只删除当前镜头的本地草稿。README 精简版 `plan=` 页面读取的是已经生成的 JPEG，因此只负责观看；需要修改其中的框时，应在完整快速上手时间线的同名复核点使用 `edit=1`。
 
 `catalog.zh-CN.json` 是统一章节目录和审阅状态源。每个条目必须同时声明时间线、对应中文文档、真实标题，以及 `review` 中的目标问题、观众、Source 边界、状态、下一道确认门、五类审阅资料和本章依赖的产品影响 id。点击制作控制区的“章节审阅”即可在同一页面打开这份合同；它不会进入 `present=1` 成片。新增可发布章节时必须同步增加 catalog 条目；`demo-production-audit.mjs` 与 `documentation-consistency-audit.mjs` 会拒绝缺失章节、错误路径、未知产品边界、失效资料、未纳入中文公开文档审计的文件或不存在的小节标题。
 
