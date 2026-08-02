@@ -110,6 +110,7 @@
     "corrections": [
       "The first batch captured the 700ms scene fade and appeared washed out; it was rejected and regenerated after adding the review-only frozen state.",
       "The frozen review state keeps click pulses visible at their real control centers without changing normal playback animation.",
+      "A full-size re-review found that the overview markers were shifted one event upward: marker 1 framed Turn 2 and marker 2 framed the ordinary Request 3. Both focus regions were moved to the actual Turn 3 and its nested compaction Request 4, then the four affected desktop and compact frames plus both contact sheets were regenerated.",
       "The 1 -> 2 -> 3 History sequence was inspected in both viewports: marker 1 dims for marker 2, exits before marker 3, and marker 2 remains only as a dim comparison."
     ],
     "annotation_policy": [
