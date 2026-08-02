@@ -36,6 +36,22 @@ for (const command of [
   assert.ok(checkWorkflow.includes(`run: ${command}`), `expected ${command} in the main integrity job`);
 }
 
+const releaseCheckJobMatch = checkWorkflow.match(
+  /\n  release-check:\n[\s\S]*?\n  documentation-impact:/,
+);
+assert(releaseCheckJobMatch, "release-check workflow must contain a release-check job");
+const releaseCheckJob = releaseCheckJobMatch[0];
+assert.match(releaseCheckJob, /fetch-depth:\s*0/,
+  "release-check matrix needs full history for demo freshness evidence SHAs");
+
+const mainIntegrityJobMatch = checkWorkflow.match(
+  /\n  main-integrity:\n[\s\S]*$/,
+);
+assert(mainIntegrityJobMatch, "release-check workflow must contain a main-integrity job");
+const mainIntegrityJob = mainIntegrityJobMatch[0];
+assert.match(mainIntegrityJob, /fetch-depth:\s*0/,
+  "main integrity needs full history for demo freshness evidence SHAs");
+
 const documentationJobMatch = checkWorkflow.match(
   /\n  documentation-impact:\n[\s\S]*?\n  main-integrity:/,
 );
