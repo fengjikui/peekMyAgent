@@ -39,7 +39,7 @@ Claude Code 的 Skill、子 Agent、上下文压缩和多步规划章节分别�
 - `source/protocol-raw/`：真实 Capture Proxy 捕获的错误 call id → HTTP 400 → 修正成功闭环、8 张原始帧、51 条字幕、20 个渐进 `review_points` 和两档联系表。
 - `source/translation/`：真实 Capture Proxy、确定性模型 / 翻译假上游生成的 1 Turn / 2 Request 工具闭环、7 张原始帧、45 条字幕、18 个渐进 `review_points` 和两档联系表。
 
-旧版 `dashboard-overview*`、`chat-upstream-context*` 和 `tool-call-loop*` 暂时保留，方便比较界面变化；当前中文版 README 不再引用它们。
+旧版 `dashboard-overview*`、`chat-upstream-context*` 和 `tool-call-loop*` 在当前主 GIF 通过审阅后已从工作树移除；它们没有公开引用，需要比较时可从 Git 历史恢复。
 
 ## 重现
 
@@ -66,13 +66,14 @@ python3 scripts/build-readme-storyboard-gif.py --check
 
 第一条命令重新合成主 GIF；第二条只检查镜头源、尺寸、帧数、总时长和体积，不改写文件。
 
-用户手册扩展素材使用另一条确定性脚本：
+用户手册扩展素材使用另一条确定性轨迹与独立 GIF 构建脚本：
 
 ```bash
 node scripts/user-guide-media-demo.mjs --port 43113
+python3 scripts/build-user-guide-gifs.py
 ```
 
-它会生成上下文演进、迟到工具结果和 Claude Code 双子 Agent 三个 Source。完整场景与隐私记录见 `source/user-guide/manifest.json`。
+第一条命令生成上下文演进、迟到工具结果和 Claude Code 双子 Agent 三个 Source；第二条只重建两级导航与三张用户手册 GIF，不会覆盖 README 主 GIF。当前子 Agent GIF 复用最新 Claude 章节审阅帧；完整输入、时长与隐私记录见 `source/navigation/manifest.json` 和 `source/user-guide/manifest.json`。
 
 生成自研 Harness 的通用协议桥 Source：
 

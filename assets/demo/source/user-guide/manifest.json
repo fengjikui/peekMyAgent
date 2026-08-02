@@ -3,7 +3,7 @@
   "captured_at": "2026-08-01",
   "viewer_commit": "4ee63101c5b0054965f91d1fa6af49109ad201e6",
   "scenario_script": "scripts/user-guide-media-demo.mjs",
-  "build_script": "scripts/build-readme-media.py",
+  "build_script": "scripts/build-user-guide-gifs.py",
   "viewport": {
     "width": 2048,
     "height": 1056
@@ -24,6 +24,10 @@
         "System diff shows one removed and one added line"
       ],
       "raw_frames": ["context/context-system-diff-raw.png"],
+      "published_frames": [
+        "assets/demo/user-guide/context-request-detail.png",
+        "assets/demo/user-guide/context-system-diff.png"
+      ],
       "gif_durations_ms": [6500, 9500]
     },
     {
@@ -41,6 +45,10 @@
       "raw_frames": [
         "async-tool/async-overview-raw.png",
         "async-tool/async-delayed-result-raw.png"
+      ],
+      "published_frames": [
+        "assets/demo/user-guide/delayed-tool-result-arrives.png",
+        "assets/demo/user-guide/delayed-tool-result.png"
       ],
       "gif_durations_ms": [7500, 8500]
     },
@@ -62,15 +70,28 @@
         "subagent/subagent-board-raw.png",
         "subagent/subagent-tree-raw.png"
       ],
-      "gif_durations_ms": [6500, 9500]
+      "published_source_frames": [
+        "assets/demo/source/claude-subagents/recording/review-1024/03b-first-branch.jpg",
+        "assets/demo/source/claude-subagents/recording/review-1024/03c-branches-crossfade.jpg",
+        "assets/demo/source/claude-subagents/recording/review-1024/03d-second-branch.jpg"
+      ],
+      "gif_durations_ms": [6500, 3000, 6500]
     }
   ],
+  "published_output": {
+    "viewport": {
+      "width": 1024,
+      "height": 576
+    },
+    "annotation_style": "minimal focus outlines and sequential centered number badges; no callout cards or arrows",
+    "source_policy": "context and delayed-result GIFs preserve the deterministic raw Viewer evidence on a neutral 16:9 canvas; the subagent GIF reuses current reviewed Claude chapter frames"
+  },
   "privacy": {
     "external_requests": false,
     "real_credentials": false,
     "real_user_files": false,
     "paths": "fictional /demo paths only",
     "authorization": "synthetic values redacted by Viewer",
-    "manual_review": "full-size 2048x1056 and 1024px README previews passed after local arrow reroutes"
+    "manual_review": "1024x576 output frames reviewed at original size after removing black callout cards and curved arrows"
   }
 }

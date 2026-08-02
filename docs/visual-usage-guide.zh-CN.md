@@ -87,7 +87,7 @@ README 主 GIF 从这些已复核状态中选出 17 个镜头，输出为 1024×
 
 ![Turn / Request 两级导航](../assets/demo/two-level-navigation.gif)
 
-轨迹包含 6 个 Turn、13 个 Request，各轮请求数为 `1、1、3、2、5、1`。前两轮只做简单聊天，第三轮产生三次请求，第五轮连续核对四份公开证据并产生五次请求。镜头先标出右侧全局 Turn Rail，再标出中栏顶部只属于 Turn 5 的 Request Rail，每帧分别停留 6.5 秒和 7.5 秒。
+轨迹包含 6 个 Turn、13 个 Request，各轮请求数为 `1、1、3、2、5、1`。前两轮只做简单聊天，第三轮产生三次请求，第五轮连续核对四份公开证据并产生五次请求。发布 GIF 直接复用快速上手当前 1024×576 双尺寸复核中的两个状态：先标出右侧全局 Turn Rail，再保留层级关系并标出中栏顶部只属于 Turn 5 的 Request Rail；两帧分别停留 6.5 秒和 7.5 秒。
 
 ## 画面规范
 
@@ -165,7 +165,7 @@ README 主 GIF 从这些已复核状态中选出 17 个镜头，输出为 1024×
 - `assets/demo/source/quickstart/recording/review-1920/`、`review-1024/`：两档逐帧审阅稿。
 - `assets/demo/source/navigation/`：6 Turn / 13 Request 长轨迹的原始帧和 manifest。
 
-旧版 `dashboard-overview-tour.gif`、`chat-upstream-context.gif` 和 `tool-call-loop.gif` 暂时保留，供比较与后续迁移；中文版 README 首屏已不再使用它们。
+旧版 `dashboard-overview-tour`、`chat-upstream-context` 和 `tool-call-loop` 输出在新版主 GIF 通过审阅后已从当前树移除，避免无引用的旧界面继续占用媒体预算；需要比较时仍可从 Git 历史恢复。
 
 ## 重生成演示轨迹
 
@@ -238,7 +238,7 @@ python3 scripts/build-readme-storyboard-gif.py --check
 
 公开分享新素材前必须逐帧检查 Source 名称、System、Tools、Raw、路径、命令输出和历史消息。不要录制真实 API Key、真实提示词、用户源码、本地隐私路径或不可公开的 Capture。
 
-## 用户手册扩展素材 v0.1
+## 用户手册扩展素材 v0.2
 
 快速上手之后使用 `scripts/user-guide-media-demo.mjs` 生成三条互相独立的确定性 Source：
 
@@ -246,15 +246,15 @@ python3 scripts/build-readme-storyboard-gif.py --check
 | --- | --- | --- | --- | --- |
 | 上下文演进 | 从第 4 次请求详情进入 `System diff`，区分历史复用、工具结果和固定指令变化 | Codex | `assets/demo/user-guide/context-changes.gif` | 6.5 秒、9.5 秒 |
 | 迟到工具结果 | `start_background_scan` 在 #1 发起、到 #4 才回传，仍可点 `来源 #1` | Codex | `assets/demo/user-guide/delayed-tool-result.gif` | 7.5 秒、8.5 秒 |
-| 双子 Agent | 主 Agent 启动两个 Explore 分支，展开看板查看 child 请求和结果回流 | Claude | `assets/demo/user-guide/subagent-collaboration.gif` | 6.5 秒、9.5 秒 |
+| 双子 Agent | 主 Agent 启动两个 Explore 分支，展开看板查看 child 请求和结果回流 | Claude | `assets/demo/user-guide/subagent-collaboration.gif` | 6.5 秒、3 秒、6.5 秒 |
 
-箭头草稿与禁行区：
+这三张 GIF 不再使用黑色说明卡或长箭头：
 
-- 上下文第一帧从右栏空白短曲线回指第 4 次请求的 `详情`，不得压住用户消息；第二帧从次要筛选栏留白指向 `System diff`，红框只覆盖 diff 结果。
-- 迟到结果的红箭头落在结果框上边缘，蓝箭头单独落在 `来源 #1` 按钮；两条线不能汇聚到同一语义目标。
-- 子 Agent 第一帧从右栏空白水平指向折叠看板；第二帧红框覆盖当前选中分支的完整时间线，不能遮住 Agent 标签、请求正文或回流状态。
+- 上下文和迟到结果保留确定性原始 Viewer 证据，放入不带黑边的 1024×576 中性画布；只使用轻描边和紧邻目标的小编号，不重复按钮文字。
+- 子 Agent 直接复用当前 Claude 章节三个 1024×576 审阅状态，让 1 先出现，1/2 短暂共存，最后只保留 2。
+- 所有编号由脚本按文字真实边界居中，聚焦框不穿过正文；周围用户手册文字负责解释动作，GIF 内不再堆第二套长说明。
 
-2026-08-01 已对上述五张关键标注帧执行 2048×1056 原图和 1024 像素宽预览复核。第一轮发现迟到结果红蓝箭头汇聚，第二轮发现上下文动作卡遮挡用户消息；两处均局部返工并在重新生成后通过。完整 Source、协议、预期语义和脱敏记录见 `assets/demo/source/user-guide/manifest.json`。
+2026-08-02 已用 `scripts/build-user-guide-gifs.py` 重建四张慢速辅助 GIF：两级导航和子 Agent 使用当前章节的 1024×576 审阅帧；上下文与迟到结果在保持旧确定性 Source 全幅信息的同时移除黑卡和弯箭头。四张 GIF 均在 1024×576 原尺寸逐帧查看，完整 Source、输入帧、时长和脱敏记录见 `assets/demo/source/navigation/manifest.json` 与 `assets/demo/source/user-guide/manifest.json`。
 
 同日，“一个用户请求为什么会变成七次模型往返”章节又对 28 个渐进标注状态分别执行了桌面档与 1024×576 复核。2026-08-02 的跨章节生产审计发现，早期桌面目录虽然命名为 `review-1920`，文件字节实际仍是 1280×720；这批文件已经在 `present=1` 的真正 1920×1080 画布重新渲染，并将 28 个稳定时点写入时间线的 `review_points`。Turn / Request、调用 / 结果等需要比较的关系会保留前一编号，但在新编号出现时先用 `dim_ms` 降为次要；工具说明到字段、文件证据到任务状态等独立焦点采用交叉淡出，并在交接后只保留新编号。该章仅用编号与聚焦框即可明确指向，因此没有为了视觉热闹追加箭头。两档审阅帧、联系表与结论记录在 `assets/demo/source/claude-planning/manifest.json`。
 

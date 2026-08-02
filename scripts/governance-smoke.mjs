@@ -28,6 +28,7 @@ const requiredFiles = [
   ".github/ISSUE_TEMPLATE/config.yml",
   ".github/pull_request_template.md",
   "assets/demo/media-budget.json",
+  "scripts/build-user-guide-gifs.py",
   "scripts/capture-readme-source-frames.mjs",
   "scripts/capture-claude-tool-loop-source-frames.mjs",
   "scripts/capture-storyboard-review-frames.mjs",
@@ -143,6 +144,13 @@ assert.deepEqual(
 assert(mechanismImpact.impacts
   .find((impact) => impact.id === "context-lifecycle")
   .required_demos.includes("Claude Code 上下文压缩 Source 与双尺寸审阅帧"));
+const guideMediaImpact = buildDocumentationImpact([
+  "scripts/build-user-guide-gifs.py",
+]);
+assert.deepEqual(
+  guideMediaImpact.impacts.map((impact) => impact.id),
+  ["demo-production"],
+);
 assert(mechanismImpact.impacts
   .find((impact) => impact.id === "agent-planning")
   .required_demos.includes("Claude Code 多步规划 Source 与双尺寸审阅帧"));

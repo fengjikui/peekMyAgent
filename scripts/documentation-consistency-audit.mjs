@@ -242,6 +242,7 @@ const impactRules = [
       /^assets\/demo\/storyboard\//i,
       /^assets\/demo\/source\/[^/]+\/(?:manifest\.json|narration\.zh-CN\.md|video\/)/i,
       /^scripts\/.*(?:storyboard|demo-production|timeline-subtitles|demo-video)/i,
+      /^scripts\/build-(?:readme|user-guide).*\.(?:py|mjs)$/i,
     ],
     docs: [
       "docs/demo-chapter-production.zh-CN.md",

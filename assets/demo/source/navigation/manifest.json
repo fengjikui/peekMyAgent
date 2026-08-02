@@ -32,7 +32,20 @@
   },
   "generator": {
     "trace": "node scripts/readme-media-demo.mjs --port 43112",
-    "annotations": "python3 scripts/build-readme-media.py"
+    "annotations": "python3 scripts/build-user-guide-gifs.py"
+  },
+  "published_gif": {
+    "file": "assets/demo/two-level-navigation.gif",
+    "viewport": {
+      "width": 1024,
+      "height": 576
+    },
+    "source_frames": [
+      "assets/demo/source/quickstart/recording/review-1024/09a-turn-rail.jpg",
+      "assets/demo/source/quickstart/recording/review-1024/09b-turn-and-request-rails.jpg"
+    ],
+    "durations_ms": [6500, 7500],
+    "notes": "The deterministic 6 Turn / 13 Request trace remains the scenario evidence; the published GIF reuses the latest reviewed quickstart frames for the current 16:9 Viewer and annotation grammar."
   },
   "frames": [
     {
