@@ -322,6 +322,9 @@ export function runDocumentationConsistencyAudit({ log = true } = {}) {
     assert.equal(typeof chapter.review?.next_gate, "string",
       `storyboard chapter ${chapter.id} needs a next review gate`);
     const productImpactIds = chapter.review?.freshness?.product_impact_ids;
+    const verifiedProductSha = chapter.review?.freshness?.verified_product_sha;
+    assert.match(verifiedProductSha || "", /^[0-9a-f]{40}$/,
+      `storyboard chapter ${chapter.id} needs freshness.verified_product_sha`);
     assert(Array.isArray(productImpactIds) && productImpactIds.length > 0,
       `storyboard chapter ${chapter.id} needs freshness.product_impact_ids`);
     assert.equal(new Set(productImpactIds).size, productImpactIds.length,

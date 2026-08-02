@@ -18,6 +18,7 @@
         "status": "owner-review",
         "next_gate": "在 GitHub 实际渲染中审阅 74 秒首页 GIF 与中文故事；通过后重导完整母版。",
         "freshness": {
+          "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
           "product_impact_ids": ["cli-and-lifecycle", "harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "protocol-and-raw", "translation-theme", "privacy-data"]
         },
         "story": {
@@ -63,6 +64,7 @@
         "status": "owner-review",
         "next_gate": "审阅中文故事和协议边界，再决定是否进入正式配音与成片。",
         "freshness": {
+          "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
           "product_impact_ids": ["cli-and-lifecycle", "harness-capture", "viewer-surface", "request-context", "tools", "protocol-and-raw", "translation-theme", "privacy-data"]
         },
         "story": {
@@ -108,6 +110,7 @@
         "status": "owner-review",
         "next_gate": "审阅中文排错故事与发布会式 v0.2 收束页；通过后重导母版，再决定是否进入配音。",
         "freshness": {
+          "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
           "product_impact_ids": ["harness-capture", "viewer-surface", "request-context", "tools", "protocol-and-raw", "privacy-data"]
         },
         "story": {
@@ -153,6 +156,7 @@
         "status": "owner-review",
         "next_gate": "审阅中文翻译故事和原文兜底边界，再决定是否进入正式配音与成片。",
         "freshness": {
+          "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
           "product_impact_ids": ["viewer-surface", "request-context", "protocol-and-raw", "translation-theme", "privacy-data"]
         },
         "story": {
@@ -198,6 +202,7 @@
         "status": "owner-review",
         "next_gate": "审阅中文故事；通过后导出 v0.3 新母版，并决定正式发布前是否用当前 Claude Code 重录同一最小任务。",
         "freshness": {
+          "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
           "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "protocol-and-raw", "translation-theme"]
         },
         "story": {
@@ -243,6 +248,7 @@
         "status": "owner-review",
         "next_gate": "审阅中文故事和术语边界，再决定是否进入正式配音与成片。",
         "freshness": {
+          "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
           "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "skills", "protocol-and-raw", "translation-theme"]
         },
         "story": {
@@ -288,6 +294,7 @@
         "status": "owner-review",
         "next_gate": "审阅异步回流的叙述是否清楚，再决定是否进入正式配音与成片。",
         "freshness": {
+          "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
           "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "subagents", "protocol-and-raw", "translation-theme"]
         },
         "story": {
@@ -333,6 +340,7 @@
         "status": "owner-review",
         "next_gate": "审阅压缩前后证据是否足以支撑结论，再决定是否进入正式配音与成片。",
         "freshness": {
+          "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
           "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "context-lifecycle", "protocol-and-raw", "translation-theme"]
         },
         "story": {
@@ -378,6 +386,7 @@
         "status": "owner-review",
         "next_gate": "审阅 Codex 与 Claude Code 的差异和发布会式 v0.2 收束页；通过后重导母版，再决定是否进入配音。",
         "freshness": {
+          "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
           "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "context-lifecycle", "protocol-and-raw", "translation-theme"]
         },
         "story": {
@@ -423,6 +432,7 @@
         "status": "owner-review",
         "next_gate": "审阅七次主线 Request 的叙述节奏，再决定是否进入正式配音与成片。",
         "freshness": {
+          "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
           "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "agent-planning", "protocol-and-raw", "translation-theme"]
         },
         "story": {

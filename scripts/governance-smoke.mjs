@@ -300,11 +300,15 @@ assert.equal(
 );
 assert(freshnessSummary.chapters.every((chapter) => (
   /^[0-9a-f]{40}$/.test(chapter.product_evidence.evidence_sha)
+    && /^[0-9a-f]{40}$/.test(chapter.product_evidence.capture_sha)
     && /^[0-9a-f]{40}$/.test(chapter.source_recipe.generator_commit)
     && /^[0-9a-f]{40}$/.test(chapter.source_recipe.source_commit)
     && /^[0-9a-f]{40}$/.test(chapter.tracked_review_frames.dependency_commit)
     && /^[0-9a-f]{40}$/.test(chapter.tracked_review_frames.review_commit)
 )), "every chapter must name exact evidence and render commits");
+assert(freshnessSummary.chapters.every((chapter) => (
+  chapter.product_evidence.evidence_field === "catalog.review.freshness.verified_product_sha"
+)), "every chapter must use a shared main freshness checkpoint");
 
 const storyboardCatalog = JSON.parse(fs.readFileSync("assets/demo/storyboard/catalog.zh-CN.json", "utf8"));
 assert.equal(storyboardCatalog.schema_version, 5);
