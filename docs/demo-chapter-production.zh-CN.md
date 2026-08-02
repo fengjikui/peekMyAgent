@@ -29,7 +29,7 @@
 9. **干净画面母版**：不含配音；发布版可以单独合成字幕与授权音轨。
 10. **验收与来源记录**：产品 SHA、Source、素材文件、脱敏说明、逐帧结论、未覆盖风险。
 
-十章之间的所有者审阅不再依靠聊天里手工维护链接。运行 `node scripts/generate-storyboard-review-index.mjs --require-videos` 会在 Git 忽略的 `tmp/storyboard-video/review-index.html` 生成统一审片首页：每章同时给出 HTML 动效模板、无字幕干净播放、本地 MP4、页内预览、中文事实章节、Source 边界和下一道门。页面只链接仓库相对路径，不复制视频、Capture 或本机绝对路径；历史试剪与正式母版分开展示。
+十章之间的所有者审阅不再依靠聊天里手工维护链接。运行 `node scripts/generate-storyboard-review-index.mjs --require-videos` 会在 Git 忽略的 `tmp/storyboard-video/review-index.html` 生成统一审片首页：每章同时给出 HTML 动效模板、无字幕干净播放、本地 MP4、页内预览、中文事实章节、Source 边界和下一道门。页面只链接仓库相对路径，不复制视频、Capture 或本机绝对路径；历史试剪与正式母版分开展示。逐章结论与短备注只保存在当前浏览器，并按生成时的精确候选 SHA 隔离；所有者可显式导出一份 JSON 交接，但页面不上传数据，也不自动把 catalog 状态推进到下一阶段。
 
 ## 章节推进状态
 
@@ -159,6 +159,8 @@ node scripts/generate-storyboard-review-index.mjs --require-videos
 ```
 
 默认入口是 `http://127.0.0.1:43115/tmp/storyboard-video/review-index.html`。页面中的“HTML 模板”用于逐句、逐标注审阅，“干净播放”用于检查正式画面层，“打开 MP4 / 页内播放”用于检查编码结果；三者不能互相替代。
+
+看完一章后，在同一卡片选择“故事线通过 / 需要修改 / 暂缓决定”，短备注尽量写成可执行的镜头反馈，例如具体时码、目标证据与遮挡问题。顶部进度只统计已经作出结论的章节；备注本身不会把“未审阅”算成完成。页面把记录保存在按候选 SHA 命名的 `localStorage` 键中，导出的 `peekmyagent_storyboard_owner_review` JSON 同时携带精确 SHA、工作区是否干净、各章结论、备注和时间戳。“清空本轮记录”需要在十五秒内再次点击确认，避免系统弹窗打断审片或单击误删。导出是用户主动动作，不代表发布批准；分享前先检查备注是否含真实提示词、源码、路径或密钥，再由维护者根据所有者确认手工更新 catalog。
 
 生成成功仍不能代替观看。每章至少抽查：第一帧、每次场景转场前后、每个编号新增前后、旧编号降权或退出后的稳定帧、字幕安全区和末帧；确认没有黑边、浏览器控制器、提前出现的编号、空白帧、字幕大黑框或敏感内容。
 

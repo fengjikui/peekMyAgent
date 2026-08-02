@@ -87,8 +87,11 @@ function auditStoryboardCatalog() {
     reviewIndexSource.includes("catalog.zh-CN.json")
       && reviewIndexSource.includes("review-index.html")
       && reviewIndexSource.includes("data-video-preview")
+      && reviewIndexSource.includes("peekmyagent.storyboardOwnerReview.v1.")
+      && reviewIndexSource.includes("buildReviewExportPayload")
+      && reviewIndexSource.includes("candidateSha")
       && reviewIndexSource.includes("--require-videos"),
-    "storyboard review index must derive chapter links from catalog and distinguish verified local videos",
+    "storyboard review index must derive chapter links from catalog, distinguish verified local videos, and export local owner review against an exact candidate SHA",
   );
 
   for (const name of ["index.html", "player.css", "player.js", "README.md", "catalog.zh-CN.json"]) {

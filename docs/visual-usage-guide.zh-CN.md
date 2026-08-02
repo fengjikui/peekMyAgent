@@ -14,7 +14,7 @@
 
 主 GIF 不承担安装、子 Agent、上下文压缩、翻译和所有 Harness 差异的讲解。把太多概念塞进一条演示，会迫使第一次使用者先理解项目背景，反而看不清 PMA 的核心价值。这些主题将使用各自独立的短素材逐步补充。
 
-需要横向比较全部十章时，不再从本文手工复制逐章链接。运行 `node scripts/generate-storyboard-review-index.mjs --require-videos`，再打开 `http://127.0.0.1:43115/tmp/storyboard-video/review-index.html`；统一审片首页会把 HTML 模板、无字幕干净播放、本地 MP4、正式 / 历史素材边界和对应中文章节放在同一页。它只链接 Git 忽略的本地母版，不增加仓库媒体体积。
+需要横向比较全部十章时，不再从本文手工复制逐章链接。运行 `node scripts/generate-storyboard-review-index.mjs --require-videos`，再打开 `http://127.0.0.1:43115/tmp/storyboard-video/review-index.html`；统一审片首页会把 HTML 模板、无字幕干净播放、本地 MP4、正式 / 历史素材边界和对应中文章节放在同一页。它只链接 Git 忽略的本地母版，不增加仓库媒体体积。每章的结论与短备注只保存在当前浏览器，并按候选 SHA 隔离；导出 JSON 后仍要人工检查备注，再由维护者决定是否更新 catalog，不能把本地选择直接当成发布事实。
 
 ## 演示场景
 

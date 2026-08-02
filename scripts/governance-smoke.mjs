@@ -195,6 +195,8 @@ assert.equal(reviewIndexHelp.status, 0, `storyboard review index help failed:\n$
 assert.match(reviewIndexHelp.stdout, /--require-videos/);
 assert.match(reviewIndexHelp.stdout, /--video-root/);
 assert.match(reviewIndexHelp.stdout, /--check/);
+assert.match(reviewIndexHelp.stdout, /localStorage/);
+assert.match(reviewIndexHelp.stdout, /never updates catalog/);
 
 const reviewIndexCheck = spawnSync(process.execPath, [
   "scripts/generate-storyboard-review-index.mjs",

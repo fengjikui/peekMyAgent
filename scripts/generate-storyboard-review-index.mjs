@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -50,6 +51,8 @@ function buildReviewModel() {
   }
 
   return {
+    candidateSha: gitHead(),
+    candidateWorktreeDirty: gitWorkingTreeDirty(),
     chapters,
     historicalClips,
     schemaVersion: 1,
@@ -166,7 +169,10 @@ function findHistoricalVideos(chapterId, formalVideoPath) {
 function renderReviewIndex(model) {
   const cards = model.chapters.map(renderChapterCard).join("\n");
   const json = JSON.stringify({
+    candidateSha: model.candidateSha,
+    candidateWorktreeDirty: model.candidateWorktreeDirty,
     chapterCount: model.chapters.length,
+    chapters: model.chapters.map((chapter) => ({ id: chapter.id, label: chapter.label })),
     historicalClips: model.historicalClips,
     schemaVersion: model.schemaVersion,
     verifiedVideoCount: model.verifiedVideoCount,
@@ -194,6 +200,8 @@ function renderReviewIndex(model) {
       --ok-soft: #e8f5ee;
       --warn: #8c5b16;
       --warn-soft: #fff1d9;
+      --change: #9c3d30;
+      --change-soft: #faeae7;
       --shadow: 0 18px 55px rgba(41, 42, 45, .08);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
     }
@@ -206,15 +214,25 @@ function renderReviewIndex(model) {
     .eyebrow { margin: 0 0 10px; color: var(--accent); font-size: 13px; font-weight: 760; letter-spacing: .09em; text-transform: uppercase; }
     h1 { margin: 0; max-width: 850px; font-size: clamp(34px, 4vw, 58px); line-height: 1.08; letter-spacing: -.035em; }
     .lede { max-width: 900px; margin: 18px 0 0; color: var(--muted); font-size: 17px; line-height: 1.75; }
-    .summary { display: grid; grid-template-columns: repeat(3, minmax(112px, 1fr)); gap: 10px; }
+    .summary { display: grid; grid-template-columns: repeat(4, minmax(112px, 1fr)); gap: 10px; }
     .summary-item { min-width: 112px; padding: 15px 17px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.55); }
     .summary-item strong { display: block; font-size: 24px; line-height: 1; }
     .summary-item span { display: block; margin-top: 7px; color: var(--muted); font-size: 12px; }
     .notice { display: flex; gap: 13px; align-items: flex-start; margin: 0 0 28px; padding: 15px 17px; border: 1px solid #d7d3ca; border-radius: 14px; background: #fbfaf7; color: #555960; line-height: 1.65; }
     .notice-badge { flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; background: var(--ink); color: white; font-size: 11px; font-weight: 700; }
+    .review-toolbar { display: grid; grid-template-columns: minmax(240px, 1fr) auto; gap: 18px; align-items: center; margin: -12px 0 28px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.52); }
+    .review-progress-copy { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
+    .review-progress-copy strong { color: var(--ink); }
+    .review-progress-track { height: 7px; overflow: hidden; border-radius: 999px; background: #dfddd8; }
+    .review-progress-bar { width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width .25s ease; }
+    .review-toolbar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .review-toolbar-note { grid-column: 1 / -1; margin: -7px 0 0; color: var(--muted); font-size: 11px; }
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
     .chapter { position: relative; overflow: hidden; min-width: 0; padding: 25px; border: 1px solid var(--line); border-radius: 20px; background: var(--card); box-shadow: 0 1px 0 rgba(255,255,255,.8) inset; }
     .chapter::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--accent); opacity: .72; }
+    .chapter[data-review-decision="approved"]::before { background: var(--ok); }
+    .chapter[data-review-decision="changes"]::before { background: var(--change); }
+    .chapter[data-review-decision="deferred"]::before { background: var(--warn); }
     .chapter-head { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 14px; align-items: start; }
     .chapter-number { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--soft); font-size: 13px; font-weight: 760; }
     .chapter h2 { margin: 1px 0 5px; font-size: 21px; line-height: 1.25; letter-spacing: -.015em; }
@@ -229,10 +247,17 @@ function renderReviewIndex(model) {
     .action:hover { border-color: #aeb8ce; background: #f8faff; }
     .action.primary { border-color: var(--accent); background: var(--accent); color: white; }
     .action.secondary { border-color: #b9c8e9; background: var(--accent-soft); color: #274f9d; }
+    .action[data-confirming="true"] { border-color: #dfaaa3; background: var(--change-soft); color: var(--change); }
     .action[disabled] { cursor: not-allowed; opacity: .48; }
     .video-state { display: flex; gap: 9px; align-items: center; margin-top: 13px; padding: 10px 12px; border-radius: 10px; background: var(--ok-soft); color: var(--ok); font-size: 12px; line-height: 1.45; }
     .video-state.missing { background: var(--warn-soft); color: var(--warn); }
     .dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: currentColor; }
+    .owner-review { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 10px; align-items: start; margin-top: 13px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: #faf9f6; }
+    .owner-review label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 650; }
+    .owner-review select, .owner-review textarea { width: 100%; border: 1px solid #cbc8c1; border-radius: 8px; background: white; color: var(--ink); font: inherit; }
+    .owner-review select { min-height: 39px; padding: 0 10px; }
+    .owner-review textarea { min-height: 63px; padding: 9px 10px; resize: vertical; line-height: 1.45; }
+    .owner-review textarea:focus, .owner-review select:focus { outline: 2px solid #b7c9f3; outline-offset: 1px; border-color: #7894d5; }
     details { margin-top: 17px; border-top: 1px solid var(--line); padding-top: 14px; }
     summary { cursor: pointer; color: #4e535c; font-size: 13px; font-weight: 650; }
     .review-copy { display: grid; gap: 11px; margin-top: 13px; color: var(--muted); font-size: 13px; line-height: 1.6; }
@@ -253,6 +278,9 @@ function renderReviewIndex(model) {
       .page { width: min(100% - 30px, 760px); padding-top: 30px; }
       .hero { grid-template-columns: 1fr; align-items: start; }
       .summary { width: 100%; }
+      .review-toolbar { grid-template-columns: 1fr; }
+      .review-toolbar-actions { justify-content: flex-start; }
+      .review-toolbar-note { grid-column: auto; }
       .grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 620px) {
@@ -262,6 +290,7 @@ function renderReviewIndex(model) {
       .chapter-head { grid-template-columns: 36px minmax(0, 1fr); }
       .chapter-number { width: 36px; height: 36px; }
       .status { grid-column: 2; justify-self: start; }
+      .owner-review { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -277,10 +306,23 @@ function renderReviewIndex(model) {
         <div class="summary-item"><strong>${model.chapters.length}</strong><span>中文章节</span></div>
         <div class="summary-item"><strong>${model.verifiedVideoCount}/${model.chapters.length}</strong><span>已验证母版</span></div>
         <div class="summary-item"><strong>${model.historicalClips}</strong><span>历史试剪</span></div>
+        <div class="summary-item"><strong id="reviewed-count">0/${model.chapters.length}</strong><span>本轮已审</span></div>
       </div>
     </header>
 
-    <p class="notice"><span class="notice-badge">本地</span><span>请从仓库根目录通过只绑定 <code>127.0.0.1</code> 的静态服务器打开。正式母版默认没有音轨、字幕轨或网页字幕；需要逐句审阅时请打开“HTML 模板”，不要把历史切片误当成发布候选。</span></p>
+    <p class="notice"><span class="notice-badge">本地</span><span>请从仓库根目录通过只绑定 <code>127.0.0.1</code> 的静态服务器打开。正式母版默认没有音轨、字幕轨或网页字幕；需要逐句审阅时请打开“HTML 模板”，不要把历史切片误当成发布候选。当前候选：<code>${escapeHtml(shortSha(model.candidateSha))}</code>${model.candidateWorktreeDirty ? "（生成时工作区有未提交修改，仅供内部预览）" : "（干净工作区）"}。</span></p>
+
+    <section class="review-toolbar" aria-label="本轮所有者审阅进度">
+      <div>
+        <div class="review-progress-copy"><strong id="review-progress-label">本轮尚未开始</strong><span id="review-save-state">只保存在当前浏览器</span></div>
+        <div class="review-progress-track" aria-hidden="true"><div class="review-progress-bar"></div></div>
+      </div>
+      <div class="review-toolbar-actions">
+        <button class="action secondary" id="export-review" type="button" disabled>导出审阅 JSON</button>
+        <button class="action" id="clear-review" type="button" disabled>清空本轮记录</button>
+      </div>
+      <p class="review-toolbar-note">结论和备注不会上传，也不会自动修改 catalog。请勿在备注中写入 API Key、真实提示词、源码或隐私路径；导出的 JSON 仍需在分享前人工检查。</p>
+    </section>
 
     <section class="grid" aria-label="中文演示章节">
 ${cards}
@@ -324,6 +366,196 @@ ${cards}
       event.preventDefault();
       closePreview();
     });
+
+    const reviewMeta = JSON.parse(document.querySelector("#review-index-meta").textContent);
+    const reviewStorageKey = "peekmyagent.storyboardOwnerReview.v1." + reviewMeta.candidateSha;
+    const allowedReviewDecisions = new Set(["pending", "approved", "changes", "deferred"]);
+    const reviewDecisionLabels = {
+      pending: "未审阅",
+      approved: "故事线通过",
+      changes: "需要修改",
+      deferred: "暂缓决定",
+    };
+    const reviewedCount = document.querySelector("#reviewed-count");
+    const reviewProgressLabel = document.querySelector("#review-progress-label");
+    const reviewProgressBar = document.querySelector(".review-progress-bar");
+    const reviewSaveState = document.querySelector("#review-save-state");
+    const exportReview = document.querySelector("#export-review");
+    const clearReview = document.querySelector("#clear-review");
+    let reviewStorageAvailable = true;
+    let reviewState = loadReviewState();
+    let clearConfirmationTimer = null;
+
+    function emptyReviewState() {
+      return {
+        schema_version: 1,
+        kind: "storyboard_owner_review",
+        candidate_sha: reviewMeta.candidateSha,
+        candidate_worktree_dirty: reviewMeta.candidateWorktreeDirty,
+        updated_at: null,
+        chapters: Object.fromEntries(reviewMeta.chapters.map((chapter) => [chapter.id, {
+          decision: "pending",
+          note: "",
+          updated_at: null,
+        }])),
+      };
+    }
+
+    function loadReviewState() {
+      const fallback = emptyReviewState();
+      try {
+        const raw = localStorage.getItem(reviewStorageKey);
+        if (!raw) return fallback;
+        const parsed = JSON.parse(raw);
+        if (parsed?.schema_version !== 1 || parsed?.candidate_sha !== reviewMeta.candidateSha) return fallback;
+        for (const chapter of reviewMeta.chapters) {
+          const existing = parsed.chapters?.[chapter.id];
+          const decision = allowedReviewDecisions.has(existing?.decision) ? existing.decision : "pending";
+          fallback.chapters[chapter.id] = {
+            decision,
+            note: String(existing?.note || "").slice(0, 2000),
+            updated_at: typeof existing?.updated_at === "string" ? existing.updated_at : null,
+          };
+        }
+        fallback.updated_at = typeof parsed.updated_at === "string" ? parsed.updated_at : null;
+        return fallback;
+      } catch {
+        reviewStorageAvailable = false;
+        return fallback;
+      }
+    }
+
+    function persistReviewState() {
+      try {
+        localStorage.setItem(reviewStorageKey, JSON.stringify(reviewState));
+        reviewStorageAvailable = true;
+        reviewSaveState.textContent = "已保存在当前浏览器";
+      } catch {
+        reviewStorageAvailable = false;
+        reviewSaveState.textContent = "浏览器拒绝本地保存；请及时导出 JSON";
+      }
+    }
+
+    function updateChapterReview(chapterId, patch) {
+      const entry = reviewState.chapters[chapterId];
+      if (!entry) return;
+      resetClearConfirmation();
+      Object.assign(entry, patch);
+      const now = new Date().toISOString();
+      entry.updated_at = now;
+      reviewState.updated_at = now;
+      persistReviewState();
+      renderReviewProgress();
+    }
+
+    function renderReviewProgress() {
+      let completed = 0;
+      let hasData = false;
+      for (const chapter of reviewMeta.chapters) {
+        const card = document.getElementById(chapter.id);
+        const entry = reviewState.chapters[chapter.id];
+        const decision = allowedReviewDecisions.has(entry?.decision) ? entry.decision : "pending";
+        const note = String(entry?.note || "").slice(0, 2000);
+        if (decision !== "pending") completed += 1;
+        if (decision !== "pending" || note.trim()) hasData = true;
+        card.dataset.reviewDecision = decision;
+        card.querySelector("[data-review-decision-input]").value = decision;
+        if (card.querySelector("[data-review-note]").value !== note) {
+          card.querySelector("[data-review-note]").value = note;
+        }
+      }
+      reviewedCount.textContent = String(completed) + "/" + String(reviewMeta.chapterCount);
+      reviewProgressBar.style.width = String((completed / reviewMeta.chapterCount) * 100) + "%";
+      reviewProgressLabel.textContent = completed === 0
+        ? "本轮尚未开始"
+        : completed === reviewMeta.chapterCount
+          ? "十章审阅已完成"
+          : "已审 " + String(completed) + " / " + String(reviewMeta.chapterCount) + " 章";
+      exportReview.disabled = !hasData;
+      clearReview.disabled = !hasData;
+      if (!reviewStorageAvailable) reviewSaveState.textContent = "浏览器拒绝本地保存；请及时导出 JSON";
+    }
+
+    function buildReviewExportPayload() {
+      const decisions = reviewMeta.chapters.map((chapter) => {
+        const entry = reviewState.chapters[chapter.id];
+        return {
+          chapter_id: chapter.id,
+          chapter_label: chapter.label,
+          decision: entry.decision,
+          decision_label: reviewDecisionLabels[entry.decision],
+          note: entry.note,
+          updated_at: entry.updated_at,
+        };
+      });
+      return {
+        schema_version: 1,
+        kind: "peekmyagent_storyboard_owner_review",
+        candidate_sha: reviewMeta.candidateSha,
+        candidate_worktree_dirty: reviewMeta.candidateWorktreeDirty,
+        exported_at: new Date().toISOString(),
+        chapter_count: reviewMeta.chapterCount,
+        reviewed_count: decisions.filter((item) => item.decision !== "pending").length,
+        decisions,
+        privacy_notice: "Review notes are user-authored local data. Inspect them before sharing; they may contain sensitive text.",
+      };
+    }
+
+    function downloadReviewJson() {
+      resetClearConfirmation();
+      const payload = buildReviewExportPayload();
+      const blob = new Blob([JSON.stringify(payload, null, 2) + "\\n"], { type: "application/json" });
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = "pma-storyboard-review-" + reviewMeta.candidateSha.slice(0, 8) + ".json";
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(href), 0);
+      reviewSaveState.textContent = "审阅 JSON 已导出；分享前请检查备注";
+    }
+
+    function resetClearConfirmation() {
+      if (clearConfirmationTimer) clearTimeout(clearConfirmationTimer);
+      clearConfirmationTimer = null;
+      delete clearReview.dataset.confirming;
+      clearReview.textContent = "清空本轮记录";
+      reviewSaveState.textContent = reviewStorageAvailable
+        ? reviewState.updated_at ? "已保存在当前浏览器" : "只保存在当前浏览器"
+        : "浏览器拒绝本地保存；请及时导出 JSON";
+    }
+
+    for (const chapter of reviewMeta.chapters) {
+      const card = document.getElementById(chapter.id);
+      card.querySelector("[data-review-decision-input]").addEventListener("change", (event) => {
+        updateChapterReview(chapter.id, { decision: event.target.value });
+      });
+      card.querySelector("[data-review-note]").addEventListener("input", (event) => {
+        updateChapterReview(chapter.id, { note: event.target.value.slice(0, 2000) });
+      });
+    }
+    exportReview.addEventListener("click", downloadReviewJson);
+    clearReview.addEventListener("click", () => {
+      if (clearReview.dataset.confirming !== "true") {
+        clearReview.dataset.confirming = "true";
+        clearReview.textContent = "再次点击确认清空";
+        reviewSaveState.textContent = "再次点击才会清空当前候选的记录";
+        clearConfirmationTimer = setTimeout(resetClearConfirmation, 15000);
+        return;
+      }
+      resetClearConfirmation();
+      try {
+        localStorage.removeItem(reviewStorageKey);
+        reviewStorageAvailable = true;
+      } catch {
+        reviewStorageAvailable = false;
+      }
+      reviewState = emptyReviewState();
+      reviewSaveState.textContent = reviewStorageAvailable ? "本轮记录已清空" : "本轮内存记录已清空";
+      renderReviewProgress();
+    });
+    renderReviewProgress();
   </script>
 </body>
 </html>
@@ -358,7 +590,7 @@ function renderChapterCard(chapter) {
       )).join("")}</ul>`
     : "";
 
-  return `      <article class="chapter" id="${escapeAttribute(chapter.id)}">
+  return `      <article class="chapter" id="${escapeAttribute(chapter.id)}" data-review-decision="pending">
         <header class="chapter-head">
           <span class="chapter-number">${String(chapter.index).padStart(2, "0")}</span>
           <div>
@@ -383,6 +615,19 @@ function renderChapterCard(chapter) {
           <a class="action" href="${escapeAttribute(chapter.guideHref)}" target="_blank" rel="noopener">中文章节</a>
         </div>
         ${videoState}
+        <div class="owner-review" aria-label="${escapeAttribute(chapter.label)}的本轮审阅记录">
+          <label>本轮结论
+            <select data-review-decision-input>
+              <option value="pending">未审阅</option>
+              <option value="approved">故事线通过</option>
+              <option value="changes">需要修改</option>
+              <option value="deferred">暂缓决定</option>
+            </select>
+          </label>
+          <label>短备注（可选）
+            <textarea data-review-note maxlength="2000" rows="2" placeholder="例如：02:14 的箭头应改为只框住 call_id"></textarea>
+          </label>
+        </div>
         <details>
           <summary>本章证据、下一道门与制作资料</summary>
           <div class="review-copy">
@@ -399,6 +644,8 @@ function renderChapterCard(chapter) {
 
 function validateGeneratedIndex(html, model) {
   assert.match(html, /^<!doctype html>/);
+  assert.match(model.candidateSha, /^[0-9a-f]{40}$/i,
+    "review candidate must name an exact Git commit");
   assert(html.includes("统一审片首页"), "generated index needs its visible title");
   assert.equal(countMatches(html, /<article class="chapter"/g), model.chapters.length,
     "generated index must render one card for every catalog chapter");
@@ -410,6 +657,20 @@ function validateGeneratedIndex(html, model) {
     "generated index must expose every mapped Chinese guide");
   assert.equal(countMatches(html, /data-video-preview=/g), model.videoCount,
     "generated index must expose every locally available formal video");
+  assert.equal(countMatches(html, /<select data-review-decision-input>/g), model.chapters.length,
+    "generated index must render and bind one review decision control per chapter");
+  assert.equal(countMatches(html, /<textarea data-review-note/g), model.chapters.length,
+    "generated index must render and bind one review note control per chapter");
+  assert(html.includes("peekmyagent.storyboardOwnerReview.v1."),
+    "generated index must scope local review state by candidate SHA");
+  assert(html.includes("kind: \"peekmyagent_storyboard_owner_review\""),
+    "generated index must expose the documented review export kind");
+  assert(html.includes("function buildReviewExportPayload()"),
+    "generated index must expose a deterministic review export payload");
+  assert(html.includes("localStorage.setItem(reviewStorageKey"),
+    "generated index must persist review state only in the local browser");
+  assert(html.includes("再次点击确认清空") && !html.includes("window.confirm("),
+    "generated index must use a non-blocking two-step clear confirmation");
   for (const chapter of model.chapters) {
     assert(html.includes(`id="${chapter.id}"`), `generated index is missing chapter ${chapter.id}`);
     assert(html.includes(escapeAttribute(chapter.templateHref)),
@@ -458,6 +719,8 @@ Options:
   -h, --help            Show this help
 
 The page only links repository-relative storyboard assets and Git-ignored local videos.
+Owner decisions and notes stay in localStorage, scoped to the exact candidate HEAD,
+until the reviewer explicitly exports a JSON handoff. The page never updates catalog.
 It never embeds a Capture, API key, or absolute local repository path.`);
 }
 
@@ -498,6 +761,26 @@ function writeAtomically(file, contents) {
   } finally {
     if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
   }
+}
+
+function gitHead() {
+  const result = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0,
+    `could not resolve the review candidate commit: ${String(result.stderr || result.error || "unknown Git error").trim()}`);
+  return result.stdout.trim();
+}
+
+function gitWorkingTreeDirty() {
+  const result = spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0,
+    `could not inspect the review candidate worktree: ${String(result.stderr || result.error || "unknown Git error").trim()}`);
+  return Boolean(result.stdout.trim());
 }
 
 function readJson(file) {
