@@ -10,6 +10,7 @@ const sourceRoot = path.join(root, "assets", "demo", "source");
 const storyboardRoot = path.join(root, "assets", "demo", "storyboard");
 const catalogPath = path.join(storyboardRoot, "catalog.zh-CN.json");
 const mediaBudgetPath = path.join(root, "assets", "demo", "media-budget.json");
+const minimumBadgeNarrationGapMs = 2500;
 const strict = process.argv.includes("--strict");
 const requested = process.argv.slice(2).filter((argument) => argument !== "--strict");
 const chapterDirs = requested.length
@@ -387,6 +388,8 @@ function auditAnnotationSequence(chapterName, scenes) {
     for (let index = 1; index < badges.length; index += 1) {
       assert(delays[index] > delays[index - 1],
         `${chapterName} scene ${sceneLabel} numbered badges must be declared in appearance order`);
+      assert(delays[index] - delays[index - 1] >= minimumBadgeNarrationGapMs,
+        `${chapterName} scene ${sceneLabel} numbered badges need at least ${minimumBadgeNarrationGapMs}ms of narration between appearances`);
       assert(labels[index] > labels[index - 1],
         `${chapterName} scene ${sceneLabel} numbered badges must advance with the narration`);
     }
