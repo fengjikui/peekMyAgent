@@ -2,7 +2,7 @@
   "schema_version": 1,
   "title": "上下文压缩究竟改变了什么",
   "language": "zh-CN",
-  "chapter_status": "real_cli_trace_story_narration_raw_capture_and_dual_viewport_storyboard_review_v0_2",
+  "chapter_status": "real_cli_storyboard_review_and_picture_master_technical_validation_v0_2",
   "product_sha": "674222577f415c1b2775acefd337844ea6efd74c",
   "source": {
     "generator": "scripts/claude-compact-real-cli-probe.mjs",
@@ -78,9 +78,9 @@
     "recording/raw/05-post-compact-rule-reload.jpg"
   ],
   "review_frames": {
-    "1920x1080": "recording/review-1920/00.jpg through 08.jpg",
+    "1920x1080": "recording/review-1920/; 15 named JPEG frames declared by timeline review_points",
     "1920x1080_contact_sheet": "recording/review-1920/contact-sheet.jpg",
-    "1024x576": "recording/review-1024/00.jpg through 08.jpg",
+    "1024x576": "recording/review-1024/; 15 named JPEG frames declared by timeline review_points",
     "1024x576_contact_sheet": "recording/review-1024/contact-sheet.jpg"
   },
   "production": {
@@ -89,6 +89,10 @@
     "subtitles": "assets/demo/video/pma-claude-compact.zh-CN.srt",
     "storyboard_player": "assets/demo/storyboard/index.html",
     "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/claude-compact/pma-claude-compact-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "technical validation passed at exact source commit 28d66330bfa44edb9b5521158af81fc21b109fc1; owner Chinese story review is still pending",
+    "repository_policy": "The five public real-CLI Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, raw request log, and audio remain ignored.",
     "audio": "not_started; handled by the separate voice-tuning workflow"
   },
   "official_references": [
@@ -128,10 +132,29 @@
       "A previous marker remains only when the next explanation depends on a visible comparison or causal relation.",
       "Source-to-detail transitions use a short click pulse or crossfade instead of keeping redundant markers.",
       "No routed arrow remains in v0.2; click pulses, focus outlines, and numbered badges already establish every relationship without crossing readable evidence."
-    ]
+    ],
+    "video_master": {
+      "status": "technical_validation_passed_owner_story_review_pending",
+      "source_commit": "28d66330bfa44edb9b5521158af81fc21b109fc1",
+      "source_worktree_dirty": false,
+      "duration_seconds": 242,
+      "resolution": [1920, 1080],
+      "fps": 30,
+      "encoded_frames": 7260,
+      "browser_frames_received": 1100,
+      "browser_final_absolute_ms": 242000,
+      "maximum_encoder_lateness_ms": 86.622,
+      "bytes": 7619951,
+      "streams": "H.264 video only; no audio stream, subtitle stream, or webpage subtitle layer",
+      "black_frames": 0,
+      "review_points_checked": 15,
+      "review_frame_mean_absolute_difference": "5.09/255",
+      "review_frame_maximum_absolute_difference": "7.87/255 at 08-outro.jpg; the unannotated title card remained correctly composed and the difference is rendering variance rather than annotation displacement",
+      "repository_policy": "The MP4, render manifest, extracted frames, and contact sheet remain under Git-ignored tmp/storyboard-video/claude-compact/."
+    }
   },
   "publication_gate": {
-    "status": "real_cli_cross_check_and_visual_review_complete_owner_story_review_pending",
+    "status": "real_cli_storyboard_dual_viewport_review_and_picture_master_technical_validation_complete_owner_content_review_pending",
     "remaining": [
       "Freeze narration only after the owner reviews the Chinese story.",
       "Do not publish the ignored raw request log or generated video from the main repository."
