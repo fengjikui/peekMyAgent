@@ -62,7 +62,8 @@ function auditChapter({ chapter, targetSha }) {
   const timelinePath = repoPathFromAssetHref(chapter.timeline, `${chapter.id} timeline`);
   const manifest = JSON.parse(readRepoFile(manifestPath));
   const timeline = JSON.parse(readRepoFile(timelinePath));
-  const evidence = resolveEvidenceCommit(manifest, chapter.id);
+  const captureEvidence = resolveEvidenceCommit(manifest, chapter.id);
+  const evidence = resolveFreshnessCheckpoint(chapter, captureEvidence);
   resolveRevision(evidence.sha);
 
   const watchedImpactIds = chapter.review?.freshness?.product_impact_ids;
@@ -118,6 +119,8 @@ function auditChapter({ chapter, targetSha }) {
       status: productStatus,
       evidence_sha: evidence.sha,
       evidence_field: evidence.field,
+      capture_sha: captureEvidence.sha,
+      capture_field: captureEvidence.field,
       watched_impact_ids: watchedImpactIds,
       matched_impact_ids: matchedImpacts.map((impact) => impact.id),
       changed_files: productChangedFiles,
@@ -136,6 +139,19 @@ function auditChapter({ chapter, targetSha }) {
       dependency_paths: dependencyPaths,
       review_paths: reviewPaths,
     },
+  };
+}
+
+function resolveFreshnessCheckpoint(chapter, captureEvidence) {
+  const verifiedProductSha = chapter.review?.freshness?.verified_product_sha;
+  if (verifiedProductSha === undefined) return captureEvidence;
+  assert.equal(typeof verifiedProductSha, "string",
+    `${chapter.id} freshness.verified_product_sha must be a string`);
+  assert.match(verifiedProductSha, shaPattern,
+    `${chapter.id} freshness.verified_product_sha must be a full lowercase SHA`);
+  return {
+    field: "catalog.review.freshness.verified_product_sha",
+    sha: verifiedProductSha,
   };
 }
 

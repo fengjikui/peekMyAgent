@@ -20,7 +20,7 @@
 - `scripts/demo-production-audit.mjs` 跨章节核对 manifest、旁白、时间线、SRT、Source 图片、双尺寸审阅帧的真实像素、Git 可追踪性、媒体体积预算、章节审阅合同与常见隐私哨兵；catalog 中的叙事合同还要求开场在 30 秒内完成、PMA 价值在 60 秒内讲明、至少两个 Viewer 证据镜头真实存在、结尾能回到可复述结论；带 `review_points` 的章节可用 `--strict` 要求两档帧与稳定时点逐一对应；`smoke:governance` 会调用这项生产审计；
 - `scripts/documentation-consistency-audit.mjs` 核对中英文 README、快速开始、用户手册首页与十个任务章节的本地链接和章节锚点；同时检查 Node.js 要求、九条核心 CLI 事实、英文首页的支持协议/主 GIF/中文深读入口，以及十个演示章节到真实中文标题和审阅合同的映射；它已经由 `smoke:governance` 调用；
 - 同一脚本的 `--base` / `--changed-file` 模式会把功能变更映射成受影响文档与演示素材；JSON 同时包含精确目标 SHA、解析后的 base SHA、工作区状态、去重后的必查文档、必查演示和具体章节 id、验证命令与隐私限制，可以直接作为文档 Agent 的任务载荷；
-- `scripts/demo-freshness-audit.mjs` 把“演示可能过时”拆成三类可验证结论：manifest 中的精确产品证据 SHA 之后，当前章节关注的运行时代码是否变化；章节的 Source 生成脚本更新后，Source 图片与 manifest 是否重建；以及共享播放器、当前时间线或 Source 图片更新后，已提交双尺寸复核帧是否重生成。默认模式只报告而不阻断；只有完成真实 Viewer 复核并准备交接时才使用 `--strict`；
+- `scripts/demo-freshness-audit.mjs` 把“演示可能过时”拆成三类可验证结论：catalog 中已经在共享 `main` 完成产品复核的检查点之后，当前章节关注的运行时代码是否变化；章节的 Source 生成脚本更新后，Source 图片与 manifest 是否重建；以及共享播放器、当前时间线或 Source 图片更新后，已提交双尺寸复核帧是否重生成。报告同时保留 manifest 的原始采集 SHA 作为 provenance，但不要求 squash merge 后的分支提交永久可达。默认模式只报告而不阻断；只有完成真实 Viewer 复核并准备交接时才使用 `--strict`；
 - `.github/workflows/release-check.yml` 已在每个 PR 增加只读 `Documentation impact` job：它检出精确 head SHA，以 PR base SHA 到 head SHA 的 merge-base 范围生成 JSON，再把受影响文档、演示 Source、验证命令和隐私限制写入 GitHub Job Summary；job 只有 `contents: read`，不会评论 PR、创建 issue、读取 secrets 或发布素材；
 - `scripts/documentation-impact-summary.mjs` 负责校验 JSON 中的 head/base SHA 并生成防 Markdown 注入的摘要；路径很多时完整变更列表折叠显示，必查文档和演示保持在首屏；
 - 产品所有者的主文档工作区已启用名为 `peekMyAgent documentation and demo drift monitor` 的 Codex heartbeat：每天本地时间 10:00 轻量轮询一次 `origin/main`，用 Git 忽略的 `tmp/documentation-main-monitor.json` 保存最后扫描 SHA，并复用同一 JSON 影响映射唤醒当前长期文档任务；没有新 SHA 或没有映射边界时不通知、不截图、不运行大检查；
@@ -82,7 +82,7 @@
      --json
    ```
 
-   `product_evidence.status: review-required` 表示 manifest 的产品证据之后，章节关注的 CLI、Capture、Viewer、工具、协议等运行时边界发生了变化，需要重新操作真实产品并判断 Source 是否失效；`source_recipe.status: regeneration-required` 表示该章的确定性生成脚本比 Source 图片与 manifest 更新；`tracked_review_frames.status: regeneration-required` 表示网页播放器、该章时间线或 Source 图比已提交复核帧更新，需要重新生成两档复核帧。三者互不替代：只改标注样式可能只要求重渲染，生成脚本变化要求重建 Source，产品功能变化则要求先复核真实产品；
+   `product_evidence.status: review-required` 表示 catalog 的 `verified_product_sha` 之后，章节关注的 CLI、Capture、Viewer、工具、协议等运行时边界发生了变化，需要重新操作真实产品并判断 Source 是否失效；`capture_sha` 仍指向 manifest 的原始采集证据，不作为 squash 后的可达性前提。`source_recipe.status: regeneration-required` 表示该章的确定性生成脚本比 Source 图片与 manifest 更新；`tracked_review_frames.status: regeneration-required` 表示网页播放器、该章时间线或 Source 图比已提交复核帧更新，需要重新生成两档复核帧。三者互不替代：只改标注样式可能只要求重渲染，生成脚本变化要求重建 Source，产品功能变化则要求先复核真实产品；
 4. 运行确定性 `--verify` 和现有文档检查；
 5. PR job 把匹配结果写入只读 Job Summary；功能贡献者更新对应文档/manifest，或记录公开行为未变化的具体证据；
 6. 主工作区 heartbeat 在发现新 SHA 后生成同结构 JSON，按 `target SHA + impact_ids` 去重；存在映射边界时对 `required_demo_chapters` 运行新鲜度检查并唤醒当前长期文档任务，没有映射时只更新检查点；
