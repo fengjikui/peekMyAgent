@@ -283,6 +283,7 @@ async function loadTimeline(timelineUrl, { sceneIndex = 0, elapsedMs = 0, update
 
   state.timeline = timeline;
   state.timelineUrl = timelineUrl;
+  document.body.dataset.storyTheme = timeline.theme || "codex";
   state.sceneIndex = Number.isFinite(sceneIndex)
     ? Math.max(0, Math.min(timeline.scenes.length - 1, sceneIndex))
     : 0;
@@ -426,6 +427,7 @@ function scheduleOverlays(scene, elapsedMs = 0) {
 }
 
 function renderCard(card) {
+  elements.titleCard.classList.remove("is-entering");
   elements.cardEyebrow.textContent = card?.eyebrow || "";
   elements.cardHeadline.textContent = card?.headline || "";
   elements.cardSteps.replaceChildren(
@@ -437,6 +439,8 @@ function renderCard(card) {
     }),
   );
   elements.cardFooter.textContent = card?.footer || "";
+  void elements.titleCard.offsetWidth;
+  elements.titleCard.classList.add("is-entering");
 }
 
 function applySubtitleLayout(scene) {
@@ -544,6 +548,7 @@ function updateProgress() {
 function setPlaying(next) {
   state.playing = next;
   state.lastFrameTime = null;
+  if (next) document.body.classList.add("has-started");
   document.body.dataset.playing = next ? "1" : "0";
   elements.toggle.textContent = next ? "暂停" : "播放";
 }

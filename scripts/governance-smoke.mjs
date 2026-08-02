@@ -15,6 +15,7 @@ import {
   renderStoryboardReviewSummary,
   validateStoryboardReviewHandoff,
 } from "./storyboard-review-handoff.mjs";
+import { validateStoryboardNarrativeContract } from "./storyboard-narrative-contract.mjs";
 
 const requiredFiles = [
   "CONTRIBUTING.md",
@@ -29,6 +30,7 @@ const requiredFiles = [
   "scripts/capture-storyboard-review-frames.mjs",
   "scripts/export-storyboard-video.mjs",
   "scripts/generate-storyboard-review-index.mjs",
+  "scripts/storyboard-narrative-contract.mjs",
   "scripts/storyboard-review-handoff.mjs",
   "scripts/documentation-impact-summary.mjs",
 ];
@@ -53,6 +55,18 @@ assert.match(validationStrategy, /最多 3 个低风险代码提交/);
 assert.match(validationStrategy, /一次 PR 托管三平台矩阵/);
 assert.match(validationStrategy, /main.*不重复已经通过的同树三平台矩阵/);
 assert.match(validationStrategy, /Documentation impact/);
+
+const storyboardPlayer = fs.readFileSync("assets/demo/storyboard/player.js", "utf8");
+const storyboardStyles = fs.readFileSync("assets/demo/storyboard/player.css", "utf8");
+const demoProductionGuide = fs.readFileSync("docs/demo-chapter-production.zh-CN.md", "utf8");
+assert.match(storyboardPlayer, /dataset\.storyTheme = timeline\.theme/);
+assert.match(storyboardPlayer, /classList\.add\("has-started"\)/);
+assert.match(storyboardStyles, /body\[data-story-theme="claude"\]/);
+assert.match(storyboardStyles, /body\[data-story-theme="codex-and-claude"\]/);
+assert.match(storyboardStyles, /body\.present:not\(\.review\):not\(\.has-started\)/);
+assert.match(storyboardStyles, /@keyframes card-content-in/);
+assert.match(demoProductionGuide, /## 发布会式视觉基线/);
+assert.match(demoProductionGuide, /真实 Viewer 镜头.*始终完整占据 16:9/);
 
 const security = fs.readFileSync("SECURITY.md", "utf8");
 assert.match(security, /Do not post secrets/i);
@@ -233,6 +247,67 @@ assert.match(reviewHandoffHelp.stdout, /never prints review note text/);
 assert.match(reviewHandoffHelp.stdout, /read-only with respect to catalog/);
 
 const storyboardCatalog = JSON.parse(fs.readFileSync("assets/demo/storyboard/catalog.zh-CN.json", "utf8"));
+assert.equal(storyboardCatalog.schema_version, 4);
+for (const chapter of storyboardCatalog.chapters) {
+  const timeline = JSON.parse(fs.readFileSync(chapter.timeline.slice(1), "utf8"));
+  const manifest = JSON.parse(fs.readFileSync(chapter.review.artifacts.manifest.slice(1), "utf8"));
+  validateStoryboardNarrativeContract({
+    label: `storyboard chapter ${chapter.id}`,
+    chapter,
+    timeline,
+    manifest,
+  });
+}
+
+const quickstartChapter = structuredClone(storyboardCatalog.chapters[0]);
+const quickstartTimeline = JSON.parse(fs.readFileSync(quickstartChapter.timeline.slice(1), "utf8"));
+const quickstartManifest = JSON.parse(
+  fs.readFileSync(quickstartChapter.review.artifacts.manifest.slice(1), "utf8"),
+);
+const missingOpeningPhrase = structuredClone(quickstartChapter);
+missingOpeningPhrase.review.story.opening.narration_includes.push("不存在的叙事短语");
+assert.throws(
+  () => validateStoryboardNarrativeContract({
+    label: "quickstart missing opening phrase",
+    chapter: missingOpeningPhrase,
+    timeline: quickstartTimeline,
+    manifest: quickstartManifest,
+  }),
+  /missing required phrase/,
+);
+const lateOpening = structuredClone(quickstartChapter);
+lateOpening.review.story.opening.ends_by_seconds = 10;
+assert.throws(
+  () => validateStoryboardNarrativeContract({
+    label: "quickstart late opening",
+    chapter: lateOpening,
+    timeline: quickstartTimeline,
+    manifest: quickstartManifest,
+  }),
+  /after its 10s deadline/,
+);
+const titleCardAsProof = structuredClone(quickstartChapter);
+titleCardAsProof.review.story.proof_scenes[0] = "00-intro";
+assert.throws(
+  () => validateStoryboardNarrativeContract({
+    label: "quickstart title card proof",
+    chapter: titleCardAsProof,
+    timeline: quickstartTimeline,
+    manifest: quickstartManifest,
+  }),
+  /must point to real Viewer evidence/,
+);
+const missingTeachingBoundary = structuredClone(quickstartManifest);
+delete missingTeachingBoundary.teaching_contract.out_of_scope;
+assert.throws(
+  () => validateStoryboardNarrativeContract({
+    label: "quickstart missing teaching boundary",
+    chapter: quickstartChapter,
+    timeline: quickstartTimeline,
+    manifest: missingTeachingBoundary,
+  }),
+  /needs explicit_limits or out_of_scope/,
+);
 const reviewTimestamp = "2026-08-02T00:00:00.000Z";
 const ownerReviewPayload = {
   schema_version: 1,

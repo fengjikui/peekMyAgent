@@ -34,7 +34,7 @@ console.log(`open: http://127.0.0.1:${options.port}/${encodeURI(relative(options
 
 function buildReviewModel() {
   const catalog = readJson(catalogPath);
-  assert.equal(catalog.schema_version, 3, "storyboard catalog schema_version must be 3");
+  assert.equal(catalog.schema_version, 4, "storyboard catalog schema_version must be 4");
   assert(Array.isArray(catalog.chapters) && catalog.chapters.length > 0,
     "storyboard catalog must contain chapters");
 

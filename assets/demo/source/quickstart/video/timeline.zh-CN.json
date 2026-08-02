@@ -4,7 +4,7 @@
   "resolution": [1920, 1080],
   "source_viewport": [2048, 1056],
   "fps": 30,
-  "duration_seconds": 251,
+  "duration_seconds": 255,
   "theme": "codex",
   "subtitle_layout": {
     "position": "bottom-center",
@@ -49,18 +49,19 @@
       "id": "00-intro",
       "title": "普通日志少了什么？",
       "start_seconds": 0,
-      "end_seconds": 14,
+      "end_seconds": 18,
       "source_image": null,
       "card": {
         "eyebrow": "peekMyAgent · 五分钟快速上手",
-        "headline": "第一次看清 Agent 工具闭环",
-        "steps": ["模型请求", "工具调用", "结果回传", "最终回答"]
+        "headline": "从普通日志回到完整证据链",
+        "steps": ["模型请求", "工具调用", "结果回传", "最终回答"],
+        "footer": "PMA 不替代 Agent · 它把每次模型往返串起来"
       },
-      "narration": "普通日志会告诉你 Agent 调用了工具。但答案不对时，你真正想知道的是：模型收到什么，要求调用什么，工具返回什么，结果又在哪一次请求里回到模型。用四分钟，我们走完 PMA 的第一次完整复盘。",
+      "narration": "普通日志只会告诉你 Agent 调用了工具。PMA 不替代 Agent；它把模型收到的上下文、工具调用、结果回传和原始协议串成一条可追溯证据链。接下来只用一个查看目录、读取 README 的最小任务，走完第一次完整复盘。",
       "subtitle_cues": [
-        "普通日志会告诉你：Agent 调用了工具。",
-        "但模型实际收到了什么？",
-        "工具结果怎样回到下一次请求？",
+        "普通日志只告诉你：Agent 调用了工具。",
+        "PMA 把上下文、工具交换和协议串成证据链。",
+        "示例只需查看目录、读取 README。",
         "用四分钟走完第一次完整复盘。"
       ],
       "transition": { "type": "crossfade", "duration_ms": 700 }
@@ -68,8 +69,8 @@
     {
       "id": "01-install-open",
       "title": "安装并打开本地 Viewer",
-      "start_seconds": 14,
-      "end_seconds": 33,
+      "start_seconds": 18,
+      "end_seconds": 37,
       "source_image": null,
       "card": {
         "eyebrow": "步骤 1 · 安装与检查",
@@ -89,8 +90,8 @@
     {
       "id": "02-launch-agent",
       "title": "在安全目录启动一个 Agent",
-      "start_seconds": 33,
-      "end_seconds": 54,
+      "start_seconds": 37,
+      "end_seconds": 58,
       "source_image": null,
       "card": {
         "eyebrow": "步骤 2 · 选择一个 Harness",
@@ -110,8 +111,8 @@
     {
       "id": "03-complete-loop",
       "title": "先看完整工具闭环",
-      "start_seconds": 54,
-      "end_seconds": 78,
+      "start_seconds": 58,
+      "end_seconds": 82,
       "source_image": "/assets/demo/source/quickstart/quickstart-overview-raw.png",
       "narration": "任务没有业务门槛：查看目录，读取 README 的项目目标，最后用一句话说明用途。确定性轨迹一共有三次模型请求。PMA 的机制流程把它整理成：用户请求、列目录、目录结果回传、读文件、文件结果回传和最终回答。先看完整链，再进入细节。",
       "subtitle_cues": [
@@ -135,8 +136,8 @@
     {
       "id": "04-system-evidence",
       "title": "模型一开始收到了什么",
-      "start_seconds": 78,
-      "end_seconds": 102,
+      "start_seconds": 82,
+      "end_seconds": 106,
       "source_image": "/assets/demo/source/quickstart/quickstart-system-raw.png",
       "narration": "点击第一条请求旁的详情，右栏由这里打开。再切到 System，可以看到该次请求真正携带的指令，而不是 PMA 根据最终行为猜出的总结。同一排还可以继续查看 Developer、Tools、History、Message 和 Metadata。",
       "subtitle_cues": [
@@ -179,8 +180,8 @@
     {
       "id": "05-tool-result",
       "title": "工具结果怎样回到模型",
-      "start_seconds": 102,
-      "end_seconds": 125,
+      "start_seconds": 106,
+      "end_seconds": 129,
       "source_image": "/assets/demo/source/quickstart/quickstart-tool-result-raw.png",
       "narration": "现在点击第二次请求里的 list_directory 工具结果，再选择右栏的 tool result。这里保留实际回传的目录清单和调用标识。工具是在本地 Harness 中执行的；下一次模型请求收到的是 Harness 封装后的结果，不是模型自己读取了磁盘。",
       "subtitle_cues": [
@@ -222,8 +223,8 @@
     {
       "id": "06-origin-navigation",
       "title": "从结果返回来源调用",
-      "start_seconds": 125,
-      "end_seconds": 147,
+      "start_seconds": 129,
+      "end_seconds": 151,
       "source_image": "/assets/demo/source/quickstart/quickstart-tool-origin-raw.png",
       "narration": "结果旁的来源一不是装饰。点击后，PMA 跳回产生这份结果的 list_directory 调用，并在顶部提示当前正在查看来源。右栏显示工具名、调用标识和参数；返回结果二可以回到刚才的结果。长轨迹里不必手工来回翻找。",
       "subtitle_cues": [
@@ -256,8 +257,8 @@
     {
       "id": "07-final-evidence",
       "title": "最终回答是否真的有证据",
-      "start_seconds": 147,
-      "end_seconds": 166,
+      "start_seconds": 151,
+      "end_seconds": 170,
       "source_image": "/assets/demo/source/quickstart/quickstart-final-raw.png",
       "narration": "最后点击最终回复旁的详情，再看 Response。回答说这个项目用于演示 Agent 查看目录、读取文档并依据工具结果作答。现在可以沿同一条时间线核对：这个结论是否真的来自 README 的工具结果。",
       "subtitle_cues": [
@@ -296,8 +297,8 @@
     {
       "id": "08-protocol",
       "title": "摘要不够时回到协议",
-      "start_seconds": 166,
-      "end_seconds": 192,
+      "start_seconds": 170,
+      "end_seconds": 196,
       "source_image": "/assets/demo/source/quickstart/quickstart-protocol-raw.png",
       "narration": "需要精确字段时，切到协议视图。这里明确显示 OpenAI Responses、模型名称、instructions、工具声明，以及上行消息、工具调用和工具结果的原生顺序。摘要帮助阅读；协议视图和完整请求负责让你核对 Harness 有没有漏传、改写或排错位置。",
       "subtitle_cues": [
@@ -330,8 +331,8 @@
     {
       "id": "09-two-level-navigation",
       "title": "长会话为什么需要两级导航",
-      "start_seconds": 192,
-      "end_seconds": 217,
+      "start_seconds": 196,
+      "end_seconds": 221,
       "source_image": "/assets/demo/source/navigation/two-level-navigation-raw.png",
       "narration": "真实任务很快就会变长。右侧竖向 Turn Rail 先定位用户任务进行到哪一轮；当当前 Turn 至少包含五次主线 Request 时，中栏顶部出现 Request Rail，继续定位这一轮内部的模型往返。推荐顺序是先选 Turn，再选 Request。",
       "subtitle_cues": [
@@ -364,8 +365,8 @@
     {
       "id": "10-stop-cleanup",
       "title": "停止与清理不是一回事",
-      "start_seconds": 217,
-      "end_seconds": 238,
+      "start_seconds": 221,
+      "end_seconds": 242,
       "source_image": null,
       "card": {
         "eyebrow": "步骤 3 · 安全收尾",
@@ -385,8 +386,8 @@
     {
       "id": "11-outro",
       "title": "第一次闭环已经完成",
-      "start_seconds": 238,
-      "end_seconds": 251,
+      "start_seconds": 242,
+      "end_seconds": 255,
       "source_image": null,
       "card": {
         "eyebrow": "第一次闭环完成",

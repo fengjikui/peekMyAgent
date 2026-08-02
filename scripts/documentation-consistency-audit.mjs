@@ -287,7 +287,7 @@ export function runDocumentationConsistencyAudit({ log = true } = {}) {
   }
 
   const storyboardCatalog = JSON.parse(readRepoFile("assets/demo/storyboard/catalog.zh-CN.json"));
-  assert.equal(storyboardCatalog.schema_version, 3, "storyboard catalog schema_version must be 3");
+  assert.equal(storyboardCatalog.schema_version, 4, "storyboard catalog schema_version must be 4");
   assert(Array.isArray(storyboardCatalog.chapters) && storyboardCatalog.chapters.length > 0,
     "storyboard catalog must contain chapters");
   for (const chapter of storyboardCatalog.chapters) {

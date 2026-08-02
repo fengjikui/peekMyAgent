@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
+import { validateStoryboardNarrativeContract } from "./storyboard-narrative-contract.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const sourceRoot = path.join(root, "assets", "demo", "source");
@@ -28,6 +29,7 @@ const totals = {
   catalogEntries: 0,
   guideMappings: 0,
   reviewContracts: 0,
+  narrativeContracts: 0,
   trackableMediaFiles: 0,
   trackableMediaBytes: 0,
 };
@@ -48,11 +50,17 @@ console.log([
   `${totals.catalogEntries} catalog entries,`,
   `${totals.guideMappings} guide mappings,`,
   `${totals.reviewContracts} review contracts,`,
+  `${totals.narrativeContracts} narrative contracts,`,
   `${totals.trackableMediaFiles} trackable media files,`,
   `${formatMiB(totals.trackableMediaBytes)} trackable media`,
 ].join(" "));
 
 function auditStoryboardCatalog() {
+  const narrativeContractScript = path.join(root, "scripts", "storyboard-narrative-contract.mjs");
+  assertFile(narrativeContractScript, "storyboard narrative contract validator");
+  assertTrackable(narrativeContractScript, "storyboard narrative contract validator");
+  scanTextPrivacy(narrativeContractScript, "storyboard narrative contract validator");
+
   const reviewCaptureScript = path.join(root, "scripts", "capture-storyboard-review-frames.mjs");
   assertFile(reviewCaptureScript, "storyboard review capture script");
   assertTrackable(reviewCaptureScript, "storyboard review capture script");
@@ -116,7 +124,7 @@ function auditStoryboardCatalog() {
   }
 
   const catalog = readJson(catalogPath);
-  assert(catalog.schema_version === 3, "storyboard catalog schema_version must be 3");
+  assert(catalog.schema_version === 4, "storyboard catalog schema_version must be 4");
   assert(Array.isArray(catalog.chapters) && catalog.chapters.length > 0,
     "storyboard catalog must contain chapters");
 
@@ -169,6 +177,7 @@ function auditStoryboardCatalog() {
       `${label}.review.artifacts is required`);
     assert(equalArrays(Object.keys(review.artifacts).sort(), [...reviewArtifacts].sort()),
       `${label}.review.artifacts must contain ${reviewArtifacts.join(", ")}`);
+    const reviewArtifactPaths = {};
     for (const artifact of reviewArtifacts) {
       const href = review.artifacts[artifact];
       assert(typeof href === "string" && href.startsWith("/assets/demo/"),
@@ -176,7 +185,15 @@ function auditStoryboardCatalog() {
       const artifactPath = path.join(root, href.slice(1));
       assertFile(artifactPath, `${label} review artifact ${artifact}`);
       assertTrackable(artifactPath, `${label} review artifact ${artifact}`);
+      reviewArtifactPaths[artifact] = artifactPath;
     }
+    validateStoryboardNarrativeContract({
+      label,
+      chapter,
+      timeline: readJson(timeline),
+      manifest: readJson(reviewArtifactPaths.manifest),
+    });
+    totals.narrativeContracts += 1;
     totals.reviewContracts += 1;
   }
 

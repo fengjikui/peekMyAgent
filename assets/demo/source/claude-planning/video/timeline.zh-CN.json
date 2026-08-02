@@ -104,9 +104,10 @@
       "start_seconds": 36,
       "end_seconds": 54,
       "source_image": "/assets/demo/source/claude-planning/recording/raw/02-two-level-navigation.jpg",
-      "narration": "选择 Turn 4 后，第二级 Request Rail 出现。顶部七个刻度对应 Request 4 到 Request 10；下方时间线则显示每次工具调用、结果回传和模型回复。第一层 Turn 帮你找到用户任务阶段，第二层 Request 帮你定位 Harness 内部的某一次往返。",
+      "narration": "在 PMA 中选择 Turn 4 后，第二级 Request Rail 出现。顶部七个刻度对应 Request 4 到 Request 10；下方时间线则显示每次工具调用、结果回传和模型回复。第一层 Turn 帮你找到用户任务阶段，第二层 Request 帮你定位 Harness 内部的某一次往返。",
       "subtitle_cues": [
-        "选择 Turn 4 后，Request Rail 出现。",
+        "在 PMA 中选择 Turn 4。",
+        "第二级 Request Rail 随即出现。",
         "七个刻度对应 Request 4 到 10。",
         "下方时间线展开每次调用与结果。",
         "Turn 找阶段，Request 找内部往返。"

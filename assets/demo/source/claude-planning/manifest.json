@@ -2,7 +2,7 @@
   "schema_version": 1,
   "title": "一个用户请求为什么会变成七次模型往返",
   "language": "zh-CN",
-  "chapter_status": "real_cli_trace_story_narration_raw_capture_dual_viewport_review_and_picture_master_v0_2",
+  "chapter_status": "real_cli_trace_story_narration_v0_3_visual_refresh_pending",
   "product_sha": "674222577f415c1b2775acefd337844ea6efd74c",
   "source": {
     "generator": "scripts/claude-planning-real-cli-probe.mjs",

@@ -26,7 +26,7 @@ node scripts/generate-storyboard-review-index.mjs --require-videos
 http://127.0.0.1:43115/tmp/storyboard-video/review-index.html
 ```
 
-这张首页直接读取 `catalog.zh-CN.json`、各章时间线和本地 render manifest，显示标题、时长、镜头、字幕、复核点、Source 边界、审阅状态与下一道门。每章提供可点击的 HTML 模板、无字幕干净播放、正式 MP4、页内视频预览和对应中文章节；其他试剪只在折叠区标为历史素材。页面不会嵌入视频、Capture 或本机绝对路径，重新生成也不会把 `tmp/` 中的文件加入 Git。没有本地视频的克隆仍可生成页面；交接正式母版时增加 `--require-videos`，要求十章视频和 render manifest 全部通过合同核对。
+这张首页直接读取 `catalog.zh-CN.json`、各章时间线和本地 render manifest，显示标题、时长、镜头、字幕、复核点、Source 边界、审阅状态与下一道门。catalog 同时保存每章的开场、产品价值、Viewer 证据和收束镜头合同，由生产审计阻止后续改版静默删掉关键叙事节拍。每章提供可点击的 HTML 模板、无字幕干净播放、正式 MP4、页内视频预览和对应中文章节；其他试剪只在折叠区标为历史素材。页面不会嵌入视频、Capture 或本机绝对路径，重新生成也不会把 `tmp/` 中的文件加入 Git。没有本地视频的克隆仍可生成页面；交接正式母版时增加 `--require-videos`，要求十章视频和 render manifest 全部通过合同核对。
 
 审阅者可为每章选择“故事线通过 / 需要修改 / 暂缓决定”并留下短备注。记录只保存在当前浏览器的 `localStorage`，并按页面生成时的精确候选 SHA 隔离；切换候选提交不会沿用旧结论。只有点击“导出审阅 JSON”才会生成本地交接文件，页面不会上传数据，也不会自动修改 catalog 的发布状态。备注可能包含审阅者输入的敏感内容，分享导出文件前仍须人工检查；所有者确认后，由维护者手工更新 catalog 和对应文档。
 

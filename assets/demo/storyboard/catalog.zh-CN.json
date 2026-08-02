@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "default_chapter": "quickstart",
   "chapters": [
     {
@@ -17,6 +17,24 @@
         },
         "status": "owner-review",
         "next_gate": "比较当前 README GIF 与 74 秒候选版，再决定是否替换首页首屏素材。",
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 18,
+            "narration_includes": ["普通日志", "PMA", "证据链", "README"],
+            "subtitle_includes": ["普通日志", "PMA", "README"]
+          },
+          "value": {
+            "scene": "00-intro",
+            "ends_by_seconds": 18,
+            "narration_includes": ["PMA", "证据链", "README"]
+          },
+          "proof_scenes": ["03-complete-loop", "08-protocol"],
+          "closing": {
+            "scene": "11-outro",
+            "narration_includes": ["第一次闭环", "协议证据", "下一步"]
+          }
+        },
         "artifacts": {
           "narration": "/assets/demo/source/quickstart/narration.zh-CN.md",
           "subtitles": "/assets/demo/video/pma-quickstart.zh-CN.srt",
@@ -41,6 +59,24 @@
         },
         "status": "owner-review",
         "next_gate": "审阅中文故事和协议边界，再决定是否进入正式配音与成片。",
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 17,
+            "narration_includes": ["自研 Agent", "PMA adapter", "pma observe", "Viewer"],
+            "subtitle_includes": ["自研 Agent", "PMA", "Viewer"]
+          },
+          "value": {
+            "scene": "00-intro",
+            "ends_by_seconds": 17,
+            "narration_includes": ["pma observe", "协议交换", "Viewer"]
+          },
+          "proof_scenes": ["02-openai-overview", "07-openai-protocol"],
+          "closing": {
+            "scene": "10-boundary-outro",
+            "narration_includes": ["通用桥", "协议", "Harness 私有语义"]
+          }
+        },
         "artifacts": {
           "narration": "/assets/demo/source/custom-harness/narration.zh-CN.md",
           "subtitles": "/assets/demo/video/pma-custom-harness.zh-CN.srt",
@@ -65,6 +101,24 @@
         },
         "status": "owner-review",
         "next_gate": "审阅中文排错故事与未知字段边界，再决定是否进入正式配音与成片。",
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 16,
+            "narration_includes": ["普通日志", "call id", "PMA", "Raw"],
+            "subtitle_includes": ["普通日志", "call id", "Raw"]
+          },
+          "value": {
+            "scene": "00-intro",
+            "ends_by_seconds": 16,
+            "narration_includes": ["PMA 时间线", "协议视图", "Raw"]
+          },
+          "proof_scenes": ["04-compare-call-ids", "05-read-error-response"],
+          "closing": {
+            "scene": "09-outro",
+            "narration_includes": ["时间线", "Raw", "provenance", "PMA"]
+          }
+        },
         "artifacts": {
           "narration": "/assets/demo/source/protocol-raw/narration.zh-CN.md",
           "subtitles": "/assets/demo/video/pma-protocol-raw-debug.zh-CN.srt",
@@ -89,6 +143,24 @@
         },
         "status": "owner-review",
         "next_gate": "审阅中文翻译故事和原文兜底边界，再决定是否进入正式配音与成片。",
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 16,
+            "narration_includes": ["PMA", "翻译层", "原文"],
+            "subtitle_includes": ["PMA", "翻译层", "原文"]
+          },
+          "value": {
+            "scene": "00-intro",
+            "ends_by_seconds": 16,
+            "narration_includes": ["PMA", "翻译层", "Capture", "原文"]
+          },
+          "proof_scenes": ["03-system-translated", "07-capture-original"],
+          "closing": {
+            "scene": "08-outro",
+            "narration_includes": ["翻译", "原文", "Raw"]
+          }
+        },
         "artifacts": {
           "narration": "/assets/demo/source/translation/narration.zh-CN.md",
           "subtitles": "/assets/demo/video/pma-translation-system-tools.zh-CN.srt",
@@ -113,6 +185,24 @@
         },
         "status": "owner-review",
         "next_gate": "审阅中文故事，并决定正式发布前是否用当前 Claude Code 重录同一最小任务。",
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 17,
+            "narration_includes": ["用户", "Claude Code", "远端模型", "本地执行"],
+            "subtitle_includes": ["用户", "Claude Code", "远端模型"]
+          },
+          "value": {
+            "scene": "01-overview",
+            "ends_by_seconds": 38,
+            "narration_includes": ["PMA", "工具调用", "工具结果", "证据链"]
+          },
+          "proof_scenes": ["05-tool-use", "06-tool-result"],
+          "closing": {
+            "scene": "11-outro",
+            "narration_includes": ["模型", "Claude Code", "PMA", "Raw"]
+          }
+        },
         "artifacts": {
           "narration": "/assets/demo/source/claude-tool-loop/narration.zh-CN.md",
           "subtitles": "/assets/demo/video/pma-claude-tool-loop.zh-CN.srt",
@@ -137,6 +227,24 @@
         },
         "status": "owner-review",
         "next_gate": "审阅中文故事和术语边界，再决定是否进入正式配音与成片。",
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 15,
+            "narration_includes": ["Skill", "加载", "指导后续动作"],
+            "subtitle_includes": ["Skill", "加载", "指导后续动作"]
+          },
+          "value": {
+            "scene": "01-overview",
+            "ends_by_seconds": 34,
+            "narration_includes": ["PMA", "三次模型请求", "六段"]
+          },
+          "proof_scenes": ["06-skill-body-raw", "07-protocol-order"],
+          "closing": {
+            "scene": "11-outro",
+            "narration_includes": ["description", "Skill 工具", "正文", "PMA"]
+          }
+        },
         "artifacts": {
           "narration": "/assets/demo/source/claude-skill/narration.zh-CN.md",
           "subtitles": "/assets/demo/video/pma-claude-skill.zh-CN.srt",
@@ -161,6 +269,24 @@
         },
         "status": "owner-review",
         "next_gate": "审阅异步回流的叙述是否清楚，再决定是否进入正式配音与成片。",
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 15,
+            "narration_includes": ["Claude Code", "子 Agent", "异步回流"],
+            "subtitle_includes": ["Claude Code", "子 Agent", "父对话"]
+          },
+          "value": {
+            "scene": "01-overview",
+            "ends_by_seconds": 37,
+            "narration_includes": ["PMA", "三个 Turn", "Request"]
+          },
+          "proof_scenes": ["03-expanded-board", "08-first-completion"],
+          "closing": {
+            "scene": "11-outro",
+            "narration_includes": ["父级", "子分支", "异步", "PMA"]
+          }
+        },
         "artifacts": {
           "narration": "/assets/demo/source/claude-subagents/narration.zh-CN.md",
           "subtitles": "/assets/demo/video/pma-claude-subagents.zh-CN.srt",
@@ -185,6 +311,24 @@
         },
         "status": "owner-review",
         "next_gate": "审阅压缩前后证据是否足以支撑结论，再决定是否进入正式配音与成片。",
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 15,
+            "narration_includes": ["Claude Code", "Compacted", "压缩前后"],
+            "subtitle_includes": ["Claude Code", "Compacted", "压缩前后"]
+          },
+          "value": {
+            "scene": "01-overview",
+            "ends_by_seconds": 44,
+            "narration_includes": ["PMA", "Turn", "Request", "两级导航"]
+          },
+          "proof_scenes": ["03-compact-harness-prompt", "05-post-compact-history"],
+          "closing": {
+            "scene": "08-outro",
+            "narration_includes": ["压缩请求", "摘要", "项目规则", "PMA"]
+          }
+        },
         "artifacts": {
           "narration": "/assets/demo/source/claude-compact/narration.zh-CN.md",
           "subtitles": "/assets/demo/video/pma-claude-compact.zh-CN.srt",
@@ -209,6 +353,24 @@
         },
         "status": "owner-review",
         "next_gate": "审阅 Codex 与 Claude Code 的差异是否讲清，再决定是否进入正式配音与成片。",
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 15,
+            "narration_includes": ["Codex", "上下文", "压缩前后"],
+            "subtitle_includes": ["Codex", "上下文", "压缩前后"]
+          },
+          "value": {
+            "scene": "01-overview",
+            "ends_by_seconds": 42,
+            "narration_includes": ["PMA", "Turn", "Request", "两级导航"]
+          },
+          "proof_scenes": ["02-compaction-attribution", "06-post-compact-history"],
+          "closing": {
+            "scene": "09-provider-comparison",
+            "narration_includes": ["Codex", "/responses/compact", "Claude Code", "PMA"]
+          }
+        },
         "artifacts": {
           "narration": "/assets/demo/source/codex-compact/narration.zh-CN.md",
           "subtitles": "/assets/demo/video/pma-codex-compact.zh-CN.srt",
@@ -233,6 +395,24 @@
         },
         "status": "owner-review",
         "next_gate": "审阅七次主线 Request 的叙述节奏，再决定是否进入正式配音与成片。",
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 14,
+            "narration_includes": ["用户", "Claude Code", "七次", "Harness"],
+            "subtitle_includes": ["用户", "七次", "三方分工"]
+          },
+          "value": {
+            "scene": "02-two-level-navigation",
+            "ends_by_seconds": 54,
+            "narration_includes": ["PMA", "Turn", "Request", "工具调用"]
+          },
+          "proof_scenes": ["04-task-create-call", "08-history-boundary"],
+          "closing": {
+            "scene": "12-outro",
+            "narration_includes": ["模型", "Claude Code", "PMA", "证据链"]
+          }
+        },
         "artifacts": {
           "narration": "/assets/demo/source/claude-planning/narration.zh-CN.md",
           "subtitles": "/assets/demo/video/pma-claude-planning.zh-CN.srt",
