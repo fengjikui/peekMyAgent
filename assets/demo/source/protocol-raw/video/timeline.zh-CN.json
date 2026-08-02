@@ -106,13 +106,13 @@
       "start_seconds": 42,
       "end_seconds": 68,
       "source_image": "/assets/demo/source/protocol-raw/recording/raw/02-protocol-unknown.png",
-      "narration": "切到协议视图，PMA 仍然按 OpenAI Responses 的原生顺序展示这次上行。顶部统计四个输入项，其中一个未知项；再往下看，第三项是 compatibility note，并标记 Schema 未识别。这里能确定异常位于 input 数组，但协议摘要不会假装理解未知字段。",
+      "narration": "切到协议视图，PMA 按这次 Responses 形状请求中捕获到的 input 原始顺序展示四项上行。顶部统计其中一个未知项；再往下看，第三项是人为加入的非标准 compatibility note，并标记 Schema 未识别。这里能定位未知项所在的 input 层级，但协议摘要不会把它冒充官方 schema，也不会推断它造成了四百错误。",
       "subtitle_cues": [
         "切到 Request 2 的协议视图。",
-        "PMA 保留 OpenAI Responses 的原生顺序。",
+        "PMA 按捕获到的 input 原始顺序展示。",
         "顶部显示四个输入项和一个未知项。",
-        "第三项被标记为 Schema 未识别。",
-        "协议视图定位层级，但不猜未知字段。"
+        "第三项是人为加入的非标准测试项。",
+        "协议视图定位层级，但不把未知项当原因。"
       ],
       "overlays": [
         {

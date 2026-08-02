@@ -27,7 +27,8 @@
     "question": "摘要只能看到失败时，怎样定位错误原始字段，并用修正后的请求验证结论？",
     "takeaway": "先在时间线定位 Request 2，再用协议视图确定异常位于 input，使用 Raw 搜索比较 call id，打开 Response 原文读取 invalid_tool_output 与 HTTP 400，检查 exact provenance，最后用 Request 3 验证修正。",
     "explicit_limits": [
-      "The compatibility_note is unknown schema evidence, not the asserted cause of the HTTP 400.",
+      "The compatibility_note is an intentionally synthetic, non-standard input item. It is unknown-schema evidence, not the asserted cause of the HTTP 400.",
+      "OpenAI Responses function_call and function_call_output are typed Items correlated by call_id; Viewer-added assistant/tool labels are semantic projections, not native wire roles on those Items.",
       "The deterministic upstream intentionally rejects the mismatched call id; this is not a provider incident.",
       "Raw search is scoped to the selected Request and section, not the whole Source.",
       "Exact capture fidelity proves artifact preservation and lifecycle association, not semantic correctness of the client request.",
@@ -45,7 +46,7 @@
   },
   "facts": [
     "Request 1 returns a list_directory function_call with call_id call_list_directory.",
-    "Request 2 sends function_call_output with call_id call_list_direct0ry and one compatibility_note item whose schema is unknown to the protocol projector.",
+    "Request 2 sends function_call_output with call_id call_list_direct0ry and one intentionally synthetic compatibility_note item whose schema is unknown to the protocol projector.",
     "The deterministic upstream rejects Request 2 with HTTP 400, code invalid_tool_output, and param input[3].call_id.",
     "Request 3 restores call_list_directory, removes the unknown fixture item, and receives the final Assistant response.",
     "The failed Request appears in the expanded background-request timeline rather than disappearing behind the successful final answer.",
@@ -98,6 +99,7 @@
       "The first overview and protocol recapture were rejected because a Raw query persisted after changing sections and because the active Request had changed to Request 3.",
       "Both frames were re-recorded only after clearing search, reopening Request 2, and asserting the right-pane h2 before capture.",
       "The Response frame uses the explicit source/original display mode so the HTTP error body is visible instead of the organized empty-message state.",
+      "After the protocol wording changed, the first 1024x576 recapture of 02b was rejected because the browser compositor had not settled after resizing from 1920x1080; the frame was re-recorded only after asserting a 1024x576 viewport and full-canvas visual bounds.",
       "No arrows are used because the right-pane search results and numbered focus regions already provide direct spatial correspondence.",
       "Progressive states were checked individually: the next number appears only after the previous point has been explained; a previous number either exits for an independent focus or remains dimmed for a comparison."
     ]

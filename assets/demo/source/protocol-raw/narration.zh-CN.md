@@ -9,7 +9,7 @@
 - 场景：一个只读目录工具的 `function_call_output.call_id` 把字母 `o` 写成数字 `0`；
 - 证据：真实 PMA Capture Proxy、确定性 loopback 上游、1 Turn / 3 Request、HTTP 400 原文与 exact provenance；
 - 结果：Request 2 被上游拒绝，Request 3 修正后得到最终回答；
-- 限制：未知 `compatibility_note` 与 call id 错误同时存在，但演示不会把未知项误写成 HTTP 400 的原因；
+- 限制：`compatibility_note` 是人为加入的非标准测试项；它与 call id 错误同时存在，但演示不会把未知项误写成 HTTP 400 的原因；
 - 画面：Codex 配色、1920×1080 完整三栏、无黑边、底部居中单句字幕；
 - 隐私：固定 `/tmp/pma-protocol-debug-demo/public-project`、公开虚构文本、占位 token、无外部请求。
 
@@ -40,7 +40,7 @@
 
 ### 00:42–01:08　协议视图先告诉你哪一层异常
 
-切到协议视图，PMA 仍然按 OpenAI Responses 的原生顺序展示这次上行。顶部统计四个输入项，其中一个未知项；再往下看，第三项是 compatibility note，并标记 Schema 未识别。这里能确定异常位于 input 数组，但协议摘要不会假装理解未知字段。
+切到协议视图，PMA 按这次 Responses 形状请求中捕获到的 input 原始顺序展示四项上行。顶部统计其中一个未知项；再往下看，第三项是人为加入的非标准 compatibility note，并标记 Schema 未识别。这里能定位未知项所在的 input 层级，但协议摘要不会把它冒充官方 schema，也不会推断它造成了四百错误。
 
 ### 01:08–01:30　Raw 搜索证明未知字段没有丢失
 

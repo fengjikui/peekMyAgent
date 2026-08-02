@@ -8,10 +8,10 @@
 
 | 视图 | 适合解决什么问题 |
 | --- | --- |
-| 协议视图 | 按厂商原生语义顺序阅读 instructions/messages、tool call/result 和 response output |
+| 协议视图 | 按捕获到的厂商协议结构和原始 item 顺序阅读 instructions/messages、tool call/result 和 response output |
 | Raw Inspector | 检查 Capture headers、body、response、provenance、脱敏记录和任何未被摘要投影的字段 |
 
-协议视图不是二次生成的对话稿。每个条目保留原始位置，例如 `$.input[4]`、`$.messages[2].content[1]`，并可以继续跳到 Raw。
+协议视图不是二次生成的自然语言对话稿。它从捕获 body 投影协议结构，每个条目保留原始位置，例如 `$.input[4]`、`$.messages[2].content[1]`，并可以继续跳到 Raw。为统一阅读，Viewer 会给部分条目补充语义角色；例如 OpenAI Responses 的 `function_call` 与 `function_call_output` 是通过 `call_id` 关联的两种 Item，界面中的 assistant / tool 标签不是这两种 Item 在 wire 上自带的 role。
 
 ## 当前可识别协议
 
@@ -38,7 +38,7 @@ Viewer 当前能解析并展示以下协议证据：
 
 ![在幕后请求时间线中定位失败的 Request 2](../../assets/demo/source/protocol-raw/recording/review-1920/01b-request-2.png)
 
-切到 `协议视图` 后，Viewer 按 OpenAI Responses 原生顺序展示四个上行项，并把测试用 `compatibility_note` 标成 `Schema 未识别`。这个提示只说明投影器不认识该项，**不能**据此断言它导致失败。打开 `完整请求`，在 Raw 中搜索 `call_list_`，才能同时看到 `$.input[1].call_id` 的正确值和 `$.input[3].call_id` 的错误值。
+切到 `协议视图` 后，Viewer 按捕获到的 `input` 原始顺序展示四个上行项，并把人为加入的非标准测试项 `compatibility_note` 标成 `Schema 未识别`。这个提示只说明投影器不认识该项，**不代表它属于 OpenAI 官方 schema，也不能据此断言它导致失败**。打开 `完整请求`，在 Raw 中搜索 `call_list_`，才能同时看到 `$.input[1].call_id` 的正确值和 `$.input[3].call_id` 的错误值。
 
 接着从协议页打开 `完整下行`，把 Response 切到 `原文`。上游错误对象明确给出 `invalid_tool_output`、参数位置 `input[3].call_id`，下方 capture 元数据记录 HTTP 400；这是错误原因的直接证据。
 
@@ -68,6 +68,8 @@ Viewer 当前能解析并展示以下协议证据：
 ```
 
 重点核对 `input` 顺序、call id、工具定义是否真的存在，以及 response 的完整终态事件是否被捕获。
+
+这里的 `function_call` 和 `function_call_output` 是两种 typed Item，不是分别带有 assistant / tool 原生 role 的 message。二者通过相同的 `call_id` 建立关联；这也是 [OpenAI Responses 函数调用文档](https://developers.openai.com/api/docs/guides/migrate-to-responses#follow-function-calling-best-practices) 明确要求核对的关联字段。
 
 ## Anthropic Messages 示例
 
