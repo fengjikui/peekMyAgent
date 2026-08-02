@@ -32,6 +32,11 @@ assert(Array.isArray(timeline.review_points) && timeline.review_points.length > 
 assert(Array.isArray(timeline.scenes) && timeline.scenes.length > 0,
   `${options.chapter} timeline has no scenes`);
 validateReviewPoints(timeline);
+const reviewPoints = options.cardScenesOnly
+  ? timeline.review_points.filter((point) => !timeline.scenes[point.scene]?.source_image)
+  : timeline.review_points;
+assert(reviewPoints.length > 0,
+  options.cardScenesOnly ? `${options.chapter} has no title-card review points` : "no review points selected");
 
 async function main() {
   const browserPath = discoverBrowser(options.browser);
@@ -70,7 +75,7 @@ async function main() {
       fs.mkdirSync(outputDirectory, { recursive: true });
       await setViewport(cdp, viewport);
 
-      for (const [index, point] of timeline.review_points.entries()) {
+      for (const [index, point] of reviewPoints.entries()) {
         const targetUrl = buildReviewUrl(origin, chapter.timeline, point);
         await cdp.send("Page.navigate", { url: targetUrl });
         await waitForReviewState(cdp, {
@@ -89,11 +94,12 @@ async function main() {
           `${point.name} rendered at ${dimensions.width}x${dimensions.height}, expected ${viewport.width}x${viewport.height}`);
         const destination = path.join(outputDirectory, `${point.name}.jpg`);
         writeAtomically(destination, bytes);
+        removeAlternateReviewFormats(destination);
         frameCount += 1;
         console.log([
-          `[${frameCount}/${timeline.review_points.length * viewports.length}]`,
+          `[${frameCount}/${reviewPoints.length * viewports.length}]`,
           `${viewport.width}x${viewport.height}`,
-          `${index + 1}/${timeline.review_points.length}`,
+          `${index + 1}/${reviewPoints.length}`,
           path.relative(root, destination),
         ].join(" "));
       }
@@ -107,7 +113,8 @@ async function main() {
       "storyboard review capture passed:",
       options.chapter,
       `${frameCount} JPEG frames,`,
-      `${timeline.review_points.length} review points,`,
+      `${reviewPoints.length} review points,`,
+      options.cardScenesOnly ? "title cards only," : "all states,",
       "1920x1080 + 1024x576",
     ].join(" "));
   } finally {
@@ -124,6 +131,7 @@ async function main() {
 function parseArguments(args) {
   const parsed = {
     browser: process.env.PMA_STORYBOARD_BROWSER || null,
+    cardScenesOnly: false,
     chapter: null,
     help: false,
     outputRoot: null,
@@ -137,6 +145,8 @@ function parseArguments(args) {
       parsed.help = true;
     } else if (argument === "--browser") {
       parsed.browser = requiredValue(args, ++index, "--browser");
+    } else if (argument === "--card-scenes-only") {
+      parsed.cardScenesOnly = true;
     } else if (argument === "--quality") {
       parsed.quality = Number.parseInt(requiredValue(args, ++index, "--quality"), 10);
     } else if (argument === "--output-root") {
@@ -173,6 +183,7 @@ function printHelp() {
 
 Options:
   --browser <path>          Chrome, Chromium, or Edge executable
+  --card-scenes-only        Recapture only review points whose scene is a title card
   --output-root <path>      Write review-1920/ and review-1024/ below another directory
   --quality <40-100>        JPEG quality (default: 88)
   --timeout-ms <ms>         Per-frame readiness timeout (default: 10000)
@@ -180,6 +191,14 @@ Options:
   -h, --help                Show this help
 
 Browser discovery also honors PMA_STORYBOARD_BROWSER.`);
+}
+
+function removeAlternateReviewFormats(jpegPath) {
+  const stem = jpegPath.slice(0, -path.extname(jpegPath).length);
+  for (const extension of [".jpeg", ".png"]) {
+    const alternate = `${stem}${extension}`;
+    if (fs.existsSync(alternate)) fs.rmSync(alternate);
+  }
 }
 
 function validateReviewPoints(timeline) {

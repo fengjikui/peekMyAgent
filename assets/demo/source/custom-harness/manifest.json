@@ -84,7 +84,7 @@
     "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
     "picture_master_exporter": "scripts/export-storyboard-video.mjs",
     "picture_master_candidate": "tmp/storyboard-video/custom-harness/pma-custom-harness-picture-full.mp4; local and Git-ignored",
-    "picture_master_status": "technical validation passed at exact source commit b1016742c113ecdb09cb76d6a18696f81a284fcb; owner Chinese story review is still pending",
+    "picture_master_status": "the technical master at b1016742c113ecdb09cb76d6a18696f81a284fcb is historical reference only; the shared launch-style title-card template requires re-export after owner story review",
     "repository_policy": "The eight public Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, fake-upstream logs, and audio remain ignored.",
     "audio": "not_started; handled by the separate voice-tuning workflow"
   },
@@ -117,7 +117,7 @@
       "No arrows were added because focus frames and progressive numbering provide a clearer route without crossing readable content."
     ],
     "video_master": {
-      "status": "technical_validation_passed_owner_story_review_pending",
+      "status": "historical_pre_launch_style_reference_only_reexport_required",
       "source_commit": "b1016742c113ecdb09cb76d6a18696f81a284fcb",
       "source_worktree_dirty": false,
       "duration_seconds": 251,
