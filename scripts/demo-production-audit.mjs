@@ -382,7 +382,7 @@ function auditChapter(chapterDir) {
     assertFile(generatorPath, `${chapterName} source generator`);
     assertTrackable(generatorPath, `${chapterName} source generator`);
   }
-  auditReadmeGifCandidate(chapterName, production);
+  auditReadmeGif(chapterName, production);
   assert(manifest.source?.external_requests === false, `${chapterName} must record external_requests=false`);
   assert(manifest.source?.real_credentials === false, `${chapterName} must record real_credentials=false`);
 
@@ -488,20 +488,20 @@ function auditAnnotationSequence(chapterName, scenes) {
   }
 }
 
-function auditReadmeGifCandidate(chapterName, production) {
-  const keys = ["readme_gif_plan", "readme_gif_candidate", "readme_gif_generator"];
+function auditReadmeGif(chapterName, production) {
+  const keys = ["readme_gif_plan", "readme_gif", "readme_gif_generator"];
   if (!keys.some((key) => production[key])) return;
   for (const key of keys) {
     assert(typeof production[key] === "string" && production[key].trim(),
-      `${chapterName} production.${key} is required when a README GIF candidate is declared`);
+      `${chapterName} production.${key} is required when a README GIF is declared`);
   }
 
   const planPath = path.resolve(root, production.readme_gif_plan);
-  const outputPath = path.resolve(root, production.readme_gif_candidate);
+  const outputPath = path.resolve(root, production.readme_gif);
   const generatorPath = path.resolve(root, production.readme_gif_generator);
   for (const [file, label] of [
     [planPath, "README GIF plan"],
-    [outputPath, "README GIF candidate"],
+    [outputPath, "README GIF"],
     [generatorPath, "README GIF generator"],
   ]) {
     assertFile(file, `${chapterName} ${label}`);
@@ -518,12 +518,12 @@ function auditReadmeGifCandidate(chapterName, production) {
   assert(Array.isArray(plan.shots) && plan.shots.length > 1,
     `${chapterName} README GIF plan needs at least two shots`);
   assert(path.resolve(root, plan.output) === outputPath,
-    `${chapterName} README GIF plan output must match production.readme_gif_candidate`);
+    `${chapterName} README GIF plan output must match production.readme_gif`);
   assert(Number.isInteger(plan.max_bytes) && plan.max_bytes > 0,
     `${chapterName} README GIF plan needs max_bytes`);
   assert(fs.statSync(outputPath).size <= plan.max_bytes,
-    `${chapterName} README GIF candidate exceeds its size gate`);
-  assertImageDimensions(outputPath, plan.resolution, `${chapterName} README GIF candidate`);
+    `${chapterName} README GIF exceeds its size gate`);
+  assertImageDimensions(outputPath, plan.resolution, `${chapterName} README GIF`);
 
   const sourceDirectory = path.resolve(root, plan.source_directory);
   const seen = new Set();

@@ -16,7 +16,7 @@
           "boundary": "使用虚构本地项目和确定性假上游，只证明 PMA 的观察路径，不代表真实模型能力。"
         },
         "status": "owner-review",
-        "next_gate": "比较当前 README GIF 与 74 秒候选版，再决定是否替换首页首屏素材。",
+        "next_gate": "在 GitHub 实际渲染中审阅 74 秒首页 GIF 与中文故事；通过后重导完整母版。",
         "freshness": {
           "product_impact_ids": ["cli-and-lifecycle", "harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "protocol-and-raw", "translation-theme", "privacy-data"]
         },

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the slow README GIF candidate from reviewed storyboard frames."""
+"""Build the slow README hero GIF from reviewed storyboard frames."""
 
 from __future__ import annotations
 

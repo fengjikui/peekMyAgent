@@ -2,7 +2,7 @@
 
 这个目录保存 README 和用户手册使用的公开演示素材。中文快速上手使用真实 PMA Viewer、确定性假上游和完全虚构的数据生成。
 
-快速上手 v0.2 已迁移到网页故事板：旁白、字幕、镜头时码、渐进标注和 1920×1080 / 1024×576 审阅帧都来自 `source/quickstart/`。基于已复核帧生成的 74 秒主 GIF 候选版已经可供比较；当前 README 仍引用 v0.1 GIF，在所有者审阅中文故事前不提前替换首屏素材。
+快速上手 v0.4 已迁移到网页故事板：旁白、字幕、镜头时码、渐进标注和 1920×1080 / 1024×576 审阅帧都来自 `source/quickstart/`。基于已复核帧生成的 74 秒主 GIF 已替换文档分支中的六帧旧版；合入主线前仍由所有者在 GitHub 实际渲染中审阅中文故事、节奏和信息密度。
 
 Claude Code 工具调用章节也已完成 v0.2 迁移：4 分 05 秒故事、51 条字幕、10 张无烧录标注的 Viewer 原始帧，以及两档各 36 张网页标注审阅帧位于 `source/claude-tool-loop/`。这条 Source 是确定性 Anthropic 教学轨迹；不得把它写成真实 provider 会话，真实 CLI 的交叉核对边界以 manifest 为准。
 
@@ -14,8 +14,7 @@ Claude Code 的 Skill、子 Agent、上下文压缩和多步规划章节分别�
 
 ## 当前主素材
 
-- `quickstart-tool-loop.gif`：从用户请求到工具闭环、最终回答和原始协议的慢速主 GIF，42.7 秒。
-- `quickstart-tool-loop-v0.2-candidate.gif`：等待所有者审阅的 1024×576 候选版；17 个慢速镜头、65 帧、74 秒、约 5.6 MiB，尚未被 README 引用。
+- `quickstart-tool-loop.gif`：从用户请求到工具闭环、最终回答、原始协议和两级导航的 1024×576 慢速主 GIF；17 个镜头、65 帧、74 秒、约 4.82 MiB。
 - `quickstart-overview.png`：2048×1056 无标注总览。
 - `quickstart-overview-annotated.png`：带一个注意力标注的首帧。
 - `quickstart/01-trace.png` ～ `quickstart/06-protocol.png`：六张章节标注图。
@@ -23,9 +22,9 @@ Claude Code 的 Skill、子 Agent、上下文压缩和多步规划章节分别�
 - `quickstart/07-two-level-navigation.png`：两级导航静态标注图。
 - `source/quickstart/*-raw.png`：六张未标注的真实 Viewer 原始帧。
 - `source/quickstart/manifest.json`：源提交、场景事实、视口、隐私边界、生成物与两档视觉复核结论。
-- `source/quickstart/narration.zh-CN.md`：v0.2 教学合同与逐镜头旁白。
-- `source/quickstart/video/timeline.zh-CN.json`：v0.2 网页故事板、48 条字幕母稿和 28 个逐帧复核点。
-- `source/quickstart/readme-gif.zh-CN.json`：候选 GIF 的镜头选择、停留时长、字幕安全区、尺寸和体积门禁。
+- `source/quickstart/narration.zh-CN.md`：v0.4 教学合同与逐镜头旁白。
+- `source/quickstart/video/timeline.zh-CN.json`：v0.4 网页故事板、48 条字幕母稿和 28 个逐帧复核点。
+- `source/quickstart/readme-gif.zh-CN.json`：README 主 GIF 的镜头选择、停留时长、字幕安全区、尺寸和体积门禁。
 - `source/quickstart/recording/review-1920/`、`review-1024/`：两档渐进标注审阅帧与 contact sheet。
 - `media-budget.json`：主仓库全部演示图片、GIF、单章素材与禁止音视频格式的机器门禁。
 - `source/navigation/`：6 Turn / 13 Request 长轨迹原始帧与 manifest。
@@ -58,14 +57,14 @@ python3 scripts/build-readme-media.py
 
 脚本会重新生成所有 `quickstart-*` 发布素材。完整镜头脚本见 `docs/visual-usage-guide.zh-CN.md`。
 
-v0.2 候选版只使用已经通过两档检查的故事板帧：
+README 主 GIF 只使用已经通过两档检查的故事板帧：
 
 ```bash
 python3 scripts/build-readme-storyboard-gif.py
 python3 scripts/build-readme-storyboard-gif.py --check
 ```
 
-第一条命令重新合成候选 GIF；第二条只检查镜头源、尺寸、帧数、总时长和体积，不改写文件。
+第一条命令重新合成主 GIF；第二条只检查镜头源、尺寸、帧数、总时长和体积，不改写文件。
 
 用户手册扩展素材使用另一条确定性脚本：
 

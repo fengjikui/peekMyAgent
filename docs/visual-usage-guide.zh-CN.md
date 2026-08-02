@@ -72,12 +72,12 @@ v0.2 不再把大号深色说明卡、固定箭头和字幕直接烘焙进截图
 
 时间线声明 28 个 `review_points`。每个焦点交接都检查“旧重点、交叉淡化、新重点”；Turn Rail 与 Request Rail 因为需要解释层级关系，保留前一编号后再出现后一编号。
 
-README 候选版从这些已复核状态中选出 17 个镜头，输出为 1024×576、65 帧、74 秒、约 5.6 MiB。普通动作停留 3～5.5 秒，协议顺序停留 7.5 秒，两级导航分别停留 4.5 秒和 6.5 秒。上方 UI 与标注使用 0.6 秒渐变；字幕安全区不参与整帧混合，而是在转场中干净切换，避免相邻两句形成双影。镜头计划和候选文件分别为：
+README 主 GIF 从这些已复核状态中选出 17 个镜头，输出为 1024×576、65 帧、74 秒、约 4.82 MiB。普通动作停留 3～5.5 秒，协议顺序停留 7.5 秒，两级导航分别停留 4.5 秒和 6.5 秒。上方 UI 与标注使用 0.6 秒渐变；字幕安全区不参与整帧混合，而是在转场中干净切换，避免相邻两句形成双影。镜头计划和输出文件分别为：
 
 - `assets/demo/source/quickstart/readme-gif.zh-CN.json`
-- `assets/demo/quickstart-tool-loop-v0.2-candidate.gif`
+- `assets/demo/quickstart-tool-loop.gif`
 
-候选版尚未替换 README 当前 GIF。它的任务是让所有者先比较节奏、信息密度和标注逻辑，而不是提前形成发布事实。
+六帧旧版与 74 秒版本已经通过抽帧联系表并排复核。新版移除了大块黑色说明条、弯曲箭头和旧紧凑布局，现已作为文档分支的 README 首屏素材；合入主线前仍须由所有者在 GitHub 实际渲染中确认节奏和信息密度。
 
 ## 两级导航场景
 
@@ -147,8 +147,7 @@ README 候选版从这些已复核状态中选出 17 个镜头，输出为 1024�
 
 发布素材：
 
-- `assets/demo/quickstart-tool-loop.gif`：README 首屏主 GIF。
-- `assets/demo/quickstart-tool-loop-v0.2-candidate.gif`：74 秒慢速候选版，等待审阅后再决定是否替换首屏素材。
+- `assets/demo/quickstart-tool-loop.gif`：README 首屏 74 秒慢速主 GIF，由双尺寸复核状态重建。
 - `assets/demo/quickstart-overview.png`：无标注静态总览。
 - `assets/demo/quickstart-overview-annotated.png`：带单一引导标注的静态总览。
 - `assets/demo/quickstart/01-trace.png` ～ `06-protocol.png`：工具闭环章节图。

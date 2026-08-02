@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "title": "中文快速上手：第一次看清 Agent 工具闭环",
-  "chapter_status": "story_narration_timeline_v0_4_full_hd_source_owner_review_pending",
+  "chapter_status": "v0_4_full_hd_source_dual_review_readme_hero_pr_review_pending",
   "language": "zh-CN",
   "source": {
     "viewer_source_commit": "644e6de6642459b3081456336804838b5b46b718",
@@ -84,11 +84,11 @@
     "storyboard_player": "assets/demo/storyboard/index.html",
     "source_capture": "scripts/capture-readme-source-frames.mjs",
     "readme_gif_plan": "assets/demo/source/quickstart/readme-gif.zh-CN.json",
-    "readme_gif_candidate": "assets/demo/quickstart-tool-loop-v0.2-candidate.gif",
+    "readme_gif": "assets/demo/quickstart-tool-loop.gif",
     "readme_gif_generator": "scripts/build-readme-storyboard-gif.py",
     "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
-    "legacy_annotation_generator": "scripts/build-readme-media.py",
-    "legacy_gif": "assets/demo/quickstart-tool-loop.gif",
+    "legacy_annotation_generator": "scripts/build-readme-media.py; historical only",
+    "previous_gif": "preserved in Git history before the v0.4 README hero replacement",
     "audio": "not_started; handled by the separate voice-tuning workflow"
   },
   "raw_frames": [
@@ -152,14 +152,14 @@
       "The first click-pulse draft landed below the Details button. The endpoint was corrected to the actual button center and re-reviewed at both sizes.",
       "No routed arrow remains because focus boxes, click pulse, and pane position establish every relationship without crossing content.",
       "The README GIF keeps UI and annotation crossfades but switches the subtitle safe zone without blending, so adjacent narration lines never form a double image.",
-      "The legacy README GIF remains untouched until the owner approves this v0.2 Chinese story."
+      "The 74-second v0.4 build replaced the six-frame legacy hero on the documentation branch after a side-by-side contact-sheet review; GitHub rendering and story approval remain owner gates before merge."
     ]
   },
   "publication_gate": {
-    "status": "storyboard_and_dual_viewport_review_complete_owner_story_review_pending",
+    "status": "readme_hero_pr_review_pending",
     "remaining": [
-      "Freeze the Chinese story only after the owner reviews it.",
-      "Do not replace the README hero GIF until the new slow version is approved.",
+      "Review the 74-second hero in GitHub's rendered README and freeze the Chinese story only after owner approval.",
+      "Re-export the full picture master because the historical 251-second MP4 predates the final full-HD Source and launch-style title cards.",
       "Do not publish local MP4 or audio files from the main repository."
     ]
   }

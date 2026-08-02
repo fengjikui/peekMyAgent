@@ -12,7 +12,7 @@ peekMyAgent is not meant to "steal hidden prompts". It is an observability tool 
 
 ![Trace one user request through tool results, the final answer, and the native protocol](assets/demo/quickstart-tool-loop.gif)
 
-The reviewed walkthrough follows one background-free task from the user request to two tool calls, their returned evidence, the final answer, and the original OpenAI Responses exchange. See the [Chinese five-minute quick start](docs/quick-start.zh-CN.md) for the exact commands and the [visual production guide](docs/visual-usage-guide.zh-CN.md) for its deterministic Source, privacy boundary, and rebuild steps.
+The 74-second reviewed walkthrough follows one background-free task from the user request to two tool calls, their returned evidence, the final answer, the original OpenAI Responses exchange, and PMA's two-level navigation. It is rendered at 1024×576 from full-frame 1920×1080 Viewer sources for GitHub readability. See the [Chinese five-minute quick start](docs/quick-start.zh-CN.md) for the exact commands and the [visual production guide](docs/visual-usage-guide.zh-CN.md) for its deterministic Source, privacy boundary, and rebuild steps.
 
 ## What You Can Do Today
 

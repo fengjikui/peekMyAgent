@@ -2,7 +2,7 @@
   "schema_version": 1,
   "title": "README 首屏：从用户请求追到原始协议与两级导航",
   "source_directory": "assets/demo/source/quickstart/recording/review-1024",
-  "output": "assets/demo/quickstart-tool-loop-v0.2-candidate.gif",
+  "output": "assets/demo/quickstart-tool-loop.gif",
   "resolution": [1024, 576],
   "fade_ms": 600,
   "fade_steps": 3,
