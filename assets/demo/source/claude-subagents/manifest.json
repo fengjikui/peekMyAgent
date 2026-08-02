@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "title": "子 Agent 在哪里运行，结果怎样回来",
+  "language": "zh-CN",
+  "chapter_status": "real_cli_storyboard_review_and_picture_master_technical_validation_v0_3",
+  "source": {
+    "generator": "scripts/claude-subagents-real-cli-probe.mjs",
+    "scenario_id": "claude-subagents-real-cli",
+    "product_baseline_sha": "83a5f158fa913c69f8f80809ce17d8a2ea701bd0",
+    "claude_code_version": "2.1.220",
+    "workspace": "disposable /tmp/pma-claude-subagents-demo/public-project",
+    "protocol": "Anthropic Messages",
+    "turns": 3,
+    "requests": 8,
+    "child_branches": 2,
+    "child_request_groups": [[2, 5], [3, 6]],
+    "request_order": [
+      "parent spawn",
+      "quick-start child tool call",
+      "catalog child tool call",
+      "parent acknowledges two background launches and waits",
+      "quick-start child receives Read result and finishes",
+      "catalog child receives Bash result and finishes first",
+      "parent receives first completion and waits",
+      "parent receives second completion and summarizes"
+    ],
+    "external_requests": false,
+    "real_credentials": false,
+    "model_responses": "deterministic local fake upstream",
+    "harness_lifecycle": "real Claude Code CLI"
+  },
+  "teaching_contract": {
+    "audiences": [
+      "第一次接触 PMA、想知道子 Agent 是否只是一个黑盒名称的用户",
+      "想理解 Claude Code 父级、子分支和异步完成事件的 Harness 使用者",
+      "需要核对自研 Harness 分支归属、工具结果与父级回流的开发者"
+    ],
+    "question": "父 Agent 怎样启动两个子 Agent、每个分支做了什么、异步完成结果又怎样回到父对话？",
+    "takeaway": "父模型返回两个 Agent tool_use；Claude Code 启动独立子分支；每个子分支仍有自己的模型请求和工具闭环；异步完成以 task-notification 进入父级后续请求，父 Agent 等齐结果再汇总。PMA 用 Turn、Request 和多 Agent 看板把这些证据连在一起。",
+    "explicit_limits": [
+      "The user explicitly asks for two subagents, so this trace does not prove autonomous delegation.",
+      "The real trace shows asynchronous background launch and staggered completion, but it is not a benchmark of parallel speedup.",
+      "Ordinary Claude Code subagents must not be described as directly communicating Agent Team members.",
+      "The parent receives child task results; the trace does not claim that it receives every internal child message verbatim.",
+      "Deterministic fake-upstream responses demonstrate protocol shape and Viewer behavior, not remote model quality.",
+      "This chapter does not demonstrate nested subagents."
+    ]
+  },
+  "viewer": {
+    "viewport_css_pixels": { "width": 2048, "height": 1056 },
+    "theme": "Claude",
+    "ui_language": "zh-CN",
+    "capture_mode": "Codex in-app Browser",
+    "browser_layout": "full three-pane layout",
+    "black_frame": false
+  },
+  "facts": [
+    "Request 1 contains two Agent tool_use blocks for the quick-start and catalog Explore tasks.",
+    "The quick-start child branch contains Requests 2 and 5; Request 2 calls Read and Request 5 receives the matching result before returning its summary.",
+    "The catalog child branch contains Requests 3 and 6; Request 3 calls a read-only Bash find command and Request 6 receives docs/guide.md plus docs/viewer.md before returning its summary.",
+    "Parent Request 4 receives two asynchronous launch-confirmation tool_result blocks and explicitly waits without predicting results.",
+    "The catalog child completes first. Its task-notification triggers parent Request 7, which says one child has returned and waits for the other.",
+    "The quick-start child completes later. Its task-notification triggers parent Request 8 and the final three-point summary.",
+    "Current PMA groups the experiment as 3 Turns and 8 Requests while keeping both child branches inside the multi-agent board.",
+    "The native completion payload is a system-generated task-notification, not a new human message.",
+    "The files README.md, docs/guide.md, and docs/viewer.md retain their pre-run SHA-256 values."
+  ],
+  "raw_frames": [
+    "recording/real-cli/raw/01-overview-three-turns.jpg",
+    "recording/real-cli/raw/02-parent-two-agent-calls.jpg",
+    "recording/real-cli/raw/03-parent-launch-confirmations.jpg",
+    "recording/real-cli/raw/04-expanded-two-branches.jpg",
+    "recording/real-cli/raw/05-doc-child-read-call.jpg",
+    "recording/real-cli/raw/06-doc-child-read-result.jpg",
+    "recording/real-cli/raw/07-catalog-child-bash-call.jpg",
+    "recording/real-cli/raw/08-catalog-child-bash-result.jpg",
+    "recording/real-cli/raw/09-parent-first-completion-waiting.jpg",
+    "recording/real-cli/raw/10-second-completion-and-final.jpg",
+    "recording/real-cli/raw/11-final-parent-response.jpg"
+  ],
+  "production": {
+    "narration": "assets/demo/source/claude-subagents/narration.zh-CN.md",
+    "timeline": "assets/demo/source/claude-subagents/video/timeline.zh-CN.json",
+    "subtitles": "assets/demo/video/pma-claude-subagents.zh-CN.srt",
+    "storyboard_player": "assets/demo/storyboard/index.html",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/claude-subagents/pma-claude-subagents-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "the technical master at 02720e350dcef1c6320d18ccafd9ef10da2b7a2b is historical reference only; the shared launch-style title-card template requires re-export after owner story review",
+    "repository_policy": "The eleven public real-CLI Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, raw request log, and audio remain ignored.",
+    "audio": "not_started; handled by the separate voice-tuning workflow"
+  },
+  "official_references": [
+    "https://code.claude.com/docs/en/sub-agents",
+    "https://code.claude.com/docs/en/tools-reference"
+  ],
+  "publication_gate": {
+    "status": "real_cli_storyboard_dual_viewport_review_and_picture_master_technical_validation_complete_owner_content_review_pending",
+    "reason": "Real CLI cross-check, raw-frame review, 32 timeline-declared progressive annotation states at both 1920x1080 and 1024x576, and the full picture-master technical validation are complete. Chinese story review remains before narration and publication."
+  },
+  "product_feedback": [
+    {
+      "area": "multi-agent parent return evidence",
+      "finding": "For this asynchronous Claude Code 2.1.220 trace, the Viewer labels the Agent launch-confirmation tool_result in Request 4 as parent result return, while actual child completion arrives later as task-notification events in Requests 7 and 8.",
+      "documentation_action": "The chapter distinguishes launch confirmation from completion notification and uses the parent waiting/final responses plus a sanitized native event example. It does not present the current return badge as proof of task completion.",
+      "runtime_action": "Out of scope for this documentation branch; file as product feedback for the feature contributor."
+    },
+    {
+      "area": "Harness organized view",
+      "finding": "The Request 8 Harness tab identifies the project CLAUDE.md reminder but does not surface the task-notification as a dedicated Harness category.",
+      "documentation_action": "Use Message or Raw for completion-event verification and redact task IDs and output paths before publication.",
+      "runtime_action": "Out of scope for this documentation branch."
+    }
+  ],
+  "privacy": {
+    "paths": "only a generic disposable /private/tmp demo path may be visible; no user home or repository path",
+    "system_prompt": "public deterministic teaching instructions only",
+    "tool_results": "public generated guide and directory listing only",
+    "headers": "not published",
+    "native_event": "task IDs, agent IDs, output-file paths, request headers, and raw logs are excluded from public frames",
+    "prohibited": ["API keys", "real prompts", "user source", "private local paths", "real captures"]
+  },
+  "file_integrity": {
+    "README.md": "3e6ff08d6ecd1292bd5c49fbeea0797ae9d3432debab1cbec5f6668e57583f70",
+    "docs/guide.md": "d713a90b8f41893fdb32d51ac28b51243b3edb6652647a419f336dd7f44d19a1",
+    "docs/viewer.md": "fd1abccafd727f81a7393bf34d0bf64762b2b478afb7418e840000060d2ef982"
+  },
+  "visual_review": {
+    "captured_at": "2026-08-02",
+    "raw_frame_result": "passed for composition, 2048x1056 dimensions, Claude theme, and full three-pane readability",
+    "annotation_result": "passed for 32 timeline-declared progressive states at 1920x1080 and 1024x576",
+    "review_directories": [
+      "recording/review-1920",
+      "recording/review-1024"
+    ],
+    "review_contract": "video/timeline.zh-CN.json#review_points",
+    "contact_sheets": [
+      "recording/review-1920/contact-sheet.jpg",
+      "recording/review-1024/contact-sheet.jpg"
+    ],
+    "review_notes": [
+      "The first expanded-board draft focused the wrong vertical region; it was rejected after the 1024 review and redrawn against the real multi-agent header and branch tabs.",
+      "The corrected expanded-board scene now uses a short click pulse on the native expand control, then branch badges 1 and 2 in narration order with one 0.6-second crossfade.",
+      "The asynchronous comparison scene intentionally retains badge 1 when badge 2 appears because Turn 2 and Turn 3 must be compared together; dim_ms makes the older Turn visibly secondary.",
+      "The first Turn 2 dim checkpoint landed after the subtitle had begun saying Turn 3; the timing was moved one second earlier and the affected frames were regenerated at both sizes.",
+      "The final Response scene uses a click pulse on the real detail button followed by one evidence badge, avoiding redundant action numbering.",
+      "All other source-to-detail changes use crossfade handoffs so the previous badge does not remain as visual noise.",
+      "No arrows are used in v0.3; nearby badges, focus boxes, and click pulses communicate the relationships without crossing readable content.",
+      "The 1920x1080 CSS viewport was rendered and inspected in the in-app Browser; repository review frames are normalized to 1920x1080, while the underlying Viewer source remains native 2048x1056.",
+      "Badge digits are geometrically centered at both review sizes, and subtitles remain in the bottom-center film safe area."
+    ],
+    "annotation_rules": [
+      "Badges 1, 2, 3, and 4 appear in narration order, never all at scene entry.",
+      "When focus moves, the previous badge either fades out with a 0.4-0.7 second crossfade or remains only when comparison or causality requires it.",
+      "Each overlay draft records appearance order, retention choice, and fade-out timing.",
+      "Use short focus boxes and nearby badges before adding an arrow; this chapter should not need arrows.",
+      "Every progressive state must be reviewed at 1920x1080 and 1024x576, not only as a final fully annotated frame."
+    ],
+    "video_master": {
+      "status": "historical_pre_launch_style_reference_only_reexport_required",
+      "source_commit": "02720e350dcef1c6320d18ccafd9ef10da2b7a2b",
+      "source_worktree_dirty": false,
+      "duration_seconds": 254,
+      "resolution": [1920, 1080],
+      "fps": 30,
+      "encoded_frames": 7620,
+      "browser_frames_received": 1763,
+      "browser_final_absolute_ms": 253945,
+      "maximum_encoder_lateness_ms": 57.69,
+      "bytes": 6028983,
+      "streams": "H.264 video only; no audio stream, subtitle stream, or webpage subtitle layer",
+      "black_frames": 0,
+      "review_points_checked": 32,
+      "review_frame_mean_absolute_difference": "4.19/255",
+      "review_frame_maximum_absolute_difference": "7.51/255 at 11-outro.jpg; the unannotated title card remained correctly composed and the difference is rendering variance rather than annotation displacement",
+      "repository_policy": "The MP4, render manifest, extracted frames, and contact sheet remain under Git-ignored tmp/storyboard-video/claude-subagents/."
+    }
+  }
+}

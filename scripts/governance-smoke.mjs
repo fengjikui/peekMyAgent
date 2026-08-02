@@ -1,5 +1,22 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
+import {
+  buildDocumentationHandoff,
+  buildDocumentationImpact,
+  runDocumentationConsistencyAudit,
+} from "./documentation-consistency-audit.mjs";
+import {
+  renderDocumentationImpactSummary,
+  validateDocumentationImpactPayload,
+} from "./documentation-impact-summary.mjs";
+import {
+  renderStoryboardReviewSummary,
+  validateStoryboardReviewHandoff,
+} from "./storyboard-review-handoff.mjs";
+import { validateStoryboardNarrativeContract } from "./storyboard-narrative-contract.mjs";
+import { auditDemoFreshness } from "./demo-freshness-audit.mjs";
 
 const requiredFiles = [
   "CONTRIBUTING.md",
@@ -10,6 +27,17 @@ const requiredFiles = [
   ".github/ISSUE_TEMPLATE/trace_display_bug.yml",
   ".github/ISSUE_TEMPLATE/config.yml",
   ".github/pull_request_template.md",
+  "assets/demo/media-budget.json",
+  "scripts/build-user-guide-gifs.py",
+  "scripts/capture-readme-source-frames.mjs",
+  "scripts/capture-claude-tool-loop-source-frames.mjs",
+  "scripts/capture-storyboard-review-frames.mjs",
+  "scripts/export-storyboard-video.mjs",
+  "scripts/demo-freshness-audit.mjs",
+  "scripts/generate-storyboard-review-index.mjs",
+  "scripts/storyboard-narrative-contract.mjs",
+  "scripts/storyboard-review-handoff.mjs",
+  "scripts/documentation-impact-summary.mjs",
 ];
 
 for (const file of requiredFiles) {
@@ -22,6 +50,7 @@ assert.match(contributing, /release:check/);
 assert.match(contributing, /Do not commit captured sessions/i);
 assert.match(contributing, /Adapter Contributions/);
 assert.match(contributing, /tiered validation strategy/i);
+assert.match(contributing, /Documentation impact/);
 
 const validationStrategy = fs.readFileSync("docs/validation-strategy.md", "utf8");
 assert.match(validationStrategy, /Level 0/);
@@ -30,6 +59,19 @@ assert.match(validationStrategy, /Level 2/);
 assert.match(validationStrategy, /最多 3 个低风险代码提交/);
 assert.match(validationStrategy, /一次 PR 托管三平台矩阵/);
 assert.match(validationStrategy, /main.*不重复已经通过的同树三平台矩阵/);
+assert.match(validationStrategy, /Documentation impact/);
+
+const storyboardPlayer = fs.readFileSync("assets/demo/storyboard/player.js", "utf8");
+const storyboardStyles = fs.readFileSync("assets/demo/storyboard/player.css", "utf8");
+const demoProductionGuide = fs.readFileSync("docs/demo-chapter-production.zh-CN.md", "utf8");
+assert.match(storyboardPlayer, /dataset\.storyTheme = timeline\.theme/);
+assert.match(storyboardPlayer, /classList\.add\("has-started"\)/);
+assert.match(storyboardStyles, /body\[data-story-theme="claude"\]/);
+assert.match(storyboardStyles, /body\[data-story-theme="codex-and-claude"\]/);
+assert.match(storyboardStyles, /body\.present:not\(\.review\):not\(\.has-started\)/);
+assert.match(storyboardStyles, /@keyframes card-content-in/);
+assert.match(demoProductionGuide, /## 发布会式视觉基线/);
+assert.match(demoProductionGuide, /真实 Viewer 镜头.*始终完整占据 16:9/);
 
 const security = fs.readFileSync("SECURITY.md", "utf8");
 assert.match(security, /Do not post secrets/i);
@@ -55,5 +97,441 @@ const prTemplate = fs.readFileSync(".github/pull_request_template.md", "utf8");
 assert.match(prTemplate, /Deterministic release gate or focused smoke tests passed/);
 assert.match(prTemplate, /Manual integration smokes are listed separately/);
 assert.match(prTemplate, /Capture Boundary/);
+assert.match(prTemplate, /Documentation And Demo Impact/);
+assert.match(prTemplate, /documentation-consistency-audit\.mjs --base/);
+assert.match(prTemplate, /--target HEAD/);
+assert.match(prTemplate, /Documentation impact.*Job Summary/);
+assert.match(prTemplate, /Documentation handoff target SHA/);
+
+const documentationSummary = runDocumentationConsistencyAudit();
+assert.equal(documentationSummary.documents, 14);
+assert.equal(documentationSummary.demoMappings, 10);
+assert.equal(documentationSummary.demoReviews, 10);
+const documentationImpact = buildDocumentationImpact([
+  "bin/peekmyagent.mjs",
+  "src/viewer/agent-graph-view.js",
+  "src/viewer/raw-inspector-controller.js",
+]);
+assert.deepEqual(
+  documentationImpact.impacts.map((impact) => impact.id),
+  ["cli-and-lifecycle", "viewer-surface", "subagents", "protocol-and-raw"],
+);
+assert(
+  documentationImpact.impacts
+    .find((impact) => impact.id === "subagents")
+    .required_docs.includes("docs/user-guide/subagents.md"),
+);
+const documentationHandoff = buildDocumentationHandoff(documentationImpact);
+assert.match(documentationHandoff.target_sha, /^[0-9a-f]{40}$/);
+assert.equal(documentationHandoff.requires_documentation_review, true);
+assert.deepEqual(documentationHandoff.impact_ids,
+  ["cli-and-lifecycle", "viewer-surface", "subagents", "protocol-and-raw"]);
+assert(documentationHandoff.required_docs.includes("docs/user-guide/subagents.md"));
+assert(documentationHandoff.required_demos.includes("协议视图、Raw Inspector 与脱敏 JSON"));
+assert(documentationHandoff.required_demo_chapters.includes("quickstart"));
+assert(documentationHandoff.required_demo_chapters.includes("claude-subagents"));
+assert.equal(documentationHandoff.validation_commands.at(-1), "git diff --check");
+const mechanismImpact = buildDocumentationImpact([
+  "src/trace/context-delta.mjs",
+  "scripts/claude-compact-real-cli-probe.mjs",
+  "src/viewer/turn-story-model.js",
+  "scripts/claude-planning-real-cli-probe.mjs",
+]);
+assert.deepEqual(
+  mechanismImpact.impacts.map((impact) => impact.id),
+  ["viewer-surface", "timeline-navigation", "request-context", "context-lifecycle", "agent-planning"],
+);
+assert(mechanismImpact.impacts
+  .find((impact) => impact.id === "context-lifecycle")
+  .required_demos.includes("Claude Code 上下文压缩 Source 与双尺寸审阅帧"));
+const guideMediaImpact = buildDocumentationImpact([
+  "scripts/build-user-guide-gifs.py",
+]);
+assert.deepEqual(
+  guideMediaImpact.impacts.map((impact) => impact.id),
+  ["demo-production"],
+);
+assert(mechanismImpact.impacts
+  .find((impact) => impact.id === "agent-planning")
+  .required_demos.includes("Claude Code 多步规划 Source 与双尺寸审阅帧"));
+const impactPayload = {
+  summary: documentationSummary,
+  handoff: documentationHandoff,
+  impact: documentationImpact,
+};
+const impactMarkdown = renderDocumentationImpactSummary(impactPayload, {
+  expectedTarget: documentationHandoff.target_sha,
+});
+assert.match(impactMarkdown, /^# Documentation and demo impact/m);
+assert.match(impactMarkdown, /Review required/);
+assert.match(impactMarkdown, /docs\/user-guide\/subagents\.md/);
+assert.match(impactMarkdown, /协议视图、Raw Inspector 与脱敏 JSON/);
+assert.match(impactMarkdown, /Affected demo chapters/);
+assert.match(impactMarkdown, /claude-subagents/);
+assert.match(impactMarkdown, /does not publish documentation/);
+assert.throws(
+  () => validateDocumentationImpactPayload(impactPayload, { expectedTarget: "0".repeat(40) }),
+  /target mismatch/,
+);
+
+const noImpact = buildDocumentationImpact(["src/core/internal-only-refactor.mjs"]);
+const noImpactMarkdown = renderDocumentationImpactSummary({
+  summary: documentationSummary,
+  handoff: buildDocumentationHandoff(noImpact),
+  impact: noImpact,
+});
+assert.match(noImpactMarkdown, /No mapped boundary/);
+assert.match(noImpactMarkdown, /not proof that documentation is unaffected/);
+
+const escapedImpact = buildDocumentationImpact(["src/core/<script>alert(1)</script>.mjs"]);
+const escapedMarkdown = renderDocumentationImpactSummary({
+  summary: documentationSummary,
+  handoff: buildDocumentationHandoff(escapedImpact),
+  impact: escapedImpact,
+});
+assert.doesNotMatch(escapedMarkdown, /<script>/);
+assert.match(escapedMarkdown, /&lt;script&gt;/);
+
+const exactRange = spawnSync(process.execPath, [
+  "scripts/documentation-consistency-audit.mjs",
+  "--base",
+  "HEAD",
+  "--target",
+  "HEAD",
+  "--json",
+], { encoding: "utf8" });
+assert.equal(exactRange.status, 0, `exact range audit failed:\n${exactRange.stderr}`);
+const exactRangePayload = JSON.parse(exactRange.stdout);
+assert.deepEqual(exactRangePayload.impact.changed_files, []);
+assert.equal(exactRangePayload.handoff.target_sha, documentationHandoff.target_sha);
+assert.equal(exactRangePayload.handoff.base_sha, documentationHandoff.target_sha);
+
+const reviewCaptureHelp = spawnSync(process.execPath, [
+  "scripts/capture-storyboard-review-frames.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(reviewCaptureHelp.status, 0, `storyboard capture help failed:\n${reviewCaptureHelp.stderr}`);
+assert.match(reviewCaptureHelp.stdout, /<chapter-id>/);
+assert.match(reviewCaptureHelp.stdout, /--output-root/);
+assert.match(reviewCaptureHelp.stdout, /PMA_STORYBOARD_BROWSER/);
+
+const readmeSourceCaptureHelp = spawnSync(process.execPath, [
+  "scripts/capture-readme-source-frames.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(readmeSourceCaptureHelp.status, 0,
+  `README Source capture help failed:\n${readmeSourceCaptureHelp.stderr}`);
+assert.match(readmeSourceCaptureHelp.stdout, /--output-root/);
+assert.match(readmeSourceCaptureHelp.stdout, /1920x1080/);
+
+const claudeToolLoopSourceCaptureHelp = spawnSync(process.execPath, [
+  "scripts/capture-claude-tool-loop-source-frames.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(claudeToolLoopSourceCaptureHelp.status, 0,
+  `Claude tool-loop Source capture help failed:\n${claudeToolLoopSourceCaptureHelp.stderr}`);
+assert.match(claudeToolLoopSourceCaptureHelp.stdout, /--output-root/);
+assert.match(claudeToolLoopSourceCaptureHelp.stdout, /1920x1080/);
+assert.match(claudeToolLoopSourceCaptureHelp.stdout, /Claude/);
+
+const videoExportHelp = spawnSync(process.execPath, [
+  "scripts/export-storyboard-video.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(videoExportHelp.status, 0, `storyboard video export help failed:\n${videoExportHelp.stderr}`);
+assert.match(videoExportHelp.stdout, /<chapter-id>/);
+assert.match(videoExportHelp.stdout, /--include-subtitles/);
+assert.match(videoExportHelp.stdout, /1920x1080 picture master/);
+
+const reviewIndexHelp = spawnSync(process.execPath, [
+  "scripts/generate-storyboard-review-index.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(reviewIndexHelp.status, 0, `storyboard review index help failed:\n${reviewIndexHelp.stderr}`);
+assert.match(reviewIndexHelp.stdout, /--require-videos/);
+assert.match(reviewIndexHelp.stdout, /--video-root/);
+assert.match(reviewIndexHelp.stdout, /--check/);
+assert.match(reviewIndexHelp.stdout, /localStorage/);
+assert.match(reviewIndexHelp.stdout, /never updates catalog/);
+
+const reviewIndexCheck = spawnSync(process.execPath, [
+  "scripts/generate-storyboard-review-index.mjs",
+  "--check",
+], { encoding: "utf8" });
+assert.equal(reviewIndexCheck.status, 0,
+  `storyboard review index check failed:\n${reviewIndexCheck.stdout}${reviewIndexCheck.stderr}`);
+assert.match(reviewIndexCheck.stdout, /10 chapters/);
+
+const reviewIndexEmptyCheck = spawnSync(process.execPath, [
+  "scripts/generate-storyboard-review-index.mjs",
+  "--check",
+  "--video-root",
+  "tmp/storyboard-review-index-empty",
+], { encoding: "utf8" });
+assert.equal(reviewIndexEmptyCheck.status, 0,
+  `empty storyboard review index check failed:\n${reviewIndexEmptyCheck.stdout}${reviewIndexEmptyCheck.stderr}`);
+assert.match(reviewIndexEmptyCheck.stdout, /0 local videos, 0 verified picture masters/);
+
+const reviewHandoffHelp = spawnSync(process.execPath, [
+  "scripts/storyboard-review-handoff.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(reviewHandoffHelp.status, 0, `storyboard review handoff help failed:\n${reviewHandoffHelp.stderr}`);
+assert.match(reviewHandoffHelp.stdout, /--expected-target/);
+assert.match(reviewHandoffHelp.stdout, /--show-notes/);
+assert.match(reviewHandoffHelp.stdout, /never prints review note text/);
+assert.match(reviewHandoffHelp.stdout, /read-only with respect to catalog/);
+
+const freshnessHelp = spawnSync(process.execPath, [
+  "scripts/demo-freshness-audit.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(freshnessHelp.status, 0, `demo freshness help failed:\n${freshnessHelp.stderr}`);
+assert.match(freshnessHelp.stdout, /--target/);
+assert.match(freshnessHelp.stdout, /--chapter/);
+assert.match(freshnessHelp.stdout, /--strict/);
+
+const freshnessSummary = auditDemoFreshness({ log: false });
+assert.equal(freshnessSummary.chapter_count, 10);
+assert.equal(
+  freshnessSummary.current_count
+    + freshnessSummary.chapters.filter((chapter) => chapter.status !== "current").length,
+  freshnessSummary.chapter_count,
+);
+assert(freshnessSummary.chapters.every((chapter) => (
+  /^[0-9a-f]{40}$/.test(chapter.product_evidence.evidence_sha)
+    && /^[0-9a-f]{40}$/.test(chapter.source_recipe.generator_commit)
+    && /^[0-9a-f]{40}$/.test(chapter.source_recipe.source_commit)
+    && /^[0-9a-f]{40}$/.test(chapter.tracked_review_frames.dependency_commit)
+    && /^[0-9a-f]{40}$/.test(chapter.tracked_review_frames.review_commit)
+)), "every chapter must name exact evidence and render commits");
+
+const storyboardCatalog = JSON.parse(fs.readFileSync("assets/demo/storyboard/catalog.zh-CN.json", "utf8"));
+assert.equal(storyboardCatalog.schema_version, 5);
+for (const chapter of storyboardCatalog.chapters) {
+  const timeline = JSON.parse(fs.readFileSync(chapter.timeline.slice(1), "utf8"));
+  const manifest = JSON.parse(fs.readFileSync(chapter.review.artifacts.manifest.slice(1), "utf8"));
+  validateStoryboardNarrativeContract({
+    label: `storyboard chapter ${chapter.id}`,
+    chapter,
+    timeline,
+    manifest,
+  });
+}
+
+const quickstartChapter = structuredClone(storyboardCatalog.chapters[0]);
+const quickstartTimeline = JSON.parse(fs.readFileSync(quickstartChapter.timeline.slice(1), "utf8"));
+const quickstartManifest = JSON.parse(
+  fs.readFileSync(quickstartChapter.review.artifacts.manifest.slice(1), "utf8"),
+);
+const missingOpeningPhrase = structuredClone(quickstartChapter);
+missingOpeningPhrase.review.story.opening.narration_includes.push("不存在的叙事短语");
+assert.throws(
+  () => validateStoryboardNarrativeContract({
+    label: "quickstart missing opening phrase",
+    chapter: missingOpeningPhrase,
+    timeline: quickstartTimeline,
+    manifest: quickstartManifest,
+  }),
+  /missing required phrase/,
+);
+const lateOpening = structuredClone(quickstartChapter);
+lateOpening.review.story.opening.ends_by_seconds = 10;
+assert.throws(
+  () => validateStoryboardNarrativeContract({
+    label: "quickstart late opening",
+    chapter: lateOpening,
+    timeline: quickstartTimeline,
+    manifest: quickstartManifest,
+  }),
+  /after its 10s deadline/,
+);
+const titleCardAsProof = structuredClone(quickstartChapter);
+titleCardAsProof.review.story.proof_scenes[0] = "00-intro";
+assert.throws(
+  () => validateStoryboardNarrativeContract({
+    label: "quickstart title card proof",
+    chapter: titleCardAsProof,
+    timeline: quickstartTimeline,
+    manifest: quickstartManifest,
+  }),
+  /must point to real Viewer evidence/,
+);
+const missingTeachingBoundary = structuredClone(quickstartManifest);
+delete missingTeachingBoundary.teaching_contract.out_of_scope;
+assert.throws(
+  () => validateStoryboardNarrativeContract({
+    label: "quickstart missing teaching boundary",
+    chapter: quickstartChapter,
+    timeline: quickstartTimeline,
+    manifest: missingTeachingBoundary,
+  }),
+  /needs explicit_limits or out_of_scope/,
+);
+const reviewTimestamp = "2026-08-02T00:00:00.000Z";
+const ownerReviewPayload = {
+  schema_version: 1,
+  kind: "peekmyagent_storyboard_owner_review",
+  candidate_sha: documentationHandoff.target_sha,
+  candidate_worktree_dirty: false,
+  exported_at: reviewTimestamp,
+  chapter_count: storyboardCatalog.chapters.length,
+  reviewed_count: storyboardCatalog.chapters.length,
+  decisions: storyboardCatalog.chapters.map((chapter, index) => ({
+    chapter_id: chapter.id,
+    chapter_label: chapter.label,
+    decision: index === 0 ? "changes" : "approved",
+    decision_label: index === 0 ? "需要修改" : "故事线通过",
+    note: index === 0 ? "02:14 请缩小 <script>alert(1)</script> 对应的聚焦框" : "",
+    updated_at: reviewTimestamp,
+  })),
+  privacy_notice: "Review notes are user-authored local data. Inspect them before sharing; they may contain sensitive text.",
+};
+const validatedOwnerReview = validateStoryboardReviewHandoff(ownerReviewPayload, {
+  catalog: storyboardCatalog,
+  expectedTarget: documentationHandoff.target_sha,
+});
+assert.equal(validatedOwnerReview.complete, true);
+assert.equal(validatedOwnerReview.counts.changes, 1);
+assert.equal(validatedOwnerReview.counts.approved, 9);
+assert.equal(validatedOwnerReview.noteCount, 1);
+
+const partialOwnerReview = structuredClone(ownerReviewPayload);
+for (const item of partialOwnerReview.decisions.slice(1)) {
+  item.decision = "pending";
+  item.decision_label = "未审阅";
+  item.updated_at = null;
+}
+partialOwnerReview.reviewed_count = 1;
+const validatedPartialReview = validateStoryboardReviewHandoff(partialOwnerReview, {
+  catalog: storyboardCatalog,
+});
+assert.equal(validatedPartialReview.complete, false);
+assert.equal(validatedPartialReview.counts.pending, 9);
+
+const safeOwnerReviewSummary = renderStoryboardReviewSummary(validatedOwnerReview);
+assert.match(safeOwnerReviewSummary, /默认隐藏/);
+assert.doesNotMatch(safeOwnerReviewSummary, /02:14/);
+assert.doesNotMatch(safeOwnerReviewSummary, /<script>/);
+const expandedOwnerReviewSummary = renderStoryboardReviewSummary(validatedOwnerReview, { showNotes: true });
+assert.match(expandedOwnerReviewSummary, /02:14/);
+assert.match(expandedOwnerReviewSummary, /&lt;script&gt;/);
+assert.doesNotMatch(expandedOwnerReviewSummary, /<script>/);
+
+const dirtyOwnerReview = structuredClone(ownerReviewPayload);
+dirtyOwnerReview.candidate_worktree_dirty = true;
+assert.throws(
+  () => validateStoryboardReviewHandoff(dirtyOwnerReview, { catalog: storyboardCatalog }),
+  /candidate_worktree_dirty is true/,
+);
+assert.equal(validateStoryboardReviewHandoff(dirtyOwnerReview, {
+  catalog: storyboardCatalog,
+  allowDirty: true,
+}).payload.candidate_worktree_dirty, true);
+assert.throws(
+  () => validateStoryboardReviewHandoff(ownerReviewPayload, {
+    catalog: storyboardCatalog,
+    expectedTarget: "0".repeat(40),
+  }),
+  /candidate SHA mismatch/,
+);
+
+const driftedOwnerReview = structuredClone(ownerReviewPayload);
+driftedOwnerReview.decisions.pop();
+assert.throws(
+  () => validateStoryboardReviewHandoff(driftedOwnerReview, { catalog: storyboardCatalog }),
+  /exactly one item for every catalog chapter/,
+);
+
+const unsafeOwnerReview = structuredClone(ownerReviewPayload);
+const privateFixtureValue = "api_key=fixture-private-value";
+unsafeOwnerReview.decisions[0].note = privateFixtureValue;
+let privacyFailure = null;
+try {
+  validateStoryboardReviewHandoff(unsafeOwnerReview, { catalog: storyboardCatalog });
+} catch (error) {
+  privacyFailure = error;
+}
+assert(privacyFailure instanceof Error);
+assert.match(privacyFailure.message, /failed privacy scan/);
+assert.doesNotMatch(privacyFailure.message, /fixture-private-value/);
+
+fs.mkdirSync("tmp", { recursive: true });
+const reviewHandoffTemp = fs.mkdtempSync(path.join("tmp", "storyboard-review-handoff-smoke-"));
+try {
+  const fixturePath = path.join(reviewHandoffTemp, "review.json");
+  fs.writeFileSync(fixturePath, `${JSON.stringify(ownerReviewPayload)}\n`, "utf8");
+  const reviewHandoffCheck = spawnSync(process.execPath, [
+    "scripts/storyboard-review-handoff.mjs",
+    "--input",
+    fixturePath,
+    "--expected-target",
+    documentationHandoff.target_sha,
+    "--check",
+  ], { encoding: "utf8" });
+  assert.equal(reviewHandoffCheck.status, 0,
+    `storyboard review handoff check failed:\n${reviewHandoffCheck.stdout}${reviewHandoffCheck.stderr}`);
+  assert.match(reviewHandoffCheck.stdout, /10\/10 reviewed/);
+  assert.match(reviewHandoffCheck.stdout, /1 changes/);
+  assert.doesNotMatch(reviewHandoffCheck.stdout, /02:14/);
+
+  const safeSummaryPath = path.join(reviewHandoffTemp, "summary.md");
+  const reviewHandoffSummary = spawnSync(process.execPath, [
+    "scripts/storyboard-review-handoff.mjs",
+    "--input",
+    fixturePath,
+    "--expected-target",
+    documentationHandoff.target_sha,
+    "--output",
+    safeSummaryPath,
+  ], { encoding: "utf8" });
+  assert.equal(reviewHandoffSummary.status, 0,
+    `storyboard review safe summary failed:\n${reviewHandoffSummary.stdout}${reviewHandoffSummary.stderr}`);
+  const safeSummaryFile = fs.readFileSync(safeSummaryPath, "utf8");
+  assert.match(safeSummaryFile, /默认隐藏/);
+  assert.doesNotMatch(safeSummaryFile, /02:14/);
+
+  const expandedSummaryPath = path.join(reviewHandoffTemp, "summary-with-notes.md");
+  const expandedHandoffSummary = spawnSync(process.execPath, [
+    "scripts/storyboard-review-handoff.mjs",
+    "--input",
+    fixturePath,
+    "--expected-target",
+    documentationHandoff.target_sha,
+    "--show-notes",
+    "--output",
+    expandedSummaryPath,
+  ], { encoding: "utf8" });
+  assert.equal(expandedHandoffSummary.status, 0,
+    `storyboard review expanded summary failed:\n${expandedHandoffSummary.stdout}${expandedHandoffSummary.stderr}`);
+  const expandedSummaryFile = fs.readFileSync(expandedSummaryPath, "utf8");
+  assert.match(expandedSummaryFile, /02:14/);
+  assert.match(expandedSummaryFile, /&lt;script&gt;/);
+  assert.doesNotMatch(expandedSummaryFile, /<script>/);
+} finally {
+  fs.rmSync(reviewHandoffTemp, { recursive: true, force: true });
+}
+
+const demoProductionImpact = buildDocumentationImpact([
+  "scripts/generate-storyboard-review-index.mjs",
+]);
+assert.deepEqual(demoProductionImpact.impacts.map((impact) => impact.id), ["demo-production"]);
+assert(demoProductionImpact.impacts[0].required_docs.includes("docs/demo-chapter-production.zh-CN.md"));
+assert(demoProductionImpact.impacts[0].required_demos.some((item) => item.includes("本地审片首页")));
+const reviewHandoffImpact = buildDocumentationImpact([
+  "scripts/storyboard-review-handoff.mjs",
+]);
+assert.deepEqual(reviewHandoffImpact.impacts.map((impact) => impact.id), ["demo-production"]);
+assert(reviewHandoffImpact.impacts[0].required_docs.includes("docs/documentation-maintenance.md"));
+
+const demoProduction = spawnSync(process.execPath, ["scripts/demo-production-audit.mjs"], {
+  encoding: "utf8",
+});
+assert.equal(
+  demoProduction.status,
+  0,
+  `demo production audit failed:\n${demoProduction.stdout}${demoProduction.stderr}`,
+);
+process.stdout.write(demoProduction.stdout);
 
 console.log("governance smoke passed");

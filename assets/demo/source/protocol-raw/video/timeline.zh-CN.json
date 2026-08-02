@@ -1,0 +1,380 @@
+{
+  "version": 1,
+  "title": "协议视图与 Raw：定位一次 call id 异常",
+  "resolution": [1920, 1080],
+  "source_viewport": [1920, 1080],
+  "fps": 30,
+  "duration_seconds": 238,
+  "theme": "codex",
+  "subtitle_layout": {
+    "position": "bottom-center",
+    "bottom_percent": 5.2,
+    "max_width_percent": 72,
+    "max_lines": 2,
+    "background": "none",
+    "outline": "subtle"
+  },
+  "review_points": [
+    { "name": "00-intro", "scene": 0, "at_ms": 3000 },
+    { "name": "01a-background-rail", "scene": 1, "at_ms": 3500 },
+    { "name": "01b-request-2", "scene": 1, "at_ms": 12200 },
+    { "name": "01c-request-2-metadata", "scene": 1, "at_ms": 20500 },
+    { "name": "02a-protocol-tab", "scene": 2, "at_ms": 2800 },
+    { "name": "02b-unknown-count", "scene": 2, "at_ms": 9200 },
+    { "name": "02c-unknown-row-with-dim", "scene": 2, "at_ms": 17700 },
+    { "name": "03a-raw-search", "scene": 3, "at_ms": 4200 },
+    { "name": "03b-unknown-field", "scene": 3, "at_ms": 13200 },
+    { "name": "04a-correct-call-id", "scene": 4, "at_ms": 6200 },
+    { "name": "04b-wrong-call-id-with-dim", "scene": 4, "at_ms": 17400 },
+    { "name": "05a-error-body", "scene": 5, "at_ms": 6200 },
+    { "name": "05b-http-400-with-dim", "scene": 5, "at_ms": 18300 },
+    { "name": "06a-request-fidelity", "scene": 6, "at_ms": 5200 },
+    { "name": "06b-response-fidelity-with-dim", "scene": 6, "at_ms": 14300 },
+    { "name": "07a-corrected-call", "scene": 7, "at_ms": 6200 },
+    { "name": "07b-corrected-output-with-dim", "scene": 7, "at_ms": 16300 },
+    { "name": "08a-corrected-input", "scene": 8, "at_ms": 7200 },
+    { "name": "08b-final-output-with-dim", "scene": 8, "at_ms": 19000 },
+    { "name": "09-outro", "scene": 9, "at_ms": 4500 }
+  ],
+  "scenes": [
+    {
+      "id": "00-intro",
+      "title": "摘要不够，就回到原始证据",
+      "start_seconds": 0,
+      "end_seconds": 16,
+      "source_image": null,
+      "card": {
+        "eyebrow": "peekMyAgent · 协议与 Raw",
+        "headline": "摘要不够，就回到原始证据",
+        "steps": ["时间线定位", "协议视图找层级", "Raw 核对字段"],
+        "footer": "场景：一次错误 call id 导致 HTTP 400，修正后成功"
+      },
+      "narration": "普通日志往往只告诉你请求失败，却没有把错误请求、原始字段和上游响应放在一起。下面用一个故意写错 call id 的最小例子，看看怎样从 PMA 时间线一路追到协议视图、Raw 和修正后的请求。",
+      "subtitle_cues": [
+        "普通日志通常只告诉你请求失败。",
+        "它没有把请求字段与上游响应放在一起。",
+        "这个例子故意写错一次 call id。",
+        "我们从时间线一直追到 Raw。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    },
+    {
+      "id": "01-find-failed-request",
+      "title": "先在时间线找到被折叠的 Request 2",
+      "start_seconds": 16,
+      "end_seconds": 42,
+      "source_image": "/assets/demo/source/protocol-raw/recording/raw/01-overview-metadata.png",
+      "narration": "任务本身只是列目录。第一次请求得到工具调用，第三次请求已经修正并给出答案；真正失败的第二次请求被归入幕后请求时间线。展开它，再点详情，右栏明确显示当前查看的是 Request 二，而不是成功的 Request 三。",
+      "subtitle_cues": [
+        "任务本身只是列出一个公开目录。",
+        "Request 1 产生工具调用。",
+        "Request 3 修正后给出最终回答。",
+        "失败的 Request 2 位于幕后请求时间线。",
+        "点详情后先确认右栏的请求编号。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [14.2, 52.4, 45.5, 3.2],
+          "label_box": [11.4, 51.0, 2.4, 4.4],
+          "delay_ms": 700,
+          "end_ms": 11600,
+          "draft": "先标出幕后请求时间线入口；编号 2 出现时与编号 1 交叉约 0.8 秒后退出，避免同时争夺注意力。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [14.2, 55.6, 45.5, 7.8],
+          "label_box": [11.4, 56.4, 2.4, 4.4],
+          "delay_ms": 10800,
+          "end_ms": 18800,
+          "draft": "随后标出 Request 2 卡片；讲到右栏身份时交叉淡出，不遮挡 call_list_direct0ry。"
+        },
+        {
+          "type": "focus",
+          "focus": [62.6, 1.0, 36.7, 5.2],
+          "delay_ms": 18000,
+          "draft": "最后只用轻描边确认右栏标题 Request 2 · 请求 Metadata；标题已经自解释，不叠加第三个编号。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "02-protocol-unknown",
+      "title": "协议视图先告诉你哪一层异常",
+      "start_seconds": 42,
+      "end_seconds": 68,
+      "source_image": "/assets/demo/source/protocol-raw/recording/raw/02-protocol-unknown.png",
+      "narration": "切到协议视图，PMA 按这次 Responses 形状请求中捕获到的 input 原始顺序展示四项上行。顶部统计其中一个未知项；再往下看，第三项是人为加入的非标准 compatibility note，并标记 Schema 未识别。这里能定位未知项所在的 input 层级，但协议摘要不会把它冒充官方 schema，也不会推断它造成了四百错误。",
+      "subtitle_cues": [
+        "切到 Request 2 的协议视图。",
+        "PMA 按捕获到的 input 原始顺序展示。",
+        "顶部显示四个输入项和一个未知项。",
+        "第三项是人为加入的非标准测试项。",
+        "协议视图定位层级，但不把未知项当原因。"
+      ],
+      "overlays": [
+        {
+          "type": "focus",
+          "focus": [65.6, 6.3, 4.1, 2.8],
+          "delay_ms": 300,
+          "end_ms": 4700,
+          "draft": "协议视图标签已经命名，只用轻描边说明点击结果，不重复编号。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [92.7, 22.0, 6.4, 5.5],
+          "label_box": [90.3, 20.7, 2.4, 4.4],
+          "delay_ms": 5000,
+          "dim_ms": 15000,
+          "draft": "先标出未知项统计；编号 2 出现后降权保留，让总数与具体行形成因果对照。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.7, 55.0, 36.4, 4.6],
+          "label_box": [60.1, 55.0, 2.4, 4.4],
+          "delay_ms": 15000,
+          "draft": "再标出 compatibility_note 与 Schema 未识别；编号 1 已降权，二者共同说明统计来自哪一行。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "03-raw-unknown-field",
+      "title": "Raw 搜索证明未知字段没有丢失",
+      "start_seconds": 68,
+      "end_seconds": 90,
+      "source_image": "/assets/demo/source/protocol-raw/recording/raw/03b-unknown-field-search.png",
+      "narration": "打开完整请求，在当前 Raw 区块搜索固定标记 compat v2 preview。结果同时给出 input 二整项和精确字段路径 input 二 trace marker。协议视图不认识它的语义，但 Capture 没有静默丢弃它；兼容层新增字段仍然可以被找到和引用。",
+      "subtitle_cues": [
+        "接着打开 Request 2 的完整请求。",
+        "在当前 Raw 区块搜索固定标记。",
+        "结果保留 input[2] 的整项内容。",
+        "也给出 trace_marker 的精确路径。",
+        "未知语义不等于原始字段被丢弃。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.7, 9.2, 36.7, 3.2],
+          "label_box": [60.1, 8.6, 2.4, 4.4],
+          "delay_ms": 700,
+          "end_ms": 10100,
+          "draft": "先标出搜索范围与查询；编号 2 出现时交叉淡出，避免两个框同时抢占右栏。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.7, 13.8, 36.7, 10.2],
+          "label_box": [60.1, 15.5, 2.4, 4.4],
+          "delay_ms": 9300,
+          "draft": "编号 1 与编号 2 交叉淡出，随后只保留两条搜索结果和 JSONPath；不添加箭头，结果本身已经紧邻搜索框。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "04-compare-call-ids",
+      "title": "同一请求里直接比较正确和错误 call id",
+      "start_seconds": 90,
+      "end_seconds": 118,
+      "source_image": "/assets/demo/source/protocol-raw/recording/raw/03-call-id-search.png",
+      "narration": "把查询换成 call list，四条结果同时出现。前两条来自最初的 function call，结尾是 directory；后两条来自 function call output，结尾却是 direct 零 ry。它们只差一个字符，但路径清楚说明一个属于 input 一，另一个属于 input 三。",
+      "subtitle_cues": [
+        "现在搜索 call_list_。",
+        "前两条属于最初的 function call。",
+        "它的 call id 以 directory 结尾。",
+        "后两条属于 function call output。",
+        "这里把字母 o 写成了数字 0。",
+        "JSONPath 还说明两个值分别来自哪里。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.7, 13.8, 36.7, 14.8],
+          "label_box": [60.1, 15.0, 2.4, 4.4],
+          "delay_ms": 700,
+          "dim_ms": 14000,
+          "draft": "先读取正确的 function_call 两条结果；错误输出出现时降权保留，便于逐字符比较。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.7, 29.3, 36.7, 12.0],
+          "label_box": [60.1, 31.0, 2.4, 4.4],
+          "delay_ms": 14000,
+          "draft": "再聚焦错误的 function_call_output；编号 1 保留但降权，不画跨栏箭头。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "05-read-error-response",
+      "title": "Response 原文给出上游拒绝原因",
+      "start_seconds": 118,
+      "end_seconds": 146,
+      "source_image": "/assets/demo/source/protocol-raw/recording/raw/04-response-error.png",
+      "narration": "再从协议视图打开完整下行，并切到原文。错误对象直接写明：没有找到 call list directory 的工具结果，却收到了 call list direct 零 ry；code 是 invalid tool output，参数位置是 input 三 call id。下方 response capture 同时记录 HTTP 四百和实际捕获字节。",
+      "subtitle_cues": [
+        "从协议视图打开完整下行。",
+        "再切换到 Response 原文。",
+        "错误消息同时列出期望值和实际值。",
+        "错误代码是 invalid_tool_output。",
+        "参数位置指向 input[3].call_id。",
+        "Response Capture 记录 HTTP 400。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [65.0, 27.7, 32.2, 16.7],
+          "label_box": [62.4, 30.0, 2.4, 4.4],
+          "delay_ms": 700,
+          "dim_ms": 14500,
+          "draft": "先读取 error message、code 与 param；Response Capture 出现时降权保留。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [65.0, 43.2, 32.2, 29.8],
+          "label_box": [62.4, 49.0, 2.4, 4.4],
+          "delay_ms": 14500,
+          "draft": "再聚焦 status 400、字节、编码和 displayed_response；编号 1 已降权。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "06-check-provenance",
+      "title": "provenance 说明这份证据有多可靠",
+      "start_seconds": 146,
+      "end_seconds": 170,
+      "source_image": "/assets/demo/source/protocol-raw/recording/raw/05-provenance-status.png",
+      "narration": "错误内容之外，还要确认这份证据来自哪里。完整请求底部显示 transport 是 capture proxy；上行 request 的 fidelity 是 exact，下行 response 同样是 exact，关联方法来自同一个 Capture 生命周期。换句话说，这不是根据摘要猜出的错误，而是同一次代理交换中的请求和响应。",
+      "subtitle_cues": [
+        "错误内容之外，还要检查 provenance。",
+        "传输层是 capture_proxy。",
+        "上行 request 的 fidelity 是 exact。",
+        "下行 response 同样是 exact。",
+        "二者由同一个 Capture 生命周期关联。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [65.0, 57.0, 31.8, 13.0],
+          "label_box": [62.4, 58.0, 2.4, 4.4],
+          "delay_ms": 700,
+          "dim_ms": 11500,
+          "draft": "先标出 capture_proxy 与 request fidelity exact；下行证据出现时降权保留。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [65.0, 69.0, 31.8, 16.5],
+          "label_box": [62.4, 72.0, 2.4, 4.4],
+          "delay_ms": 11500,
+          "draft": "编号 1 降权保留，编号 2 再标出 response fidelity 与 capture_lifecycle，让上下行来源可以对照；避开最底部字幕安全区。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "07-verify-corrected-call-id",
+      "title": "修正后再次搜索，不再出现错误拼写",
+      "start_seconds": 170,
+      "end_seconds": 195,
+      "source_image": "/assets/demo/source/protocol-raw/recording/raw/07-corrected-call-id.png",
+      "narration": "切到 Request 三，再搜索相同前缀。最初调用和后续工具结果现在都使用 call list directory；结果路径也从 input 三回到 input 二，因为未知兼容项已经移除。使用同一搜索条件比较修正前后，比只相信终端里的重试成功更可靠。",
+      "subtitle_cues": [
+        "接着切到修正后的 Request 3。",
+        "仍然搜索相同的 call id 前缀。",
+        "最初调用使用 call_list_directory。",
+        "工具结果也使用完全相同的值。",
+        "同一搜索条件可以直接比较修正前后。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.7, 13.8, 36.7, 14.8],
+          "label_box": [60.1, 15.0, 2.4, 4.4],
+          "delay_ms": 700,
+          "dim_ms": 13000,
+          "draft": "先确认 function_call 的正确 id；工具输出出现时降权保留，形成一对对照。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.7, 29.3, 36.7, 12.0],
+          "label_box": [60.1, 31.0, 2.4, 4.4],
+          "delay_ms": 13000,
+          "draft": "再确认 function_call_output 使用同一 id；编号 1 已降权，两个值仍同时可读。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "08-verify-corrected-protocol",
+      "title": "最后回到协议视图确认闭环",
+      "start_seconds": 195,
+      "end_seconds": 223,
+      "source_image": "/assets/demo/source/protocol-raw/recording/raw/06-corrected-protocol.png",
+      "narration": "最后回到 Request 三的协议视图。上行只剩用户消息、function call 和匹配的 function call output，未知项计数已经消失；下行状态是 completed，并出现最终 Assistant 消息。这里验证的不只是错误不再出现，而是修正后的完整协议闭环确实成功。",
+      "subtitle_cues": [
+        "最后回到 Request 3 的协议视图。",
+        "上行只剩用户消息、调用和匹配结果。",
+        "未知项计数已经消失。",
+        "模型下行状态恢复为 completed。",
+        "最终 Assistant 消息也被完整捕获。",
+        "修正后的协议闭环已经成立。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.7, 43.2, 36.4, 17.5],
+          "label_box": [60.1, 46.0, 2.4, 4.4],
+          "delay_ms": 700,
+          "dim_ms": 15500,
+          "draft": "先读取修正后的三项上行顺序；下行出现时降权保留，证明前后因果。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.7, 69.6, 36.4, 13.8],
+          "label_box": [60.1, 72.0, 2.4, 4.4],
+          "delay_ms": 15500,
+          "draft": "再标出 completed 和最终 Assistant 输出；编号 1 已降权，不遮底部字幕。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "09-outro",
+      "title": "形成可重复的协议排错顺序",
+      "start_seconds": 223,
+      "end_seconds": 238,
+      "source_image": null,
+      "card": {
+        "eyebrow": "排错闭环",
+        "headline": "先找异常 Request，再核对原始字段",
+        "steps": ["时间线定位", "协议路径", "Raw / Response", "provenance + 验证"],
+        "footer": "PMA 负责保留证据；错误原因仍以协议与上游响应为准"
+      },
+      "narration": "完整顺序是：先在时间线定位异常 Request，用协议视图找到层级，再到 Raw 和 Response 核对字段与错误，最后检查 provenance 并用修正后的请求验证。PMA 负责把证据连起来，但不会替你猜测协议里没有写明的原因。",
+      "subtitle_cues": [
+        "先在时间线定位异常 Request。",
+        "再用协议视图找到字段层级。",
+        "Raw、Response 与 provenance 给出原始证据。",
+        "最后用修正后的请求验证结论。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    }
+  ]
+}

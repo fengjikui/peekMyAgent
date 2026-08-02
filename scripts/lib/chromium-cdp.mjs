@@ -111,6 +111,7 @@ class ChromiumCdpPage {
     this.timeoutMs = timeoutMs;
     this.nextId = 1;
     this.pending = new Map();
+    this.eventListeners = new Map();
     this.runtimeExceptions = [];
     this.closed = false;
     socket.addEventListener("message", (event) => this.onMessage(event));
@@ -167,6 +168,16 @@ class ChromiumCdpPage {
     return response.result?.value;
   }
 
+  on(method, listener) {
+    const listeners = this.eventListeners.get(method) || new Set();
+    listeners.add(listener);
+    this.eventListeners.set(method, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) this.eventListeners.delete(method);
+    };
+  }
+
   async waitFor(expression, { timeoutMs = DEFAULT_TIMEOUT_MS, intervalMs = 50, description = expression } = {}) {
     const deadline = Date.now() + timeoutMs;
     let lastError = null;
@@ -216,7 +227,15 @@ class ChromiumCdpPage {
     if (message.method === "Runtime.exceptionThrown") {
       const details = message.params?.exceptionDetails;
       this.runtimeExceptions.push(details?.exception?.description || details?.text || "unknown runtime exception");
-      return;
+    }
+    if (message.method) {
+      for (const listener of this.eventListeners.get(message.method) || []) {
+        try {
+          listener(message.params || {});
+        } catch (error) {
+          this.runtimeExceptions.push(`CDP ${message.method} listener: ${error.message}`);
+        }
+      }
     }
     if (!message.id) return;
     const pending = this.pending.get(message.id);

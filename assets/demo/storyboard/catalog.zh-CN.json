@@ -1,0 +1,456 @@
+{
+  "schema_version": 5,
+  "default_chapter": "quickstart",
+  "chapters": [
+    {
+      "id": "quickstart",
+      "label": "五分钟快速上手",
+      "timeline": "/assets/demo/source/quickstart/video/timeline.zh-CN.json",
+      "guide": "/docs/quick-start.zh-CN.md",
+      "guide_section": "5. 在 Viewer 中复盘",
+      "review": {
+        "question": "第一次使用 PMA，怎样从一个用户请求追到工具结果、最终回答和原始协议？",
+        "audience": "第一次接触 PMA 的 Agent / Harness 使用者",
+        "source": {
+          "label": "确定性 OpenAI Responses 教学轨迹",
+          "boundary": "使用虚构本地项目和确定性假上游，只证明 PMA 的观察路径，不代表真实模型能力。"
+        },
+        "status": "owner-review",
+        "next_gate": "在 GitHub 实际渲染中审阅 74 秒首页 GIF 与中文故事；通过后重导完整母版。",
+        "freshness": {
+          "product_impact_ids": ["cli-and-lifecycle", "harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "protocol-and-raw", "translation-theme", "privacy-data"]
+        },
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 18,
+            "narration_includes": ["普通日志", "PMA", "证据链", "README"],
+            "subtitle_includes": ["普通日志", "PMA", "README"]
+          },
+          "value": {
+            "scene": "00-intro",
+            "ends_by_seconds": 18,
+            "narration_includes": ["PMA", "证据链", "README"]
+          },
+          "proof_scenes": ["03-complete-loop", "08-protocol"],
+          "closing": {
+            "scene": "11-outro",
+            "narration_includes": ["第一次闭环", "协议证据", "下一步"]
+          }
+        },
+        "artifacts": {
+          "narration": "/assets/demo/source/quickstart/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-quickstart.zh-CN.srt",
+          "manifest": "/assets/demo/source/quickstart/manifest.json",
+          "review_1920": "/assets/demo/source/quickstart/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/quickstart/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
+      "id": "custom-harness",
+      "label": "自研 Harness：通用协议接入",
+      "timeline": "/assets/demo/source/custom-harness/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/custom-harness.md",
+      "guide_section": "真实例子：两次 Request 的目录工具闭环",
+      "review": {
+        "question": "不开发专用 adapter，怎样先看清自研 Harness 的请求、工具结果和原始协议？",
+        "audience": "正在开发 OpenAI / Anthropic 兼容 Harness 的开发者",
+        "source": {
+          "label": "真实 pma observe + 确定性 OpenAI / Anthropic 假上游",
+          "boundary": "包装生命周期来自真实 CLI；模型回复固定生成，只证明 PMA 的协议观察能力，不代表远端模型质量。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅中文故事和协议边界，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["cli-and-lifecycle", "harness-capture", "viewer-surface", "request-context", "tools", "protocol-and-raw", "translation-theme", "privacy-data"]
+        },
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 17,
+            "narration_includes": ["自研 Agent", "PMA adapter", "pma observe", "Viewer"],
+            "subtitle_includes": ["自研 Agent", "PMA", "Viewer"]
+          },
+          "value": {
+            "scene": "00-intro",
+            "ends_by_seconds": 17,
+            "narration_includes": ["pma observe", "协议交换", "Viewer"]
+          },
+          "proof_scenes": ["02-openai-overview", "07-openai-protocol"],
+          "closing": {
+            "scene": "10-boundary-outro",
+            "narration_includes": ["通用桥", "协议", "Harness 私有语义"]
+          }
+        },
+        "artifacts": {
+          "narration": "/assets/demo/source/custom-harness/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-custom-harness.zh-CN.srt",
+          "manifest": "/assets/demo/source/custom-harness/manifest.json",
+          "review_1920": "/assets/demo/source/custom-harness/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/custom-harness/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
+      "id": "protocol-raw",
+      "label": "协议与 Raw：定位一次异常",
+      "timeline": "/assets/demo/source/protocol-raw/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/protocol-raw.md",
+      "guide_section": "真实例子：从错误 call id 追到 HTTP 400",
+      "review": {
+        "question": "普通摘要只显示请求失败时，怎样找到错误原始字段并验证修正？",
+        "audience": "需要排查模型请求、兼容层或自研 Harness 工具关联的开发者",
+        "source": {
+          "label": "真实 Capture Proxy + 确定性 OpenAI Responses 假上游",
+          "boundary": "请求、响应和 provenance 来自真实代理捕获；HTTP 400 由固定 loopback 上游按错误 call id 确定性生成，不代表 provider 事故。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅中文排错故事与发布会式 v0.2 收束页；通过后重导母版，再决定是否进入配音。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "request-context", "tools", "protocol-and-raw", "privacy-data"]
+        },
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 16,
+            "narration_includes": ["普通日志", "call id", "PMA", "Raw"],
+            "subtitle_includes": ["普通日志", "call id", "Raw"]
+          },
+          "value": {
+            "scene": "00-intro",
+            "ends_by_seconds": 16,
+            "narration_includes": ["PMA 时间线", "协议视图", "Raw"]
+          },
+          "proof_scenes": ["04-compare-call-ids", "05-read-error-response"],
+          "closing": {
+            "scene": "09-outro",
+            "narration_includes": ["时间线", "Raw", "provenance", "PMA"]
+          }
+        },
+        "artifacts": {
+          "narration": "/assets/demo/source/protocol-raw/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-protocol-raw-debug.zh-CN.srt",
+          "manifest": "/assets/demo/source/protocol-raw/manifest.json",
+          "review_1920": "/assets/demo/source/protocol-raw/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/protocol-raw/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
+      "id": "translation",
+      "label": "翻译：System 与 Tools 原文对照",
+      "timeline": "/assets/demo/source/translation/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/requests-context.md",
+      "guide_section": "翻译长提示词",
+      "review": {
+        "question": "怎样快速读懂长 System 和 Tools，同时保留每块译文的对应原文与完整 Raw？",
+        "audience": "阅读外语 Agent 上下文、核对工具 schema 或维护多语言资料的用户与 Harness 开发者",
+        "source": {
+          "label": "真实 Capture Proxy + 确定性模型 / 翻译假上游",
+          "boundary": "请求、翻译缓存和 Viewer 操作来自真实 PMA；模型回复与译文固定生成，只证明产品交互和原文保留行为，不代表远端翻译质量。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅中文翻译故事和原文兜底边界，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["viewer-surface", "request-context", "protocol-and-raw", "translation-theme", "privacy-data"]
+        },
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 16,
+            "narration_includes": ["PMA", "翻译层", "原文"],
+            "subtitle_includes": ["PMA", "翻译层", "原文"]
+          },
+          "value": {
+            "scene": "00-intro",
+            "ends_by_seconds": 16,
+            "narration_includes": ["PMA", "翻译层", "Capture", "原文"]
+          },
+          "proof_scenes": ["03-system-translated", "07-capture-original"],
+          "closing": {
+            "scene": "08-outro",
+            "narration_includes": ["翻译", "原文", "Raw"]
+          }
+        },
+        "artifacts": {
+          "narration": "/assets/demo/source/translation/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-translation-system-tools.zh-CN.srt",
+          "manifest": "/assets/demo/source/translation/manifest.json",
+          "review_1920": "/assets/demo/source/translation/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/translation/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
+      "id": "claude-tool-loop",
+      "label": "Claude Code：一次工具调用",
+      "timeline": "/assets/demo/source/claude-tool-loop/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/tools-results.md",
+      "guide_section": "四层证据",
+      "review": {
+        "question": "用户、Claude Code 和远端模型怎样完成一次工具调用闭环？",
+        "audience": "想理解 Harness 工具循环的开发者",
+        "source": {
+          "label": "确定性 Anthropic Messages 教学轨迹",
+          "boundary": "协议交换由确定性假上游生成；真实 Claude Code CLI 的交叉核对范围以 manifest 为准。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅中文故事；通过后导出 v0.3 新母版，并决定正式发布前是否用当前 Claude Code 重录同一最小任务。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "protocol-and-raw", "translation-theme"]
+        },
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 17,
+            "narration_includes": ["用户", "Claude Code", "远端模型", "本地执行"],
+            "subtitle_includes": ["用户", "Claude Code", "远端模型"]
+          },
+          "value": {
+            "scene": "01-overview",
+            "ends_by_seconds": 38,
+            "narration_includes": ["PMA", "工具调用", "工具结果", "证据链"]
+          },
+          "proof_scenes": ["05-tool-use", "06-tool-result"],
+          "closing": {
+            "scene": "11-outro",
+            "narration_includes": ["模型", "Claude Code", "PMA", "Raw"]
+          }
+        },
+        "artifacts": {
+          "narration": "/assets/demo/source/claude-tool-loop/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-claude-tool-loop.zh-CN.srt",
+          "manifest": "/assets/demo/source/claude-tool-loop/manifest.json",
+          "review_1920": "/assets/demo/source/claude-tool-loop/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/claude-tool-loop/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
+      "id": "claude-skill",
+      "label": "Claude Code：Skill 加载",
+      "timeline": "/assets/demo/source/claude-skill/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/skills.md",
+      "guide_section": "先建立四层模型",
+      "review": {
+        "question": "Claude Code 怎样发现 Skill、按需加载正文，再用它指导后续工具？",
+        "audience": "想研究 Harness 上下文注入和 Skill 机制的开发者",
+        "source": {
+          "label": "Claude Code 2.1.220 真实 CLI + 确定性假上游",
+          "boundary": "Harness 行为来自真实 CLI；模型回复固定生成，不用于宣称 Claude 模型能力。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅中文故事和术语边界，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "skills", "protocol-and-raw", "translation-theme"]
+        },
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 15,
+            "narration_includes": ["Skill", "加载", "指导后续动作"],
+            "subtitle_includes": ["Skill", "加载", "指导后续动作"]
+          },
+          "value": {
+            "scene": "01-overview",
+            "ends_by_seconds": 34,
+            "narration_includes": ["PMA", "三次模型请求", "六段"]
+          },
+          "proof_scenes": ["06-skill-body-raw", "07-protocol-order"],
+          "closing": {
+            "scene": "11-outro",
+            "narration_includes": ["description", "Skill 工具", "正文", "PMA"]
+          }
+        },
+        "artifacts": {
+          "narration": "/assets/demo/source/claude-skill/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-claude-skill.zh-CN.srt",
+          "manifest": "/assets/demo/source/claude-skill/manifest.json",
+          "review_1920": "/assets/demo/source/claude-skill/recording/real-cli/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/claude-skill/recording/real-cli/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
+      "id": "claude-subagents",
+      "label": "Claude Code：子 Agent 回流",
+      "timeline": "/assets/demo/source/claude-subagents/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/subagents.md",
+      "guide_section": "先看机制流程",
+      "review": {
+        "question": "两个子 Agent 怎样被启动、并行工作，并把异步结果送回父 Agent？",
+        "audience": "想观察子 Agent 与多 Agent 协作的开发者",
+        "source": {
+          "label": "Claude Code 2.1.220 真实 CLI + 确定性假上游",
+          "boundary": "启动、子分支和异步通知来自真实 CLI；公开素材不包含真实用户任务或项目源码。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅异步回流的叙述是否清楚，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "subagents", "protocol-and-raw", "translation-theme"]
+        },
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 15,
+            "narration_includes": ["Claude Code", "子 Agent", "异步回流"],
+            "subtitle_includes": ["Claude Code", "子 Agent", "父对话"]
+          },
+          "value": {
+            "scene": "01-overview",
+            "ends_by_seconds": 37,
+            "narration_includes": ["PMA", "三个 Turn", "Request"]
+          },
+          "proof_scenes": ["03-expanded-board", "08-first-completion"],
+          "closing": {
+            "scene": "11-outro",
+            "narration_includes": ["父级", "子分支", "异步", "PMA"]
+          }
+        },
+        "artifacts": {
+          "narration": "/assets/demo/source/claude-subagents/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-claude-subagents.zh-CN.srt",
+          "manifest": "/assets/demo/source/claude-subagents/manifest.json",
+          "review_1920": "/assets/demo/source/claude-subagents/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/claude-subagents/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
+      "id": "claude-compact",
+      "label": "Claude Code：上下文压缩",
+      "timeline": "/assets/demo/source/claude-compact/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/requests-context.md",
+      "guide_section": "压缩与摘要如何判断",
+      "review": {
+        "question": "上下文压缩发生前后，History、摘要和规则重载分别改变了什么？",
+        "audience": "想理解长会话上下文变化的 Harness 使用者与开发者",
+        "source": {
+          "label": "Claude Code 2.1.220 真实 compact CLI + 确定性假上游",
+          "boundary": "压缩触发和请求结构来自真实 CLI；模型内容是公开、固定的教学数据。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅压缩前后证据是否足以支撑结论，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "context-lifecycle", "protocol-and-raw", "translation-theme"]
+        },
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 15,
+            "narration_includes": ["Claude Code", "Compacted", "压缩前后"],
+            "subtitle_includes": ["Claude Code", "Compacted", "压缩前后"]
+          },
+          "value": {
+            "scene": "01-overview",
+            "ends_by_seconds": 44,
+            "narration_includes": ["PMA", "Turn", "Request", "两级导航"]
+          },
+          "proof_scenes": ["03-compact-harness-prompt", "05-post-compact-history"],
+          "closing": {
+            "scene": "08-outro",
+            "narration_includes": ["压缩请求", "摘要", "项目规则", "PMA"]
+          }
+        },
+        "artifacts": {
+          "narration": "/assets/demo/source/claude-compact/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-claude-compact.zh-CN.srt",
+          "manifest": "/assets/demo/source/claude-compact/manifest.json",
+          "review_1920": "/assets/demo/source/claude-compact/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/claude-compact/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
+      "id": "codex-compact",
+      "label": "Codex：上下文压缩",
+      "timeline": "/assets/demo/source/codex-compact/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/requests-context.md",
+      "guide_section": "真实例子：Codex 手动 compact 前后发生了什么",
+      "review": {
+        "question": "Codex 手动 compact 时发出了什么请求，下一次 History 又怎样保留事实、摘要与项目规则？",
+        "audience": "想理解 Codex 长会话、上下文重组和 provider 差异的 Harness 使用者与开发者",
+        "source": {
+          "label": "Codex App Server 0.144.6 真实运行 + 确定性 OpenAI Responses 假上游",
+          "boundary": "App Server 生命周期和请求组装来自真实安装；本 Source 使用 PMA 自定义 provider 的本地摘要路径，不声称录到了 OpenAI / Azure 的远端 compact 端点。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅 Codex 与 Claude Code 的差异和发布会式 v0.2 收束页；通过后重导母版，再决定是否进入配音。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "context-lifecycle", "protocol-and-raw", "translation-theme"]
+        },
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 15,
+            "narration_includes": ["Codex", "上下文", "压缩前后"],
+            "subtitle_includes": ["Codex", "上下文", "压缩前后"]
+          },
+          "value": {
+            "scene": "01-overview",
+            "ends_by_seconds": 42,
+            "narration_includes": ["PMA", "Turn", "Request", "两级导航"]
+          },
+          "proof_scenes": ["02-compaction-attribution", "06-post-compact-history"],
+          "closing": {
+            "scene": "09-provider-comparison",
+            "narration_includes": ["Codex", "/responses/compact", "Claude Code", "PMA"]
+          }
+        },
+        "artifacts": {
+          "narration": "/assets/demo/source/codex-compact/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-codex-compact.zh-CN.srt",
+          "manifest": "/assets/demo/source/codex-compact/manifest.json",
+          "review_1920": "/assets/demo/source/codex-compact/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/codex-compact/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    },
+    {
+      "id": "claude-planning",
+      "label": "Claude Code：多步规划",
+      "timeline": "/assets/demo/source/claude-planning/video/timeline.zh-CN.json",
+      "guide": "/docs/user-guide/requests-context.md",
+      "guide_section": "真实例子：一个用户请求展开成七次 Request",
+      "review": {
+        "question": "一个简单用户任务为什么会展开成多次模型请求、任务状态更新和工具结果回传？",
+        "audience": "想研究多步规划、工具选择和上下文演进的开发者",
+        "source": {
+          "label": "Claude Code 2.1.220 真实 CLI + 确定性假上游",
+          "boundary": "规划工具生命周期来自真实 CLI；场景只读取公开测试文件，不评价模型规划质量。"
+        },
+        "status": "owner-review",
+        "next_gate": "审阅七次主线 Request 的叙述节奏，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "agent-planning", "protocol-and-raw", "translation-theme"]
+        },
+        "story": {
+          "opening": {
+            "scene": "00-intro",
+            "ends_by_seconds": 14,
+            "narration_includes": ["用户", "Claude Code", "七次", "Harness"],
+            "subtitle_includes": ["用户", "七次", "三方分工"]
+          },
+          "value": {
+            "scene": "02-two-level-navigation",
+            "ends_by_seconds": 54,
+            "narration_includes": ["PMA", "Turn", "Request", "工具调用"]
+          },
+          "proof_scenes": ["04-task-create-call", "08-history-boundary"],
+          "closing": {
+            "scene": "12-outro",
+            "narration_includes": ["模型", "Claude Code", "PMA", "证据链"]
+          }
+        },
+        "artifacts": {
+          "narration": "/assets/demo/source/claude-planning/narration.zh-CN.md",
+          "subtitles": "/assets/demo/video/pma-claude-planning.zh-CN.srt",
+          "manifest": "/assets/demo/source/claude-planning/manifest.json",
+          "review_1920": "/assets/demo/source/claude-planning/recording/review-1920/contact-sheet.jpg",
+          "review_1024": "/assets/demo/source/claude-planning/recording/review-1024/contact-sheet.jpg"
+        }
+      }
+    }
+  ]
+}

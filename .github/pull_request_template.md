@@ -9,6 +9,15 @@ What changed?
 - [ ] Cross-platform assumptions are documented or tested.
 - [ ] No secrets, private captures, local evidence bundles, or personal paths are committed.
 
+## Documentation And Demo Impact
+
+- [ ] I inspected the read-only `Documentation impact` Job Summary for this PR.
+- [ ] For local verification, I ran `node scripts/documentation-consistency-audit.mjs --base <base SHA> --target HEAD --json` for user-visible CLI, Viewer, capture, protocol, privacy, or Harness changes.
+- Required documents (Chinese first; include English fact parity when listed):
+- Required demo Sources or frames:
+- If no documentation update is needed, evidence that UI copy, interaction, protocol facts, and public behavior are unchanged:
+- Documentation handoff target SHA:
+
 ## Capture Boundary
 
 If this changes an agent adapter or provider config path:

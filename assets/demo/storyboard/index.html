@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PMA 演示故事板</title>
+    <link rel="stylesheet" href="./player.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="stage" aria-label="产品演示画面">
+        <div class="visual" aria-live="polite">
+          <img class="product-frame" alt="" hidden>
+          <div class="title-card" hidden>
+            <p class="card-eyebrow"></p>
+            <h1 class="card-headline"></h1>
+            <div class="card-steps"></div>
+            <p class="card-footer"></p>
+          </div>
+          <svg class="annotation-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                <path d="M 1 1 L 8 5 L 1 9"></path>
+              </marker>
+            </defs>
+            <g class="annotation-lines"></g>
+          </svg>
+          <div class="annotation-layer" aria-hidden="true"></div>
+          <div class="subtitle" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="controls" aria-label="故事板控制器">
+        <div class="transport" aria-label="播放控制">
+          <button type="button" data-action="previous" aria-label="上一镜头">←</button>
+          <button type="button" data-action="toggle" aria-label="播放或暂停">播放</button>
+          <button type="button" data-action="next" aria-label="下一镜头">→</button>
+        </div>
+        <input class="scrubber" type="range" min="0" max="1000" value="0" aria-label="播放进度">
+        <output class="timecode">00:00 / 00:00</output>
+        <div class="scene-copy">
+          <strong class="scene-number"></strong>
+          <span class="scene-title"></span>
+        </div>
+        <div class="review-nav" aria-label="章节与复核点">
+          <label class="review-field">
+            <span>章节</span>
+            <select class="chapter-select" aria-label="选择演示章节" disabled></select>
+          </label>
+          <label class="review-field review-field-wide">
+            <span>复核点</span>
+            <select class="review-point-select" aria-label="选择渐进标注复核点" disabled>
+              <option value="">载入后选择</option>
+            </select>
+          </label>
+          <div class="review-meta">
+            <output class="review-summary" aria-live="polite">正在载入章节目录</output>
+            <div class="review-actions">
+              <button class="review-sheet-open" type="button" disabled>章节审阅</button>
+              <a class="guide-link" href="#" target="_blank" rel="noopener" hidden>打开对应中文章节</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <dialog class="review-sheet" aria-labelledby="review-sheet-title">
+      <article class="review-sheet-frame">
+        <header class="review-sheet-header">
+          <div>
+            <p class="review-sheet-eyebrow">peekMyAgent · 中文演示审阅</p>
+            <h2 id="review-sheet-title" class="review-sheet-title"></h2>
+          </div>
+          <button class="review-sheet-close" type="button">关闭</button>
+        </header>
+
+        <div class="review-sheet-status-row">
+          <span class="review-sheet-status"></span>
+          <span class="review-sheet-metrics"></span>
+        </div>
+
+        <section class="review-sheet-question" aria-labelledby="review-question-label">
+          <p id="review-question-label" class="review-sheet-label">本章回答</p>
+          <p class="review-sheet-question-copy"></p>
+          <p class="review-sheet-audience"></p>
+        </section>
+
+        <div class="review-sheet-evidence">
+          <section>
+            <p class="review-sheet-label">证据来源与边界</p>
+            <p class="review-sheet-source"></p>
+            <p class="review-sheet-boundary"></p>
+          </section>
+          <section>
+            <p class="review-sheet-label">下一道确认门</p>
+            <p class="review-sheet-next-gate"></p>
+          </section>
+        </div>
+
+        <nav class="review-sheet-artifacts" aria-label="本章审阅资料"></nav>
+      </article>
+    </dialog>
+    <script type="module" src="./player.js"></script>
+  </body>
+</html>

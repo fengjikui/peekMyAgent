@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "title": "peekMyAgent 中文核心能力演示",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "fps": 30,
+  "duration_seconds": 144.301,
+  "voice": {
+    "name": "Tingting",
+    "rate": 185
+  },
+  "music": null,
+  "scenes": [
+    {
+      "id": "00-intro",
+      "title": "普通日志看不到 Agent 真正发送了什么",
+      "start_seconds": 0.0,
+      "end_seconds": 12.786,
+      "duration_seconds": 12.786,
+      "source_image": null,
+      "composite_frame": "assets/demo/source/video/frames/00-intro.png",
+      "caption": "PMA 把每次模型请求、工具交换和上下文变化放回同一条证据链。",
+      "narration": "如果一个 Agent 完成了任务，普通日志往往只能告诉你它运行过。PMA 要回答的是：模型到底收到了什么，又为什么做出下一步。",
+      "transition": "0.35s fade through black"
+    },
+    {
+      "id": "01-trace",
+      "title": "先从一次完整执行链开始",
+      "start_seconds": 12.786,
+      "end_seconds": 30.337,
+      "duration_seconds": 17.551,
+      "source_image": "assets/demo/quickstart/01-trace.png",
+      "composite_frame": "assets/demo/source/video/frames/01-trace.png",
+      "caption": "用户请求、三次模型请求、两次工具调用与最终回答，一屏串起来。",
+      "narration": "这是一次最小会话。用户只要求查看目录、读取 README，再给一句话结论。PMA 把用户请求、三次模型请求、两次工具调用、工具结果和最终回答放进同一条时间线。",
+      "transition": "0.35s fade through black"
+    },
+    {
+      "id": "02-system",
+      "title": "模型实际收到了哪些 System 指令？",
+      "start_seconds": 30.337,
+      "end_seconds": 41.381,
+      "duration_seconds": 11.045,
+      "source_image": "assets/demo/quickstart/02-system.png",
+      "composite_frame": "assets/demo/source/video/frames/02-system.png",
+      "caption": "点击请求详情，再选择 System；这里展示的是捕获证据，不是终端摘要。",
+      "narration": "点开任意请求的详情，选择 System，就能检查模型实际收到的系统指令。它和终端中看到的摘要不是一回事。",
+      "transition": "0.35s fade through black"
+    },
+    {
+      "id": "03-tool-result",
+      "title": "工具真的返回了什么？",
+      "start_seconds": 41.381,
+      "end_seconds": 53.952,
+      "duration_seconds": 12.57,
+      "source_image": "assets/demo/quickstart/03-tool-result.png",
+      "composite_frame": "assets/demo/source/video/frames/03-tool-result.png",
+      "caption": "PMA 将工具结果关联到调用，并展开真实回传内容。",
+      "narration": "工具执行后，PMA 会把回传内容关联到对应调用。这里能看到 list directory 真正返回了哪些文件，而不是只知道工具成功了。",
+      "transition": "0.35s fade through black"
+    },
+    {
+      "id": "04-tool-origin",
+      "title": "从结果跳回最初调用",
+      "start_seconds": 53.952,
+      "end_seconds": 64.952,
+      "duration_seconds": 11.0,
+      "source_image": "assets/demo/quickstart/04-tool-origin.png",
+      "composite_frame": "assets/demo/source/video/frames/04-tool-origin.png",
+      "caption": "点击“来源编号”，直接核对原始工具名、调用编号和参数。",
+      "narration": "结果即使晚了几轮，也可以点击来源编号，直接跳回原始工具调用和参数。长会话里不需要人工翻找。",
+      "transition": "0.35s fade through black"
+    },
+    {
+      "id": "05-final-answer",
+      "title": "最终回答是否真的基于工具证据？",
+      "start_seconds": 64.952,
+      "end_seconds": 75.952,
+      "duration_seconds": 11.0,
+      "source_image": "assets/demo/quickstart/05-final-answer.png",
+      "composite_frame": "assets/demo/source/video/frames/05-final-answer.png",
+      "caption": "右栏保留模型原始回复，便于区分证据驱动与自行猜测。",
+      "narration": "最终回答旁的详情会展示模型原始回复。这样可以核对结论究竟来自工具证据，还是模型自己猜出来的。",
+      "transition": "0.35s fade through black"
+    },
+    {
+      "id": "06-protocol",
+      "title": "摘要不够时，回到原生协议",
+      "start_seconds": 75.952,
+      "end_seconds": 92.012,
+      "duration_seconds": 16.06,
+      "source_image": "assets/demo/quickstart/06-protocol.png",
+      "composite_frame": "assets/demo/source/video/frames/06-protocol.png",
+      "caption": "协议视图保留 OpenAI Responses 或 Anthropic Messages 的上下行顺序。",
+      "narration": "如果摘要仍然不够，协议视图保留 OpenAI Responses 或 Anthropic Messages 的原生上下行顺序。开发 Harness 时，可以检查指令、工具定义、历史消息、模型参数和回复。",
+      "transition": "0.35s fade through black"
+    },
+    {
+      "id": "07-context-diff",
+      "title": "相邻请求的固定上下文哪里变了？",
+      "start_seconds": 92.012,
+      "end_seconds": 105.388,
+      "duration_seconds": 13.376,
+      "source_image": "assets/demo/user-guide/context-system-diff.png",
+      "composite_frame": "assets/demo/source/video/frames/07-context-diff.png",
+      "caption": "System diff 标出新增与删除；完整事实仍应回到 System 原文和 Raw。",
+      "narration": "相邻请求的 System diff 会明确标出新增和删除的固定指令。它适合判断 Harness 是否改写了上下文，但不能凭一次变化就声称发生了压缩。",
+      "transition": "0.35s fade through black"
+    },
+    {
+      "id": "08-delayed-result",
+      "title": "异步结果晚到几轮，仍然能追溯",
+      "start_seconds": 105.388,
+      "end_seconds": 118.388,
+      "duration_seconds": 13.0,
+      "source_image": "assets/demo/user-guide/delayed-tool-result.png",
+      "composite_frame": "assets/demo/source/video/frames/08-delayed-result.png",
+      "caption": "第 4 次请求收到后台结果，PMA 仍把它连回第 1 次请求的调用。",
+      "narration": "异步工具的结果可能到第四次请求才返回。PMA 仍然根据调用标识建立来源关系，让迟到结果和最初调用彼此可达。",
+      "transition": "0.35s fade through black"
+    },
+    {
+      "id": "09-subagent",
+      "title": "子 Agent 不再只是一个黑盒名称",
+      "start_seconds": 118.388,
+      "end_seconds": 132.416,
+      "duration_seconds": 14.028,
+      "source_image": "assets/demo/user-guide/subagent-board.png",
+      "composite_frame": "assets/demo/source/video/frames/09-subagent.png",
+      "caption": "父级启动、子分支请求、工具结果与回流状态都能继续展开。",
+      "narration": "Claude Code 等 Harness 启动子 Agent 时，多 Agent 看板会把父级启动、子分支内部请求、工具结果和回流放在一起。每个分支仍可继续查看完整证据。",
+      "transition": "0.35s fade through black"
+    },
+    {
+      "id": "10-outro",
+      "title": "用一次非敏感测试会话开始",
+      "start_seconds": 132.416,
+      "end_seconds": 144.301,
+      "duration_seconds": 11.885,
+      "source_image": null,
+      "composite_frame": "assets/demo/source/video/frames/10-outro.png",
+      "caption": "先完成五分钟快速上手，再逐步检查协议、上下文和多 Agent。",
+      "narration": "这只是 PMA 的第一条中文演示。接下来你可以从五分钟快速上手开始，用一个非敏感测试目录观察自己的 Agent。",
+      "transition": "0.35s fade through black"
+    }
+  ]
+}

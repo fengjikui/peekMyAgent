@@ -1,6 +1,6 @@
 # peekMyAgent
 
-[中文 README](README.zh-CN.md)
+[中文 README](README.zh-CN.md) · [Chinese five-minute quick start](docs/quick-start.zh-CN.md) · [Chinese user guide](docs/user-guide.md)
 
 peekMyAgent is a local-first dashboard for inspecting what coding agents send to model providers.
 
@@ -10,27 +10,9 @@ peekMyAgent is not meant to "steal hidden prompts". It is an observability tool 
 
 ## Visual Overview
 
-![peekMyAgent dashboard feature tour](assets/demo/dashboard-overview-tour.gif)
+![Trace one user request through tool results, the final answer, and the native protocol](assets/demo/quickstart-tool-loop.gif)
 
-<p>
-  <strong>Protocol &amp; Namespace Walkthrough</strong><br>
-  Preserve provider wire order, distinguish declared/added/loaded tools, and expand namespace containers into qualified callable leaves.
-</p>
-
-<p>
-  <img src="assets/demo/chat-upstream-context.gif" alt="Protocol and namespace walkthrough" width="960">
-</p>
-
-<p>
-  <strong>Tool Loop &amp; Lazy Payload Walkthrough</strong><br>
-  Follow the user -> tool call -> result -> final answer loop while large tool results and images stay local placeholders until opened.
-</p>
-
-<p>
-  <img src="assets/demo/tool-call-loop.gif" alt="Tool loop and lazy payload walkthrough" width="960">
-</p>
-
-See the [visual usage guide](docs/visual-usage-guide.zh-CN.md) for the annotated screenshot, protocol/namespace walkthrough, lazy-payload walkthrough, and reproducible media workflow.
+The 74-second reviewed walkthrough follows one background-free task from the user request to two tool calls, their returned evidence, the final answer, the original OpenAI Responses exchange, and PMA's two-level navigation. It is rendered at 1024×576 from full-frame 1920×1080 Viewer sources for GitHub readability. See the [Chinese five-minute quick start](docs/quick-start.zh-CN.md) for the exact commands and the [visual production guide](docs/visual-usage-guide.zh-CN.md) for its deterministic Source, privacy boundary, and rebuild steps.
 
 ## What You Can Do Today
 
@@ -147,7 +129,7 @@ Start Claude Code through peekMyAgent:
 
 ```bash
 cd <your-project>
-pma claude -c
+pma claude
 ```
 
 Then use Claude Code normally. Captured requests will appear in the dashboard.
@@ -157,7 +139,7 @@ Claude Code capture uses `auto` mode by default: peekMyAgent uses proxy capture 
 If you intentionally want to run Claude Code with permission prompts disabled, put Claude Code's flag after `claude`:
 
 ```bash
-pma claude -c --dangerously-skip-permissions
+pma claude --dangerously-skip-permissions
 ```
 
 Use this only in repositories you trust. The flag belongs to Claude Code, not peekMyAgent, and it bypasses Claude Code's normal permission checks.
@@ -207,6 +189,8 @@ pma codex --dangerously-bypass-approvals-and-sandbox
 ```
 
 The last command bypasses approvals and sandboxing; use it only in a trusted isolated environment. In Codex CLI, `-c` means config override, not continue.
+
+Codex CLI's uppercase `-C <dir>` / `--cd <dir>` selects its working root. It is unrelated to permissions or conversation resume. Claude Code, OpenCode, and CodeBuddy instead use lowercase `-c` / `--continue` for their most recent conversation; omit it when starting a fresh session.
 
 To keep the native Codex Desktop interaction surface and inspect the exact wire request on a supported macOS build, run this command from an **external Terminal**:
 
@@ -293,7 +277,7 @@ pma codex --dangerously-bypass-approvals-and-sandbox
 Claude Code can bypass its permission checks for one captured process:
 
 ```bash
-pma claude -c --dangerously-skip-permissions
+pma claude --dangerously-skip-permissions
 ```
 
 CodeBuddy Code can bypass its permission checks for one captured process:
@@ -401,6 +385,12 @@ pma compact
 ```
 
 `pma compact` briefly stops the local dashboard daemon to avoid concurrent writes. The dashboard can be opened again with `pma open`.
+
+Stop the local dashboard daemon without deleting captured sessions:
+
+```bash
+pma shutdown
+```
 
 Remove stored captured sessions after stopping the local daemon:
 

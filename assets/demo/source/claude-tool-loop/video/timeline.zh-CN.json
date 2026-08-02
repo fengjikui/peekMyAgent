@@ -1,0 +1,501 @@
+{
+  "version": 2,
+  "title": "用 PMA 看懂 Claude Code：一次工具调用",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "source_viewport": [
+    1920,
+    1080
+  ],
+  "fps": 30,
+  "duration_seconds": 245,
+  "theme": "claude",
+  "subtitle_layout": {
+    "position": "bottom-center",
+    "bottom_percent": 5.2,
+    "max_width_percent": 72,
+    "max_lines": 2,
+    "background": "none",
+    "outline": "subtle"
+  },
+  "review_points": [
+    { "name": "00-intro", "scene": 0, "at_ms": 8000 },
+    { "name": "01-overview", "scene": 1, "at_ms": 6000 },
+    { "name": "02a-detail", "scene": 2, "at_ms": 1200 },
+    { "name": "02b-detail-to-tab", "scene": 2, "at_ms": 6000 },
+    { "name": "02c-metadata-tab", "scene": 2, "at_ms": 8000 },
+    { "name": "02d-tab-to-parameters", "scene": 2, "at_ms": 11200 },
+    { "name": "02e-metadata-parameters", "scene": 2, "at_ms": 14500 },
+    { "name": "03a-system-tab", "scene": 3, "at_ms": 1200 },
+    { "name": "03b-system-crossfade", "scene": 3, "at_ms": 6000 },
+    { "name": "03c-system-body", "scene": 3, "at_ms": 11500 },
+    { "name": "04a-tools-tab", "scene": 4, "at_ms": 1200 },
+    { "name": "04b-tools-crossfade", "scene": 4, "at_ms": 6000 },
+    { "name": "04c-tools-list", "scene": 4, "at_ms": 12000 },
+    { "name": "05a-tool-call", "scene": 5, "at_ms": 1200 },
+    { "name": "05b-call-crossfade", "scene": 5, "at_ms": 6200 },
+    { "name": "05c-call-parameters", "scene": 5, "at_ms": 12500 },
+    { "name": "06a-tool-result", "scene": 6, "at_ms": 1200 },
+    { "name": "06b-result-tab-crossfade", "scene": 6, "at_ms": 6300 },
+    { "name": "06c-result-tab", "scene": 6, "at_ms": 8500 },
+    { "name": "06d-tab-to-content", "scene": 6, "at_ms": 11200 },
+    { "name": "06e-result-content", "scene": 6, "at_ms": 15500 },
+    { "name": "07a-source-link", "scene": 7, "at_ms": 1200 },
+    { "name": "07b-source-crossfade", "scene": 7, "at_ms": 6300 },
+    { "name": "07c-source-banner", "scene": 7, "at_ms": 8500 },
+    { "name": "07d-origin-call", "scene": 7, "at_ms": 13000 },
+    { "name": "08a-protocol-tab", "scene": 8, "at_ms": 1200 },
+    { "name": "08b-protocol-crossfade", "scene": 8, "at_ms": 6500 },
+    { "name": "08c-protocol-order", "scene": 8, "at_ms": 13000 },
+    { "name": "09a-raw-tab", "scene": 9, "at_ms": 1200 },
+    { "name": "09b-raw-crossfade", "scene": 9, "at_ms": 6300 },
+    { "name": "09c-raw-request", "scene": 9, "at_ms": 13500 },
+    { "name": "10a-final-click", "scene": 10, "at_ms": 800 },
+    { "name": "10b-response-tab", "scene": 10, "at_ms": 6500 },
+    { "name": "10c-response-crossfade", "scene": 10, "at_ms": 10600 },
+    { "name": "10d-final-response", "scene": 10, "at_ms": 15500 },
+    { "name": "11-outro", "scene": 11, "at_ms": 8000 }
+  ],
+  "scenes": [
+    {
+      "id": "00-intro",
+      "title": "三个角色，完成一次工具调用",
+      "start_seconds": 0,
+      "end_seconds": 17,
+      "source_image": null,
+      "card": {
+        "eyebrow": "peekMyAgent · Claude Code 机制 01",
+        "headline": "一次工具调用到底发生了什么？",
+        "steps": [
+          "用户提出目标",
+          "模型选择动作",
+          "Claude Code 本地执行"
+        ],
+        "footer": "PMA 把每一次往返还原成可核对的证据链"
+      },
+      "narration": "这支视频只讲清一件事：用户、Claude Code 和远端模型，怎样共同完成一次工具调用。远端模型不会直接读取你的电脑；真正的本地执行发生在 Claude Code 这一侧。",
+      "subtitle_cues": [
+        "这支视频只讲清一件事：",
+        "用户、Claude Code 和远端模型，",
+        "怎样共同完成一次工具调用。",
+        "真正的本地执行发生在 Claude Code 一侧。"
+      ],
+      "transition": {
+        "type": "crossfade",
+        "duration_ms": 700
+      }
+    },
+    {
+      "id": "01-overview",
+      "title": "先看完整闭环",
+      "start_seconds": 17,
+      "end_seconds": 38,
+      "source_image": "/assets/demo/source/claude-tool-loop/recording/raw/02-overview.png",
+      "narration": "演示任务很简单：读取 README 第一行并告诉我项目名。PMA 在同一个 Turn 里，把用户目标、第一次模型请求、Read 工具调用、工具结果、第二次请求和最终回答串成一条证据链。",
+      "subtitle_cues": [
+        "任务很简单：读取 README 第一行，",
+        "然后告诉我项目名。",
+        "一个 Turn 内发生了两次模型请求。",
+        "PMA 把调用、结果和回答串成证据链。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.4, 13.4, 47.5, 5.8],
+          "label_box": [55.0, 8.2, 2.6, 5.0],
+          "delay_ms": 600,
+          "draft": "编号 1 只聚焦 Turn 1 顶部的完整机制流程；放在框线右上方的中栏留白，不加箭头，不遮标题、流程文字或左侧会话。"
+        }
+      ],
+      "transition": {
+        "type": "crossfade",
+        "duration_ms": 650
+      }
+    },
+    {
+      "id": "02-metadata",
+      "title": "第一次请求调用了哪个模型？",
+      "start_seconds": 38,
+      "end_seconds": 57,
+      "source_image": "/assets/demo/source/claude-tool-loop/recording/raw/03-metadata.png",
+      "narration": "点开第一次请求的详情，再切到 Metadata。这里能核对模型、最大输出、是否流式、传输路径和上行构成。排查 Harness 时，先确认模型和参数没有在中间被改错。",
+      "subtitle_cues": [
+        "先点击第一次请求旁的“详情”。",
+        "再切到右栏的 Metadata。",
+        "这里可以核对模型、输出和流式参数。",
+        "还可以检查传输路径与上行构成。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [58.6, 20.5, 2.5, 4.4],
+          "label_box": [58.8, 14.4, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 6500,
+          "draft": "编号 1 先标记 Request 1 用户消息旁的详情按钮，说明右栏由哪里打开；随后与编号 2 交叉淡出。"
+        },
+        {
+          "type": "focus",
+          "focus": [81.6, 6.2, 5.5, 3.0],
+          "delay_ms": 5800,
+          "end_ms": 11600,
+          "draft": "Metadata 标签已有清楚文字，因此只用轻描边说明切换目标；编号 1 交叉淡出，随后让参数区成为唯一编号重点。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.4, 18.0, 36.6, 77.2],
+          "label_box": [59.8, 14.9, 2.6, 5.0],
+          "delay_ms": 10900,
+          "draft": "编号 1 和标签描边已经淡出，编号 2 最终接管请求身份、传输信息、生成参数和上行构成；编号放在分栏留白，不遮模型名或数值。"
+        }
+      ],
+      "transition": {
+        "type": "crossfade",
+        "duration_ms": 650
+      }
+    },
+    {
+      "id": "03-system",
+      "title": "模型实际收到了哪些 System 指令？",
+      "start_seconds": 57,
+      "end_seconds": 77,
+      "source_image": "/assets/demo/source/claude-tool-loop/recording/raw/04-system.png",
+      "narration": "切到 System，可以看到这一次真正发送给模型的固定指令。演示轨迹明确限制为虚构的 demo 文件，不访问凭据、用户文件或网络。这里展示的是捕获证据，不是根据结果猜出来的提示词。",
+      "subtitle_cues": [
+        "切到 System，查看实际发送的固定指令。",
+        "演示只允许访问虚构的 demo 文件。",
+        "它不会接触凭据、用户文件或网络。",
+        "这里是捕获证据，不是行为推测。"
+      ],
+      "overlays": [
+        {
+          "type": "focus",
+          "focus": [68.3, 6.2, 3.7, 3.0],
+          "delay_ms": 400,
+          "end_ms": 6500,
+          "draft": "System 标签已有清楚文字，只用轻描边说明切换动作；讲完后与正文编号交叉淡出，不遮右栏标题。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.4, 18.4, 36.6, 18.7],
+          "label_box": [59.8, 15.2, 2.6, 5.0],
+          "delay_ms": 5800,
+          "draft": "编号 1 聚焦 body_system 中的公开演示约束；标签轻描边交接后消失，正文的字段路径保持无遮挡。"
+        }
+      ],
+      "transition": {
+        "type": "crossfade",
+        "duration_ms": 650
+      }
+    },
+    {
+      "id": "04-tools",
+      "title": "为什么模型会选择 Read？",
+      "start_seconds": 77,
+      "end_seconds": 98,
+      "source_image": "/assets/demo/source/claude-tool-loop/recording/raw/05-tools.png",
+      "narration": "Tools 区域给出了这一次模型可以选择的动作。这里同时声明了 Read、Glob 和 Bash，并附带描述与输入 schema。模型并不是预先写死要读文件；在这条 Capture 中，它从已提供的工具里返回了 Read。",
+      "subtitle_cues": [
+        "Tools 列出模型本次可以选择的动作。",
+        "这里声明了 Read、Glob 和 Bash。",
+        "每个工具都有描述与输入 schema。",
+        "模型从可用工具中返回了 Read。"
+      ],
+      "overlays": [
+        {
+          "type": "focus",
+          "focus": [71.3, 6.2, 3.3, 3.0],
+          "delay_ms": 400,
+          "end_ms": 6500,
+          "draft": "Tools 标签已有清楚文字，只用轻描边说明工具定义入口；随后与正文编号交叉淡出，不遮右栏标题。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.4, 18.2, 36.6, 29.6],
+          "label_box": [59.8, 15.0, 2.6, 5.0],
+          "delay_ms": 5800,
+          "draft": "编号 1 聚焦 Read、Glob、Bash 的描述和 Read 参数 schema；标签轻描边消失后，文字与参数保持无遮挡。"
+        }
+      ],
+      "transition": {
+        "type": "crossfade",
+        "duration_ms": 650
+      }
+    },
+    {
+      "id": "05-tool-use",
+      "title": "模型提出调用，但还没有执行",
+      "start_seconds": 98,
+      "end_seconds": 119,
+      "source_image": "/assets/demo/source/claude-tool-loop/recording/raw/06-tool-use.png",
+      "narration": "点击时间线里的 Read，右栏出现 tool use。模型返回了调用标识 read hello、工具名和参数：读取 README 点 m d，从第一行开始，只取一行。到这一步，模型只是提出调用，并没有亲自碰本地文件。",
+      "subtitle_cues": [
+        "点击时间线里的 Read 工具调用。",
+        "右栏显示 tool_use 标识、工具名和参数。",
+        "它请求读取 README.md 的第一行。",
+        "此时模型还没有接触本地文件。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.4, 35.5, 47.5, 5.4],
+          "label_box": [55.0, 30.2, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 6800,
+          "draft": "编号 1 先聚焦中栏的 Read 工具调用行，放在框线右上方留白以免覆盖左侧会话；讲解转向参数时与编号 2 交叉淡出，不画跨栏箭头。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.4, 18.9, 36.6, 18.8],
+          "label_box": [59.8, 15.7, 2.6, 5.0],
+          "delay_ms": 6100,
+          "draft": "编号 2 接管右栏 tool_use、read_hello 和三个参数；编号 1 在交接后消失，不遮 README.md、offset 或 limit。"
+        }
+      ],
+      "transition": {
+        "type": "crossfade",
+        "duration_ms": 650
+      }
+    },
+    {
+      "id": "06-tool-result",
+      "title": "Claude Code 在本地执行并回传结果",
+      "start_seconds": 119,
+      "end_seconds": 141,
+      "source_image": "/assets/demo/source/claude-tool-loop/recording/raw/07-tool-result.png",
+      "narration": "Claude Code 接到这个调用后，负责权限检查和本地执行。下一条工具结果显示，返回内容是井号 hello agent，并且引用同一个 read hello 标识。远端模型真正看到文件内容，是在后续请求收到 tool result 的时候。",
+      "subtitle_cues": [
+        "Claude Code 负责权限检查与本地执行。",
+        "下一次请求带回 tool_result。",
+        "它引用同一个 read_hello 调用标识。",
+        "实际返回内容是 # hello-agent。",
+        "模型在后续请求中才看到文件内容。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.4, 43.2, 47.5, 6.0],
+          "label_box": [55.0, 37.9, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 6800,
+          "draft": "编号 1 先聚焦 Request 2 的工具结果和来源入口，放在框线右上方留白；切到右栏标签时与编号 2 交叉淡出，不遮结果名称或左侧会话。"
+        },
+        {
+          "type": "focus",
+          "focus": [84.2, 6.2, 5.3, 3.0],
+          "delay_ms": 6100,
+          "end_ms": 11700,
+          "draft": "tool_result 标签已有清楚文字，只用轻描边说明切换动作；编号 1 交接后消失，再让结果正文接管重点。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.4, 18.8, 36.6, 16.8],
+          "label_box": [59.8, 15.6, 2.6, 5.0],
+          "delay_ms": 11000,
+          "draft": "编号 2 最终聚焦 user/tool_result、read_hello 和 # hello-agent；标签轻描边消失，不遮角色、ID 或返回原文。"
+        }
+      ],
+      "transition": {
+        "type": "crossfade",
+        "duration_ms": 650
+      }
+    },
+    {
+      "id": "07-source-jump",
+      "title": "结果晚出现，也能一键追溯来源",
+      "start_seconds": 141,
+      "end_seconds": 162,
+      "source_image": "/assets/demo/source/claude-tool-loop/recording/raw/08-source-jump.png",
+      "narration": "PMA 已经把工具结果和最初调用关联起来。点击来源编号，就会跳回第一次请求的 tool use，并保留返回结果的入口。长会话里，即使结果晚了几轮，也不需要手工搜索调用标识。",
+      "subtitle_cues": [
+        "工具结果旁的“来源 #1”可以点击。",
+        "PMA 会跳回产生结果的 tool_use。",
+        "顶部仍保留“返回结果 #2”入口。",
+        "长会话不必手工搜索调用标识。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [58.3, 43.3, 2.7, 4.2],
+          "label_box": [55.7, 40.1, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 6800,
+          "draft": "编号 1 先标记中栏工具结果旁的来源 #1；点击完成后与编号 2 交叉淡出，不画跨栏长箭头。"
+        },
+        {
+          "type": "focus",
+          "focus": [62.4, 0.4, 36.6, 4.2],
+          "delay_ms": 6100,
+          "dim_ms": 10500,
+          "draft": "来源状态条已有完整文字，只用轻描边确认当前上下文；编号 1 消失；正文编号出现时轻描边保留但降低视觉权重。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.4, 18.9, 36.6, 19.0],
+          "label_box": [59.8, 15.7, 2.6, 5.0],
+          "delay_ms": 10500,
+          "draft": "编号 2 后出现并成为主重点，聚焦 Read、read_hello 与参数；顶部来源状态轻描边继续以次要状态保留。"
+        }
+      ],
+      "transition": {
+        "type": "crossfade",
+        "duration_ms": 650
+      }
+    },
+    {
+      "id": "08-protocol",
+      "title": "Anthropic Messages 怎样封装这次往返？",
+      "start_seconds": 162,
+      "end_seconds": 185,
+      "source_image": "/assets/demo/source/claude-tool-loop/recording/raw/09-protocol.png",
+      "narration": "协议视图保留 Anthropic Messages 的原生角色和顺序。先是用户消息，再是 assistant 文本和 tool use；Claude Code 执行后，把 tool result 放进后续 user message 的 content。模型收到这份新请求，才返回最终回答。",
+      "subtitle_cues": [
+        "协议视图保留 Anthropic 原生角色和顺序。",
+        "先是 user，再是 assistant/tool_use。",
+        "Claude Code 执行后，",
+        "把 tool_result 放进后续 user message。",
+        "模型收到新请求后才返回最终回答。"
+      ],
+      "overlays": [
+        {
+          "type": "focus",
+          "focus": [65.8, 6.2, 4.3, 3.0],
+          "delay_ms": 400,
+          "end_ms": 7000,
+          "draft": "协议视图标签已有清楚文字，只用轻描边说明页面来源；随后与正文编号交叉淡出，不遮右栏标题。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.4, 43.0, 36.6, 25.4],
+          "label_box": [59.8, 39.8, 2.6, 5.0],
+          "delay_ms": 6300,
+          "draft": "编号 1 聚焦上行输入顺序中的 user、assistant/tool_use 与 user/tool_result；标签轻描边消失，原生路径保持可读。"
+        }
+      ],
+      "transition": {
+        "type": "crossfade",
+        "duration_ms": 650
+      }
+    },
+    {
+      "id": "09-raw",
+      "title": "摘要有疑问，就回到完整请求",
+      "start_seconds": 185,
+      "end_seconds": 207,
+      "source_image": "/assets/demo/source/claude-tool-loop/recording/raw/10-raw-search.png",
+      "narration": "如果整理后的协议仍不足以解释问题，可以打开完整请求。Raw Inspector 保留原始请求头、body、模型参数、System、工具定义和消息；敏感请求头会显示脱敏原因，而不是把真实值录进素材。",
+      "subtitle_cues": [
+        "摘要不足时，打开“完整请求”。",
+        "Raw 保留 headers、body 和模型参数。",
+        "System、工具定义和消息也在这里。",
+        "敏感请求头只显示脱敏原因。"
+      ],
+      "overlays": [
+        {
+          "type": "focus",
+          "focus": [63.4, 6.2, 4.3, 3.0],
+          "delay_ms": 400,
+          "end_ms": 6800,
+          "draft": "完整请求标签已有清楚文字，只用轻描边说明 Raw Inspector 入口；随后与正文编号交叉淡出，不遮页面标题。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.4, 17.7, 36.6, 78.0],
+          "label_box": [59.8, 14.5, 2.6, 5.0],
+          "delay_ms": 6100,
+          "draft": "编号 1 聚焦完整请求树，覆盖已脱敏 headers 与 body 开头；标签轻描边消失，描边沿分栏边缘避免遮挡字段。"
+        }
+      ],
+      "transition": {
+        "type": "crossfade",
+        "duration_ms": 650
+      }
+    },
+    {
+      "id": "10-final",
+      "title": "最终回答是否真的有工具证据？",
+      "start_seconds": 207,
+      "end_seconds": 229,
+      "source_image": "/assets/demo/source/claude-tool-loop/recording/raw/11-final-response.png",
+      "narration": "最后点击模型回复的详情。第二次 Response 给出：项目名是 hello agent。现在我们不只看到了答案，还能沿时间线向前核对：它使用了哪一个工具、文件实际返回了什么、结果又怎样进入下一次模型请求。",
+      "subtitle_cues": [
+        "最后点击模型回复旁的“详情”。",
+        "第二次 Response 给出项目名。",
+        "现在可以向前核对所用工具，",
+        "也可以核对文件实际返回了什么。",
+        "答案不再只是无法解释的终端文本。"
+      ],
+      "overlays": [
+        {
+          "type": "click",
+          "click": [59.8, 50.7],
+          "delay_ms": 350,
+          "draft": "详情按钮位于中栏右缘，只在按钮中心播放一次短点击波纹；无需编号或长箭头，波纹约一秒后自动消失。"
+        },
+        {
+          "type": "focus",
+          "focus": [64.6, 6.2, 3.9, 3.0],
+          "delay_ms": 5800,
+          "end_ms": 11200,
+          "draft": "点击波纹消失后，只用轻描边标记右栏 Response 标签；随后与正文编号交叉淡出，不遮右栏标题。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.4, 21.1, 36.6, 17.2],
+          "label_box": [59.8, 17.9, 2.6, 5.0],
+          "delay_ms": 10500,
+          "draft": "编号 1 最终聚焦 assistant Response 与 hello-agent；标签轻描边消失，描边和字幕都不遮回答原文。"
+        }
+      ],
+      "transition": {
+        "type": "crossfade",
+        "duration_ms": 650
+      }
+    },
+    {
+      "id": "11-outro",
+      "title": "模型选择，Claude Code 执行，PMA 留下证据",
+      "start_seconds": 229,
+      "end_seconds": 245,
+      "source_image": null,
+      "card": {
+        "eyebrow": "一次工具闭环",
+        "headline": "模型选择，Claude Code 执行",
+        "steps": [
+          "tool_use",
+          "本地执行",
+          "tool_result",
+          "最终回答"
+        ],
+        "footer": "PMA 让请求、协议与 Raw 证据一手可达"
+      },
+      "narration": "记住这条边界：模型负责根据结构化上下文选择下一步；Claude Code 负责在本地执行和回传；PMA 让每一步都能回到请求、协议和 Raw 证据。下一支视频，我们再拆解 Skill 是怎样被发现和加载的。",
+      "subtitle_cues": [
+        "模型根据结构化上下文选择下一步。",
+        "Claude Code 负责本地执行和回传。",
+        "PMA 让每一步都能回到原始证据。",
+        "下一支视频继续拆解 Skill。"
+      ],
+      "transition": {
+        "type": "crossfade",
+        "duration_ms": 700
+      }
+    }
+  ]
+}

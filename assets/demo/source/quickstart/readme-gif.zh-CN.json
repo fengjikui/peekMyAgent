@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "title": "README 首屏：从用户请求追到原始协议与两级导航",
+  "source_directory": "assets/demo/source/quickstart/recording/review-1024",
+  "output": "assets/demo/quickstart-tool-loop.gif",
+  "resolution": [1024, 576],
+  "fade_ms": 600,
+  "fade_steps": 3,
+  "subtitle_safe_zone_top": 500,
+  "colors": 128,
+  "max_bytes": 8388608,
+  "privacy": "Only dual-viewport-reviewed frames from the deterministic fictional quickstart trace are used.",
+  "shots": [
+    {
+      "frame": "00-intro.jpg",
+      "hold_ms": 3500,
+      "purpose": "用一句话提出普通日志缺少上下文证据的问题"
+    },
+    {
+      "frame": "03-overview.jpg",
+      "hold_ms": 5000,
+      "purpose": "先展示一次完整工具闭环"
+    },
+    {
+      "frame": "04a-detail.jpg",
+      "hold_ms": 3000,
+      "purpose": "标出打开请求详情的真实入口"
+    },
+    {
+      "frame": "04c-system-tab.jpg",
+      "hold_ms": 3000,
+      "purpose": "编号 2 接管右栏 System 标签，补全操作顺序"
+    },
+    {
+      "frame": "04e-system-content.jpg",
+      "hold_ms": 5000,
+      "purpose": "查看模型实际收到的 System 指令"
+    },
+    {
+      "frame": "05a-result-source.jpg",
+      "hold_ms": 3000,
+      "purpose": "标出工具结果卡片与来源入口"
+    },
+    {
+      "frame": "05c-result-tab.jpg",
+      "hold_ms": 3000,
+      "purpose": "编号 2 接管右栏 tool_result 标签，补全操作顺序"
+    },
+    {
+      "frame": "05e-result-content.jpg",
+      "hold_ms": 5000,
+      "purpose": "查看真正回到模型的目录内容"
+    },
+    {
+      "frame": "06a-origin-link.jpg",
+      "hold_ms": 3500,
+      "purpose": "点击来源编号追溯原始调用"
+    },
+    {
+      "frame": "06c-origin-detail.jpg",
+      "hold_ms": 5500,
+      "purpose": "核对原始工具名、调用标识和参数"
+    },
+    {
+      "frame": "07b-response-tab.jpg",
+      "hold_ms": 3500,
+      "purpose": "编号 1 标出 Response 标签，说明最终证据入口"
+    },
+    {
+      "frame": "07d-final-response.jpg",
+      "hold_ms": 5500,
+      "purpose": "检查最终回答是否使用了工具证据"
+    },
+    {
+      "frame": "08a-protocol-tab.jpg",
+      "hold_ms": 3500,
+      "purpose": "标出进入协议视图的真实标签"
+    },
+    {
+      "frame": "08c-protocol-order.jpg",
+      "hold_ms": 7500,
+      "purpose": "慢速阅读 OpenAI Responses 原生交换顺序"
+    },
+    {
+      "frame": "09a-turn-rail.jpg",
+      "hold_ms": 4500,
+      "purpose": "先解释长会话中的 Turn Rail"
+    },
+    {
+      "frame": "09b-turn-and-request-rails.jpg",
+      "hold_ms": 6500,
+      "purpose": "保留并弱化 Turn Rail，再出现 Request Rail 形成两级导航"
+    },
+    {
+      "frame": "11-outro.jpg",
+      "hold_ms": 3500,
+      "purpose": "用请求、工具、协议三个动作收束"
+    }
+  ]
+}

@@ -36,6 +36,47 @@ for (const command of [
   assert.ok(checkWorkflow.includes(`run: ${command}`), `expected ${command} in the main integrity job`);
 }
 
+const releaseCheckJobMatch = checkWorkflow.match(
+  /\n  release-check:\n[\s\S]*?\n  documentation-impact:/,
+);
+assert(releaseCheckJobMatch, "release-check workflow must contain a release-check job");
+const releaseCheckJob = releaseCheckJobMatch[0];
+assert.match(releaseCheckJob, /fetch-depth:\s*0/,
+  "release-check matrix needs full history for demo freshness evidence SHAs");
+
+const mainIntegrityJobMatch = checkWorkflow.match(
+  /\n  main-integrity:\n[\s\S]*$/,
+);
+assert(mainIntegrityJobMatch, "release-check workflow must contain a main-integrity job");
+const mainIntegrityJob = mainIntegrityJobMatch[0];
+assert.match(mainIntegrityJob, /fetch-depth:\s*0/,
+  "main integrity needs full history for demo freshness evidence SHAs");
+
+const documentationJobMatch = checkWorkflow.match(
+  /\n  documentation-impact:\n[\s\S]*?\n  main-integrity:/,
+);
+assert(documentationJobMatch, "release-check workflow must contain a documentation-impact job");
+const documentationJob = documentationJobMatch[0];
+assert.match(documentationJob, /if:\s*github\.event_name == 'pull_request'/);
+assert.match(documentationJob, /name:\s*Documentation impact/);
+assert.match(documentationJob, /runs-on:\s*ubuntu-latest/);
+assert.match(documentationJob, /timeout-minutes:\s*5/);
+assert.match(documentationJob, /permissions:\s*\n\s+contents:\s*read/);
+assert.match(documentationJob, /BASE_SHA:\s*\$\{\{ github\.event\.pull_request\.base\.sha \}\}/);
+assert.match(documentationJob, /TARGET_SHA:\s*\$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
+assert.match(documentationJob, /ref:\s*\$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
+assert.match(documentationJob, /fetch-depth:\s*0/);
+assert.match(documentationJob, /persist-credentials:\s*false/);
+assert.match(documentationJob, /documentation-consistency-audit\.mjs/);
+assert.match(documentationJob, /--base "\$BASE_SHA"/);
+assert.match(documentationJob, /--target "\$TARGET_SHA"/);
+assert.match(documentationJob, /--json/);
+assert.match(documentationJob, /documentation-impact-summary\.mjs/);
+assert.match(documentationJob, /--output "\$GITHUB_STEP_SUMMARY"/);
+assert.match(documentationJob, /--expected-base "\$BASE_SHA"/);
+assert.match(documentationJob, /--expected-target "\$TARGET_SHA"/);
+assert.doesNotMatch(documentationJob, /issues:\s*write|pull-requests:\s*write|secrets\./);
+
 for (const [os, command] of requiredPairs) {
   assert.ok(checkWorkflow.includes(`os: ${os}`), `expected ${os} in release-check workflow`);
   assert.ok(checkWorkflow.includes(`command: ${command}`), `expected ${command} in release-check workflow`);

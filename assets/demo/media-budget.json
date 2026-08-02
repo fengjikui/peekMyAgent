@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "scope": "Files under assets/demo that are tracked or eligible to be tracked by Git",
+  "max_total_media_bytes": 83886080,
+  "max_source_chapter_media_bytes": 12582912,
+  "max_still_bytes": 1572864,
+  "max_gif_bytes": 8388608,
+  "warn_at_ratio": 0.85,
+  "still_extensions": [".png", ".jpg", ".jpeg", ".webp"],
+  "gif_extensions": [".gif"],
+  "forbidden_git_extensions": [".mp4", ".mov", ".mkv", ".webm", ".m4a", ".mp3", ".wav", ".aac", ".flac"],
+  "policy": [
+    "Keep deterministic source frames, reviewed stills, compact GIFs, timelines, subtitles, manifests, and generation scripts in the main repository when they fit this budget.",
+    "Keep rendered video, independent voice tracks, editor caches, and disposable intermediate frames outside Git; publish approved videos through Releases or object storage.",
+    "When the budget is exceeded, remove reproducible duplicates or move authoring-only material to a dedicated media workspace instead of increasing the limit without review."
+  ]
+}

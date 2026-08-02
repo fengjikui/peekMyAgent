@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "title": "上下文压缩究竟改变了什么",
+  "language": "zh-CN",
+  "chapter_status": "real_cli_storyboard_review_and_picture_master_technical_validation_v0_2",
+  "product_sha": "674222577f415c1b2775acefd337844ea6efd74c",
+  "source": {
+    "generator": "scripts/claude-compact-real-cli-probe.mjs",
+    "harness": "Claude Code 2.1.220",
+    "harness_execution": "real installed CLI launched through PMA exact Capture Proxy",
+    "upstream": "deterministic local Anthropic Messages SSE fixture",
+    "workspace": "/private/tmp/pma-claude-compact-demo/public-project",
+    "protocol": "Anthropic Messages",
+    "turns": 4,
+    "requests": 5,
+    "compact_request": 4,
+    "post_compact_request": 5,
+    "external_requests": false,
+    "real_credentials": false,
+    "raw_capture": "tmp/claude-compact-real-cli; local and Git-ignored"
+  },
+  "teaching_contract": {
+    "audiences": [
+      "第一次想理解 Claude Code 长会话的用户",
+      "排查上下文变化和规则丢失的 Harness 使用者",
+      "开发自有 Agent 并核对 compact 请求形态的工程师"
+    ],
+    "question": "执行 /compact 后，下一次模型请求中的旧历史、结构化摘要、当前输入和项目规则分别发生了什么？",
+    "takeaway": "Claude Code 发起独立压缩请求生成结构化摘要；后续请求不再逐条携带全部早期历史，而以摘要接续，并重新注入适用的项目规则。PMA 同时保留压缩前的 Capture，让用户可以比较 Harness 实际发送的前后两次请求。",
+    "explicit_limits": [
+      "The real component under test is Claude Code CLI and its request assembly; the model replies come from a deterministic local fake upstream.",
+      "This trace demonstrates manual /compact, not automatic compaction near the context limit.",
+      "A shorter History, token drop, or cache statistic alone is not sufficient evidence of compaction.",
+      "The root CLAUDE.md appears in the post-compact request as a system-reminder classified by PMA as Harness injection; it is not the top-level Anthropic system array.",
+      "PMA observes compaction but does not trigger it. The PMA maintenance command pma compact is unrelated to Claude Code /compact.",
+      "The summary preserves selected task state, not a byte-for-byte copy of every earlier detail."
+    ]
+  },
+  "experiment": {
+    "public_project": "Blue Lantern",
+    "pre_compact_turns": [
+      "记住公开演示项目名",
+      "记录已经核对 README.md",
+      "记录已经核对 docs/guide.md 和待办"
+    ],
+    "manual_command": "/compact focus on the project goal, verified files, and pending checkpoint",
+    "post_compact_question": "压缩后检查点：项目名、已核对文件和待办分别是什么？",
+    "root_rule_marker": "ROOT_RULE_RELOADED",
+    "hook_events": [
+      "SessionStart with source startup",
+      "PreCompact with trigger manual and the custom compact instructions",
+      "SessionStart with source compact"
+    ]
+  },
+  "viewer": {
+    "viewport_css_pixels": { "width": 2048, "height": 1056 },
+    "theme": "Claude",
+    "ui_language": "zh-CN",
+    "capture_mode": "Codex in-app Browser",
+    "browser_layout": "full three-pane layout",
+    "black_frame": false
+  },
+  "facts": [
+    "The real CLI produced five Anthropic Messages requests across four PMA user turns.",
+    "Request 4 is labeled 上下文压缩 (/compact) inside Turn 3 instead of becoming a separate user Turn.",
+    "Request 4 Harness contains a harness_compact item at messages[5] with the manual focus instructions.",
+    "Request 4 response is a structured summary covering Blue Lantern, README.md, docs/guide.md, and the pending comparison.",
+    "Request 5 History no longer carries the first two normal user/assistant pairs verbatim; it starts with a continuation summary, retains the most recent assistant message, then includes the local compact command and current question.",
+    "Request 5 Harness contains the root CLAUDE.md as messages[0].system-reminder[0].",
+    "The deterministic Request 5 response includes ROOT_RULE_RELOADED, proving the fixture received and used the re-injected rule.",
+    "PMA still displays Requests 1 through 4 after compaction because they are preserved capture evidence, not the context being resent in Request 5."
+  ],
+  "raw_frames": [
+    "recording/raw/01-overview.jpg",
+    "recording/raw/02-pre-compact-history.jpg",
+    "recording/raw/03-compact-harness-prompt.jpg",
+    "recording/raw/04-post-compact-history.jpg",
+    "recording/raw/05-post-compact-rule-reload.jpg"
+  ],
+  "review_frames": {
+    "1920x1080": "recording/review-1920/; 15 named JPEG frames declared by timeline review_points",
+    "1920x1080_contact_sheet": "recording/review-1920/contact-sheet.jpg",
+    "1024x576": "recording/review-1024/; 15 named JPEG frames declared by timeline review_points",
+    "1024x576_contact_sheet": "recording/review-1024/contact-sheet.jpg"
+  },
+  "production": {
+    "narration": "assets/demo/source/claude-compact/narration.zh-CN.md",
+    "timeline": "assets/demo/source/claude-compact/video/timeline.zh-CN.json",
+    "subtitles": "assets/demo/video/pma-claude-compact.zh-CN.srt",
+    "storyboard_player": "assets/demo/storyboard/index.html",
+    "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/claude-compact/pma-claude-compact-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "the technical master at 28d66330bfa44edb9b5521158af81fc21b109fc1 is historical reference only; the shared launch-style title-card template requires re-export after owner story review",
+    "repository_policy": "The five public real-CLI Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, raw request log, and audio remain ignored.",
+    "audio": "not_started; handled by the separate voice-tuning workflow"
+  },
+  "official_references": [
+    "https://code.claude.com/docs/en/how-claude-code-works",
+    "https://code.claude.com/docs/en/context-window",
+    "https://code.claude.com/docs/en/sessions",
+    "https://code.claude.com/docs/en/hooks",
+    "https://code.claude.com/docs/en/commands"
+  ],
+  "privacy": {
+    "paths": "Only generic /private/tmp paths for a disposable public demo workspace; no user home directory appears.",
+    "system_prompt": "The raw capture remains local and ignored. Published frames focus on PMA classifications and a fictional project rule.",
+    "model_output": "Deterministic public fixture text only.",
+    "headers": "Authorization and session headers are visibly redacted by PMA.",
+    "prohibited": ["API keys", "provider credentials", "user prompts", "user source", "home-directory paths", "real captures"]
+  },
+  "visual_review": {
+    "captured_at": "2026-08-02",
+    "raw_frame_result": "passed for composition and readability at 2048x1056",
+    "storyboard_result": "passed 15 progressive states at 1920x1080 and the same 15 states at 1024x576",
+    "review_frames": {
+      "desktop": "recording/review-1920/; 15 JPEG frames at 1920x1080 plus contact-sheet.jpg",
+      "compact": "recording/review-1024/; 15 JPEG frames at 1024x576 plus contact-sheet.jpg",
+      "contract": "video/timeline.zh-CN.json review_points"
+    },
+    "notes": [
+      "The overview focus was narrowed to the Request 4 label and compact prompt so the subtitle does not cover the teaching target.",
+      "The compact Harness arrow and text pill were removed after review showed that they covered adjacent evidence without improving direction.",
+      "Right-pane badges were moved into the divider whitespace and no longer cover section headings.",
+      "The post-compact History subtitle is temporarily raised to 10.5 percent so the current question remains readable.",
+      "Browser screenshots were stored with the .jpg extension matching their actual JPEG byte format.",
+      "The earlier nine-frame review only preserved one completed state per scene. The v0.2 review adds separate click, first-focus, and comparison states so the annotation order can be reproduced instead of inferred from a fully annotated frame.",
+      "In the four comparison scenes, marker 1 appears first and becomes visibly secondary through dim_ms when marker 2 appears; both remain only because the explanation requires a level, composition, cause, or evidence comparison."
+    ],
+    "annotation_policy": [
+      "Numbered annotations appear in teaching order, never all at scene entry.",
+      "A previous marker remains only when the next explanation depends on a visible comparison or causal relation.",
+      "Source-to-detail transitions use a short click pulse or crossfade instead of keeping redundant markers.",
+      "No routed arrow remains in v0.2; click pulses, focus outlines, and numbered badges already establish every relationship without crossing readable evidence."
+    ],
+    "video_master": {
+      "status": "historical_pre_launch_style_reference_only_reexport_required",
+      "source_commit": "28d66330bfa44edb9b5521158af81fc21b109fc1",
+      "source_worktree_dirty": false,
+      "duration_seconds": 242,
+      "resolution": [1920, 1080],
+      "fps": 30,
+      "encoded_frames": 7260,
+      "browser_frames_received": 1100,
+      "browser_final_absolute_ms": 242000,
+      "maximum_encoder_lateness_ms": 86.622,
+      "bytes": 7619951,
+      "streams": "H.264 video only; no audio stream, subtitle stream, or webpage subtitle layer",
+      "black_frames": 0,
+      "review_points_checked": 15,
+      "review_frame_mean_absolute_difference": "5.09/255",
+      "review_frame_maximum_absolute_difference": "7.87/255 at 08-outro.jpg; the unannotated title card remained correctly composed and the difference is rendering variance rather than annotation displacement",
+      "repository_policy": "The MP4, render manifest, extracted frames, and contact sheet remain under Git-ignored tmp/storyboard-video/claude-compact/."
+    }
+  },
+  "publication_gate": {
+    "status": "real_cli_storyboard_dual_viewport_review_and_picture_master_technical_validation_complete_owner_content_review_pending",
+    "remaining": [
+      "Freeze narration only after the owner reviews the Chinese story.",
+      "Do not publish the ignored raw request log or generated video from the main repository."
+    ]
+  }
+}

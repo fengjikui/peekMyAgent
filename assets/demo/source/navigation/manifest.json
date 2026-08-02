@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "title": "中文快速上手：Turn / Request 两级导航",
+  "viewer_source_commit": "fba47b2623224f9998437ce14fb03390d489dc9f",
+  "source_type": "deterministic_synthetic_openai_responses",
+  "workspace": "/demo/navigation-lab",
+  "conversation_id": "navigation-long-trace",
+  "viewer": {
+    "viewport_css_pixels": {
+      "width": 2048,
+      "height": 1056
+    },
+    "theme": "codex",
+    "ui_language": "zh-CN",
+    "capture_method": "Codex in-app Browser controlling the live PMA Viewer"
+  },
+  "scenario": {
+    "turn_count": 6,
+    "request_count": 13,
+    "requests_per_turn": [1, 1, 3, 2, 5, 1],
+    "request_rail_turn": 5,
+    "request_rail_request_indexes": [8, 9, 10, 11, 12],
+    "tools": ["list_directory", "read_file"],
+    "external_requests": false
+  },
+  "privacy": {
+    "uses_user_capture": false,
+    "uses_user_files": false,
+    "uses_real_api_key": false,
+    "uses_real_local_path": false,
+    "notes": "All turns, requests, paths, tool results and model responses are deterministic public demo data."
+  },
+  "generator": {
+    "trace": "node scripts/readme-media-demo.mjs --port 43112",
+    "annotations": "python3 scripts/build-user-guide-gifs.py"
+  },
+  "published_gif": {
+    "file": "assets/demo/two-level-navigation.gif",
+    "viewport": {
+      "width": 1024,
+      "height": 576
+    },
+    "source_frames": [
+      "assets/demo/source/quickstart/recording/review-1024/09a-turn-rail.jpg",
+      "assets/demo/source/quickstart/recording/review-1024/09b-turn-and-request-rails.jpg"
+    ],
+    "durations_ms": [6500, 7500],
+    "notes": "The deterministic 6 Turn / 13 Request trace remains the scenario evidence; the published GIF reuses the latest reviewed quickstart frames for the current 16:9 Viewer and annotation grammar."
+  },
+  "frames": [
+    {
+      "file": "two-level-navigation-raw.png",
+      "focus": "Turn 5 is active; the global Turn Rail and five-request local Request Rail are visible together"
+    }
+  ]
+}

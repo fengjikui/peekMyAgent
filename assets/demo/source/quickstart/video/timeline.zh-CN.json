@@ -1,0 +1,399 @@
+{
+  "version": 1,
+  "title": "peekMyAgent 五分钟快速上手：第一次看清工具闭环",
+  "resolution": [1920, 1080],
+  "source_viewport": [1920, 1080],
+  "fps": 30,
+  "duration_seconds": 255,
+  "theme": "codex",
+  "subtitle_layout": {
+    "position": "bottom-center",
+    "bottom_percent": 5.2,
+    "max_width_percent": 72,
+    "max_lines": 2,
+    "background": "none",
+    "outline": "subtle"
+  },
+  "review_points": [
+    { "name": "00-intro", "scene": 0, "at_ms": 2000 },
+    { "name": "01-install", "scene": 1, "at_ms": 5000 },
+    { "name": "02-launch", "scene": 2, "at_ms": 6000 },
+    { "name": "03-overview", "scene": 3, "at_ms": 4000 },
+    { "name": "04a-detail", "scene": 4, "at_ms": 2600 },
+    { "name": "04b-detail-system-crossfade", "scene": 4, "at_ms": 5900 },
+    { "name": "04c-system-tab", "scene": 4, "at_ms": 7600 },
+    { "name": "04d-system-content-crossfade", "scene": 4, "at_ms": 10700 },
+    { "name": "04e-system-content", "scene": 4, "at_ms": 12800 },
+    { "name": "05a-result-source", "scene": 5, "at_ms": 2600 },
+    { "name": "05b-result-tab-crossfade", "scene": 5, "at_ms": 5900 },
+    { "name": "05c-result-tab", "scene": 5, "at_ms": 7600 },
+    { "name": "05d-result-content-crossfade", "scene": 5, "at_ms": 10700 },
+    { "name": "05e-result-content", "scene": 5, "at_ms": 12800 },
+    { "name": "06a-origin-link", "scene": 6, "at_ms": 3000 },
+    { "name": "06b-origin-crossfade", "scene": 6, "at_ms": 7600 },
+    { "name": "06c-origin-detail", "scene": 6, "at_ms": 9800 },
+    { "name": "07a-final-click", "scene": 7, "at_ms": 900 },
+    { "name": "07b-response-tab", "scene": 7, "at_ms": 7200 },
+    { "name": "07c-response-crossfade", "scene": 7, "at_ms": 10100 },
+    { "name": "07d-final-response", "scene": 7, "at_ms": 12200 },
+    { "name": "08a-protocol-tab", "scene": 8, "at_ms": 2600 },
+    { "name": "08b-protocol-crossfade", "scene": 8, "at_ms": 7400 },
+    { "name": "08c-protocol-order", "scene": 8, "at_ms": 9800 },
+    { "name": "09a-turn-rail", "scene": 9, "at_ms": 3200 },
+    { "name": "09b-turn-and-request-rails", "scene": 9, "at_ms": 11200 },
+    { "name": "10-cleanup", "scene": 10, "at_ms": 7000 },
+    { "name": "11-outro", "scene": 11, "at_ms": 3000 }
+  ],
+  "scenes": [
+    {
+      "id": "00-intro",
+      "title": "普通日志少了什么？",
+      "start_seconds": 0,
+      "end_seconds": 18,
+      "source_image": null,
+      "card": {
+        "eyebrow": "peekMyAgent · 五分钟快速上手",
+        "headline": "从普通日志回到完整证据链",
+        "steps": ["模型请求", "工具调用", "结果回传", "最终回答"],
+        "footer": "PMA 不替代 Agent · 它把每次模型往返串起来"
+      },
+      "narration": "普通日志只会告诉你 Agent 调用了工具。PMA 不替代 Agent；它把模型收到的上下文、工具调用、结果回传和原始协议串成一条可追溯证据链。接下来只用一个查看目录、读取 README 的最小任务，走完第一次完整复盘。",
+      "subtitle_cues": [
+        "普通日志只告诉你：Agent 调用了工具。",
+        "PMA 把上下文、工具交换和协议串成证据链。",
+        "示例只需查看目录、读取 README。",
+        "用四分钟走完第一次完整复盘。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 700 }
+    },
+    {
+      "id": "01-install-open",
+      "title": "安装并打开本地 Viewer",
+      "start_seconds": 18,
+      "end_seconds": 37,
+      "source_image": null,
+      "card": {
+        "eyebrow": "步骤 1 · 安装与检查",
+        "headline": "先打开本地 Viewer",
+        "steps": ["Node.js ≥ 24", "pma doctor", "pma open"],
+        "footer": "安装：npm install --global peekmyagent@next"
+      },
+      "narration": "先确认 Node.js 二十四或更新版本，然后安装公开预览版。pma doctor 检查命令、路径和本地服务，pma open 启动并打开只监听环回地址的 Viewer。PMA 的页面不应该直接暴露到公网。",
+      "subtitle_cues": [
+        "先确认 Node.js 24 或更新版本。",
+        "安装 peekMyAgent 的公开预览版。",
+        "pma doctor 检查本地环境。",
+        "pma open 打开环回地址上的 Viewer。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "02-launch-agent",
+      "title": "在安全目录启动一个 Agent",
+      "start_seconds": 37,
+      "end_seconds": 58,
+      "source_image": null,
+      "card": {
+        "eyebrow": "步骤 2 · 选择一个 Harness",
+        "headline": "在非敏感测试目录中启动",
+        "steps": ["准备虚构项目", "pma codex", "发送观察任务"],
+        "footer": "完全权限演示：pma codex --dangerously-bypass-approvals-and-sandbox"
+      },
+      "narration": "准备一个只放虚构内容的测试目录，再选择你正在使用的一个 Harness。这里以 Codex CLI 为例。完全权限参数会跳过 Codex 的审批与 sandbox，只为了让公开演示不中断；它不是 PMA 的提权开关，也绝不能直接用于不信任的仓库。",
+      "subtitle_cues": [
+        "先准备只含虚构内容的测试目录。",
+        "然后选择一种 Harness；这里用 Codex CLI。",
+        "完全权限参数属于 Codex，",
+        "只可用于可信、外部隔离的环境。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "03-complete-loop",
+      "title": "先看完整工具闭环",
+      "start_seconds": 58,
+      "end_seconds": 82,
+      "source_image": "/assets/demo/source/quickstart/quickstart-overview-raw.png",
+      "narration": "任务没有业务门槛：查看目录，读取 README 的项目目标，最后用一句话说明用途。确定性轨迹一共有三次模型请求。PMA 的机制流程把它整理成：用户请求、列目录、目录结果回传、读文件、文件结果回传和最终回答。先看完整链，再进入细节。",
+      "subtitle_cues": [
+        "任务只要求查看目录并读取 README。",
+        "确定性轨迹一共有三次模型请求。",
+        "PMA 把调用、结果和回答整理成完整链。",
+        "先看全局，再逐段打开证据。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.4, 13.3, 47.6, 8.2],
+          "label_box": [11.1, 10.4, 2.6, 5.0],
+          "delay_ms": 600,
+          "draft": "编号 1 只聚焦 Turn 1 的机制流程；放在中栏左上外缘，不加箭头，不遮用户请求或流程文字。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "04-system-evidence",
+      "title": "模型一开始收到了什么",
+      "start_seconds": 82,
+      "end_seconds": 106,
+      "source_image": "/assets/demo/source/quickstart/quickstart-system-raw.png",
+      "narration": "点击第一条请求旁的详情，右栏由这里打开。再切到 System，可以看到该次请求真正携带的指令，而不是 PMA 根据最终行为猜出的总结。同一排还可以继续查看 Developer、Tools、History、Message 和 Metadata。",
+      "subtitle_cues": [
+        "先点击第一条请求旁的“详情”。",
+        "右栏由这个动作打开。",
+        "再切到 System，",
+        "查看这次请求真正携带的指令。",
+        "同一排还能查看 Tools、History 和 Metadata。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [58.5, 22.0, 2.4, 3.8],
+          "label_box": [56.0, 18.8, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 6300,
+          "draft": "先标记 Request 1 用户消息旁的详情按钮，说明右栏来源；讲完后与编号 2 交叉淡化约 0.7 秒。"
+        },
+        {
+          "type": "focus",
+          "focus": [68.5, 6.5, 2.9, 3.0],
+          "delay_ms": 5600,
+          "end_ms": 11100,
+          "draft": "System 标签已有清楚名称，只用轻描边接管焦点；编号 1 在交接后消失，避免圆形编号遮挡相邻标签。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.5, 18.5, 35.7, 16.5],
+          "label_box": [59.0, 15.3, 2.6, 5.0],
+          "delay_ms": 10400,
+          "draft": "标签描边交叉淡出后，编号 2 聚焦 System 的实际 body_instructions；编号贴在分栏左侧留白，不遮字段名和正文。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "05-tool-result",
+      "title": "工具结果怎样回到模型",
+      "start_seconds": 106,
+      "end_seconds": 129,
+      "source_image": "/assets/demo/source/quickstart/quickstart-tool-result-raw.png",
+      "narration": "现在点击第二次请求里的 list_directory 工具结果，再选择右栏的 tool result。这里保留实际回传的目录清单和调用标识。工具是在本地 Harness 中执行的；下一次模型请求收到的是 Harness 封装后的结果，不是模型自己读取了磁盘。",
+      "subtitle_cues": [
+        "点击 Request 2 的 list_directory 结果。",
+        "再查看右栏的 tool_result。",
+        "这里保留实际目录清单和调用标识。",
+        "Harness 执行工具，再把结果发回模型。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [13.4, 50.0, 47.6, 7.2],
+          "label_box": [11.1, 47.0, 2.6, 5.0],
+          "delay_ms": 400,
+          "end_ms": 6300,
+          "draft": "先聚焦中栏 Request 2 的 list_directory 工具结果和来源链接；不加箭头；框线不能误落到上一行工具调用。"
+        },
+        {
+          "type": "focus",
+          "focus": [89.0, 6.5, 4.0, 3.0],
+          "delay_ms": 5600,
+          "end_ms": 11100,
+          "draft": "tool_result 标签已有清楚名称，只用轻描边接管焦点；编号 1 交接后消失，避免遮挡 Metadata。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.6, 19.2, 35.6, 20.5],
+          "label_box": [59.0, 16.0, 2.6, 5.0],
+          "delay_ms": 10400,
+          "draft": "标签描边交叉淡出后，编号 2 聚焦右栏调用标识和目录清单；编号放在分栏左侧留白，不遮 README.md 或其他返回内容。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "06-origin-navigation",
+      "title": "从结果返回来源调用",
+      "start_seconds": 129,
+      "end_seconds": 151,
+      "source_image": "/assets/demo/source/quickstart/quickstart-tool-origin-raw.png",
+      "narration": "结果旁的来源一不是装饰。点击后，PMA 跳回产生这份结果的 list_directory 调用，并在顶部提示当前正在查看来源。右栏显示工具名、调用标识和参数；返回结果二可以回到刚才的结果。长轨迹里不必手工来回翻找。",
+      "subtitle_cues": [
+        "点击工具结果旁的“来源 #1”。",
+        "PMA 跳回产生结果的工具调用。",
+        "右栏显示工具名、调用标识和参数。",
+        "“返回结果 #2”可以回到刚才的位置。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [58.2, 43.6, 2.8, 4.0],
+          "label_box": [55.6, 40.5, 2.6, 5.0],
+          "delay_ms": 450,
+          "end_ms": 8200,
+          "draft": "先标记中栏 Request 2 的来源 #1，证明点击入口；不加箭头；讲完点击后与编号 2 交叉淡化。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [63.5, 6.2, 35.8, 30.2],
+          "label_box": [59.0, 10.2, 2.6, 5.0],
+          "delay_ms": 7500,
+          "draft": "编号 2 聚焦右栏来源提示、返回按钮和 function_call 参数；编号 1 在交接后退出，编号 2 留在分栏左侧留白，不遮右栏标题。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "07-final-evidence",
+      "title": "最终回答是否真的有证据",
+      "start_seconds": 151,
+      "end_seconds": 170,
+      "source_image": "/assets/demo/source/quickstart/quickstart-final-raw.png",
+      "narration": "最后点击最终回复旁的详情，再看 Response。回答说这个项目用于演示 Agent 查看目录、读取文档并依据工具结果作答。现在可以沿同一条时间线核对：这个结论是否真的来自 README 的工具结果。",
+      "subtitle_cues": [
+        "点击最终回复旁的“详情”。",
+        "再查看右栏的 Response。",
+        "最终结论是否来自 README 工具结果？",
+        "PMA 提供证据，让你自己判断。"
+      ],
+      "overlays": [
+        {
+          "type": "click",
+          "click": [59.8, 75.5],
+          "delay_ms": 350,
+          "draft": "详情按钮靠近底部字幕，因此不用编号和长框；只在按钮中心出现一次短点击波纹，约一秒后自行消失。"
+        },
+        {
+          "type": "focus",
+          "focus": [64.8, 6.3, 3.1, 3.0],
+          "delay_ms": 6300,
+          "end_ms": 10400,
+          "draft": "点击波纹消失后，只用轻描边标记已有名称的 Response 标签；不加圆形编号遮挡相邻标签。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [63.6, 25.5, 35.5, 27.2],
+          "label_box": [59.6, 22.3, 2.6, 5.0],
+          "delay_ms": 9700,
+          "draft": "Response 标签描边交叉淡出后，编号 1 聚焦右栏 thinking 与 output_text；编号不遮正文，字幕保持底部居中。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "08-protocol",
+      "title": "摘要不够时回到协议",
+      "start_seconds": 170,
+      "end_seconds": 196,
+      "source_image": "/assets/demo/source/quickstart/quickstart-protocol-raw.png",
+      "narration": "需要精确字段时，切到协议视图。这里明确显示 OpenAI Responses、模型名称、instructions、工具声明，以及上行消息、工具调用和工具结果的原生顺序。摘要帮助阅读；协议视图和完整请求负责让你核对 Harness 有没有漏传、改写或排错位置。",
+      "subtitle_cues": [
+        "需要精确字段时，切到“协议视图”。",
+        "这里显示 OpenAI Responses 和模型名称。",
+        "工具调用与结果按原生顺序排列。",
+        "摘要帮助阅读，协议负责核对。"
+      ],
+      "overlays": [
+        {
+          "type": "focus",
+          "focus": [65.5, 6.4, 2.7, 3.0],
+          "delay_ms": 400,
+          "end_ms": 8000,
+          "draft": "协议视图标签已有清楚名称，只用轻描边说明页面来源；不加圆形编号遮挡完整请求或 System。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [63.6, 14.0, 35.6, 68.0],
+          "label_box": [59.0, 11.0, 2.6, 5.0],
+          "delay_ms": 7300,
+          "draft": "标签描边交叉淡出后，编号 1 聚焦 provider、模型、工具和上行原生顺序；编号留在分栏左侧，不遮字段。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "09-two-level-navigation",
+      "title": "长会话为什么需要两级导航",
+      "start_seconds": 196,
+      "end_seconds": 221,
+      "source_image": "/assets/demo/source/navigation/two-level-navigation-raw.png",
+      "narration": "真实任务很快就会变长。右侧竖向 Turn Rail 先定位用户任务进行到哪一轮；当当前 Turn 至少包含五次主线 Request 时，中栏顶部出现 Request Rail，继续定位这一轮内部的模型往返。推荐顺序是先选 Turn，再选 Request。",
+      "subtitle_cues": [
+        "长会话先用 Turn Rail 定位用户任务。",
+        "当前 Turn 至少有五次主线 Request 时，",
+        "顶部会出现 Request Rail。",
+        "推荐顺序：先选 Turn，再选 Request。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [61.5, 12.0, 1.2, 10.5],
+          "label_box": [59.0, 9.0, 2.6, 5.0],
+          "delay_ms": 500,
+          "dim_ms": 10000,
+          "draft": "编号 1 先标记中栏右缘的竖向 Turn Rail；后面需要与 Request Rail 同屏比较，因此保留到镜头结束并退为次要。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [13.5, 7.0, 47.3, 5.0],
+          "label_box": [11.0, 4.1, 2.6, 5.0],
+          "delay_ms": 10000,
+          "draft": "编号 2 后出现，聚焦中栏顶部 Request Rail；编号 1 保留用于层级对照，不加跨区箭头，不遮请求位置文字。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "10-stop-cleanup",
+      "title": "停止与清理不是一回事",
+      "start_seconds": 221,
+      "end_seconds": 242,
+      "source_image": null,
+      "card": {
+        "eyebrow": "步骤 3 · 安全收尾",
+        "headline": "先停止，再决定是否删除",
+        "steps": ["退出 Agent", "pma shutdown", "确认后再 clear"],
+        "footer": "永久清空所有 Trace：pma clear --all-sessions"
+      },
+      "narration": "退出被 PMA 启动的 Agent 后，当前 watch 会停止，已经捕获的 Trace 仍然保留。pma shutdown 只停止本地 dashboard 服务，不删除历史。只有确认所有会话都不再需要时，才执行 pma clear --all-sessions；这是永久清空操作。",
+      "subtitle_cues": [
+        "退出 Agent 后，当前 watch 会停止。",
+        "已经捕获的 Trace 仍然保留。",
+        "pma shutdown 不会删除历史。",
+        "clear --all-sessions 会永久清空全部会话。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "11-outro",
+      "title": "第一次闭环已经完成",
+      "start_seconds": 242,
+      "end_seconds": 255,
+      "source_image": null,
+      "card": {
+        "eyebrow": "第一次闭环完成",
+        "headline": "从 Agent 行为回到模型证据",
+        "steps": ["找到请求", "追踪工具", "核对协议"],
+        "footer": "下一步：Skill、子 Agent、上下文变化与自研 Harness"
+      },
+      "narration": "现在你已经完成第一次闭环：启动原 Agent，在 PMA 中找到请求，追踪工具结果，再回到协议证据。下一步可以分别学习工具迟到回传、Skill、子 Agent、上下文变化和自研 Harness 接入。",
+      "subtitle_cues": [
+        "你已经完成第一次 PMA 复盘。",
+        "找到请求，追踪工具，再核对协议。",
+        "下一步再进入更复杂的 Agent 机制。"
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    }
+  ]
+}

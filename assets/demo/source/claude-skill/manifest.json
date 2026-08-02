@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "title": "Skill 怎样被发现和加载",
+  "language": "zh-CN",
+  "chapter_status": "real_cli_trace_story_narration_storyboard_dual_viewport_review_and_picture_master_technical_validation_v0_3",
+  "product_sha": "674222577f415c1b2775acefd337844ea6efd74c",
+  "source": {
+    "generator": "scripts/claude-skill-real-cli-probe.mjs",
+    "harness": "Claude Code 2.1.220",
+    "harness_execution": "real installed CLI launched through PMA exact Capture Proxy",
+    "upstream": "deterministic local Anthropic Messages SSE fixture",
+    "workspace": "/private/tmp/pma-claude-skill-demo/public-project",
+    "protocol": "Anthropic Messages",
+    "turns": 1,
+    "requests": 3,
+    "main_requests": 2,
+    "internal_requests": 1,
+    "external_requests": false,
+    "real_credentials": false,
+    "raw_capture": "tmp/claude-skill-real-cli; local and Git-ignored"
+  },
+  "teaching_contract": {
+    "audiences": [
+      "第一次想知道 Claude Code Skill 与普通工具有何区别的用户",
+      "需要核对 Skill 发现、加载和后续工具行为的 Harness 使用者",
+      "开发自有 Agent 并检查 Anthropic tool_use、tool_result 与附加 user text 顺序的工程师"
+    ],
+    "question": "Skill 是一个新工具，还是从第一轮开始就完整占用上下文的一大段提示词？",
+    "takeaway": "Claude Code 先在 system 角色的可用 Skill 清单里提供名称和 description，同时声明一个通用 Skill 工具。模型调用 Skill 后，下一次请求在同一条 user message 中携带加载回执和完整 Skill 正文；正文再指导模型调用 Read。PMA 用时间线、System、Tools、Raw 与协议视图把这四层证据关联起来。",
+    "explicit_limits": [
+      "The user explicitly requests project-summary, so the trace does not prove autonomous Skill selection.",
+      "The real component under test is Claude Code CLI and its request assembly; model replies come from a deterministic local fake upstream.",
+      "The trace proves the message shape observed in Claude Code 2.1.220, not an eternal wire contract for later versions, compaction, or forked Skill execution.",
+      "The Skill body does not itself read files; the later Read tool call is separate evidence.",
+      "PMA classifies and links the captured exchange but does not discover, load, or execute the Skill itself."
+    ]
+  },
+  "experiment": {
+    "public_project": "Blue Lantern",
+    "prompt": "请使用 project-summary Skill，总结这个公开演示项目。",
+    "skill_location": ".claude/skills/project-summary/SKILL.md",
+    "tool_sequence": [
+      "Skill(project-summary)",
+      "Read(README.md)",
+      "final three-bullet response"
+    ],
+    "hook_events": {
+      "SessionStart": 1,
+      "PreToolUse:Skill": 1,
+      "PostToolUse:Skill": 1,
+      "PreToolUse:Read": 1,
+      "PostToolUse:Read": 1
+    },
+    "file_integrity": {
+      "README.md_sha256": "2e435367309fd96922810884654c840d818788040419cc49d3323e3cc766c515",
+      "SKILL.md_sha256": "c4bf2b472ca476293ed021bf48558e59bcb8c36ac44dde8dbbbd7572aed93da3"
+    }
+  },
+  "viewer": {
+    "viewport_css_pixels": { "width": 2048, "height": 1056 },
+    "theme": "Claude",
+    "ui_language": "zh-CN",
+    "capture_mode": "Codex in-app Browser",
+    "browser_layout": "full three-pane layout",
+    "black_frame": false
+  },
+  "facts": [
+    "The real CLI produced one PMA Turn containing three Anthropic Messages requests.",
+    "Request 1 System.message_system contains the project-summary name and one-line description in the available Skill listing.",
+    "Request 1 declares 28 tools including one generic Skill tool and Read; it does not declare a project-summary-specific tool.",
+    "Request 1 response calls Skill with id skill_project_summary and skill=project-summary.",
+    "Request 2 messages[3] is one user message whose content[0] is the matching tool_result 'Launching skill: project-summary' and whose content[1] is the full rendered Skill body.",
+    "PMA classifies Request 2 as Skill / Harness injection while preserving the underlying user role, content-block order, source paths, and origin link to Request 1.",
+    "Request 2 response calls Read for the disposable public README.md.",
+    "Request 3 carries the matching Read tool_result and returns exactly three bullets required by the Skill body using facts from README.md.",
+    "The Protocol view shows assistant tool_use at $.messages[2].content[1], user tool_result at $.messages[3].content[0], and the Skill body text at $.messages[3].content[1].",
+    "README.md and SKILL.md retained their pre-run SHA-256 values."
+  ],
+  "raw_frames": [
+    "recording/real-cli/raw/01-overview.jpg",
+    "recording/real-cli/raw/02-discovery-system-search.jpg",
+    "recording/real-cli/raw/03-generic-skill-tool.jpg",
+    "recording/real-cli/raw/04-skill-call.jpg",
+    "recording/real-cli/raw/05-skill-tool-result.jpg",
+    "recording/real-cli/raw/06-skill-body-raw-search.jpg",
+    "recording/real-cli/raw/07-skill-protocol-order.jpg",
+    "recording/real-cli/raw/08-read-call.jpg",
+    "recording/real-cli/raw/09-read-result.jpg",
+    "recording/real-cli/raw/10-final-response.jpg"
+  ],
+  "superseded_source": {
+    "generator": "scripts/claude-mechanisms-media-demo.mjs",
+    "scenario_id": "claude-skill-load",
+    "reason": "The earlier synthetic four-request trace separated the load receipt and Skill body into different requests. Claude Code 2.1.220 places both content blocks in the same user message of Request 2, so the synthetic frames are not publication evidence."
+  },
+  "production": {
+    "narration": "assets/demo/source/claude-skill/narration.zh-CN.md",
+    "timeline": "assets/demo/source/claude-skill/video/timeline.zh-CN.json",
+    "subtitles": "assets/demo/video/pma-claude-skill.zh-CN.srt",
+    "storyboard_player": "assets/demo/storyboard/index.html",
+    "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/claude-skill/pma-claude-skill-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "the technical master at 86b8ec1ace4f2e52ca4a1f0e902172b144be6561 is historical reference only; the shared launch-style title-card template requires re-export after owner story review",
+    "repository_policy": "The ten public real-CLI Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, raw request log, and audio remain ignored.",
+    "audio": "not_started; handled by the separate voice-tuning workflow"
+  },
+  "official_references": [
+    "https://code.claude.com/docs/en/slash-commands",
+    "https://code.claude.com/docs/en/tools-reference"
+  ],
+  "privacy": {
+    "paths": "Only generic /private/tmp paths for a disposable public demo workspace; no user home directory appears.",
+    "system_prompt": "The full request log remains local and ignored. Published frames use only a fictional project, a public demo Skill, and current tool definitions.",
+    "model_output": "Deterministic public fixture text only.",
+    "headers": "Authorization and session headers are visibly redacted by PMA.",
+    "prohibited": ["API keys", "provider credentials", "user prompts", "user source", "home-directory paths", "real captures"]
+  },
+  "visual_review": {
+    "captured_at": "2026-08-02",
+    "raw_frame_result": "passed 10 real-CLI frames for composition and readability at 2048x1056",
+    "storyboard_result": "passed 31 timeline-declared progressive states at 1920x1080 and the same 31 states at 1024x576",
+    "review_frames": {
+      "1920x1080": "recording/real-cli/review-1920/*.jpg",
+      "1024x576": "recording/real-cli/review-1024/*.jpg",
+      "contact_sheet_1920": "recording/real-cli/review-1920/contact-sheet.jpg",
+      "contact_sheet_1024": "recording/real-cli/review-1024/contact-sheet.jpg",
+      "contract": "video/timeline.zh-CN.json#review_points"
+    },
+    "annotation_sequence": "Numbered evidence appears in narration order rather than all at scene entry. Independent focus changes use about 0.5 seconds of crossfade before the earlier marker exits; related action/evidence pairs may briefly coexist, then only the current evidence remains. Self-labeled System, Tools, and Protocol tabs use focus-only outlines. The final Response uses a short click pulse before its single evidence badge.",
+    "notes": [
+      "The full three-pane layout is preserved and the right-side tabs remain comfortably spaced.",
+      "System Raw search isolates the public project-summary description without exposing unrelated prompt text.",
+      "The Protocol view is the clearest evidence that the Skill tool_result and rendered body are adjacent content blocks in one user message.",
+      "Self-labeled System, Tools, and Protocol tabs use focus-only outlines; numbering is reserved for actions and evidence that need a narrated order.",
+      "Badges were reduced and moved to focus-box outer edges or pane gutters after the first review found that they covered System, Tools, Protocol, and Raw evidence.",
+      "Badge numerals are plain text centered by CSS grid; arrows are omitted because focus boxes and pane gutters already establish the relationship.",
+      "All 31 named review points were opened at true 1920x1080 and 1024x576 output sizes; crossfade, retained-pair, and final-only states were visually reviewed rather than inferred from the timeline.",
+      "One accidental collapsed-panel frame was deleted immediately and is not part of the material set."
+    ],
+    "video_master": {
+      "status": "historical_pre_launch_style_reference_only_reexport_required",
+      "source_commit": "86b8ec1ace4f2e52ca4a1f0e902172b144be6561",
+      "source_worktree_dirty": false,
+      "duration_seconds": 239,
+      "resolution": [1920, 1080],
+      "fps": 30,
+      "encoded_frames": 7170,
+      "browser_frames_received": 1610,
+      "browser_final_absolute_ms": 238936,
+      "maximum_encoder_lateness_ms": 10.293,
+      "bytes": 5116854,
+      "streams": "H.264 video only; no audio stream, subtitle stream, or webpage subtitle layer",
+      "black_frames": 0,
+      "review_points_checked": 31,
+      "review_frame_mean_absolute_difference": "3.48/255",
+      "review_frame_maximum_absolute_difference": "7.05/255 at 11-outro.jpg; the title card remained correctly composed and the difference is rendering variance rather than annotation displacement",
+      "repository_policy": "The MP4, render manifest, extracted frames, and contact sheet remain under Git-ignored tmp/storyboard-video/claude-skill/."
+    }
+  },
+  "product_feedback": [
+    {
+      "area": "Harness view",
+      "observation": "Request 2 is classified as Skill / Harness injection, but the Harness tab shows a generic system-reminder rather than the rendered Skill body. The body is currently easiest to verify through Raw search and Protocol view.",
+      "scope": "Documentation-production finding only; no runtime change is included in this branch."
+    }
+  ],
+  "publication_gate": {
+    "status": "real_cli_cross_check_storyboard_dual_viewport_review_and_picture_master_technical_validation_complete_owner_story_review_pending",
+    "remaining": [
+      "Freeze narration only after the owner reviews the Chinese story.",
+      "Do not publish the ignored raw request log or generated video from the main repository."
+    ]
+  }
+}

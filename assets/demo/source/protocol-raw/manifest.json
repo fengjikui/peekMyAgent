@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "title": "协议视图与 Raw：定位一次 call id 异常",
+  "language": "zh-CN",
+  "chapter_status": "launch_style_review_v0_2_owner_review_pending",
+  "source": {
+    "generator": "scripts/protocol-raw-debug-demo.mjs",
+    "scenario_id": "protocol-raw-debug-demo",
+    "product_baseline_sha": "b828ce72d282b0c69a04dfef60681c2e0656a98e",
+    "workspace": "/tmp/pma-protocol-debug-demo/public-project",
+    "protocol": "OpenAI Responses",
+    "sources": 1,
+    "turns": 1,
+    "requests": 3,
+    "failed_requests": 1,
+    "external_requests": false,
+    "real_credentials": false,
+    "model_responses": "deterministic loopback fake upstream",
+    "capture_transport": "real PMA Capture Proxy"
+  },
+  "teaching_contract": {
+    "audiences": [
+      "正在排查模型请求或兼容层异常的开发者",
+      "需要核对自研 Harness 工具关联的作者",
+      "想理解协议视图、Raw 搜索与 provenance 分工的 PMA 用户"
+    ],
+    "question": "摘要只能看到失败时，怎样定位错误原始字段，并用修正后的请求验证结论？",
+    "takeaway": "先在时间线定位 Request 2，再用协议视图确定异常位于 input，使用 Raw 搜索比较 call id，打开 Response 原文读取 invalid_tool_output 与 HTTP 400，检查 exact provenance，最后用 Request 3 验证修正。",
+    "explicit_limits": [
+      "The compatibility_note is an intentionally synthetic, non-standard input item. It is unknown-schema evidence, not the asserted cause of the HTTP 400.",
+      "OpenAI Responses function_call and function_call_output are typed Items correlated by call_id; Viewer-added assistant/tool labels are semantic projections, not native wire roles on those Items.",
+      "The deterministic upstream intentionally rejects the mismatched call id; this is not a provider incident.",
+      "Raw search is scoped to the selected Request and section, not the whole Source.",
+      "Exact capture fidelity proves artifact preservation and lifecycle association, not semantic correctness of the client request.",
+      "The fixture demonstrates Viewer diagnosis behavior, not remote model quality."
+    ]
+  },
+  "viewer": {
+    "source_viewport_css_pixels": { "width": 1920, "height": 1080 },
+    "output_canvas": { "width": 1920, "height": 1080 },
+    "theme": "Codex",
+    "ui_language": "zh-CN",
+    "capture_mode": "Codex in-app Browser",
+    "browser_layout": "full three-pane layout",
+    "black_frame": false
+  },
+  "facts": [
+    "Request 1 returns a list_directory function_call with call_id call_list_directory.",
+    "Request 2 sends function_call_output with call_id call_list_direct0ry and one intentionally synthetic compatibility_note item whose schema is unknown to the protocol projector.",
+    "The deterministic upstream rejects Request 2 with HTTP 400, code invalid_tool_output, and param input[3].call_id.",
+    "Request 3 restores call_list_directory, removes the unknown fixture item, and receives the final Assistant response.",
+    "The failed Request appears in the expanded background-request timeline rather than disappearing behind the successful final answer.",
+    "Both request and response provenance report fidelity exact and capture_lifecycle association confidence exact.",
+    "The placeholder authorization header is persisted as [REDACTED:header]."
+  ],
+  "raw_frames": [
+    "recording/raw/01-overview-metadata.png",
+    "recording/raw/02-protocol-unknown.png",
+    "recording/raw/03-call-id-search.png",
+    "recording/raw/03b-unknown-field-search.png",
+    "recording/raw/04-response-error.png",
+    "recording/raw/05-provenance-status.png",
+    "recording/raw/06-corrected-protocol.png",
+    "recording/raw/07-corrected-call-id.png"
+  ],
+  "raw_frame_sha256": {
+    "01-overview-metadata.png": "a52bd2b0d69c9077e41d338fdb004977be9417b44663318619640a308b3dd63c",
+    "02-protocol-unknown.png": "480801f95b951bbbc4b030f4e164d4b0a82700809acb671e1d7069f12954c0a4",
+    "03-call-id-search.png": "5ee02cab0ae861f763605b25c6612be2f6a375103a390decec4da9a78d68e1eb",
+    "03b-unknown-field-search.png": "26a8ffa87c814a4d3a42064105fbfcde96e77006ac7691551fa5c5e98c9e9ca2",
+    "04-response-error.png": "e62070aec185df0d217e3e39addcb75ed0558f5ec5130b7dcd644bf93b389581",
+    "05-provenance-status.png": "84955ffbf52de348b16ad5b3ab414f243d682790be0082de9bfb63d5afc36fd4",
+    "06-corrected-protocol.png": "86beea25af61a880079e051dee4ef61104e6bc326a35ed241927e4242e7619bb",
+    "07-corrected-call-id.png": "e663725e3e237da938511d093038f52e72fc8a75fa2778b38c7b0f9bff96c932"
+  },
+  "production": {
+    "narration": "assets/demo/source/protocol-raw/narration.zh-CN.md",
+    "timeline": "assets/demo/source/protocol-raw/video/timeline.zh-CN.json",
+    "subtitles": "assets/demo/video/pma-protocol-raw-debug.zh-CN.srt",
+    "storyboard_player": "assets/demo/storyboard/index.html",
+    "review_capture": "node scripts/capture-storyboard-review-frames.mjs protocol-raw --quality 70",
+    "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/protocol-raw/pma-protocol-raw-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "the v0.1 technical master at 2d616e5e61461c2dd421bf12130ff116619b543d is historical reference only; the launch-style v0.2 outro requires re-export after owner story review",
+    "repository_policy": "The eight public Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, fake-upstream logs, and audio remain ignored.",
+    "audio": "not_started; handled by the separate voice-tuning workflow"
+  },
+  "privacy": {
+    "paths": "only the fixed disposable /tmp/pma-protocol-debug-demo/public-project path is visible",
+    "request_body": "public deterministic Chinese teaching instructions and synthetic protocol markers only",
+    "tool_results": "README.md and guide.md names only",
+    "headers": "placeholder authorization value is redacted before persistence",
+    "prohibited": ["API keys", "real prompts", "user source", "home-directory paths", "external captures"]
+  },
+  "product_feedback": [
+    "The successful Request 3 is placed before failed Request 2 in the main visual reading order because Request 2 is classified into the background-request timeline. The chapter must explicitly teach the expansion action so the failure is not missed."
+  ],
+  "visual_review": {
+    "captured_at": "2026-08-02",
+    "raw_frame_result": "passed for exact 1920x1080 dimensions, full three-pane layout, Codex theme, readable right-pane tabs, and fixed disposable paths",
+    "annotation_result": "passed: all 20 timeline-declared states were regenerated as JPEG and inspected at exact 1920x1080 and 1024x576; badges are centered, subtitles remain bottom-centered, focus regions do not cover evidence, and no arrows are required",
+    "review_contract": "video/timeline.zh-CN.json#review_points",
+    "review_notes": [
+      "The first overview and protocol recapture were rejected because a Raw query persisted after changing sections and because the active Request had changed to Request 3.",
+      "Both frames were re-recorded only after clearing search, reopening Request 2, and asserting the right-pane h2 before capture.",
+      "The Response frame uses the explicit source/original display mode so the HTTP error body is visible instead of the organized empty-message state.",
+      "After the protocol wording changed, the first 1024x576 recapture of 02b was rejected because the browser compositor had not settled after resizing from 1920x1080; the frame was re-recorded only after asserting a 1024x576 viewport and full-canvas visual bounds.",
+      "No arrows are used because the right-pane search results and numbered focus regions already provide direct spatial correspondence.",
+      "Progressive states were checked individually: the next number appears only after the previous point has been explained; a previous number either exits for an independent focus or remains dimmed for a comparison.",
+      "The launch-style v0.2 outro combines provenance and correction verification into one final beat, keeping the diagnostic sequence to four scan-friendly steps at both review sizes.",
+      "The early palette PNG review set was replaced with the current generator's JPEG output so future capture commands no longer create duplicate filename stems.",
+      "Tracked review proxies use JPEG quality 70 to keep the full demo catalog below its media budget; the eight lossless original Source frames remain unchanged and are the fidelity reference."
+    ],
+    "video_master": {
+      "status": "historical_v0_1_reference_only_reexport_required",
+      "source_commit": "2d616e5e61461c2dd421bf12130ff116619b543d",
+      "source_worktree_dirty": false,
+      "duration_seconds": 238,
+      "resolution": [1920, 1080],
+      "fps": 30,
+      "encoded_frames": 7140,
+      "browser_frames_received": 1244,
+      "browser_final_absolute_ms": 237933,
+      "maximum_encoder_lateness_ms": 155.546,
+      "container_bytes": 5378243,
+      "stream": "H.264 video only; no audio stream, subtitle stream, or webpage subtitle layer",
+      "external_requests": false,
+      "publishable_picture_master": true,
+      "full_decode": "passed",
+      "black_frame_count": 0,
+      "video_review_points": 20,
+      "video_review_contact_sheet": "tmp/storyboard-video/protocol-raw/review-full-timeline/contact-sheet.jpg; local and Git-ignored",
+      "transition_review_frames": 27,
+      "transition_review_contact_sheet": "tmp/storyboard-video/protocol-raw/review-transitions/contact-sheet.jpg; local and Git-ignored",
+      "comparison_reference": "fresh 1920x1080 JPEG review capture rendered from the exact source timeline; reproducible with capture-storyboard-review-frames.mjs",
+      "comparison_crop": "1920x900, excluding the approved webpage-subtitle region because the picture master intentionally hides that layer",
+      "comparison_mean_abs_diff_255": 0.421,
+      "comparison_max_frame_mean_abs_diff_255": 0.868,
+      "comparison_max_frame": "09-outro",
+      "qa_notes": [
+        "All 20 timeline review points were re-extracted from the final MP4 and visually inspected at original size.",
+        "Twenty-seven additional frames cover every scene boundary before the transition, during the crossfade, and after the new scene settles; no blank or displaced state was found.",
+        "The first comparison against older palette-compressed tracked PNGs produced a misleading 5.455/255 mean difference. A fresh reproducible JPEG review capture reduced this to 0.421/255 and confirmed identical geometry.",
+        "The maximum frame-mean difference occurs on the unannotated outro card and was confirmed as normal browser/encoder rendering variation rather than an offset or missing element.",
+        "The unknown schema item, mismatched call id, HTTP 400, exact provenance, corrected call id, and final completed response all remain readable without webpage subtitles."
+      ]
+    }
+  },
+  "publication_gate": {
+    "status": "launch_style_v0_2_owner_review_pending",
+    "remaining": [
+      "Freeze the Chinese story only after owner review.",
+      "Re-export and revalidate the picture master because the v0.1 MP4 predates the launch-style outro revision.",
+      "Do not publish local MP4 or audio files from the main repository."
+    ]
+  }
+}

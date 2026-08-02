@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "title": "Codex 上下文压缩究竟改变了什么",
+  "language": "zh-CN",
+  "chapter_status": "real_app_server_storyboard_launch_style_review_v0_2_owner_review_pending",
+  "product_sha": "04777047952f3bda5b8b31efe03988953d790e23",
+  "source": {
+    "generator": "scripts/codex-compact-real-cli-probe.mjs",
+    "harness": "Codex App Server 0.144.6",
+    "harness_execution": "real installed App Server launched through PMA exact Capture Proxy",
+    "upstream": "deterministic local OpenAI Responses SSE fixture",
+    "workspace": "/tmp/pma-codex-compact-demo/public-project",
+    "protocol": "OpenAI Responses using local summary compaction",
+    "turns": 4,
+    "requests": 5,
+    "compaction_request": 4,
+    "post_compaction_request": 5,
+    "external_requests": false,
+    "real_credentials": false,
+    "raw_capture": "tmp/codex-compact-real-cli-probe; local and Git-ignored"
+  },
+  "teaching_contract": {
+    "audiences": [
+      "第一次想理解 Codex 长会话的用户",
+      "排查上下文变化和摘要丢失的 Harness 使用者",
+      "开发自有 Agent 并核对 compaction 请求形态的工程师"
+    ],
+    "question": "手动触发 compact 后，Codex 发出了什么请求，下一次 History 又怎样保留用户事实、接续摘要和项目规则？",
+    "takeaway": "当前 PMA 自定义 provider 下，Codex 发送一条 request_kind=compaction 的普通 Responses 请求生成可读摘要；后续请求保留选中的用户消息，用摘要接替较早 Assistant 历史，并重新注入当前规则。PMA 保留压缩前后的精确 Capture，可直接比较。",
+    "explicit_limits": [
+      "The real component under test is Codex App Server and its request assembly; all model replies come from a deterministic local fake upstream.",
+      "This trace demonstrates manual compaction only, not automatic threshold behavior.",
+      "A shorter History, token drop, or cache statistic alone is not sufficient evidence of compaction.",
+      "The PMA exact proxy configures a named custom provider, so Codex 0.144.6 selects local summary compaction over the OpenAI/Azure-only remote compaction path.",
+      "This Source does not demonstrate /v1/responses/compact or opaque compaction items; those remain a separate supported protocol path.",
+      "PMA observes compaction but does not trigger it. The PMA maintenance command pma compact is unrelated."
+    ]
+  },
+  "experiment": {
+    "public_project": "Blue Lantern",
+    "public_facts": [
+      "项目代号是 Blue Lantern",
+      "入口文件是 README.md",
+      "guide.md 解释观察步骤"
+    ],
+    "manual_method": "thread/compact/start",
+    "lifecycle": "item/started contextCompaction -> item/completed contextCompaction -> turn/completed",
+    "post_compaction_question": "压缩已经完成。请用一句话复述项目代号、入口文件和观察指南。"
+  },
+  "viewer": {
+    "viewport_css_pixels": { "width": 1920, "height": 1080 },
+    "theme": "Codex",
+    "ui_language": "zh-CN",
+    "capture_mode": "Codex in-app Browser",
+    "browser_layout": "full three-pane layout",
+    "black_frame": false
+  },
+  "facts": [
+    "The real App Server produced five OpenAI Responses requests across four ordinary PMA Turns.",
+    "Request 4 is labeled Harness context compaction inside Turn 3 and carries request_kind=compaction in x-codex-turn-metadata.",
+    "Request 4 uses /v1/responses, contains nine input items, and appends Codex's checkpoint prompt after three user/assistant pairs.",
+    "Request 4 Harness contains a harness_compact item at messages[8].",
+    "Request 5 History retains the three real user messages, replaces earlier assistant messages with a continuation summary, and re-injects current permissions, environment, and AGENTS.md.",
+    "Request 5 Message contains only the current post-compaction question.",
+    "The deterministic Request 5 response still uses all three public facts.",
+    "Codex also supports a separate remote /responses/compact path for built-in OpenAI or recognized Azure providers; it is not present in this Source."
+  ],
+  "raw_frames": [
+    "recording/raw/01-overview.jpg",
+    "recording/raw/02-compact-harness.jpg",
+    "recording/raw/03-compact-protocol.jpg",
+    "recording/raw/04-post-compact-history.jpg",
+    "recording/raw/05-post-compact-message.jpg",
+    "recording/raw/06-post-compact-response.jpg",
+    "recording/raw/08-compact-metadata-kind.jpg"
+  ],
+  "review_frames": {
+    "1920x1080": "recording/review-1920/; generated from timeline review_points",
+    "1920x1080_contact_sheet": "recording/review-1920/contact-sheet.jpg",
+    "1024x576": "recording/review-1024/; generated from timeline review_points",
+    "1024x576_contact_sheet": "recording/review-1024/contact-sheet.jpg"
+  },
+  "production": {
+    "narration": "assets/demo/source/codex-compact/narration.zh-CN.md",
+    "timeline": "assets/demo/source/codex-compact/video/timeline.zh-CN.json",
+    "subtitles": "assets/demo/video/pma-codex-compact.zh-CN.srt",
+    "storyboard_player": "assets/demo/storyboard/index.html",
+    "review_capture": "node scripts/capture-storyboard-review-frames.mjs codex-compact --quality 70",
+    "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/codex-compact/pma-codex-compact-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "the v0.1 technical master at e94bf4891fa95b5b53afd5bf22f411d54571a3be is historical reference only; the launch-style v0.2 title card requires re-export after owner story review",
+    "repository_policy": "The seven public real-App-Server Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, raw request log, and audio remain ignored.",
+    "audio": "not_started; handled by the separate voice-tuning workflow"
+  },
+  "official_references": [
+    "https://learn.chatgpt.com/docs/developer-commands.md?surface=cli",
+    "https://learn.chatgpt.com/docs/app-server.md",
+    "https://github.com/openai/codex/blob/main/codex-rs/core/src/compact.rs",
+    "https://github.com/openai/codex/blob/main/codex-rs/model-provider-info/src/lib.rs"
+  ],
+  "privacy": {
+    "paths": "Only generic /tmp paths for a disposable public demo workspace; no user home directory appears.",
+    "system_prompt": "Published frames use isolated public rules and omit real user prompts, source code, skills, plugins, and provider data.",
+    "model_output": "Deterministic public fixture text only.",
+    "headers": "Credential and session headers are removed or visibly redacted by PMA.",
+    "prohibited": ["API keys", "provider credentials", "user prompts", "user source", "home-directory paths", "real captures"]
+  },
+  "visual_review": {
+    "captured_at": "2026-08-02",
+    "raw_frame_result": "passed for 1920x1080 three-pane composition and readable Codex theme",
+    "storyboard_result": "passed all 20 declared review points at 1920x1080 and 1024x576 after the launch-style v0.2 title-card revision",
+    "review_method": "present=1 + review=1 freezes the exact at_ms state after source-image readiness; contact sheets and representative full-size frames were visually inspected",
+    "corrections": [
+      "The first batch captured the 700ms scene fade and appeared washed out; it was rejected and regenerated after adding the review-only frozen state.",
+      "The frozen review state keeps click pulses visible at their real control centers without changing normal playback animation.",
+      "A full-size re-review found that the overview markers were shifted one event upward: marker 1 framed Turn 2 and marker 2 framed the ordinary Request 3. Both focus regions were moved to the actual Turn 3 and its nested compaction Request 4, then the four affected desktop and compact frames plus both contact sheets were regenerated.",
+      "The 1 -> 2 -> 3 History sequence was inspected in both viewports: marker 1 dims for marker 2, exits before marker 3, and marker 2 remains only as a dim comparison.",
+      "The provider comparison card was rewritten from three long protocol sentences to three short category beats; the exact /responses/compact boundary moved to the footer, eliminating the orphan arrow at 1024x576.",
+      "Tracked review proxies use JPEG quality 70 to preserve repository headroom; the seven original 1920x1080 Source frames remain unchanged and are the fidelity reference."
+    ],
+    "annotation_policy": [
+      "Numbered annotations appear in teaching order, never all at scene entry.",
+      "A previous marker remains only for an explicit comparison and dims before the next marker becomes primary.",
+      "The three-part post-compaction History scene removes marker 1 before marker 3 appears, preventing a fully annotated cluttered end state.",
+      "Clicks, focus outlines, and numbered badges establish every relationship; no routed arrows are used in v0.1."
+    ],
+    "video_master": {
+      "status": "historical_v0_1_reference_only_reexport_required",
+      "source_commit": "e94bf4891fa95b5b53afd5bf22f411d54571a3be",
+      "source_worktree_dirty": false,
+      "duration_seconds": 250,
+      "resolution": [1920, 1080],
+      "fps": 30,
+      "encoded_frames": 7500,
+      "browser_frames_received": 1556,
+      "browser_final_absolute_ms": 249972,
+      "maximum_encoder_lateness_ms": 2.755,
+      "bytes": 6927117,
+      "streams": "H.264 video only; no audio stream, subtitle stream, or webpage subtitle layer",
+      "black_frames": 0,
+      "review_points_checked": 20,
+      "review_frame_mean_absolute_difference": "2.18/255",
+      "review_frame_maximum_absolute_difference": "2.92/255 at 04b-compact-prompt.jpg; full-size review confirmed rendering variance rather than annotation displacement",
+      "repository_policy": "The MP4, render manifest, extracted frames, and contact sheet remain under Git-ignored tmp/storyboard-video/codex-compact/."
+    }
+  },
+  "publication_gate": {
+    "status": "launch_style_v0_2_dual_viewport_review_complete_owner_content_review_pending",
+    "remaining": [
+      "Freeze narration only after the owner reviews the Chinese story.",
+      "Re-export and revalidate the picture master because the v0.1 MP4 predates the launch-style title-card revision.",
+      "Do not publish ignored raw request logs or rendered video from the main repository."
+    ]
+  }
+}
