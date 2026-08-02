@@ -283,6 +283,8 @@ python3 scripts/build-readme-storyboard-gif.py --check
 
 同日，“翻译不改原文：读懂长 System 与 Tools”使用真实 Capture Proxy、确定性 OpenAI Responses 模型上游和确定性翻译上游生成 1 Turn / 2 Request。Request 1 带三块 System 和两个 Tools 上行，Request 2 回传目录工具结果并回答。18 个渐进状态分别在 1920×1080 与 1024×576 下逐张检查。第一轮发现编号 1 误框搜索框而不是翻译选择器；第二轮又发现英文原文聚焦框包含下一张 System 卡片，两处都局部修正并重渲染。最终镜头按旁白先出现 1，再出现 2；System 译文与对应原文需要比较时，1 保留但降权；独立入口则交叉淡出。编号居中、字幕保持底部中央、框线没有遮住 schema 标识符，空间关系清楚，因此未添加箭头。完整脚本、双尺寸联系表、校验值和翻译质量边界见 `assets/demo/source/translation/manifest.json`。
 
+录制前又在当前 HEAD 重新生成确定性 Source，并通过实际 Viewer 操作确认目标语言选择器、Request 1 详情、System `3/3 已缓存`、Tools `7/7 已缓存`、对应英文原文、未翻译的工具 / 参数标识符，以及完整请求中的 `[REDACTED:header]` 都与镜头一致。随后在干净提交 `ddb8dd06502da613a771eb4a11cdebb58d4cea37` 完整录制 208 秒无声画面母版：6240 帧、1069 个浏览器重绘帧、约 4.01 MiB，浏览器最终时间为 207972ms，编码最大实时延迟 58.25ms。整片完整解码、10% 黑电平黑帧检查、音轨 / 字幕轨 / 网页字幕层检查均通过；从最终 MP4 重抽 18 个稳定点并另查 24 个转场前、中、后画面，目标语言、三块 System、双语展开、两个 Tools、七条说明材料、Raw 原文和 Header 脱敏均未错位。排除审校稿底部字幕区域后，与本次重新生成的 1920 JPEG 比较，平均绝对像素差为 0.394/255，最大 0.843/255 出现在无标注的片头标题卡。MP4、render manifest、抽帧和联系表仍只位于 Git 忽略的 `tmp/storyboard-video/translation/`。
+
 ## 下一阶段素材优先级
 
 上下文变化、迟到工具结果和 Claude Code 子 Agent 已在用户手册素材 v0.1 中完成。通过用户审阅后，再独立制作：

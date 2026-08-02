@@ -79,6 +79,12 @@
     "timeline": "assets/demo/source/translation/video/timeline.zh-CN.json",
     "subtitles": "assets/demo/video/pma-translation-system-tools.zh-CN.srt",
     "storyboard_player": "assets/demo/storyboard/index.html",
+    "review_capture": "node scripts/capture-storyboard-review-frames.mjs translation",
+    "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/translation/pma-translation-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "technical validation passed at exact source commit ddb8dd06502da613a771eb4a11cdebb58d4cea37; owner Chinese story review is still pending",
+    "repository_policy": "The seven public Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, fake-upstream logs, and audio remain ignored.",
     "audio": "not_started; handled by the separate voice-tuning workflow"
   },
   "privacy": {
