@@ -196,7 +196,7 @@
           "boundary": "协议交换由确定性假上游生成；真实 Claude Code CLI 的交叉核对范围以 manifest 为准。"
         },
         "status": "owner-review",
-        "next_gate": "审阅中文故事，并决定正式发布前是否用当前 Claude Code 重录同一最小任务。",
+        "next_gate": "审阅中文故事；通过后导出 v0.3 新母版，并决定正式发布前是否用当前 Claude Code 重录同一最小任务。",
         "freshness": {
           "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "protocol-and-raw", "translation-theme"]
         },

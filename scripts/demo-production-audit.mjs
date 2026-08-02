@@ -71,6 +71,19 @@ function auditStoryboardCatalog() {
     "README Source capture must operate the deterministic Viewer and enforce a full 1920x1080 frame",
   );
 
+  const claudeToolLoopCaptureScript = path.join(root, "scripts", "capture-claude-tool-loop-source-frames.mjs");
+  assertFile(claudeToolLoopCaptureScript, "Claude tool-loop Source capture script");
+  assertTrackable(claudeToolLoopCaptureScript, "Claude tool-loop Source capture script");
+  scanTextPrivacy(claudeToolLoopCaptureScript, "Claude tool-loop Source capture script");
+  const claudeToolLoopCapture = fs.readFileSync(claudeToolLoopCaptureScript, "utf8");
+  assert(
+    claudeToolLoopCapture.includes("claude-mechanisms-media-demo.mjs")
+      && claudeToolLoopCapture.includes("Page.captureScreenshot")
+      && claudeToolLoopCapture.includes("1920x1080")
+      && claudeToolLoopCapture.includes("dataset.theme === 'studio'"),
+    "Claude tool-loop Source capture must operate the deterministic Viewer in Claude theme and enforce a full 1920x1080 frame",
+  );
+
   const narrativeContractScript = path.join(root, "scripts", "storyboard-narrative-contract.mjs");
   assertFile(narrativeContractScript, "storyboard narrative contract validator");
   assertTrackable(narrativeContractScript, "storyboard narrative contract validator");

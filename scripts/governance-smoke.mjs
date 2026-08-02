@@ -29,6 +29,7 @@ const requiredFiles = [
   ".github/pull_request_template.md",
   "assets/demo/media-budget.json",
   "scripts/capture-readme-source-frames.mjs",
+  "scripts/capture-claude-tool-loop-source-frames.mjs",
   "scripts/capture-storyboard-review-frames.mjs",
   "scripts/export-storyboard-video.mjs",
   "scripts/demo-freshness-audit.mjs",
@@ -214,6 +215,16 @@ assert.equal(readmeSourceCaptureHelp.status, 0,
   `README Source capture help failed:\n${readmeSourceCaptureHelp.stderr}`);
 assert.match(readmeSourceCaptureHelp.stdout, /--output-root/);
 assert.match(readmeSourceCaptureHelp.stdout, /1920x1080/);
+
+const claudeToolLoopSourceCaptureHelp = spawnSync(process.execPath, [
+  "scripts/capture-claude-tool-loop-source-frames.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(claudeToolLoopSourceCaptureHelp.status, 0,
+  `Claude tool-loop Source capture help failed:\n${claudeToolLoopSourceCaptureHelp.stderr}`);
+assert.match(claudeToolLoopSourceCaptureHelp.stdout, /--output-root/);
+assert.match(claudeToolLoopSourceCaptureHelp.stdout, /1920x1080/);
+assert.match(claudeToolLoopSourceCaptureHelp.stdout, /Claude/);
 
 const videoExportHelp = spawnSync(process.execPath, [
   "scripts/export-storyboard-video.mjs",

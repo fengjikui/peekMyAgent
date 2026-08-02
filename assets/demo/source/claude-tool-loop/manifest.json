@@ -2,14 +2,18 @@
   "schema_version": 2,
   "title": "用 PMA 看懂 Claude Code：一次工具调用",
   "language": "zh-CN",
-  "chapter_status": "deterministic_teaching_trace_story_narration_storyboard_dual_viewport_review_and_picture_master_technical_validation_v0_2",
+  "chapter_status": "deterministic_teaching_trace_story_narration_storyboard_full_hd_claude_theme_source_and_dual_viewport_review_v0_3",
   "source": {
-    "viewer_source_commit": "dded809e7e5883989e9b01c60bf6a54ec6c7a8a0",
-    "verified_worktree_head": "674222577f415c1b2775acefd337844ea6efd74c",
+    "viewer_source_commit": "371b0b48a753f0bf33b51f9b497209868049b73a",
+    "product_baseline_sha": "371b0b48a753f0bf33b51f9b497209868049b73a",
+    "verified_worktree_head": "371b0b48a753f0bf33b51f9b497209868049b73a",
     "verified_origin_main": "83a5f158fa913c69f8f80809ce17d8a2ea701bd0",
-    "viewer_diff_since_capture": "The capture commit is not an ancestor of origin/main, but the trees under src/viewer, src/server, and src/contracts/viewer-api.mjs are identical between the capture commit and origin/main.",
+    "viewer_diff_since_capture": "The capture ran from a documentation-only working tree at product baseline 371b0b4; no uncommitted change existed under bin, src, integrations, package.json, or package-lock.json.",
     "source_type": "deterministic_synthetic_anthropic_messages",
-    "generator": "scripts/claude-mechanisms-media-demo.mjs",
+    "generator": "scripts/capture-claude-tool-loop-source-frames.mjs",
+    "generator_inputs": [
+      "scripts/claude-mechanisms-media-demo.mjs"
+    ],
     "workspace": "/demo/claude-tool-loop",
     "conversation_id": "claude-tool-loop",
     "protocol": "Anthropic Messages",
@@ -64,12 +68,12 @@
   },
   "viewer": {
     "viewport_css_pixels": {
-      "width": 2048,
-      "height": 1056
+      "width": 1920,
+      "height": 1080
     },
-    "theme": "Claude",
+    "theme": "claude",
     "ui_language": "zh-CN",
-    "capture_method": "Codex in-app Browser controlling the PMA Viewer",
+    "capture_method": "Automated local Chromium controlling the live PMA Viewer through scripts/capture-claude-tool-loop-source-frames.mjs",
     "layout": "full three-pane Viewer; no browser chrome, black frame, or baked annotation"
   },
   "facts": [
@@ -101,11 +105,12 @@
     "timeline": "assets/demo/source/claude-tool-loop/video/timeline.zh-CN.json",
     "subtitles": "assets/demo/video/pma-claude-tool-loop.zh-CN.srt",
     "storyboard_player": "assets/demo/storyboard/index.html",
+    "source_capture": "scripts/capture-claude-tool-loop-source-frames.mjs",
     "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
     "picture_master_exporter": "scripts/export-storyboard-video.mjs",
     "picture_master_candidate": "tmp/storyboard-video/claude-tool-loop/pma-claude-tool-loop-picture-full.mp4; local and Git-ignored",
-    "picture_master_status": "technical validation passed at exact source commit 4bb27179a4e893cc986e7016a87515a0a0066314; owner story review is still pending",
-    "repository_policy": "The ten public raw Viewer frames and both v0.2 review directories are tracked so a clean clone can play and audit the storyboard; v0.1 baked frames, local video, and audio remain ignored.",
+    "picture_master_status": "The previous v0.2 technical validation at commit 4bb27179a4e893cc986e7016a87515a0a0066314 no longer matches the v0.3 full-HD Claude-theme Source; a new export is required after owner story review.",
+    "repository_policy": "The ten public full-HD Viewer frames and both v0.3 review directories are tracked so a clean clone can play and audit the storyboard; v0.1 baked frames, local video, and audio remain ignored.",
     "legacy_video_builder": "scripts/build-claude-tool-loop-video.py; v0.1 baked-frame path only, not the v0.2 storyboard renderer",
     "legacy_video": "assets/demo/video/pma-claude-tool-loop.zh-CN.mp4; local and Git-ignored",
     "audio": "not_started for v0.2; handled by the separate voice-tuning workflow"
@@ -136,16 +141,19 @@
       "compact": "recording/review-1024/; 36 JPEG frames at 1024x576 plus contact-sheet.jpg"
     },
     "notes": [
-      "The full three-pane Viewer remains visible and no browser or video black frame surrounds it.",
-      "The first v0.2 draft placed Metadata, tool_result, and Response focus boxes one tab too far right. All three coordinates were corrected and the affected crossfade states were re-recorded at both sizes.",
-      "A second review found that numbered badges on already-labelled tabs covered the right-pane title. Those badges were removed; tabs now use a light focus outline and numbering begins on the evidence itself.",
+      "The ten Source frames are exact 1920x1080 PNG captures of the full three-pane Viewer in the Claude theme; no browser shell, black frame, or letterbox surrounds them.",
+      "The v0.3 source-capture script starts the deterministic teaching trace, selects the Claude theme, performs every real Viewer interaction, asserts the full viewport, and cleans up its local processes.",
+      "Full-size review found that the old right-pane focus border crossed labels such as 请求身份, system, and Read, while the badge circles covered the first characters. Every affected frame was moved to the evidence margin and regenerated.",
+      "Full-size review also moved the overview, tool-call, and tool-result numbers from the session sidebar into empty space above their center-pane focus boxes.",
+      "Already-labelled Metadata, System, Tools, tool_result, Protocol, Raw, and Response tabs continue to use a light focus outline without a redundant numbered badge.",
       "Badge numerals remain visually centered at both review sizes.",
       "The source-navigation scene retains a dimmed source-state outline when the call parameters appear, preserving causality without two equally strong numbered markers.",
       "The final-response click pulse was reviewed against the actual Details button center.",
-      "The old recording/review and video/frames directories are v0.1 comparison artifacts and are not v0.2 publication sources."
+      "The tracked review JPEGs use quality 84 after original-size comparison confirmed that identifiers, parameters, Raw redactions, and subtitles remain legible at 1024x576.",
+      "The old recording/review and video/frames directories are v0.1 comparison artifacts and are not v0.3 publication sources."
     ],
     "video_master": {
-      "status": "technical_validation_passed_owner_story_review_pending",
+      "status": "previous_v0_2_reference_only_reexport_required",
       "source_commit": "4bb27179a4e893cc986e7016a87515a0a0066314",
       "source_worktree_dirty": false,
       "duration_seconds": 245,
@@ -165,9 +173,10 @@
     }
   },
   "publication_gate": {
-    "status": "storyboard_dual_viewport_review_and_picture_master_technical_validation_complete_owner_story_review_pending",
+    "status": "full_hd_claude_theme_source_and_dual_viewport_review_complete_picture_master_and_owner_story_review_pending",
     "remaining": [
       "Freeze the Chinese story only after the owner reviews it.",
+      "Export and technically validate a new picture master from the v0.3 full-HD Source after the story is accepted.",
       "Before describing this exact two-request scenario as current real Claude Code behavior, replace or cross-check it with a fresh real-CLI Capture at an exact Claude Code version.",
       "Do not publish the legacy local MP4 or any audio from the main repository."
     ]
