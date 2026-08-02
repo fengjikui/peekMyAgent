@@ -2,7 +2,7 @@
   "schema_version": 1,
   "title": "Codex 上下文压缩究竟改变了什么",
   "language": "zh-CN",
-  "chapter_status": "real_app_server_trace_narration_raw_capture_dual_viewport_storyboard_v0_1",
+  "chapter_status": "real_app_server_storyboard_review_and_picture_master_technical_validation_v0_1",
   "product_sha": "04777047952f3bda5b8b31efe03988953d790e23",
   "source": {
     "generator": "scripts/codex-compact-real-cli-probe.mjs",
@@ -87,6 +87,10 @@
     "storyboard_player": "assets/demo/storyboard/index.html",
     "review_capture": "node scripts/capture-storyboard-review-frames.mjs codex-compact",
     "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/codex-compact/pma-codex-compact-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "technical validation passed at exact source commit e94bf4891fa95b5b53afd5bf22f411d54571a3be; owner Chinese story review is still pending",
+    "repository_policy": "The seven public real-App-Server Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, raw request log, and audio remain ignored.",
     "audio": "not_started; handled by the separate voice-tuning workflow"
   },
   "official_references": [
@@ -118,10 +122,29 @@
       "A previous marker remains only for an explicit comparison and dims before the next marker becomes primary.",
       "The three-part post-compaction History scene removes marker 1 before marker 3 appears, preventing a fully annotated cluttered end state.",
       "Clicks, focus outlines, and numbered badges establish every relationship; no routed arrows are used in v0.1."
-    ]
+    ],
+    "video_master": {
+      "status": "technical_validation_passed_owner_story_review_pending",
+      "source_commit": "e94bf4891fa95b5b53afd5bf22f411d54571a3be",
+      "source_worktree_dirty": false,
+      "duration_seconds": 250,
+      "resolution": [1920, 1080],
+      "fps": 30,
+      "encoded_frames": 7500,
+      "browser_frames_received": 1556,
+      "browser_final_absolute_ms": 249972,
+      "maximum_encoder_lateness_ms": 2.755,
+      "bytes": 6927117,
+      "streams": "H.264 video only; no audio stream, subtitle stream, or webpage subtitle layer",
+      "black_frames": 0,
+      "review_points_checked": 20,
+      "review_frame_mean_absolute_difference": "2.18/255",
+      "review_frame_maximum_absolute_difference": "2.92/255 at 04b-compact-prompt.jpg; full-size review confirmed rendering variance rather than annotation displacement",
+      "repository_policy": "The MP4, render manifest, extracted frames, and contact sheet remain under Git-ignored tmp/storyboard-video/codex-compact/."
+    }
   },
   "publication_gate": {
-    "status": "chinese_story_and_dual_viewport_review_complete_owner_review_pending",
+    "status": "real_app_server_storyboard_dual_viewport_review_and_picture_master_technical_validation_complete_owner_content_review_pending",
     "remaining": [
       "Freeze narration only after the owner reviews the Chinese story.",
       "Do not publish ignored raw request logs or rendered video from the main repository."
