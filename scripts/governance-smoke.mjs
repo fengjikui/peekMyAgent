@@ -16,6 +16,7 @@ import {
   validateStoryboardReviewHandoff,
 } from "./storyboard-review-handoff.mjs";
 import { validateStoryboardNarrativeContract } from "./storyboard-narrative-contract.mjs";
+import { auditDemoFreshness } from "./demo-freshness-audit.mjs";
 
 const requiredFiles = [
   "CONTRIBUTING.md",
@@ -29,6 +30,7 @@ const requiredFiles = [
   "assets/demo/media-budget.json",
   "scripts/capture-storyboard-review-frames.mjs",
   "scripts/export-storyboard-video.mjs",
+  "scripts/demo-freshness-audit.mjs",
   "scripts/generate-storyboard-review-index.mjs",
   "scripts/storyboard-narrative-contract.mjs",
   "scripts/storyboard-review-handoff.mjs",
@@ -109,7 +111,7 @@ const documentationImpact = buildDocumentationImpact([
 ]);
 assert.deepEqual(
   documentationImpact.impacts.map((impact) => impact.id),
-  ["cli-and-lifecycle", "subagents", "protocol-and-raw"],
+  ["cli-and-lifecycle", "viewer-surface", "subagents", "protocol-and-raw"],
 );
 assert(
   documentationImpact.impacts
@@ -119,9 +121,12 @@ assert(
 const documentationHandoff = buildDocumentationHandoff(documentationImpact);
 assert.match(documentationHandoff.target_sha, /^[0-9a-f]{40}$/);
 assert.equal(documentationHandoff.requires_documentation_review, true);
-assert.deepEqual(documentationHandoff.impact_ids, ["cli-and-lifecycle", "subagents", "protocol-and-raw"]);
+assert.deepEqual(documentationHandoff.impact_ids,
+  ["cli-and-lifecycle", "viewer-surface", "subagents", "protocol-and-raw"]);
 assert(documentationHandoff.required_docs.includes("docs/user-guide/subagents.md"));
 assert(documentationHandoff.required_demos.includes("协议视图、Raw Inspector 与脱敏 JSON"));
+assert(documentationHandoff.required_demo_chapters.includes("quickstart"));
+assert(documentationHandoff.required_demo_chapters.includes("claude-subagents"));
 assert.equal(documentationHandoff.validation_commands.at(-1), "git diff --check");
 const mechanismImpact = buildDocumentationImpact([
   "src/trace/context-delta.mjs",
@@ -131,7 +136,7 @@ const mechanismImpact = buildDocumentationImpact([
 ]);
 assert.deepEqual(
   mechanismImpact.impacts.map((impact) => impact.id),
-  ["timeline-navigation", "request-context", "context-lifecycle", "agent-planning"],
+  ["viewer-surface", "timeline-navigation", "request-context", "context-lifecycle", "agent-planning"],
 );
 assert(mechanismImpact.impacts
   .find((impact) => impact.id === "context-lifecycle")
@@ -151,6 +156,8 @@ assert.match(impactMarkdown, /^# Documentation and demo impact/m);
 assert.match(impactMarkdown, /Review required/);
 assert.match(impactMarkdown, /docs\/user-guide\/subagents\.md/);
 assert.match(impactMarkdown, /协议视图、Raw Inspector 与脱敏 JSON/);
+assert.match(impactMarkdown, /Affected demo chapters/);
+assert.match(impactMarkdown, /claude-subagents/);
 assert.match(impactMarkdown, /does not publish documentation/);
 assert.throws(
   () => validateDocumentationImpactPayload(impactPayload, { expectedTarget: "0".repeat(40) }),
@@ -246,8 +253,32 @@ assert.match(reviewHandoffHelp.stdout, /--show-notes/);
 assert.match(reviewHandoffHelp.stdout, /never prints review note text/);
 assert.match(reviewHandoffHelp.stdout, /read-only with respect to catalog/);
 
+const freshnessHelp = spawnSync(process.execPath, [
+  "scripts/demo-freshness-audit.mjs",
+  "--help",
+], { encoding: "utf8" });
+assert.equal(freshnessHelp.status, 0, `demo freshness help failed:\n${freshnessHelp.stderr}`);
+assert.match(freshnessHelp.stdout, /--target/);
+assert.match(freshnessHelp.stdout, /--chapter/);
+assert.match(freshnessHelp.stdout, /--strict/);
+
+const freshnessSummary = auditDemoFreshness({ log: false });
+assert.equal(freshnessSummary.chapter_count, 10);
+assert.equal(
+  freshnessSummary.current_count
+    + freshnessSummary.chapters.filter((chapter) => chapter.status !== "current").length,
+  freshnessSummary.chapter_count,
+);
+assert(freshnessSummary.chapters.every((chapter) => (
+  /^[0-9a-f]{40}$/.test(chapter.product_evidence.evidence_sha)
+    && /^[0-9a-f]{40}$/.test(chapter.source_recipe.generator_commit)
+    && /^[0-9a-f]{40}$/.test(chapter.source_recipe.source_commit)
+    && /^[0-9a-f]{40}$/.test(chapter.tracked_review_frames.dependency_commit)
+    && /^[0-9a-f]{40}$/.test(chapter.tracked_review_frames.review_commit)
+)), "every chapter must name exact evidence and render commits");
+
 const storyboardCatalog = JSON.parse(fs.readFileSync("assets/demo/storyboard/catalog.zh-CN.json", "utf8"));
-assert.equal(storyboardCatalog.schema_version, 4);
+assert.equal(storyboardCatalog.schema_version, 5);
 for (const chapter of storyboardCatalog.chapters) {
   const timeline = JSON.parse(fs.readFileSync(chapter.timeline.slice(1), "utf8"));
   const manifest = JSON.parse(fs.readFileSync(chapter.review.artifacts.manifest.slice(1), "utf8"));

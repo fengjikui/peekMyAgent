@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "default_chapter": "quickstart",
   "chapters": [
     {
@@ -17,6 +17,9 @@
         },
         "status": "owner-review",
         "next_gate": "比较当前 README GIF 与 74 秒候选版，再决定是否替换首页首屏素材。",
+        "freshness": {
+          "product_impact_ids": ["cli-and-lifecycle", "harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "protocol-and-raw", "translation-theme", "privacy-data"]
+        },
         "story": {
           "opening": {
             "scene": "00-intro",
@@ -59,6 +62,9 @@
         },
         "status": "owner-review",
         "next_gate": "审阅中文故事和协议边界，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["cli-and-lifecycle", "harness-capture", "viewer-surface", "request-context", "tools", "protocol-and-raw", "translation-theme", "privacy-data"]
+        },
         "story": {
           "opening": {
             "scene": "00-intro",
@@ -101,6 +107,9 @@
         },
         "status": "owner-review",
         "next_gate": "审阅中文排错故事与未知字段边界，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "request-context", "tools", "protocol-and-raw", "privacy-data"]
+        },
         "story": {
           "opening": {
             "scene": "00-intro",
@@ -143,6 +152,9 @@
         },
         "status": "owner-review",
         "next_gate": "审阅中文翻译故事和原文兜底边界，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["viewer-surface", "request-context", "protocol-and-raw", "translation-theme", "privacy-data"]
+        },
         "story": {
           "opening": {
             "scene": "00-intro",
@@ -185,6 +197,9 @@
         },
         "status": "owner-review",
         "next_gate": "审阅中文故事，并决定正式发布前是否用当前 Claude Code 重录同一最小任务。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "protocol-and-raw", "translation-theme"]
+        },
         "story": {
           "opening": {
             "scene": "00-intro",
@@ -227,6 +242,9 @@
         },
         "status": "owner-review",
         "next_gate": "审阅中文故事和术语边界，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "skills", "protocol-and-raw", "translation-theme"]
+        },
         "story": {
           "opening": {
             "scene": "00-intro",
@@ -269,6 +287,9 @@
         },
         "status": "owner-review",
         "next_gate": "审阅异步回流的叙述是否清楚，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "subagents", "protocol-and-raw", "translation-theme"]
+        },
         "story": {
           "opening": {
             "scene": "00-intro",
@@ -311,6 +332,9 @@
         },
         "status": "owner-review",
         "next_gate": "审阅压缩前后证据是否足以支撑结论，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "context-lifecycle", "protocol-and-raw", "translation-theme"]
+        },
         "story": {
           "opening": {
             "scene": "00-intro",
@@ -353,6 +377,9 @@
         },
         "status": "owner-review",
         "next_gate": "审阅 Codex 与 Claude Code 的差异是否讲清，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "context-lifecycle", "protocol-and-raw", "translation-theme"]
+        },
         "story": {
           "opening": {
             "scene": "00-intro",
@@ -395,6 +422,9 @@
         },
         "status": "owner-review",
         "next_gate": "审阅七次主线 Request 的叙述节奏，再决定是否进入正式配音与成片。",
+        "freshness": {
+          "product_impact_ids": ["harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "agent-planning", "protocol-and-raw", "translation-theme"]
+        },
         "story": {
           "opening": {
             "scene": "00-intro",

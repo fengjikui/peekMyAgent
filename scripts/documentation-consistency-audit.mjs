@@ -106,6 +106,18 @@ const impactRules = [
     demos: ["对应 Harness 的真实 CLI Source 与 manifest"],
   },
   {
+    id: "viewer-surface",
+    label: "Viewer 整体画面、布局与交互表面",
+    patterns: [/^src\/viewer\//i],
+    docs: [
+      "README.md",
+      "README.zh-CN.md",
+      "docs/quick-start.zh-CN.md",
+      "docs/visual-usage-guide.zh-CN.md",
+    ],
+    demos: ["所有包含真实 Viewer 画面的章节、双尺寸复核帧与主 GIF"],
+  },
+  {
     id: "timeline-navigation",
     label: "Viewer 时间线与两级导航",
     patterns: [
@@ -243,7 +255,8 @@ const impactRules = [
     id: "privacy-data",
     label: "隐私、Trace、清理、导入导出",
     patterns: [
-      /^(?:src|bin|scripts)\/.*(?:privacy|security|trace-bundle|import|export|clear|uninstall|retention)/i,
+      /^(?:src|bin)\/.*(?:privacy|security|trace-bundle|import|export|clear|uninstall|retention)/i,
+      /^scripts\/(?:security|trace-bundle|source-uninstall|uninstall|imported-source-provider)/i,
     ],
     docs: [
       "README.md",
@@ -287,7 +300,7 @@ export function runDocumentationConsistencyAudit({ log = true } = {}) {
   }
 
   const storyboardCatalog = JSON.parse(readRepoFile("assets/demo/storyboard/catalog.zh-CN.json"));
-  assert.equal(storyboardCatalog.schema_version, 4, "storyboard catalog schema_version must be 4");
+  assert.equal(storyboardCatalog.schema_version, 5, "storyboard catalog schema_version must be 5");
   assert(Array.isArray(storyboardCatalog.chapters) && storyboardCatalog.chapters.length > 0,
     "storyboard catalog must contain chapters");
   for (const chapter of storyboardCatalog.chapters) {
@@ -307,6 +320,18 @@ export function runDocumentationConsistencyAudit({ log = true } = {}) {
       `storyboard chapter ${chapter.id} has an unsupported review status`);
     assert.equal(typeof chapter.review?.next_gate, "string",
       `storyboard chapter ${chapter.id} needs a next review gate`);
+    const productImpactIds = chapter.review?.freshness?.product_impact_ids;
+    assert(Array.isArray(productImpactIds) && productImpactIds.length > 0,
+      `storyboard chapter ${chapter.id} needs freshness.product_impact_ids`);
+    assert.equal(new Set(productImpactIds).size, productImpactIds.length,
+      `storyboard chapter ${chapter.id} freshness impact ids must be unique`);
+    const knownImpactIds = new Set(documentationImpactRuleIds());
+    for (const impactId of productImpactIds) {
+      assert(knownImpactIds.has(impactId),
+        `storyboard chapter ${chapter.id} has unknown freshness impact id: ${impactId}`);
+      assert.notEqual(impactId, "demo-production",
+        `storyboard chapter ${chapter.id} freshness must describe product evidence, not production files`);
+    }
     for (const [artifact, href] of Object.entries(chapter.review?.artifacts || {})) {
       assert.match(href, /^\/assets\/demo\//,
         `storyboard chapter ${chapter.id} review artifact ${artifact} must stay under /assets/demo`);
@@ -395,7 +420,36 @@ export function buildDocumentationImpact(changedFiles) {
       required_docs: rule.docs,
       required_demos: rule.demos,
     }));
-  return { changed_files: normalizedFiles, impacts };
+  const result = { changed_files: normalizedFiles, impacts };
+  return { ...result, demo_chapters: requiredDemoChapterIds(result) };
+}
+
+export function documentationImpactRuleIds() {
+  return impactRules.map((rule) => rule.id);
+}
+
+export function requiredDemoChapterIds(impact) {
+  const catalog = JSON.parse(readRepoFile("assets/demo/storyboard/catalog.zh-CN.json"));
+  const impactIds = new Set(impact.impacts.map((item) => item.id));
+  const selected = new Set();
+
+  for (const chapter of catalog.chapters) {
+    const productImpactIds = chapter.review?.freshness?.product_impact_ids || [];
+    if (productImpactIds.some((impactId) => impactIds.has(impactId))) selected.add(chapter.id);
+  }
+
+  for (const file of impact.changed_files) {
+    const chapterSource = file.match(/^assets\/demo\/source\/([^/]+)\//i)?.[1];
+    if (chapterSource && catalog.chapters.some((chapter) => chapter.id === chapterSource)) {
+      selected.add(chapterSource);
+    }
+    if (/^assets\/demo\/storyboard\/(?:index\.html|player\.(?:css|js))$/i.test(file)
+      || /^scripts\/(?:capture-storyboard-review-frames|export-storyboard-video|timeline-subtitles-to-srt)\./i.test(file)) {
+      for (const chapter of catalog.chapters) selected.add(chapter.id);
+    }
+  }
+
+  return catalog.chapters.map((chapter) => chapter.id).filter((id) => selected.has(id));
 }
 
 export function buildDocumentationHandoff(impact, { base = null, target = null } = {}) {
@@ -410,6 +464,7 @@ export function buildDocumentationHandoff(impact, { base = null, target = null }
     impact_ids: impact.impacts.map((item) => item.id),
     required_docs: requiredDocs,
     required_demos: requiredDemos,
+    required_demo_chapters: impact.demo_chapters || requiredDemoChapterIds(impact),
     validation_commands: [
       "node scripts/documentation-consistency-audit.mjs",
       "node scripts/demo-production-audit.mjs",

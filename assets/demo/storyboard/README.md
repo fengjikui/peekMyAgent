@@ -64,7 +64,16 @@ node scripts/storyboard-review-handoff.mjs \
 http://127.0.0.1:43115/assets/demo/storyboard/index.html?present=1&review=1&autoplay=0&scene=6&at_ms=18000
 ```
 
-`catalog.zh-CN.json` 是统一章节目录和审阅状态源。每个条目必须同时声明时间线、对应中文文档、真实标题，以及 `review` 中的目标问题、观众、Source 边界、状态、下一道确认门和五类审阅资料。点击制作控制区的“章节审阅”即可在同一页面打开这份合同；它不会进入 `present=1` 成片。新增可发布章节时必须同步增加 catalog 条目；`demo-production-audit.mjs` 与 `documentation-consistency-audit.mjs` 会拒绝缺失章节、错误路径、失效资料、未纳入中文公开文档审计的文件或不存在的小节标题。
+`catalog.zh-CN.json` 是统一章节目录和审阅状态源。每个条目必须同时声明时间线、对应中文文档、真实标题，以及 `review` 中的目标问题、观众、Source 边界、状态、下一道确认门、五类审阅资料和本章依赖的产品影响 id。点击制作控制区的“章节审阅”即可在同一页面打开这份合同；它不会进入 `present=1` 成片。新增可发布章节时必须同步增加 catalog 条目；`demo-production-audit.mjs` 与 `documentation-consistency-audit.mjs` 会拒绝缺失章节、错误路径、未知产品边界、失效资料、未纳入中文公开文档审计的文件或不存在的小节标题。
+
+改动产品、网页播放器、时间线或 Source 后，先检查哪些章节真的需要重看：
+
+```bash
+node scripts/demo-freshness-audit.mjs --target HEAD
+node scripts/demo-freshness-audit.mjs --target HEAD --chapter quickstart --json
+```
+
+`product_evidence` 比较 manifest 中的精确产品证据 SHA 与目标提交，只关注 `bin/`、`src/`、`integrations/` 和包契约中的运行时变化；`source_recipe` 比较 manifest 声明的生成脚本与 Source 图片 / manifest 提交；`tracked_review_frames` 比较共享播放器、该章时间线和 Source 图片的最新提交与复核帧提交。默认命令是只读提示，允许在视觉方案尚未确认时保留旧复核帧；只有完成真实 Viewer 核对和对应重生成后才使用 `--strict` 作为交接门。
 
 ## 一条命令重生成双尺寸审阅帧
 

@@ -27,6 +27,7 @@ export function validateDocumentationImpactPayload(payload, {
     "impact_ids",
     "required_docs",
     "required_demos",
+    "required_demo_chapters",
     "validation_commands",
     "sensitive_data_restrictions",
   ]) {
@@ -34,6 +35,7 @@ export function validateDocumentationImpactPayload(payload, {
   }
 
   assertStringArray(impact.changed_files, "payload.impact.changed_files");
+  assertStringArray(impact.demo_chapters, "payload.impact.demo_chapters");
   if (!Array.isArray(impact.impacts)) throw new Error("payload.impact.impacts must be an array");
   for (const [index, item] of impact.impacts.entries()) {
     const label = `payload.impact.impacts[${index}]`;
@@ -59,6 +61,9 @@ export function validateDocumentationImpactPayload(payload, {
   const requiredDemos = uniqueSorted(impact.impacts.flatMap((item) => item.required_demos));
   if (!equalArrays(handoff.required_demos, requiredDemos)) {
     throw new Error("payload handoff required_demos must match mapped impacts");
+  }
+  if (!equalArrays(handoff.required_demo_chapters, impact.demo_chapters)) {
+    throw new Error("payload handoff required_demo_chapters must match mapped demo chapters");
   }
   const changedFileSet = new Set(impact.changed_files);
   for (const item of impact.impacts) {
@@ -114,6 +119,10 @@ export function renderDocumentationImpactSummary(payload, options = {}) {
 
   lines.push("", "## Consolidated handoff", "", "### Required documents", "");
   appendList(lines, handoff.required_docs, { empty: "No document was selected by the current mapping." });
+  lines.push("", "### Affected demo chapters", "");
+  appendList(lines, handoff.required_demo_chapters, {
+    empty: "No concrete demo chapter was selected by the current mapping.",
+  });
   lines.push("", "### Required demo Sources or frames", "");
   appendList(lines, handoff.required_demos, { empty: "No demo artifact was selected by the current mapping." });
 

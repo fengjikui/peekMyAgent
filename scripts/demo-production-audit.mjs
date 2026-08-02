@@ -5,6 +5,7 @@ import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { validateStoryboardNarrativeContract } from "./storyboard-narrative-contract.mjs";
+import { documentationImpactRuleIds } from "./documentation-consistency-audit.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const sourceRoot = path.join(root, "assets", "demo", "source");
@@ -30,6 +31,7 @@ const totals = {
   guideMappings: 0,
   reviewContracts: 0,
   narrativeContracts: 0,
+  freshnessContracts: 0,
   trackableMediaFiles: 0,
   trackableMediaBytes: 0,
 };
@@ -51,6 +53,7 @@ console.log([
   `${totals.guideMappings} guide mappings,`,
   `${totals.reviewContracts} review contracts,`,
   `${totals.narrativeContracts} narrative contracts,`,
+  `${totals.freshnessContracts} freshness contracts,`,
   `${totals.trackableMediaFiles} trackable media files,`,
   `${formatMiB(totals.trackableMediaBytes)} trackable media`,
 ].join(" "));
@@ -60,6 +63,11 @@ function auditStoryboardCatalog() {
   assertFile(narrativeContractScript, "storyboard narrative contract validator");
   assertTrackable(narrativeContractScript, "storyboard narrative contract validator");
   scanTextPrivacy(narrativeContractScript, "storyboard narrative contract validator");
+
+  const freshnessAuditScript = path.join(root, "scripts", "demo-freshness-audit.mjs");
+  assertFile(freshnessAuditScript, "demo freshness audit");
+  assertTrackable(freshnessAuditScript, "demo freshness audit");
+  scanTextPrivacy(freshnessAuditScript, "demo freshness audit");
 
   const reviewCaptureScript = path.join(root, "scripts", "capture-storyboard-review-frames.mjs");
   assertFile(reviewCaptureScript, "storyboard review capture script");
@@ -124,7 +132,7 @@ function auditStoryboardCatalog() {
   }
 
   const catalog = readJson(catalogPath);
-  assert(catalog.schema_version === 4, "storyboard catalog schema_version must be 4");
+  assert(catalog.schema_version === 5, "storyboard catalog schema_version must be 5");
   assert(Array.isArray(catalog.chapters) && catalog.chapters.length > 0,
     "storyboard catalog must contain chapters");
 
@@ -132,6 +140,7 @@ function auditStoryboardCatalog() {
   const timelines = new Set();
   const reviewStatuses = new Set(["draft", "owner-review", "ready-for-voice", "published"]);
   const reviewArtifacts = ["narration", "subtitles", "manifest", "review_1920", "review_1024"];
+  const knownImpactIds = new Set(documentationImpactRuleIds());
   for (const [index, chapter] of catalog.chapters.entries()) {
     const label = `storyboard catalog chapters[${index}]`;
     assert(typeof chapter.id === "string" && chapter.id.length > 0, `${label} needs an id`);
@@ -167,6 +176,17 @@ function auditStoryboardCatalog() {
     }
     assert(reviewStatuses.has(review.status),
       `${label}.review.status must be one of ${[...reviewStatuses].join(", ")}`);
+    const productImpactIds = review.freshness?.product_impact_ids;
+    assert(Array.isArray(productImpactIds) && productImpactIds.length > 0,
+      `${label}.review.freshness.product_impact_ids is required`);
+    assert(new Set(productImpactIds).size === productImpactIds.length,
+      `${label}.review.freshness.product_impact_ids must be unique`);
+    for (const impactId of productImpactIds) {
+      assert(knownImpactIds.has(impactId), `${label} has unknown freshness impact id ${impactId}`);
+      assert(impactId !== "demo-production",
+        `${label} product freshness must not use demo-production`);
+    }
+    totals.freshnessContracts += 1;
     assert(review.source && typeof review.source === "object" && !Array.isArray(review.source),
       `${label}.review.source is required`);
     for (const field of ["label", "boundary"]) {

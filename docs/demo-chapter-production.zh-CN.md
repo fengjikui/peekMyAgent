@@ -101,7 +101,7 @@
 - `subtitles=0` 用于干净画面母版：只隐藏网页字幕层，不改变镜头、标注、点击波纹或转场；带字幕内部预览必须显式选择，不能覆盖干净母版；
 - 未来可增加局部放大，但默认保持完整三栏，只有证据在全屏尺寸仍无法阅读时才启用。
 
-统一章节清单保存在 `assets/demo/storyboard/catalog.zh-CN.json`。每项必须声明 `timeline`、`guide`、`guide_section` 与 `review`；`review` 固定包含问题、观众、Source 边界、发布状态、下一道确认门、可执行的 `story` 叙事合同，以及旁白、字幕、manifest、1920 联系表和 1024 联系表。文档映射只能指向纳入审计的中文公开文档和其中真实存在的标题，审阅资料必须真实存在且可进入 Git。新增、删除或重命名章节时必须同步清单；生产审计要求 catalog 与所有同时具有 manifest 和时间线的可发布章节完全一致。
+统一章节清单保存在 `assets/demo/storyboard/catalog.zh-CN.json`。每项必须声明 `timeline`、`guide`、`guide_section` 与 `review`；`review` 固定包含问题、观众、Source 边界、发布状态、下一道确认门、可执行的 `story` 叙事合同、产品新鲜度边界，以及旁白、字幕、manifest、1920 联系表和 1024 联系表。文档映射只能指向纳入审计的中文公开文档和其中真实存在的标题，审阅资料必须真实存在且可进入 Git。新增、删除或重命名章节时必须同步清单；生产审计要求 catalog 与所有同时具有 manifest 和时间线的可发布章节完全一致。
 
 `story` 不是自动评价文案“好不好听”，而是防止已经确认的叙事骨架在后续改版中静默丢失。每章必须声明：30 秒内结束的开场镜头及其旁白 / 字幕关键短语、60 秒内明确 PMA 价值的镜头、至少两个来自真实 Viewer 画面的证据镜头，以及最后一幕的可复述结论。`demo-production-audit.mjs` 会把这些引用与当前时间线逐项核对，同时检查 manifest 仍有观众、问题、结论和不讲范围；人工故事审阅仍是发布门，关键短语门禁不能替代人的理解。
 
@@ -245,4 +245,15 @@ python3 scripts/build-demo-contact-sheet.py \
 
 ## 功能更新后的主动触发
 
-功能到文档的影响映射仍以[用户文档与演示素材持续更新机制](documentation-maintenance.md)为准。产品所有者主工作区的 heartbeat 会在 `origin/main` 变化后生成携带精确 SHA、受影响章节和需重录 Source 的文档任务；它不能跳过真实页面复核，也不能自动发布未经审视的截图。共享 GitHub 工作流继续只生成只读 Job Summary，不会因克隆仓库而自动创建本地调度。
+功能到文档的影响映射仍以[用户文档与演示素材持续更新机制](documentation-maintenance.md)为准。catalog 中每章的 `review.freshness.product_impact_ids` 声明它实际依赖哪些产品边界；影响报告据此输出精确的 `required_demo_chapters`，不再只写“可能需要更新某类演示”。
+
+收到功能更新后先运行：
+
+```bash
+node scripts/demo-freshness-audit.mjs --target HEAD
+node scripts/demo-freshness-audit.mjs --target HEAD --chapter quickstart --json
+```
+
+报告分别回答三个问题：manifest 记录的产品证据 SHA 之后，本章关注的运行时代码是否变化；确定性 Source 生成脚本更新后，Source 图片与 manifest 是否重建；共享播放器、时间线或 Source 图片更新后，已提交双尺寸复核帧是否重生成。第一项要求重新检查真实 Harness / Viewer，第二项要求用非敏感场景重建 Source，第三项只要求重渲染；任何一项都不能代替另外两项。完成对应更新和逐帧审视后，再以 `--strict` 验证选中的章节。
+
+产品所有者主工作区的 heartbeat 会在 `origin/main` 变化后生成携带精确 SHA、受影响章节、产品证据状态、Source 生成脚本状态和复核帧状态的文档任务；它不能跳过真实页面复核，也不能自动发布未经审视的截图。共享 GitHub 工作流继续只生成只读 Job Summary，不会因克隆仓库而自动创建本地调度。
