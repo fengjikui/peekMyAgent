@@ -279,6 +279,8 @@ python3 scripts/build-readme-storyboard-gif.py --check
 
 同日，“协议视图与 Raw：定位一次 call id 异常”使用真实 Capture Proxy 和确定性 OpenAI Responses 假上游生成 1 Turn / 3 Request：Request 2 回传错误 ID 并收到 HTTP 400，Request 3 修正后成功。第一次采集发现切换 Request 后仍残留上一次 Raw 搜索，且活动 Request 已变成 Request 3，因此拒绝了两张画面，清空搜索并断言右栏标题后局部重录。20 个渐进状态随后分别在真实 1920×1080 与 1024×576 下逐张检查：入口和证据是独立焦点时旧编号退场；正确值与错误值、错误对象与 HTTP 状态、request 与 response fidelity 需要对照时，编号 1 在编号 2 出现后保留但降权。所有编号均视觉居中，字幕保持底部居中，聚焦框未覆盖字段；右栏本身已经提供直接空间关系，因此没有添加箭头。完整镜头脚本、原始帧校验值与事实边界见 `assets/demo/source/protocol-raw/manifest.json`。
 
+录制前又用当前 HEAD 重新运行同一确定性 Source，并通过实际 1920×1080 Viewer 操作确认幕后请求时间线、Request 2、协议视图和 `Schema 未识别` 入口仍与镜头一致。官方协议复核进一步明确：`compatibility_note` 是人为加入的非标准项；`function_call` 与 `function_call_output` 是通过 `call_id` 关联的 typed Item，Viewer 的 assistant / tool 只是语义标签。更新文案后的第一次 1024 复核帧因浏览器从 1920 缩放后尚未稳定而被拒绝，只有在断言 1024×576 viewport 和满画布边界后才重录。随后在干净提交 `2d616e5e61461c2dd421bf12130ff116619b543d` 完整录制 238 秒无声画面母版：7140 帧、1244 个浏览器重绘帧、约 5.13 MiB，浏览器最终时间为 237933ms，编码最大实时延迟 155.546ms。整片完整解码和黑帧检查通过；从最终 MP4 重抽 20 个稳定点并另查 27 个转场前、中、后画面，未知项、错 ID、HTTP 400、provenance 和修正闭环均未错位。用同一提交重新生成的 1920 JPEG 作为可复现几何基准后，平均绝对像素差为 0.42/255，最大 0.87/255 出现在无标注的片尾标题卡。旧调色板 PNG 会把该数值放大到 5.46/255，因此不再用它判断几何偏移。MP4、render manifest、抽帧和联系表仍只位于 Git 忽略的 `tmp/storyboard-video/protocol-raw/`。
+
 同日，“翻译不改原文：读懂长 System 与 Tools”使用真实 Capture Proxy、确定性 OpenAI Responses 模型上游和确定性翻译上游生成 1 Turn / 2 Request。Request 1 带三块 System 和两个 Tools 上行，Request 2 回传目录工具结果并回答。18 个渐进状态分别在 1920×1080 与 1024×576 下逐张检查。第一轮发现编号 1 误框搜索框而不是翻译选择器；第二轮又发现英文原文聚焦框包含下一张 System 卡片，两处都局部修正并重渲染。最终镜头按旁白先出现 1，再出现 2；System 译文与对应原文需要比较时，1 保留但降权；独立入口则交叉淡出。编号居中、字幕保持底部中央、框线没有遮住 schema 标识符，空间关系清楚，因此未添加箭头。完整脚本、双尺寸联系表、校验值和翻译质量边界见 `assets/demo/source/translation/manifest.json`。
 
 ## 下一阶段素材优先级

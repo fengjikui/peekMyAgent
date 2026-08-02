@@ -109,6 +109,7 @@ node scripts/export-storyboard-video.mjs quickstart \
 - 干净提交 `e94bf4891fa95b5b53afd5bf22f411d54571a3be` 已完整录制 250 秒 Codex 上下文压缩母版；7500 帧和 20 个复核点通过完整解码、黑帧、两级导航、Metadata 归因、协议顺序、History 1→2→3 与无字幕层检查。该候选仍只保存在 Git 忽略目录，所有者中文故事审阅尚未完成。
 - 干净提交 `d6b8e8720955354984822cf9b8f9d67d1cb6b66e` 已完整录制 274 秒 Claude Code 多步规划母版；8220 帧和 28 个复核点通过完整解码、黑帧、Turn / Request 两级导航、任务状态、文件证据、Message / History 边界、协议顺序、渐进编号与无字幕层检查。该候选仍只保存在 Git 忽略目录，所有者中文故事审阅尚未完成。
 - 干净提交 `b1016742c113ecdb09cb76d6a18696f81a284fcb` 已完整录制 251 秒自研 Harness 通用协议母版；7530 帧和 25 个复核点通过完整解码、黑帧、OpenAI / Anthropic 配色、工具闭环、Metadata / Tools / 协议 / Raw、Header 脱敏、渐进交接与无字幕层检查。该候选仍只保存在 Git 忽略目录，所有者中文故事审阅尚未完成。
+- 干净提交 `2d616e5e61461c2dd421bf12130ff116619b543d` 已完整录制 238 秒协议与 Raw 排错母版；7140 帧、20 个复核点和 27 个转场检查帧通过完整解码、黑帧、失败 Request 定位、未知项边界、Raw call id 对照、HTTP 400、exact provenance、修正验证与无字幕层检查。该候选仍只保存在 Git 忽略目录，所有者中文故事审阅尚未完成。
 
 加载子 Agent 章节：
 

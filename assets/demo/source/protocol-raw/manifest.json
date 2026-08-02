@@ -78,6 +78,12 @@
     "timeline": "assets/demo/source/protocol-raw/video/timeline.zh-CN.json",
     "subtitles": "assets/demo/video/pma-protocol-raw-debug.zh-CN.srt",
     "storyboard_player": "assets/demo/storyboard/index.html",
+    "review_capture": "node scripts/capture-storyboard-review-frames.mjs protocol-raw",
+    "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
+    "picture_master_exporter": "scripts/export-storyboard-video.mjs",
+    "picture_master_candidate": "tmp/storyboard-video/protocol-raw/pma-protocol-raw-picture-full.mp4; local and Git-ignored",
+    "picture_master_status": "technical validation passed at exact source commit 2d616e5e61461c2dd421bf12130ff116619b543d; owner Chinese story review is still pending",
+    "repository_policy": "The eight public Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, fake-upstream logs, and audio remain ignored.",
     "audio": "not_started; handled by the separate voice-tuning workflow"
   },
   "privacy": {
@@ -102,7 +108,41 @@
       "After the protocol wording changed, the first 1024x576 recapture of 02b was rejected because the browser compositor had not settled after resizing from 1920x1080; the frame was re-recorded only after asserting a 1024x576 viewport and full-canvas visual bounds.",
       "No arrows are used because the right-pane search results and numbered focus regions already provide direct spatial correspondence.",
       "Progressive states were checked individually: the next number appears only after the previous point has been explained; a previous number either exits for an independent focus or remains dimmed for a comparison."
-    ]
+    ],
+    "video_master": {
+      "status": "technical_validation_passed_owner_story_review_pending",
+      "source_commit": "2d616e5e61461c2dd421bf12130ff116619b543d",
+      "source_worktree_dirty": false,
+      "duration_seconds": 238,
+      "resolution": [1920, 1080],
+      "fps": 30,
+      "encoded_frames": 7140,
+      "browser_frames_received": 1244,
+      "browser_final_absolute_ms": 237933,
+      "maximum_encoder_lateness_ms": 155.546,
+      "container_bytes": 5378243,
+      "stream": "H.264 video only; no audio stream, subtitle stream, or webpage subtitle layer",
+      "external_requests": false,
+      "publishable_picture_master": true,
+      "full_decode": "passed",
+      "black_frame_count": 0,
+      "video_review_points": 20,
+      "video_review_contact_sheet": "tmp/storyboard-video/protocol-raw/review-full-timeline/contact-sheet.jpg; local and Git-ignored",
+      "transition_review_frames": 27,
+      "transition_review_contact_sheet": "tmp/storyboard-video/protocol-raw/review-transitions/contact-sheet.jpg; local and Git-ignored",
+      "comparison_reference": "fresh 1920x1080 JPEG review capture rendered from the exact source timeline; reproducible with capture-storyboard-review-frames.mjs",
+      "comparison_crop": "1920x900, excluding the approved webpage-subtitle region because the picture master intentionally hides that layer",
+      "comparison_mean_abs_diff_255": 0.421,
+      "comparison_max_frame_mean_abs_diff_255": 0.868,
+      "comparison_max_frame": "09-outro",
+      "qa_notes": [
+        "All 20 timeline review points were re-extracted from the final MP4 and visually inspected at original size.",
+        "Twenty-seven additional frames cover every scene boundary before the transition, during the crossfade, and after the new scene settles; no blank or displaced state was found.",
+        "The first comparison against older palette-compressed tracked PNGs produced a misleading 5.455/255 mean difference. A fresh reproducible JPEG review capture reduced this to 0.421/255 and confirmed identical geometry.",
+        "The maximum frame-mean difference occurs on the unannotated outro card and was confirmed as normal browser/encoder rendering variation rather than an offset or missing element.",
+        "The unknown schema item, mismatched call id, HTTP 400, exact provenance, corrected call id, and final completed response all remain readable without webpage subtitles."
+      ]
+    }
   },
   "publication_gate": {
     "status": "owner_review_pending",
