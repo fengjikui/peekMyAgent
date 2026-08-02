@@ -49,8 +49,8 @@ pma codex --dangerously-bypass-approvals-and-sandbox
 1. 在左侧选择刚刚启动的 Source 和会话。
 2. 在中间时间线依次查看用户请求、工具调用、工具结果和最终回答。
 3. 点击工具结果旁的 `来源 #N`，回到产生这份结果的工具调用。
-4. 点击请求旁的 `详情`，在右侧查看 `System`、`Developer`、`Tools`、`History`、`Message` 和 `Metadata`。
-5. 切换到 `协议视图` 或 Raw Inspector，核对未经改写的协议字段和完整上下行。
+4. 点击请求旁的 `详情` 打开右侧证据栏，再查看 `System`、`Tools`、`Harness`、`History`、`Message` 和 `Metadata`；请求确有 developer message 时才会出现 `Developer`，存在可比较的前一请求时才会出现 `System diff`。
+5. 用 `协议视图`核对厂商原生条目顺序；需要精确 JSON 时回到 `完整请求`，使用 Raw Inspector 搜索定位字段和完整上下行。
 
 完整截图指引、预期画面和停止/清理方式见[五分钟快速上手](docs/quick-start.zh-CN.md)。
 

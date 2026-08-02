@@ -32,6 +32,7 @@
 | `完整请求` | Capture、headers、body、来源和脱敏信息的完整结构是什么？ |
 | `协议视图` | 厂商原生协议中指令、消息、工具与回复按什么顺序出现？ |
 | `System` | 这次实际发送了哪些 System / Instructions 文本？ |
+| `Developer` | 这次是否实际带有 developer message，原始正文是什么？仅在请求确有该 role 时出现。 |
 | `System diff` | 与同一上下文链的前一请求相比，System 增删了什么？ |
 | `Tools` | 模型这次能看到哪些工具和 schema？ |
 | `Harness` | PMA 能从真实证据确认哪些 Harness 注入或机制信息？ |
@@ -39,7 +40,7 @@
 | `Message` | 当前新增消息是什么？ |
 | `Metadata` | 模型、推理参数、stream、metadata 等顶层参数是什么？ |
 
-不同协议或 Capture 证据不完整时，某些入口可能没有内容。空白不代表 PMA 应该猜测；应继续查看协议视图和 Raw。
+`Developer` 和 `System diff` 是条件入口：前者要求请求中确有 developer message，后者要求存在可比较的前一请求。不同协议或 Capture 证据不完整时，其他入口也可能没有内容。空白不代表 PMA 应该猜测；应继续查看协议视图和 Raw。
 
 ## 看懂 History
 

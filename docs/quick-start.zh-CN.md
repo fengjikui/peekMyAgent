@@ -124,11 +124,11 @@ PMA 不是新的聊天客户端。你仍然在原 Agent 的终端界面里工作
 
 ### 看模型实际收到的指令
 
-点击一条请求旁的 `详情`，再选择右侧的 `System` 或 `Developer`。这里展示的是该次模型请求中的实际字段，不是 PMA 根据最终行为猜出的摘要。
+点击一条请求旁的 `详情`，右侧证据栏会随即出现。先选择 `System`；只有该请求中确实存在 developer message 时，导航中才会出现 `Developer`。如果当前上下文链还有可比较的前一请求，也会出现 `System diff`。这里展示的是该次模型请求中的实际字段，不是 PMA 根据最终行为猜出的摘要。
 
 ![查看 System 指令](../assets/demo/quickstart/02-system.png)
 
-继续查看 `Tools`、`History`、`Message` 和 `Metadata`，可以确认模型、常见请求参数、工具 schema、历史消息与当前用户输入。
+继续查看 `Tools`、`Harness`、`History`、`Message` 和 `Metadata`，可以确认模型、常见请求参数、工具 schema、PMA 有证据支持的 Harness 注入、历史消息与当前用户输入。
 
 ### 看工具结果如何进入下一次请求
 
@@ -156,7 +156,7 @@ PMA 不判断答案一定正确；它提供足够的证据，让你判断“模�
 
 ### 必要时查看原始协议
 
-摘要不够时切换到 `协议视图`，或打开 Raw Inspector。协议视图保持厂商原生顺序；Raw 是最终事实源。
+摘要不够时切换到 `协议视图`；需要核对精确字段时，再回到 `完整请求` 使用 Raw Inspector 搜索。协议视图保持厂商原生顺序；Raw 是最终事实源。
 
 ![按原生协议核对完整上下行](../assets/demo/quickstart/06-protocol.png)
 

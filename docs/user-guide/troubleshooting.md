@@ -10,6 +10,16 @@ pma --help
 
 `doctor` 用于检查安装、状态目录、daemon/端口和已安装集成。不要在公开 issue 中直接粘贴未经审查的完整环境或 Capture。
 
+## 查看维护命令语法时不要追加 `--help`
+
+当前版本尚未给维护子命令单独分派帮助页。`pma shutdown --help` 仍会执行 shutdown 并停止本地 daemon；`pma clear --help` 会因为缺少显式的 `--all-sessions` 而报错，但不会清除数据。要只读查看 `compact`、`clear`、`shutdown`、`restart` 的完整语法，请使用：
+
+```bash
+pma help --all
+```
+
+这个不符合常见 CLI 预期的行为已经作为文档制作中发现的产品反馈记录；文档分支只说明当前边界，不修改 CLI 运行时。
+
 ## 找不到 `pma` 或 `peekmyagent`
 
 重新安装公开 Alpha：
