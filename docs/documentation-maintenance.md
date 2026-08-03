@@ -36,10 +36,10 @@
 | 功能变更边界 | 必查文档 | 必查演示 |
 | --- | --- | --- |
 | `bin/`、安装、CLI help、wrapper 生命周期 | README、快速上手、观察会话、支持的 Harness、安全清理、排障 | 启动命令素材与 `smoke:cli` |
-| `src/viewer/` 中任意画面、布局或交互 | README、快速上手、视觉使用指南与包含该画面的任务章节 | 所有包含真实 Viewer 画面的相关章节、双尺寸复核帧与主 GIF |
-| Viewer 时间线、Turn / Request Rail | 快速上手、请求与上下文 | 主 GIF、两级导航 GIF |
-| Request 详情、History、Context Delta、System diff | 请求与上下文、协议与 Raw | `context-changes.gif` |
-| 工具语义与来源关联 | 工具调用与迟到结果 | 主 GIF、`delayed-tool-result.gif` |
+| `src/viewer/` 中任意画面、布局或交互 | README、快速上手、视觉使用指南与包含该画面的任务章节 | 所有包含真实 Viewer 画面的相关章节、双尺寸复核帧、静态封面与可控 HTML |
+| Viewer 时间线、Turn / Request Rail | 快速上手、请求与上下文 | `quickstart` 可控章节、两级导航静态图与社交视频母版 |
+| Request 详情、History、Context Delta、System diff | 请求与上下文、协议与 Raw | `codex-compact` 可控章节与 `context-system-diff.png` |
+| 工具语义与来源关联 | 工具调用与迟到结果 | `claude-tool-loop` 可控章节与 `delayed-tool-result-arrives.png` |
 | Skill 发现、加载、Harness 注入或通用 Skill 工具 | Skill 章节、支持的 Harness、协议与 Raw | Claude Code Skill 真实 CLI Source 与双尺寸审阅帧 |
 | 子 Agent 归因与多 Agent 看板 | 子 Agent 章节 | Claude Code 子 Agent 真实 CLI Source 与双尺寸审阅帧 |
 | 上下文压缩或多步任务状态 | 请求与上下文、工具调用 | Claude Code / Codex compact 与 planning 真实 CLI Source、精确协议边界和双尺寸审阅帧 |

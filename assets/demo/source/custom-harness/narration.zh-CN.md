@@ -1,81 +1,91 @@
-# 自研 Harness：用通用协议桥看清一次工具闭环
+# 自研 Harness：从三次 Request 改进到两次
 
-> 状态：中文故事 v0.1；真实 `pma observe` Source、1920×1080 Viewer 原始帧和 1920×1080 / 1024×576 两档渐进标注审阅已完成，等待所有者内容审阅。
+> 状态：中文故事 v0.2；新的 before / after 确定性 Source、1920×1080 原始帧和 21 个渐进状态的双尺寸视觉复核已经完成，等待负责人在可编辑 HTML 中审阅。
 
 ## 演示合同
 
-- 目标用户：正在开发自有 Agent / Harness，希望先核对 HTTP 请求、工具交换和上下文的开发者；
-- 核心问题：不开发专用 adapter，能否先看清 OpenAI Responses 或 Anthropic Messages 的真实交换；
-- 场景：一个只读目录助手列出虚构公开目录的第一层，并说明新用户先看哪个文件；
-- 证据：真实 `pma observe` wrapper、确定性 loopback 上游、两个协议各 2 次 Request 与 1 次工具闭环；
-- 限制：不证明 Skill、权限、压缩、恢复或子 Agent 私有语义，也不评价远端模型能力；
-- 画面：OpenAI 使用 Codex 配色，Anthropic 使用 Claude 配色，完整三栏、无黑边；
+- 目标用户：正在开发自有 Agent / Harness，希望知道模型为什么调用失败、该改提示词还是工具 schema 的开发者；
+- 核心问题：PMA 能否把“模型表现不好”拆成可检查的上行定义、下行调用、工具结果和下一次请求，并帮助人验证改进；
+- 场景：用户只问“请从 README 中找出项目入口文件，并引用原文依据”，不需要任何业务背景；
+- 旧版 Harness：`read_file` 只有模糊说明，`path` 没有进入 `required`，`strict` 为 `false`；确定性模型先发送空对象，Harness 返回 `path is required`，模型重试后完成，共 3 次 Request；
+- 新版 Harness：明确工具用途、`README.md` 示例和相对路径约束，并设置 `required: ["path"]`、`additionalProperties: false`、`strict: true`；同一任务一次调用成功，共 2 次 Request；
+- 证据：真实 `pma observe` wrapper、真实 Capture Proxy / Viewer、确定性 OpenAI Responses 假上游；另保留 Anthropic Messages Source 验证通用协议入口；
+- 限制：3→2 是这条固定场景的观察结果，不是 PMA 自动评分，也不证明真实远端模型一定获得相同幅度的改善；
+- 画面：OpenAI 使用 Codex 配色；Anthropic 只在边界说明中使用 Claude 配色；1920×1080 完整三栏、无黑边；
 - 隐私：固定 `/private/tmp/pma-custom-harness-demo/public-project`、公开虚构文本、占位 token、无外部请求。
 
 ## 镜头脚本与旁白
 
 | 时间 | 用户动作与画面重点 | 要证明的价值 | 标注与停留 |
 | --- | --- | --- | --- |
-| 00:00–00:17 | 标题卡：OpenAI / Anthropic → `pma observe` → Viewer | 先验证协议，不必先开发 adapter | 17 秒；无编号 |
-| 00:17–00:42 | 展示 `--name`、`--base-url-env` 与 `--` 命令边界 | 只有 child base URL 被临时覆写；权限仍属于 Harness | 25 秒；命令卡慢读 |
-| 00:42–01:06 | OpenAI Source 全景：Source 名称、机制流程、2 Request | 一个最小目录任务即可看懂完整工具闭环 | 编号 1 → 2 交叉淡化 |
-| 01:06–01:32 | Request 1 Metadata | 模型、temperature、输出上限和上行构成都可核对 | 标签轻描边；1 保留并降权后出现 2 |
-| 01:32–01:53 | Request 1 Tools | 模型只能根据工具说明和 schema 提出调用 | 标签轻描边 → 证据编号 1 |
-| 01:53–02:14 | 点击 `list_directory` 调用 | 模型下行是结构化意图，不是直接访问磁盘 | 编号 1 → 2 交叉淡化 |
-| 02:14–02:37 | 点击工具结果 | Harness 执行后，结果通过下一次请求回到模型 | 编号 1 → 2 交叉淡化 |
-| 02:37–03:06 | Request 2 协议视图 | OpenAI Responses 的 Item 顺序，以及 Viewer 如何补充语义角色 | 标签轻描边；编号 1 → 2 交叉淡化 |
-| 03:06–03:28 | Request 1 完整请求 | Raw 保留请求字段并明确记录 Header 脱敏 | 标签轻描边 → 编号 1 |
-| 03:28–03:58 | 切换 Anthropic Source 与 Claude 配色，查看 Request 2 协议 | 同一入口按 wire 事实识别 Anthropic；tool_use 和 tool_result 原生 role 不被摘要改写 | 标题轻描边；1 降权后出现 2 |
-| 03:58–04:11 | 结尾卡：通用桥的能力与限制 | 先定位协议问题，再决定是否开发专用 adapter | 13 秒；无编号 |
+| 00:00–00:17 | 标题卡：同一任务，旧版 3 Request，新版 2 Request | PMA 不只记录结果，还帮助解释为什么失败、改动是否生效 | 17 秒；无编号 |
+| 00:17–00:40 | `pma observe` 命令与最小任务 | 不开发专用 adapter 也能先建立可复现证据 | 23 秒；命令与任务分两步出现 |
+| 00:40–01:06 | `harness-before` 全景：3 次 Request、两次 `read_file` | 先从机制流程和时间线确认“多了一次重试” | Source 1 → 机制流程 2 → Request 数 3，逐个出现 |
+| 01:06–01:31 | Request 1 的 Tools | 模型能看到的只有实际发送的工具名、说明和 schema | 点击波纹 → Tools 标签轻描边 → 模糊定义 1 |
+| 01:31–01:53 | 第一次 `read_file` 调用 | 空参数不是日志里的抽象失败，而是可核对的原始下行 | 调用入口波纹 → 参数区域 1；小目标使用淡色底纹 |
+| 01:53–02:16 | Request 2 工具结果与第二次调用 | 错误如何回到模型、模型何时重试，可以沿关联关系定位 | 错误结果 1 → 重试调用 2；1 在 2 出现时降权 |
+| 02:16–02:39 | 完整请求中的 schema | 根因在上行：`path` 没有进入 `required`，`strict` 为 `false` | 描述 1 → 缺失的 required 区域 2；框住完整 schema 组，不压文字 |
+| 02:39–03:04 | 切换 `harness-after`：2 次 Request | 修改后同一任务只需要一次调用 | Source 切换波纹 → 2 Request 1 → 一次工具闭环 2 |
+| 03:04–03:29 | 新版 Tools 与 Raw | 精确说明、必填参数和严格 schema 都能被逐项核对 | 工具说明 1 → `required` / `strict` 2；1 降权保留对照 |
+| 03:29–03:52 | 新版工具结果与最终回答 | 改进不是主观“感觉更聪明”，而是更少重试且证据仍可追溯 | 结果 1 → 最终回答 2；1 在 2 出现时降权 |
+| 03:52–04:07 | Anthropic 协议边界 | 通用入口也能观察 `tool_use` 与 `tool_result`，但不冒充专有 Harness 语义 | Claude 配色；框住完整结果组，不压文字 |
+| 04:07–04:22 | 结尾卡：观察 → 定位 → 修改 → 重跑 | 形成自研 Harness 的最小人工改进闭环 | 15 秒；无编号 |
 
-### 00:00–00:17　先观察协议，再决定是否开发 adapter
+### 00:00–00:17　不是只看成功或失败
 
-开发自研 Agent 时，你通常先想知道请求到底发对了没有，而不是马上再写一个 PMA adapter。只要 Harness 从环境变量读取 OpenAI 或 Anthropic 的 base URL，`pma observe` 就能先把真实协议交换放进 Viewer。
+开发自研 Harness 时，“模型表现不好”往往太笼统。真正要回答的是：模型看到了什么工具定义，实际发出了什么参数，Harness 返回了什么，以及下一次请求怎样使用这个结果。PMA 把这些步骤放在同一条证据链里。
 
-### 00:17–00:42　一个命令只改变 child 环境
+### 00:17–00:40　先用最小任务建立可复现证据
 
-命令分成两边。双横线前告诉 PMA Source 名称和需要临时覆写的变量；双横线后仍是原来的 Harness 命令。PMA 先读取真实上游，再只在 child 进程中把这个变量换成本地代理。父 shell、用户配置和其他进程都不变。这里也没有 PMA 的完全权限参数，因为审批和工具权限属于你的 Harness。
+任务很简单：从 README 找出项目入口，并引用原文。用 `pma observe` 包装原来的 Harness 命令，只临时替换 child 的 OpenAI base URL。PMA 不改变工具权限，也不需要先开发专用 adapter；它只把真实协议交换送进 Viewer。
 
-### 00:42–01:06　两次 Request 形成最小工具闭环
+### 00:40–01:06　旧版为什么出现三次 Request
 
-这条 Source 来自真实 `pma observe` 和确定性本地上游。任务只要求列出公开目录，再说明新用户先看哪个文件。PMA 显示一个 Turn、两次 Request：模型先选择 `list_directory`，Harness 本地执行，第二次请求回传目录结果，模型最后回答先看 README。
+先看 `harness-before`。同一个 Turn 里有三次 Request，机制流程也出现两次 `read_file` 调用和两次结果回传。最终答案虽然正确，但中间明显多了一次失败与重试。这里先记录现象，不急着把责任归给模型。
 
-### 01:06–01:32　先核对模型参数和上行构成
+### 01:06–01:31　模型实际看到怎样的工具
 
-打开 Request 1 的 Metadata，可以直接核对模型、`temperature`、最大输出 token 和请求路径。再往下看上行构成，System、Tools、当前用户和参数分别占多少一目了然。这里的 Source 名称只是标签；协议事实来自实际路径和 body。
+打开 Request 1 的 Tools。旧版只写“读取项目文档”，参数 `path` 的说明只有“文件”；schema 中没有 `required`，工具也不是 strict。模型不会看到 Harness 源码，它只能根据这份上行定义选择工具并组织参数。
 
-### 01:32–01:53　模型为什么能选择这个工具
+### 01:31–01:53　第一次下行确实是空参数
 
-切到 Tools，Viewer 展示 Harness 实际发送的 `list_directory` 定义：用途是列出公开目录的第一层内容，参数 `path` 是相对目录。模型不是凭空知道本地函数；它只能根据这份工具名、说明和 schema 提出结构化调用。
+点开第一次 `read_file` 调用，右栏保留结构化参数。这里不是“参数看起来不太好”，而是明确的空对象。模型只提出结构化意图；真正读取文件的仍然是本地 Harness。
 
-### 01:53–02:14　模型下行只提出动作
+### 01:53–02:16　错误怎样回到模型并触发重试
 
-第一次模型回复不是自然语言答案，而是 `function_call`。中栏先显示 `list_directory` 调用；右栏再展开原生类型、call id 和参数 `path: "."`。模型只输出文本形式的结构化意图，并没有直接访问磁盘。
+Request 2 把 `path is required` 作为与第一次调用关联的工具结果送回模型。随后模型再次调用 `read_file`，这一次才给出 `README.md`。来源链接和 call id 让错误结果、原调用与重试之间的关系可以逐步核对。
 
-### 02:14–02:37　Harness 执行后把结果送回下一次请求
+### 02:16–02:39　从 Raw 定位应该修改哪里
 
-Harness 在本地列出目录，再把结果封装成第二次请求的 `function_call_output`。中栏说明它已关联调用，并提供“来源 #1”；右栏保留 call id 和实际 `entries`。这样可以检查结果是否确实回给了模型，而不是只看到终端说工具成功。
+回到 Request 1 的完整请求，可以确认问题来自真实上行 schema：`path` 只是 properties 中的可选字段，`required` 根本不存在，`strict` 还是 false。此时更合理的动作不是给用户换一个问题，也不是盲目增加长提示词，而是先修正工具契约。
 
-### 02:37–03:06　区分 OpenAI Responses 原生 Item 与 Viewer 语义角色
+### 02:39–03:04　重跑同一任务，而不是凭感觉判断
 
-摘要仍不够时，协议视图明确写出 OpenAI Responses。第二次上行按顺序包含 `message`、`function_call` 和与 call id 匹配的 `function_call_output` 三类 Item；其中后两类在 wire 层没有原生 role，Viewer 为阅读统一补成 assistant 与 tool 语义标签。下行才是最终 Assistant `message`。每一项都保留 JSON path，用来排查兼容层是否漏传或改错顺序。
+切换到 `harness-after`。用户问题、公开目录和确定性上游都没有变化，但现在只有两次 Request：一次正确的 `read_file`，一次结果回传和最终回答。PMA 没有自动给出实验分数；它提供的是人可以复核的前后证据。
 
-### 03:06–03:28　Raw 保留完整请求，也显示脱敏事实
+### 03:04–03:29　改动本身也能在上行中被证明
 
-完整请求保留模型、instructions、工具 schema、参数、input、路径和捕获信息。这里还能看到 `authorization` 已替换成脱敏占位符，并记录 `sensitive_header` 原因。Header 脱敏不等于正文安全；公开截图前仍要人工检查 System、用户内容、工具参数和结果。
+新版工具说明写清了根目录、UTF-8、相对路径和 `README.md` 示例；schema 明确出现 `required: ["path"]`、`additionalProperties: false` 与 `strict: true`。这些字段不是文档中的承诺，而是这次模型真正收到的请求内容。
 
-### 03:28–03:58　同一入口也能观察 Anthropic Messages
+### 03:29–03:52　把改善落到可观察行为
 
-把变量换成 Anthropic base URL，同一个 `pma observe` 入口会按真实 wire path 识别 Anthropic Messages，并使用 Claude 配色审阅。这里的工具调用是 assistant 的 `tool_use`；结果则位于后续 user message 的 `tool_result`。摘要可以统一叫工具调用和结果，但原生角色不能被改写。
+第一次调用直接带上 `README.md`，工具结果返回公开原文，最终回答引用 `src/main.mjs`。从三次 Request 降到两次，只是这条固定场景的结果；换成真实模型时仍应重跑、观察并保留失败样本。
 
-### 03:58–04:11　通用桥证明协议，不猜 Harness 私有机制
+### 03:52–04:07　通用 Anthropic 协议的观察边界
 
-通用桥已经证明请求、回复、工具交换和 Raw 被精确捕获；它不会仅凭品牌名猜测 Skill、权限、压缩、恢复或子 Agent 关系。先用这条最小路径定位协议问题，只有确实需要 Harness 私有语义时，再根据真实 Evidence Pack 开发专用 adapter。
+Anthropic-compatible Harness 也可以通过同一入口观察 `tool_use` 与 `tool_result`。这能证明协议级交换可见，但不能仅凭一条兼容协议轨迹声称已经理解 Claude Code 私有的 Skill、权限或子 Agent 语义；这些仍需要对应 Harness 的专用证据。
+
+### 04:07–04:22　形成最小人工改进闭环
+
+这套方法可以重复：先捕获一次真实任务，沿时间线定位异常 Request，回到 Tools、结果和 Raw 找根因，修改 Harness 后用同一输入重跑。PMA 的价值不是替你猜答案，而是让每一次改进都有可以复查的证据。
 
 ## 重生成
 
 ```bash
-node scripts/custom-harness-protocol-demo.mjs
+node scripts/capture-custom-harness-source-frames.mjs
+node scripts/capture-storyboard-review-frames.mjs custom-harness
 ```
 
-脚本会在固定的 `/tmp/pma-custom-harness-demo/public-project` 创建虚构文件，启动确定性 loopback 上游与临时 Viewer，真实运行 OpenAI 和 Anthropic 两次 `pma observe`，把 session 描述、脱敏终端记录、SQLite 和上游请求日志留在 Git 忽略的 `tmp/custom-harness-protocol-demo/`。保持脚本运行，再在 1920×1080 浏览器中采集 Viewer；退出时按 `Ctrl-C`，Source 数据仍留在临时 store 供本地复核。
+第一条命令会在固定的 `/tmp/pma-custom-harness-demo/public-project` 创建虚构 README、入门文档和入口文件，启动确定性 loopback 上游与临时 Viewer，真实运行 `harness-before`、`harness-after` 和 Anthropic 三次 `pma observe`；随后用固定 UI 操作生成 10 张 1920×1080 原始帧并自动停止服务。第二条命令根据时间线生成 1920×1080 与 1024×576 两档标注审阅帧。session 描述、脱敏终端记录、SQLite 和上游请求日志只留在 Git 忽略的 `tmp/custom-harness-protocol-demo/`。
+
+只想保持临时 Viewer 打开做人工检查时，运行 `node scripts/custom-harness-protocol-demo.mjs`，完成后按 `Ctrl-C` 停止。

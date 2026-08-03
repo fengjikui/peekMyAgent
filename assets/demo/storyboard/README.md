@@ -16,6 +16,20 @@ python3 -m http.server 43115 --bind 127.0.0.1
 http://127.0.0.1:43115/assets/demo/storyboard/index.html
 ```
 
+面向读者的十章可控演示页：
+
+```text
+http://127.0.0.1:43115/assets/demo/storyboard/gallery.zh-CN.html
+```
+
+公开 GitHub Pages 入口：
+
+```text
+https://fengjikui.github.io/peekMyAgent/
+```
+
+这张页面把当前章节、目标问题、Source 边界和对应中文手册放在同一处，并在页内嵌入播放器。读者可以暂停、拖动时间轴、前后切换镜头、开关字幕和进入全屏；默认不会自动播放。`.github/workflows/docs-pages.yml` 只把 `assets/demo/` 发布到 GitHub Pages，不发布 Git 忽略的 Capture、MP4 或本地审片记录。GitHub README 使用静态封面链接进入公开页面，因为仓库 Markdown 不执行 iframe / HTML 播放器。
+
 如果需要一次看到十章的 HTML、干净播放和本地 MP4，而不是逐个拼接链接，先生成 Git 忽略的统一审片首页：
 
 ```bash
@@ -52,11 +66,13 @@ node scripts/storyboard-review-handoff.mjs \
 
 常用参数：
 
+- `embed=1`：进入面向文档读者的紧凑播放模式，保留播放、拖动、逐镜头切换、字幕和全屏，隐藏制作审阅面板；默认不自动播放；
 - `present=1`：隐藏控制栏并按浏览器画布播放；
 - `autoplay=0`：停在当前镜头，适合逐帧验收；
 - `scene=6`：直接打开从 0 开始计数的指定镜头；
 - `at_ms=18000`：从当前镜头内的指定毫秒位置渲染，适合直接复核渐进标注，不必真实等待；
 - `review=1`：把 `at_ms` 对应的标注状态冻结为静态审查帧，并关闭淡入、镜头运动与点击动画；只用于逐帧验收，不进入正式播放或录屏；
+- `edit=1`：进入可视化标注编辑模式，同时启用静态复核状态并保留控制区；点击聚焦框后可以拖动，拖四角可以调整大小，也可以直接输入 X / Y / W / H 百分比；
 - `subtitles=0`：隐藏网页字幕层，用于生成可复用到其他语言的干净画面母版；默认审阅播放仍显示字幕；
 - `timeline=/assets/.../timeline.zh-CN.json`：直接载入指定章节，章节选择器会同步当前值。
 
@@ -66,7 +82,21 @@ node scripts/storyboard-review-handoff.mjs \
 http://127.0.0.1:43115/assets/demo/storyboard/index.html?present=1&review=1&autoplay=0&scene=6&at_ms=18000
 ```
 
+例如直接调整快速上手 README 第 2 镜头中的聚焦框：
+
+```text
+http://127.0.0.1:43115/assets/demo/storyboard/index.html?edit=1&autoplay=0&timeline=%2Fassets%2Fdemo%2Fsource%2Fquickstart%2Fvideo%2Ftimeline.zh-CN.json&scene=3&at_ms=4000
+```
+
+编辑结果只保存在当前浏览器的 `localStorage`，不会直接写入时间线或上传。编辑模式中的左右箭头只在实际含有框、编号或点击波纹的复核点之间移动，不会跳到标注尚未出现的镜头起点；下拉菜单仍保留全部复核点，便于核对无标注画面。可以在不同章节和复核点之间继续调整，再使用“复制调整 JSON”直接粘贴回任务，或下载 `<chapter>-annotation-adjustments.json`。交接文件只包含时间线地址、镜头、标注序号、字段和百分比坐标，不包含 Capture、提示词、源码或本机路径。“重置本镜头”只删除当前镜头的本地草稿。README 精简版 `plan=` 页面读取的是已经生成的 JPEG，因此只负责观看；需要修改其中的框时，应在完整快速上手时间线的同名复核点使用 `edit=1`。
+
 `catalog.zh-CN.json` 是统一章节目录和审阅状态源。每个条目必须同时声明时间线、对应中文文档、真实标题，以及 `review` 中的目标问题、观众、Source 边界、状态、下一道确认门、五类审阅资料和本章依赖的产品影响 id。点击制作控制区的“章节审阅”即可在同一页面打开这份合同；它不会进入 `present=1` 成片。新增可发布章节时必须同步增加 catalog 条目；`demo-production-audit.mjs` 与 `documentation-consistency-audit.mjs` 会拒绝缺失章节、错误路径、未知产品边界、失效资料、未纳入中文公开文档审计的文件或不存在的小节标题。
+
+历史 74 秒 README GIF 是完整快速上手时间线的精简剪辑，不等同于 255 秒章节。根 README 已改用静态封面，长 GIF 只保留为迁移与重建记录。通过 `plan` 参数仍可让播放器读取 `readme-gif.zh-CN.json`，逐镜头检查当时采用的 17 张画面、停留时间和用途说明：
+
+```text
+http://127.0.0.1:43115/assets/demo/storyboard/index.html?plan=%2Fassets%2Fdemo%2Fsource%2Fquickstart%2Freadme-gif.zh-CN.json&autoplay=0
+```
 
 改动产品、网页播放器、时间线或 Source 后，先检查哪些章节真的需要重看：
 
@@ -211,6 +241,8 @@ node scripts/demo-storyboard-smoke.mjs assets/demo/source/claude-skill/video/tim
 ```
 
 快速上手、自研 Harness、协议与 Raw 排错、System / Tools 翻译、Claude Code 工具调用、Skill、子 Agent、Claude Code / Codex 上下文压缩和多步规划时间线都声明了 `review_points`。每个点包含稳定名称、镜头序号和镜头内毫秒位置，用来重复生成“旧重点、交叉淡化、新重点、保留但降级”两种视口的逐帧审阅稿。编号必须按讲解顺序逐个出现；前一编号是否保留、降级或退出由镜头中的比较关系决定，不能在镜头开始时一次叠出全部编号。契约检查会拒绝同一时刻出现的多个数字编号；旧编号若在新编号出现一秒后仍然存在，则必须已经通过 `dim_ms` 退为次要。它也会拒绝重复名称、越界镜头或超出镜头时长的复核点：
+
+标注范围不是按文字外接矩形机械生成。制作者必须先确认旁白此刻要证明的是单个控件、完整信息行还是一组相邻内容，再按真实视觉边界留出均匀呼吸空间。长条内容可以收紧高度，但边框不能压在线条、字段名或正文上；大面板的四边必须与容器边界协调，不能只在一侧随意外扩。小于约 32×32 像素或狭长的目标不能只留下一个局促的小框：至少再使用编号、单次点击波纹或 `spotlight` 淡色底纹中的一种。点击波纹只表达真实点击，不循环制造噪声；`spotlight` 使用较慢的进入动画和低透明度底纹，不遮挡文本。每个复核点生成后必须在 1920×1080 与 1024×576 两档真实观看，逐项检查范围、留白、边线是否压字、编号是否居中、与相邻标注的关系，以及整张画面的视觉重量；未通过目视复核的帧不得进入 GIF 或视频母版。
 
 ```bash
 node scripts/demo-storyboard-smoke.mjs \

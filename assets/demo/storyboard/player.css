@@ -261,10 +261,32 @@ body[data-story-theme="codex-and-claude"] {
 }
 
 .focus-box {
-  border: max(2px, .18vw) solid var(--accent);
-  border-radius: clamp(6px, .65vw, 14px);
-  box-shadow: 0 0 0 max(1px, .11vw) rgb(255 255 255 / 92%), 0 8px 22px rgb(117 68 46 / 15%);
-  background: var(--accent-soft);
+  border: clamp(1.75px, .11vw, 2.25px) solid var(--accent);
+  border-radius: clamp(7px, .42vw, 9px);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 78%), 0 4px 14px rgb(117 68 46 / 9%);
+  background: rgb(176 107 72 / 8%);
+}
+
+.focus-box--control {
+  border-radius: clamp(5px, .3vw, 7px);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 72%);
+  background: rgb(176 107 72 / 5%);
+}
+
+.focus-box--stacked {
+  border-radius: clamp(6px, .34vw, 8px);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 72%);
+  background: rgb(176 107 72 / 6%);
+}
+
+.focus-box--spotlight {
+  border-radius: clamp(7px, .4vw, 9px);
+  background: rgb(176 107 72 / 12%);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 78%),
+    0 0 0 clamp(5px, .38vw, 8px) rgb(176 107 72 / 7%);
+  animation-duration: 860ms;
+  animation-timing-function: cubic-bezier(.16, 1, .3, 1);
 }
 
 .callout-label {
@@ -301,6 +323,50 @@ body[data-story-theme="codex-and-claude"] {
   box-shadow: 0 0 0 7px rgb(176 107 72 / 18%);
   animation: click-pulse 900ms ease-out forwards;
 }
+
+body.edit-mode .annotation-layer {
+  pointer-events: auto;
+}
+
+body.edit-mode .focus-box,
+body.edit-mode .callout-label,
+body.edit-mode .click-pulse {
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+
+body.edit-mode .focus-box:active,
+body.edit-mode .callout-label:active,
+body.edit-mode .click-pulse:active {
+  cursor: grabbing;
+}
+
+body.edit-mode .editable-annotation:hover,
+body.edit-mode .editable-annotation.is-edit-selected {
+  outline: clamp(1.5px, .1vw, 2px) solid oklch(58% .16 250);
+  outline-offset: clamp(2px, .18vw, 4px);
+}
+
+.annotation-edit-handle {
+  position: absolute;
+  display: none;
+  width: clamp(10px, .72vw, 14px);
+  height: clamp(10px, .72vw, 14px);
+  border: 2px solid rgb(255 255 255 / 94%);
+  border-radius: 50%;
+  background: oklch(58% .16 250);
+  box-shadow: 0 2px 8px rgb(23 43 82 / 24%);
+}
+
+.editable-annotation.is-edit-selected > .annotation-edit-handle {
+  display: block;
+}
+
+.annotation-edit-handle[data-resize-handle="nw"] { top: 0; left: 0; transform: translate(-50%, -50%); cursor: nwse-resize; }
+.annotation-edit-handle[data-resize-handle="ne"] { top: 0; right: 0; transform: translate(50%, -50%); cursor: nesw-resize; }
+.annotation-edit-handle[data-resize-handle="sw"] { bottom: 0; left: 0; transform: translate(-50%, 50%); cursor: nesw-resize; }
+.annotation-edit-handle[data-resize-handle="se"] { right: 0; bottom: 0; transform: translate(50%, 50%); cursor: nwse-resize; }
 
 .subtitle {
   position: absolute;
@@ -403,6 +469,93 @@ body.no-subtitles .subtitle {
   gap: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
+}
+
+.annotation-editor {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  align-items: center;
+  gap: 14px 20px;
+  padding: 14px 16px;
+  border: 1px solid rgb(71 55 46 / 16%);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 66%);
+}
+
+.annotation-editor[hidden] {
+  display: none;
+}
+
+.annotation-editor-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.annotation-editor-eyebrow {
+  margin: 0;
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 720;
+  letter-spacing: .06em;
+}
+
+.annotation-editor-selection {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.annotation-editor-status {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.annotation-editor-fields,
+.annotation-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.annotation-editor-fields label {
+  display: grid;
+  grid-template-columns: auto 64px;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.annotation-editor-fields input {
+  width: 64px;
+  min-height: 36px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.annotation-editor-fields input:disabled {
+  opacity: .42;
+}
+
+.annotation-editor-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.controls .annotation-editor-actions button {
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 11px;
+  border-radius: 9px;
+  font-size: 12px;
 }
 
 .review-field {
@@ -728,6 +881,60 @@ body.present .controls {
   display: none;
 }
 
+body.embed {
+  display: grid;
+  place-items: start center;
+  padding: 0;
+  background: var(--surface);
+}
+
+body.embed .shell {
+  width: min(100vw, calc((100dvh - 64px) * 16 / 9));
+}
+
+body.embed .stage {
+  box-shadow: none;
+}
+
+body.embed .controls {
+  grid-template-areas:
+    "transport scrubber timecode scene";
+  grid-template-columns: auto minmax(160px, 1fr) auto minmax(150px, .52fr);
+  gap: 10px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+body.embed .review-nav,
+body.embed .annotation-editor {
+  display: none;
+}
+
+body.embed .controls button {
+  min-width: 42px;
+  min-height: 38px;
+  border-radius: 10px;
+}
+
+.shell:fullscreen {
+  display: grid;
+  place-content: center;
+  width: 100vw;
+  min-height: 100vh;
+  padding: 0;
+  background: var(--surface);
+}
+
+.shell:fullscreen .stage {
+  width: min(100vw, calc((100vh - 64px) * 16 / 9));
+  box-shadow: none;
+}
+
+.shell:fullscreen .controls {
+  width: min(100vw, calc((100vh - 64px) * 16 / 9));
+}
+
 body.review .visual.is-transitioning,
 body.review .product-frame,
 body.review .annotation-lines polyline,
@@ -835,6 +1042,23 @@ body.review .click-pulse {
   .review-summary {
     text-align: left;
   }
+
+  .annotation-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .annotation-editor-fields,
+  .annotation-editor-actions {
+    justify-content: flex-start;
+  }
+
+  body.embed .controls {
+    grid-template-areas:
+      "transport timecode"
+      "scrubber scrubber"
+      "scene scene";
+    grid-template-columns: 1fr auto;
+  }
 }
 
 @media (max-width: 680px) {
@@ -860,6 +1084,16 @@ body.review .click-pulse {
     grid-column: auto;
   }
 
+  .annotation-editor-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .annotation-editor-fields label,
+  .annotation-editor-fields input {
+    width: 100%;
+  }
+
   .review-sheet {
     width: calc(100vw - 20px);
     max-height: calc(100dvh - 20px);
@@ -869,6 +1103,19 @@ body.review .click-pulse {
   .review-sheet-header,
   .review-sheet-status-row {
     align-items: flex-start;
+  }
+
+  body.embed .controls {
+    grid-template-areas:
+      "transport"
+      "scrubber"
+      "timecode"
+      "scene";
+    grid-template-columns: 1fr;
+  }
+
+  body.embed .transport {
+    flex-wrap: wrap;
   }
 
   .review-sheet-status-row {

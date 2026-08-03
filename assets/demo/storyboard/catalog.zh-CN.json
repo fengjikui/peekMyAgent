@@ -16,7 +16,7 @@
           "boundary": "使用虚构本地项目和确定性假上游，只证明 PMA 的观察路径，不代表真实模型能力。"
         },
         "status": "owner-review",
-        "next_gate": "在 GitHub 实际渲染中审阅 74 秒首页 GIF 与中文故事；通过后重导完整母版。",
+        "next_gate": "审阅十章可控 HTML 中的快速上手故事与静态 README 封面；通过后重导社交媒体母版。",
         "freshness": {
           "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
           "product_impact_ids": ["cli-and-lifecycle", "harness-capture", "viewer-surface", "timeline-navigation", "request-context", "tools", "protocol-and-raw", "translation-theme", "privacy-data"]
@@ -50,39 +50,39 @@
     },
     {
       "id": "custom-harness",
-      "label": "自研 Harness：通用协议接入",
+      "label": "自研 Harness：定位失败并验证改进",
       "timeline": "/assets/demo/source/custom-harness/video/timeline.zh-CN.json",
       "guide": "/docs/user-guide/custom-harness.md",
-      "guide_section": "真实例子：两次 Request 的目录工具闭环",
+      "guide_section": "真实例子：用 PMA 找出一次多余重试",
       "review": {
-        "question": "不开发专用 adapter，怎样先看清自研 Harness 的请求、工具结果和原始协议？",
+        "question": "怎样把一次多余重试追到工具 schema，并用同一输入证明 Harness 改动已经生效？",
         "audience": "正在开发 OpenAI / Anthropic 兼容 Harness 的开发者",
         "source": {
-          "label": "真实 pma observe + 确定性 OpenAI / Anthropic 假上游",
-          "boundary": "包装生命周期来自真实 CLI；模型回复固定生成，只证明 PMA 的协议观察能力，不代表远端模型质量。"
+          "label": "真实 pma observe + 确定性 OpenAI before / after Source",
+          "boundary": "包装生命周期和 Capture 来自真实 PMA；3→2 次 Request 是固定教学场景的结果，不是自动评分或真实远端模型质量声明。"
         },
         "status": "owner-review",
-        "next_gate": "审阅中文故事和协议边界，再决定是否进入正式配音与成片。",
+        "next_gate": "负责人在可编辑 HTML 中审阅新版 before / after 故事；通过后冻结中文旁白并交给独立配音任务。",
         "freshness": {
-          "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
+          "verified_product_sha": "e405158b23387710d96840a322fa12881b732906",
           "product_impact_ids": ["cli-and-lifecycle", "harness-capture", "viewer-surface", "request-context", "tools", "protocol-and-raw", "translation-theme", "privacy-data"]
         },
         "story": {
           "opening": {
             "scene": "00-intro",
             "ends_by_seconds": 17,
-            "narration_includes": ["自研 Agent", "PMA adapter", "pma observe", "Viewer"],
-            "subtitle_includes": ["自研 Agent", "PMA", "Viewer"]
+            "narration_includes": ["Harness", "工具定义", "PMA"],
+            "subtitle_includes": ["工具定义", "工具结果", "PMA"]
           },
           "value": {
-            "scene": "00-intro",
-            "ends_by_seconds": 17,
-            "narration_includes": ["pma observe", "协议交换", "Viewer"]
+            "scene": "01-observe-command",
+            "ends_by_seconds": 40,
+            "narration_includes": ["pma observe", "工具权限", "协议交换", "Viewer"]
           },
-          "proof_scenes": ["02-openai-overview", "07-openai-protocol"],
+          "proof_scenes": ["02-before-overview", "06-baseline-raw", "07-after-overview", "08-improved-raw", "09-improved-result"],
           "closing": {
-            "scene": "10-boundary-outro",
-            "narration_includes": ["通用桥", "协议", "Harness 私有语义"]
+            "scene": "11-outro",
+            "narration_includes": ["时间线", "Tools", "Raw", "重跑", "PMA"]
           }
         },
         "artifacts": {
@@ -142,34 +142,34 @@
     },
     {
       "id": "translation",
-      "label": "翻译：System 与 Tools 原文对照",
+      "label": "翻译：读懂 Codex 的 System 与 Tools",
       "timeline": "/assets/demo/source/translation/video/timeline.zh-CN.json",
       "guide": "/docs/user-guide/requests-context.md",
       "guide_section": "翻译长提示词",
       "review": {
-        "question": "怎样快速读懂长 System 和 Tools，同时保留每块译文的对应原文与完整 Raw？",
+        "question": "怎样读懂 Codex 风格的英文 System 和 Tools，同时保留对应原文与完整 Raw？",
         "audience": "阅读外语 Agent 上下文、核对工具 schema 或维护多语言资料的用户与 Harness 开发者",
         "source": {
-          "label": "真实 Capture Proxy + 确定性模型 / 翻译假上游",
-          "boundary": "请求、翻译缓存和 Viewer 操作来自真实 PMA；模型回复与译文固定生成，只证明产品交互和原文保留行为，不代表远端翻译质量。"
+          "label": "真实 Capture Proxy + Codex 形状教学请求 + 确定性翻译上游",
+          "boundary": "请求、翻译缓存和 Viewer 操作来自真实 PMA；Source 不宣称由真实 Codex CLI 产生，模型回复与译文也不代表远端质量。"
         },
         "status": "owner-review",
-        "next_gate": "审阅中文翻译故事和原文兜底边界，再决定是否进入正式配音与成片。",
+        "next_gate": "负责人在可编辑 HTML 中审阅 Codex 示例；通过后冻结中文旁白并交给独立配音任务。",
         "freshness": {
-          "verified_product_sha": "f263104403db2090bda2a1a2f354d40bf167e0ce",
+          "verified_product_sha": "e405158b23387710d96840a322fa12881b732906",
           "product_impact_ids": ["viewer-surface", "request-context", "protocol-and-raw", "translation-theme", "privacy-data"]
         },
         "story": {
           "opening": {
             "scene": "00-intro",
             "ends_by_seconds": 16,
-            "narration_includes": ["PMA", "翻译层", "原文"],
-            "subtitle_includes": ["PMA", "翻译层", "原文"]
+            "narration_includes": ["PMA", "System", "Capture", "原文"],
+            "subtitle_includes": ["PMA", "System", "原文"]
           },
           "value": {
             "scene": "00-intro",
             "ends_by_seconds": 16,
-            "narration_includes": ["PMA", "翻译层", "Capture", "原文"]
+            "narration_includes": ["PMA", "翻译", "Capture", "原文"]
           },
           "proof_scenes": ["03-system-translated", "07-capture-original"],
           "closing": {

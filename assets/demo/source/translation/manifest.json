@@ -1,13 +1,14 @@
 {
   "schema_version": 1,
-  "title": "翻译不改原文：读懂长 System 与 Tools",
+  "title": "用 PMA 读懂 Codex 的 System 与 Tools",
   "language": "zh-CN",
-  "chapter_status": "owner_review_v0_1",
+  "chapter_status": "source_captured_story_v0_2_visual_reviewed",
   "source": {
     "generator": "scripts/translation-viewer-demo.mjs",
-    "scenario_id": "translation-viewer-demo",
-    "product_baseline_sha": "b8d3df178eaa406f9409ad7560adcb0936dec8de",
-    "workspace": "/tmp/pma-translation-viewer-demo/public-project",
+    "scenario_id": "translation-codex-demo",
+    "product_baseline_sha": "e405158b23387710d96840a322fa12881b732906",
+    "workspace": "/tmp/pma-translation-codex-demo/public-project",
+    "source_label": "Codex · translation demo",
     "protocol": "OpenAI Responses",
     "sources": 1,
     "turns": 1,
@@ -34,7 +35,8 @@
       "A cache hit means one extracted material has a translation entry; it does not prove the whole request was translated.",
       "Tool names, parameter names, JSON keys, file paths, and schema structure remain source identifiers.",
       "Translated prose is an auxiliary reading layer; source text and Raw remain the evidence of record.",
-      "The fixture covers public English materials only and must not be used to claim universal language quality."
+      "The fixture covers public English materials only and must not be used to claim universal language quality.",
+      "The Source is a public Codex-shaped teaching request over OpenAI Responses; it is not claimed to come from the real Codex CLI."
     ]
   },
   "viewer": {
@@ -43,13 +45,13 @@
     "theme": "Codex",
     "ui_language": "zh-CN",
     "target_translation_language": "zh-CN",
-    "capture_mode": "Codex in-app Browser",
+    "capture_mode": "reproducible bundled Chromium CDP capture script",
     "browser_layout": "full three-pane layout",
     "black_frame": false
   },
   "facts": [
-    "Request 1 sends three system messages and two tool definitions, then receives a list_directory function_call.",
-    "Request 2 sends the matching function_call_output and receives the final Assistant response.",
+    "Request 1 asks which two files a new Codex contributor should read, sends three system messages and two tool definitions, then receives a list_directory function_call.",
+    "Request 2 sends the matching function_call_output containing AGENTS.md and README.md, then receives the final Assistant response.",
     "The System view reports 3/3 cached and renders three separate translated cards.",
     "The second translated System card can expand its exact English source in place.",
     "The Tools view reports 7/7 cached and groups translated descriptions under list_directory and read_file.",
@@ -66,31 +68,32 @@
     "recording/raw/07-capture-original.png"
   ],
   "raw_frame_sha256": {
-    "01-overview.png": "57d050684b57f674a524cb05d6c7b44a44ed555a5f1bfede415ac2f400454f46",
-    "02-system-source.png": "c4ef4d179f7223fea19734ef94cdd770bc64959b441753a35379bf7b65da7734",
-    "03-system-translated.png": "d6e1974eabecb2b38a6dd8eaaff8fed340385725837d54e435ce99c0fda334e1",
-    "04-system-bilingual.png": "c106a93c52f30309206dffa1da9fcb1226e42b9a492c18c4a71cf232b142e223",
-    "05-tools-source.png": "e3709ab0de74e7626d0a920ff199b9a54df01f72970aa07e56000db6b15efaa9",
-    "06-tools-translated.png": "64bf61988a3567685db1c92a98d680d97d01921908f8060ca609cfbac656fcb0",
-    "07-capture-original.png": "441dc13602dfba8c53a1520b2f6bcbbaab35d99c67bdb95abff4c516c0ffaba2"
+    "01-overview.png": "64c7cb9072f79ed205eb30896f10b0ec8cd29b9fa416b5019d81034a60e1eb25",
+    "02-system-source.png": "16c0406af24e39e81c56c1f98824e3301dc228de75cf4dc4b530e62a71a715f0",
+    "03-system-translated.png": "937e0e23da07dd4b63127ce98c65d3c3b7af714b2259ee2eb997e05b3c954688",
+    "04-system-bilingual.png": "35012d1655862fac4151be3095faddedd9f45990236e0defc36def784a15516a",
+    "05-tools-source.png": "30f47bf7fe056c18c0795eae63ff65c3a563c5bf2ea200f4d24004da2b4a0f3a",
+    "06-tools-translated.png": "3cea7071c93420d07c9a5d17638e6e43d32baf03b55f8c2a8944ad9e8a3e508a",
+    "07-capture-original.png": "ce40c933f77d47db187db8520fec369bb6fe9b0d8e7bf260cdec9bb1c2b40b8c"
   },
   "production": {
     "narration": "assets/demo/source/translation/narration.zh-CN.md",
     "timeline": "assets/demo/source/translation/video/timeline.zh-CN.json",
     "subtitles": "assets/demo/video/pma-translation-system-tools.zh-CN.srt",
     "storyboard_player": "assets/demo/storyboard/index.html",
+    "raw_frame_capture": "node scripts/capture-translation-source-frames.mjs",
     "review_capture": "node scripts/capture-storyboard-review-frames.mjs translation",
     "subtitle_generator": "scripts/timeline-subtitles-to-srt.mjs",
     "picture_master_exporter": "scripts/export-storyboard-video.mjs",
     "picture_master_candidate": "tmp/storyboard-video/translation/pma-translation-picture-full.mp4; local and Git-ignored",
     "picture_master_status": "the technical master at ddb8dd06502da613a771eb4a11cdebb58d4cea37 is historical reference only; the shared launch-style title-card template requires re-export after owner story review",
     "repository_policy": "The seven public Viewer frames and both review directories are tracked so a clean clone can play and audit the storyboard; the MP4, render manifest, extracted video frames, fake-upstream logs, and audio remain ignored.",
-    "audio": "not_started; handled by the separate voice-tuning workflow"
+    "audio": "handled by the separate dedicated voiceover task after Chinese narration freeze"
   },
   "privacy": {
-    "paths": "only the fixed disposable /tmp/pma-translation-viewer-demo/public-project path is visible",
-    "request_body": "public deterministic English instructions, Chinese user request, and synthetic tool definitions only",
-    "tool_results": "README.md and guide.md names only",
+    "paths": "only the fixed disposable /tmp/pma-translation-codex-demo/public-project path is visible",
+    "request_body": "public deterministic Codex-shaped English instructions, Chinese user request, and synthetic tool definitions only",
+    "tool_results": "AGENTS.md and README.md names only",
     "translation_cache": "contains only the ten public fixture translations",
     "headers": "placeholder authorization value is redacted before persistence",
     "prohibited": ["API keys", "real prompts", "user source", "home-directory paths", "external captures"]
@@ -100,8 +103,8 @@
   ],
   "visual_review": {
     "captured_at": "2026-08-02",
-    "raw_frame_result": "passed for exact 1920x1080 dimensions, full three-pane layout, Codex theme, readable right-pane tabs, fixed disposable paths, and visible translation cache status",
-    "annotation_result": "passed for all 18 timeline-declared progressive states at 1920x1080 and the same 18 states at 1024x576",
+    "raw_frame_result": "passed: seven public frames were regenerated from the Codex-shaped Source with an exact 1920x1080 viewport",
+    "annotation_result": "passed internal visual review at 1920x1080 and 1024x576; waiting for owner review in the editable HTML",
     "review_contract": "video/timeline.zh-CN.json#review_points",
     "review_notes": [
       "The first user-message detail button does not identify a Request; the chapter uses the following Assistant detail button to open Request 1 evidence.",
@@ -109,13 +112,17 @@
       "The first target-language annotation initially framed the search box; it was moved to the actual translation selector and both sizes were rerendered.",
       "The bilingual source frame initially included the following System card; it was tightened to the expanded Safety rules block and both sizes were rerendered.",
       "Numbered evidence appears in narrated order. Earlier numbers either exit for an independent focus or remain dimmed only when the later point must be compared with them.",
+      "The target-language selector and small Request detail entry both use click ripples in addition to rounded frames and numbered badges.",
+      "Every named review point was inspected in both contact sheets; key frames were also opened at original 1920x1080 size.",
       "Badge centers, focus bounds, bottom-centered subtitles, and full three-pane geometry were visually inspected at both output sizes."
     ]
   },
   "publication_gate": {
-    "status": "owner_review_pending",
+    "status": "owner_review",
     "remaining": [
-      "Freeze the Chinese story only after owner review.",
+      "Review the editable HTML story and annotation geometry with the product owner.",
+      "Freeze the Chinese narration and hand semantic segments to the separate voice task.",
+      "Export a new picture master only after owner approval; the historical MP4 remains non-publishable.",
       "Do not publish local MP4 or audio files from the main repository."
     ]
   }
