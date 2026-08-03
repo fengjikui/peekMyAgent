@@ -2,7 +2,9 @@
 
 普通日志经常只保留“模型被调用了”和“模型返回了什么”。调试 Agent 时，更关键的问题是：这一刻模型到底收到了哪些固定指令、历史消息、工具定义和新增内容？相邻请求之间又发生了什么变化？
 
-![从请求详情进入 System diff](../../assets/demo/user-guide/context-changes.gif)
+[![从请求详情进入 System diff](../../assets/demo/user-guide/context-system-diff.png)](../../assets/demo/storyboard/gallery.zh-CN.html?chapter=codex-compact)
+
+静态图适配 GitHub；可控 HTML 版本可以暂停和拖动，继续查看 Codex 压缩前后的 History 与规则重注入。
 
 这段演示使用 2048×1056 视口和 Codex 主题。第 4 次请求同时发生三件事：沿用历史中的项目代号、保留上一轮工具结果、在 System 指令中新增“三点回答”要求并把推理强度改为 `high`。
 
@@ -153,7 +155,9 @@ Codex 与上面的 Claude Code 轨迹也不能只套用一个“压缩模板”�
 
 顶部的 `界面` 控制 Viewer 自身语言，旁边的 `翻译` 控制请求材料要译成哪一种语言。两者互不替代：把界面切成中文，不会自动改写 Capture 中的英文 System 或 Tools。
 
-这组公开演示只有一个无需业务背景的任务：“请告诉我新用户先读哪个文件，以及为什么。”Request 1 带着三块 System 和两个工具定义上行，模型提出 `list_directory` 调用；Request 2 带回目录结果并回答 `README.md`。它适合用来观察翻译，而不需要先理解某个真实项目。
+这组公开演示使用一个熟悉但无需业务背景的 Codex 场景：“如果第一次用 Codex 参与这个项目，修改代码前应该先读哪两个文件？”Request 1 带着三块 System 和两个工具定义上行，模型提出 `list_directory` 调用；Request 2 带回 `AGENTS.md` 与 `README.md` 并回答。它适合观察编程 Agent 的翻译需求，而不要求先理解真实项目。
+
+这是一条使用 OpenAI Responses 形状的公开确定性教学 Source，不宣称由真实 Codex CLI 产生。真实部分是 PMA Capture Proxy、翻译接口、缓存和 Viewer 操作；模型回复与译文由 loopback 假上游固定生成。
 
 实际阅读顺序是：
 
@@ -163,11 +167,11 @@ Codex 与上面的 Claude Code 轨迹也不能只套用一个“压缩模板”�
 4. 进入 `Tools`，用同样顺序检查工具说明和参数说明；
 5. 结论涉及工具名、参数名或 schema 时，回到 `完整请求` 确认 Raw。
 
-![同一张 System 卡片中的中文约束与英文原文](../../assets/demo/source/translation/recording/review-1920/04b-expanded-source-with-dim.png)
+![同一张 System 卡片中的中文约束与英文原文](../../assets/demo/source/translation/recording/review-1920/04b-expanded-source-with-dim.jpg)
 
-编号 1 是第二块 System 的中文约束；讲解到逐字核对时，编号 1 保留但降低权重，编号 2 才出现并只框住对应英文 `Safety rules`。三块 System 不会被合并成一段脱离来源的摘要，项目符号和编号结构也仍可逐块对应。
+编号 1 是第二块 System 的中文约束；讲解到逐字核对时，编号 1 保留但降低权重，编号 2 才出现并只框住对应英文 `Repository instructions`。三块 System 不会被合并成一段脱离来源的摘要，项目符号和编号结构也仍可逐块对应。
 
-![Tools 译文中的中文说明与未改变的 schema 标识符](../../assets/demo/source/translation/recording/review-1920/06b-tool-identifiers-with-dim.png)
+![Tools 译文中的中文说明与未改变的 schema 标识符](../../assets/demo/source/translation/recording/review-1920/06b-tool-identifiers-with-dim.jpg)
 
 Tools 视图只翻译可读说明。`list_directory`、`read_file`、`path`、`max_depth`、`start_line` 和 `end_line` 仍是原始协议标识符。顶部 `7/7 已缓存` 表示当前 Tools 区块抽取出的七条可翻译材料都有缓存条目；它不表示整个 JSON schema 被改写，也不证明整个请求的所有内容都已翻译。
 

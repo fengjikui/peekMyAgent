@@ -5,6 +5,7 @@
 ## 当前决策
 
 - 主仓库跟踪：生成脚本、镜头表、字幕、封面、素材 manifest、脱敏说明和发布目录；
+- 主仓库跟踪：可控 HTML 播放器和十章中文演示页；文档站点可直接部署这些静态文件；
 - 主仓库可以跟踪：符合 `assets/demo/media-budget.json` 的确定性原图、双尺寸审阅图和紧凑 GIF；
 - 主仓库不跟踪：MP4、独立旁白 M4A、逐镜头合成帧、临时片段和剪辑器缓存；
 - 内部审阅：从主仓库脚本在本地生成成片，通过文件或临时链接审阅；
@@ -13,6 +14,8 @@
 - 可编辑工程：确有多人协作需要时可以放在独立素材仓库，但不以 Git submodule 作为用户播放入口。
 
 GitHub 官方建议用 Releases 分发大型二进制，而不是把它们作为普通 Git 对象跟踪；单个 Release asset 必须小于 2 GiB，Release 的资产总大小和带宽当前没有硬性额度。[About large files on GitHub](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) · [About releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)
+
+长演示在文档中优先使用 `assets/demo/storyboard/index.html?embed=1&autoplay=0&timeline=...`：它支持暂停、拖动、逐镜头回看、字幕开关和全屏，避免 GIF 只能等待下一轮循环。统一入口是 `assets/demo/storyboard/gallery.zh-CN.html`。GitHub README 不能可靠执行仓库内 iframe，因此只放静态封面与公开演示链接；MP4 仍用于 B 站、YouTube 和其他社交媒体。
 
 ## 为什么暂不使用 Git LFS
 
@@ -53,13 +56,13 @@ CDN 负责缓存和 Range 请求；catalog 负责从稳定视频 ID 指向当前
 ## 发布流程
 
 1. 从精确 `origin/main` SHA 生成确定性演示 Source；
-2. 在 2048×1056 Viewer 视口重新操作并采集原始帧；
+2. 在 1920×1080 Viewer 视口重新操作并采集原始帧，同时生成 1024×576 文档宽度复核帧；
 3. 运行生成脚本，得到本地 MP4、M4A、SRT、封面和时间线；
 4. 对每个标注帧、成片中点抽帧、字幕、响度和隐私执行验收；
 5. 计算 MP4 的 SHA-256 与字节数；
 6. 上传到 GitHub Release 或对象存储；
 7. 更新 catalog 的 `published_url`、`source_commit`、校验值与状态；
-8. 在 GitHub 页面实际播放，再把链接接入 README 或用户手册。
+8. 在公开播放器与 GitHub README 降级入口分别检查，再把链接接入 README 或用户手册。
 
 ## 隐私与撤回边界
 

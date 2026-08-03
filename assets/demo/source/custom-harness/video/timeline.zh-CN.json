@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "title": "自研 Harness：用通用协议桥看清一次工具闭环",
+  "title": "自研 Harness：从三次 Request 改进到两次",
   "resolution": [1920, 1080],
   "source_viewport": [1920, 1080],
   "fps": 30,
-  "duration_seconds": 251,
-  "theme": "codex-and-claude",
+  "duration_seconds": 262,
+  "theme": "codex",
   "subtitle_layout": {
     "position": "bottom-center",
     "bottom_percent": 5.2,
@@ -15,394 +15,451 @@
     "outline": "subtle"
   },
   "review_points": [
-    { "name": "00-intro", "scene": 0, "at_ms": 3000 },
-    { "name": "01-command", "scene": 1, "at_ms": 7000 },
-    { "name": "02a-source", "scene": 2, "at_ms": 3600 },
-    { "name": "02b-flow-crossfade", "scene": 2, "at_ms": 9250 },
-    { "name": "02c-tool-loop", "scene": 2, "at_ms": 11200 },
-    { "name": "03a-metadata-tab", "scene": 3, "at_ms": 2600 },
-    { "name": "03b-parameters", "scene": 3, "at_ms": 8200 },
-    { "name": "03c-composition-with-dim", "scene": 3, "at_ms": 14800 },
-    { "name": "04a-tools-tab", "scene": 4, "at_ms": 2600 },
-    { "name": "04b-tool-schema", "scene": 4, "at_ms": 8200 },
-    { "name": "05a-tool-call", "scene": 5, "at_ms": 3800 },
-    { "name": "05b-call-crossfade", "scene": 5, "at_ms": 10250 },
-    { "name": "05c-call-arguments", "scene": 5, "at_ms": 12200 },
-    { "name": "06a-tool-result", "scene": 6, "at_ms": 4200 },
-    { "name": "06b-result-crossfade", "scene": 6, "at_ms": 10850 },
-    { "name": "06c-result-body", "scene": 6, "at_ms": 12800 },
-    { "name": "07a-protocol-tab", "scene": 7, "at_ms": 2800 },
-    { "name": "07b-openai-input", "scene": 7, "at_ms": 8800 },
-    { "name": "07c-openai-output", "scene": 7, "at_ms": 18450 },
-    { "name": "08a-raw-request", "scene": 8, "at_ms": 4200 },
-    { "name": "08b-header-redaction", "scene": 8, "at_ms": 10400 },
-    { "name": "09a-anthropic-provider", "scene": 9, "at_ms": 3600 },
-    { "name": "09b-tool-use", "scene": 9, "at_ms": 11600 },
-    { "name": "09c-tool-result-with-dim", "scene": 9, "at_ms": 19800 },
-    { "name": "10-limits", "scene": 10, "at_ms": 4000 }
+    { "name": "00-intro", "scene": 0, "at_ms": 3500 },
+    { "name": "01-command", "scene": 1, "at_ms": 6500 },
+    { "name": "02a-before-source", "scene": 2, "at_ms": 4500 },
+    { "name": "02b-before-flow", "scene": 2, "at_ms": 12000 },
+    { "name": "02c-before-retry", "scene": 2, "at_ms": 21000 },
+    { "name": "03a-tools-tab", "scene": 3, "at_ms": 3500 },
+    { "name": "03b-vague-schema", "scene": 3, "at_ms": 16000 },
+    { "name": "04a-call-click", "scene": 4, "at_ms": 4200 },
+    { "name": "04b-empty-arguments", "scene": 4, "at_ms": 13500 },
+    { "name": "05a-error-result", "scene": 5, "at_ms": 7500 },
+    { "name": "05b-retry-call", "scene": 5, "at_ms": 17500 },
+    { "name": "06a-baseline-parameters", "scene": 6, "at_ms": 7500 },
+    { "name": "06b-baseline-strict", "scene": 6, "at_ms": 17500 },
+    { "name": "07a-after-source", "scene": 7, "at_ms": 5500 },
+    { "name": "07b-after-two-requests", "scene": 7, "at_ms": 16500 },
+    { "name": "08a-improved-description", "scene": 8, "at_ms": 7500 },
+    { "name": "08b-improved-schema", "scene": 8, "at_ms": 18500 },
+    { "name": "09a-readme-result", "scene": 9, "at_ms": 7500 },
+    { "name": "09b-final-answer", "scene": 9, "at_ms": 17000 },
+    { "name": "10-anthropic-boundary", "scene": 10, "at_ms": 7500 },
+    { "name": "11-outro", "scene": 11, "at_ms": 4500 }
   ],
   "scenes": [
     {
       "id": "00-intro",
-      "title": "先观察协议，再决定是否开发 adapter",
+      "title": "不是只看成功或失败",
       "start_seconds": 0,
       "end_seconds": 17,
       "source_image": null,
       "card": {
-        "eyebrow": "peekMyAgent · 自研 Harness",
-        "headline": "先看清模型交换",
-        "steps": ["OpenAI / Anthropic", "pma observe", "Viewer 证据链"],
-        "footer": "前提：Harness 支持进程级 base URL 环境变量"
+        "eyebrow": "peekMyAgent · 自研 Harness 改进闭环",
+        "headline": "同一任务，从三次 Request 到两次",
+        "steps": ["观察", "定位", "修改", "重跑"],
+        "footer": "公开虚构项目 · 真实 pma observe · 确定性 loopback 上游"
       },
-      "narration": "开发自研 Agent 时，你通常先想知道请求到底发对了没有，而不是马上再写一个 PMA adapter。只要 Harness 从环境变量读取 OpenAI 或 Anthropic 的 base URL，pma observe 就能先把真实协议交换放进 Viewer。",
+      "narration": "开发自研 Harness 时，模型表现不好往往太笼统。真正要回答的是：模型看到了什么工具定义，实际发出了什么参数，Harness 返回了什么，以及下一次请求怎样使用这个结果。PMA 把这些步骤放在同一条证据链里。",
       "subtitle_cues": [
-        "开发自研 Agent，先确认请求是否发对。",
-        "不必一开始就开发专用 adapter。",
-        "Harness 能覆写 base URL 就可以观察。",
-        "PMA 先把协议交换放进 Viewer。"
+        "“模型表现不好”往往太笼统。",
+        "先检查模型实际看到的工具定义。",
+        "再检查调用参数和工具结果。",
+        "PMA 把它们连成同一条证据链。"
       ],
       "transition": { "type": "crossfade", "duration_ms": 700 }
     },
     {
       "id": "01-observe-command",
-      "title": "一个命令只改变 child 环境",
+      "title": "先用最小任务建立可复现证据",
       "start_seconds": 17,
-      "end_seconds": 42,
+      "end_seconds": 40,
       "source_image": null,
       "card": {
-        "eyebrow": "步骤 1 · 包装原来的启动命令",
-        "headline": "“--” 分开 PMA 与 Harness",
+        "eyebrow": "真实包装方式",
+        "headline": "不写 adapter，先观察原命令",
         "steps": [
-          "PMA：命名 Source",
-          "PMA：指定 base URL 变量",
-          "child：原 Harness 命令"
+          "export OPENAI_BASE_URL=…",
+          "pma observe 包装原命令"
         ],
-        "footer": "只覆写 child 环境；父 shell、用户配置与权限策略不变"
+        "footer": "任务：请从 README 中找出项目入口文件，并引用原文依据"
       },
-      "narration": "命令分成两边。双横线前告诉 PMA Source 名称和需要临时覆写的变量；双横线后仍是原来的 Harness 命令。PMA 先读取真实上游，再只在 child 进程中把这个变量换成本地代理。父 shell、用户配置和其他进程都不变。这里也没有 PMA 的完全权限参数，因为审批和工具权限属于你的 Harness。",
+      "narration": "任务很简单：从 README 找出项目入口，并引用原文。用 pma observe 包装原来的 Harness 命令，只临时替换 child 的 OpenAI base URL。PMA 不改变工具权限，也不需要先开发专用 adapter；它只把真实协议交换送进 Viewer。",
       "subtitle_cues": [
-        "双横线前是 PMA observe 选项。",
-        "双横线后仍是原来的 Harness 命令。",
-        "PMA 只覆写 child 的 base URL。",
-        "父 shell 与用户配置保持不变。",
-        "权限和审批仍由自研 Harness 决定。"
+        "任务只要求从 README 找出项目入口。",
+        "pma observe 包装原来的 Harness 命令。",
+        "只有 child 的 base URL 被临时替换。",
+        "工具权限仍然属于 Harness。",
+        "真实协议交换进入 PMA Viewer。"
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
     },
     {
-      "id": "02-openai-overview",
-      "title": "两次 Request 形成最小工具闭环",
-      "start_seconds": 42,
+      "id": "02-before-overview",
+      "title": "旧版为什么出现三次 Request",
+      "start_seconds": 40,
       "end_seconds": 66,
-      "source_image": "/assets/demo/source/custom-harness/recording/raw/01-openai-overview.png",
-      "narration": "这条 Source 来自真实 pma observe 和确定性本地上游。任务只要求列出公开目录，再说明新用户先看哪个文件。PMA 显示一个 Turn、两次 Request：模型先选择 list directory，Harness 本地执行，第二次请求回传目录结果，模型最后回答先看 README。",
+      "source_image": "/assets/demo/source/custom-harness/recording/raw/01-before-overview.png",
+      "narration": "先看 harness before。同一个 Turn 里有三次 Request，机制流程也出现两次 read file 调用和两次结果回传。最终答案虽然正确，但中间明显多了一次失败与重试。这里先记录现象，不急着把责任归给模型。",
       "subtitle_cues": [
-        "这条 Source 由真实 pma observe 捕获。",
-        "任务只要求列出一个公开目录。",
-        "一个 Turn 中包含两次模型 Request。",
-        "调用、结果和回答组成完整工具闭环。"
+        "先看 harness-before。",
+        "同一个 Turn 里有三次 Request。",
+        "机制流程出现两次 read_file 调用。",
+        "最终答案正确，但中间多了一次重试。",
+        "先记录现象，不急着归因。"
       ],
       "overlays": [
         {
           "type": "badge",
           "label": "1",
-          "focus": [3.5, 8.8, 8.9, 3.3],
-          "label_box": [0.8, 8.0, 2.4, 4.4],
-          "delay_ms": 700,
-          "end_ms": 9600,
-          "draft": "出现顺序：编号 1 先标记左栏 protocol-lab-openai Source；保留关系：切到流程后不再需要；淡出时点：与编号 2 交叉约 0.7 秒，不遮 Source 名称。"
+          "focus": [1.0, 15.6, 11.6, 4.2],
+          "focus_padding": [0.5, 0.5],
+          "label_box": [12.9, 15.7, 2.2, 3.9],
+          "delay_ms": 1200,
+          "dim_ms": 9000,
+          "draft": "先聚焦左栏完整 Source 会话行，框体沿原生蓝底外缘均匀扩充，不只框住末尾的 3 请求文字。编号放在右侧空白，不压标题。"
         },
         {
           "type": "badge",
           "label": "2",
-          "focus": [14.2, 15.3, 45.3, 3.4],
-          "label_box": [11.3, 14.3, 2.4, 4.4],
-          "delay_ms": 8900,
-          "draft": "出现顺序：编号 2 在 Source 已讲清后聚焦机制流程；保留关系：编号 1 交接后消失；淡出时点：镜头结束，不使用跨栏箭头。"
+          "focus": [14.1, 15.6, 31.5, 3.0],
+          "focus_padding": [0.5, 0.5],
+          "label_box": [46.0, 15.1, 2.2, 3.9],
+          "delay_ms": 9000,
+          "dim_ms": 17000,
+          "draft": "第二步框住完整机制流程，从用户请求到最终回答；编号 1 保留但降权，便于把 Source 计数与流程对应。"
+        },
+        {
+          "type": "badge",
+          "label": "3",
+          "focus": [14.0, 37.0, 45.8, 30.0],
+          "focus_padding": [0.52, 0.58],
+          "focus_style": "spotlight",
+          "label_box": [11.2, 49.0, 2.2, 3.9],
+          "delay_ms": 17000,
+          "draft": "最后用较大气的淡色聚光框包住 Request 2 与 Request 3 的错误回传、重试和成功结果，不割裂相邻上下行；编号 2 降权保留。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
     },
     {
-      "id": "03-request-metadata",
-      "title": "先核对模型参数和上行构成",
+      "id": "03-before-tools",
+      "title": "模型实际看到怎样的工具",
       "start_seconds": 66,
-      "end_seconds": 92,
-      "source_image": "/assets/demo/source/custom-harness/recording/raw/02-openai-metadata.png",
-      "narration": "打开 Request 一的 Metadata，可以直接核对模型、temperature、最大输出 token 和请求路径。再往下看上行构成，System、Tools、当前用户和参数分别占多少一目了然。这里的 Source 名称只是标签；协议事实来自实际路径和 body。",
+      "end_seconds": 91,
+      "source_image": "/assets/demo/source/custom-harness/recording/raw/02-before-tools.png",
+      "narration": "打开 Request 一的 Tools。旧版只写读取项目文档，参数 path 的说明只有文件；schema 中没有 required，工具也不是 strict。模型不会看到 Harness 源码，它只能根据这份上行定义选择工具并组织参数。",
       "subtitle_cues": [
-        "先打开 Request 1 的 Metadata。",
-        "模型、温度和输出上限都来自请求字段。",
-        "上行构成拆出 System、Tools 与用户内容。",
-        "Source 名称不会决定协议事实。"
+        "打开 Request 1 的 Tools。",
+        "工具说明只有“读取项目文档”。",
+        "path 的说明只有“文件”。",
+        "schema 没有把 path 设为必填。",
+        "模型只能根据这份上行定义组织参数。"
       ],
       "overlays": [
         {
-          "type": "focus",
-          "focus": [82.3, 6.3, 4.5, 2.8],
-          "delay_ms": 350,
-          "end_ms": 5600,
-          "draft": "Metadata 标签已经自带名称，只用轻描边说明当前视图；不叠加重复编号；在参数讲解开始前淡出。"
+          "type": "click",
+          "click": [72.2, 7.7],
+          "delay_ms": 700,
+          "end_ms": 3500,
+          "draft": "先用一次短波纹说明 Tools 从哪里打开；标签已有名称，不增加大编号。"
         },
         {
-          "type": "badge",
-          "label": "1",
-          "focus": [62.6, 45.6, 36.7, 23.6],
-          "label_box": [60.1, 43.0, 2.4, 4.4],
-          "delay_ms": 5700,
-          "dim_ms": 13900,
-          "draft": "出现顺序：编号 1 先聚焦生成参数和 token 统计；保留关系：编号 2 出现后继续保留用于说明同一上行请求，但通过 dim_ms 退为次要；淡出时点：镜头结束。"
-        },
-        {
-          "type": "badge",
-          "label": "2",
-          "focus": [62.6, 71.8, 36.7, 13.7],
-          "label_box": [60.1, 69.3, 2.4, 4.4],
-          "delay_ms": 13900,
-          "draft": "出现顺序：编号 2 后出现并聚焦上行构成；保留关系：编号 1 已降权并继续提供上下文；淡出时点：镜头结束，两个框都避开字幕安全区。"
-        }
-      ],
-      "transition": { "type": "crossfade", "duration_ms": 650 }
-    },
-    {
-      "id": "04-tool-definition",
-      "title": "模型为什么能选择这个工具",
-      "start_seconds": 92,
-      "end_seconds": 113,
-      "source_image": "/assets/demo/source/custom-harness/recording/raw/03-openai-tools.png",
-      "narration": "切到 Tools，Viewer 展示 Harness 实际发送的 list directory 定义：用途是列出公开目录的第一层内容，参数 path 是相对目录。模型不是凭空知道本地函数；它只能根据这份工具名、说明和 schema 提出结构化调用。",
-      "subtitle_cues": [
-        "Tools 展示 Harness 实际发送的定义。",
-        "模型看见工具名、说明和参数 schema。",
-        "它只能据此提出结构化调用。",
-        "真正执行工具的仍然是本地 Harness。"
-      ],
-      "overlays": [
-        {
           "type": "focus",
-          "focus": [71.1, 6.3, 3.0, 2.8],
-          "delay_ms": 350,
+          "focus": [71.4, 6.5, 2.8, 2.8],
+          "focus_padding": [0.25, 0.30],
+          "focus_style": "control",
+          "delay_ms": 700,
           "end_ms": 5500,
-          "draft": "Tools 标签已经清楚命名，只用轻描边说明切换入口；不重复叠加编号；在工具定义出现前淡出。"
+          "draft": "Tools 标签只用轻描边，不扩成覆盖整排标签的长框。"
         },
         {
           "type": "badge",
           "label": "1",
-          "focus": [62.6, 16.3, 36.7, 14.3],
-          "label_box": [60.1, 13.7, 2.4, 4.4],
-          "delay_ms": 5700,
-          "draft": "出现顺序：编号 1 聚焦 list_directory 说明和 path 参数；保留关系：本镜头只有一个证据重点；淡出时点：镜头结束，不增加箭头。"
+          "focus": [62.7, 17.2, 36.5, 11.0],
+          "focus_padding": [0.52, 0.58],
+          "focus_style": "spotlight",
+          "label_box": [59.9, 20.2, 2.2, 3.9],
+          "delay_ms": 6500,
+          "draft": "用一只完整框同时包含 read_file、模糊工具说明和 path 参数说明；上下留白小而均匀，不把标题与参数割裂成两个局促小框。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
     },
     {
-      "id": "05-tool-call",
-      "title": "模型下行只提出动作",
+      "id": "04-empty-call",
+      "title": "第一次下行确实是空参数",
+      "start_seconds": 91,
+      "end_seconds": 113,
+      "source_image": "/assets/demo/source/custom-harness/recording/raw/03-before-empty-call.png",
+      "narration": "点开第一次 read file 调用，右栏保留结构化参数。这里不是参数看起来不太好，而是明确的空对象。模型只提出结构化意图；真正读取文件的仍然是本地 Harness。",
+      "subtitle_cues": [
+        "点开第一次 read_file 调用。",
+        "右栏保留结构化参数。",
+        "这里明确显示一个空对象。",
+        "模型只提出结构化意图。",
+        "真正读取文件的是本地 Harness。"
+      ],
+      "overlays": [
+        {
+          "type": "click",
+          "click": [59.25, 33.35],
+          "delay_ms": 700,
+          "end_ms": 3500,
+          "draft": "短波纹落在第一次 read_file 行末的真实展开入口；不跨到第二次调用。"
+        },
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [14.1, 31.2, 45.7, 4.4],
+          "focus_padding": [0.5, 0.5],
+          "label_box": [11.3, 31.5, 2.2, 3.9],
+          "delay_ms": 700,
+          "end_ms": 7200,
+          "draft": "先框住完整第一次工具调用行，左右均匀留白；面积虽窄，但同时有编号和点击波纹。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [62.7, 24.7, 36.5, 5.2],
+          "focus_padding": [0.52, 0.58],
+          "focus_style": "spotlight",
+          "label_box": [59.9, 25.2, 2.2, 3.9],
+          "delay_ms": 6500,
+          "draft": "焦点交接到右栏完整 arguments 区域；编号 1 经短暂交叉后退出。框内包含标题和空对象，避免只围住两个花括号而显得小气。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "05-error-and-retry",
+      "title": "错误怎样回到模型并触发重试",
       "start_seconds": 113,
-      "end_seconds": 134,
-      "source_image": "/assets/demo/source/custom-harness/recording/raw/04-openai-tool-call.png",
-      "narration": "第一次模型回复不是自然语言答案，而是 function call。中栏先显示 list directory 调用；右栏再展开原生类型、call id 和参数 path 点。模型只输出文本形式的结构化意图，并没有直接访问磁盘。",
+      "end_seconds": 136,
+      "source_image": "/assets/demo/source/custom-harness/recording/raw/04-before-error-result.png",
+      "narration": "Request 二把 path is required 作为与第一次调用关联的工具结果送回模型。随后模型再次调用 read file，这一次才给出 README.md。来源链接和 call id 让错误结果、原调用与重试之间的关系可以逐步核对。",
       "subtitle_cues": [
-        "第一次模型回复是一条 function call。",
-        "PMA 先在时间线标出工具调用。",
-        "右栏保留 call id 和参数 path。",
-        "模型并没有直接访问本地磁盘。"
+        "Request 2 回传 path is required。",
+        "结果通过 call id 关联第一次调用。",
+        "随后模型再次调用 read_file。",
+        "第二次才给出 README.md。",
+        "错误、原调用和重试可以逐步核对。"
       ],
       "overlays": [
         {
           "type": "badge",
           "label": "1",
-          "focus": [14.2, 30.7, 45.3, 4.8],
-          "label_box": [11.3, 28.0, 2.4, 4.4],
-          "delay_ms": 700,
-          "end_ms": 10600,
-          "draft": "出现顺序：编号 1 先聚焦中栏 list_directory 调用；保留关系：讲完摘要后不再需要；淡出时点：与编号 2 交叉约 0.7 秒，不遮工具名。"
+          "focus": [62.7, 25.2, 36.5, 6.0],
+          "focus_padding": [0.52, 0.58],
+          "focus_style": "spotlight",
+          "label_box": [59.9, 26.1, 2.2, 3.9],
+          "delay_ms": 900,
+          "dim_ms": 12000,
+          "draft": "先框住右栏完整错误输出，包含 call id 和 path is required；不要只框一行 JSON。"
         },
         {
           "type": "badge",
           "label": "2",
-          "focus": [62.6, 18.3, 36.7, 10.2],
-          "label_box": [60.1, 15.6, 2.4, 4.4],
-          "delay_ms": 9900,
-          "draft": "出现顺序：编号 2 接管右栏 function_call 参数；保留关系：编号 1 交接后消失；淡出时点：镜头结束，不使用跨栏箭头。"
+          "focus": [14.1, 47.0, 45.7, 6.2],
+          "focus_padding": [0.52, 0.58],
+          "label_box": [11.3, 48.0, 2.2, 3.9],
+          "delay_ms": 12000,
+          "draft": "再框住 Request 2 的 Assistant 回复与第二次 read_file 调用；编号 1 降权保留，表达错误回流后才发生重试。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
     },
     {
-      "id": "06-tool-result",
-      "title": "Harness 执行后把结果送回下一次请求",
-      "start_seconds": 134,
-      "end_seconds": 157,
-      "source_image": "/assets/demo/source/custom-harness/recording/raw/05-openai-tool-result.png",
-      "narration": "Harness 在本地列出目录，再把结果封装成第二次请求的 function call output。中栏说明它已关联调用，并提供来源一；右栏保留 call id 和实际 entries。这样可以检查结果是否确实回给了模型，而不是只看到终端说工具成功。",
+      "id": "06-baseline-raw",
+      "title": "从 Raw 定位应该修改哪里",
+      "start_seconds": 136,
+      "end_seconds": 159,
+      "source_image": "/assets/demo/source/custom-harness/recording/raw/05-before-raw-schema.png",
+      "narration": "回到 Request 一的完整请求，可以确认问题来自真实上行 schema：path 只是 properties 中的可选字段，required 根本不存在，strict 还是 false。此时更合理的动作不是盲目增加长提示词，而是先修正工具契约。",
       "subtitle_cues": [
-        "Harness 在本地执行 list_directory。",
-        "结果进入第二次请求的 function call output。",
-        "来源 #1 把结果连回最初调用。",
-        "右栏保留实际 entries 与 call id。",
-        "因此可以核对模型真正收到了什么。"
+        "回到 Request 1 的完整请求。",
+        "path 只出现在 properties 中。",
+        "required 根本不存在。",
+        "strict 还是 false。",
+        "先修正工具契约，而不是盲目加长提示词。"
       ],
       "overlays": [
         {
           "type": "badge",
           "label": "1",
-          "focus": [14.2, 38.0, 45.3, 6.0],
-          "label_box": [11.3, 35.1, 2.4, 4.4],
-          "delay_ms": 700,
-          "end_ms": 11200,
-          "draft": "出现顺序：编号 1 先聚焦中栏工具结果、已关联调用和来源 #1；保留关系：右栏正文出现后不再需要；淡出时点：与编号 2 交叉约 0.7 秒。"
+          "focus": [65.7, 28.0, 31.2, 23.2],
+          "focus_padding": [0.52, 0.58],
+          "focus_style": "spotlight",
+          "label_box": [62.9, 37.0, 2.2, 3.9],
+          "delay_ms": 900,
+          "dim_ms": 12000,
+          "draft": "先框住完整工具定义与 parameters 结构；截图已把 schema 滚到画面中部，框体不碰右侧滚动条，也不压正文。"
         },
         {
           "type": "badge",
           "label": "2",
-          "focus": [62.6, 18.1, 36.7, 15.2],
-          "label_box": [60.1, 15.4, 2.4, 4.4],
+          "focus": [66.4, 48.2, 11.0, 3.6],
+          "focus_padding": [0.5, 0.5],
+          "focus_style": "spotlight",
+          "label_box": [63.6, 47.9, 2.2, 3.9],
+          "delay_ms": 12000,
+          "draft": "编号 1 降权后，编号 2 聚焦 strict:false 一整行；required 的缺失由仍可见的完整 parameters 结构证明，不用画一个指向空白的怪箭头。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "07-after-overview",
+      "title": "重跑同一任务，而不是凭感觉判断",
+      "start_seconds": 159,
+      "end_seconds": 184,
+      "source_image": "/assets/demo/source/custom-harness/recording/raw/06-after-overview.png",
+      "narration": "切换到 harness after。用户问题、公开目录和确定性上游都没有变化，但现在只有两次 Request：一次正确的 read file，一次结果回传和最终回答。PMA 没有自动给出实验分数；它提供的是人可以复核的前后证据。",
+      "subtitle_cues": [
+        "现在切换到 harness-after。",
+        "用户问题和公开目录没有变化。",
+        "这次只有两次 Request。",
+        "一次调用，一次结果回传和最终回答。",
+        "PMA 提供可人工复核的前后证据。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [1.0, 15.6, 11.6, 4.2],
+          "focus_padding": [0.5, 0.5],
+          "label_box": [12.9, 15.7, 2.2, 3.9],
+          "delay_ms": 1000,
+          "dim_ms": 10500,
+          "draft": "先确认左栏已切换到 harness-after 和 2 请求；框体沿完整会话行留白。"
+        },
+        {
+          "type": "badge",
+          "label": "2",
+          "focus": [14.0, 31.0, 45.8, 20.0],
+          "focus_padding": [0.52, 0.58],
+          "focus_style": "spotlight",
+          "label_box": [11.2, 38.0, 2.2, 3.9],
           "delay_ms": 10500,
-          "draft": "出现顺序：编号 2 接管右栏 tool result 正文；保留关系：编号 1 交接后消失；淡出时点：镜头结束，框不遮 README.md 或 docs。"
+          "draft": "再用大框包住两次 Request 的一次调用、一次结果和最终回答；编号 1 降权，不把每一行切成碎片。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
     },
     {
-      "id": "07-openai-protocol",
-      "title": "区分 OpenAI Responses 原生 Item 与 Viewer 语义角色",
-      "start_seconds": 157,
-      "end_seconds": 186,
-      "source_image": "/assets/demo/source/custom-harness/recording/raw/06-openai-protocol.png",
-      "narration": "摘要仍不够时，协议视图明确写出 OpenAI Responses。第二次上行按顺序包含 message、function call 和与 call id 匹配的 function call output 三类 Item；其中后两类在 wire 层没有原生 role，Viewer 为阅读统一补成 assistant 与 tool 语义标签。下行才是最终 Assistant message。每一项都保留 JSON path，用来排查兼容层是否漏传或改错顺序。",
+      "id": "08-improved-raw",
+      "title": "改动本身也能在上行中被证明",
+      "start_seconds": 184,
+      "end_seconds": 209,
+      "source_image": "/assets/demo/source/custom-harness/recording/raw/08-after-raw-schema.png",
+      "narration": "新版工具说明写清了根目录、UTF 八、相对路径和 README.md 示例；schema 明确出现 required path、additional properties false 与 strict true。这些字段不是文档中的承诺，而是这次模型真正收到的请求内容。",
       "subtitle_cues": [
-        "协议视图明确识别 OpenAI Responses。",
-        "第二次上行依次包含三类原生 Item。",
-        "Viewer 为调用和结果补充语义角色。",
-        "最终 Assistant message 位于模型下行。",
-        "每一项都保留原始 JSON path。"
+        "新版说明写清根目录和相对路径。",
+        "它还给出 README.md 示例。",
+        "path 明确进入 required。",
+        "additionalProperties 为 false。",
+        "strict 也变为 true。",
+        "这些字段来自真实上行 body。"
       ],
       "overlays": [
         {
-          "type": "focus",
-          "focus": [65.3, 6.2, 5.0, 2.9],
-          "delay_ms": 350,
-          "end_ms": 5600,
-          "draft": "协议视图标签已经自带名称，只用轻描边说明入口；不叠加重复编号；在上行顺序讲解前淡出。"
-        },
-        {
           "type": "badge",
           "label": "1",
-          "focus": [62.6, 45.0, 36.7, 14.3],
-          "label_box": [60.1, 42.4, 2.4, 4.4],
-          "delay_ms": 5800,
-          "end_ms": 18100,
-          "draft": "出现顺序：编号 1 先聚焦 OpenAI 上行的三类原生 Item，并说明 assistant/tool 是 Viewer 语义标签；保留关系：下行出现后焦点转移；淡出时点：与编号 2 交叉约 0.7 秒。"
+          "focus": [65.8, 21.8, 31.3, 14.0],
+          "focus_padding": [0.52, 0.58],
+          "focus_style": "spotlight",
+          "label_box": [63.0, 26.7, 2.2, 3.9],
+          "delay_ms": 900,
+          "dim_ms": 13000,
+          "draft": "先框住完整 read_file 名称、精确工具说明和 path 描述；框稍大于文字组，但不吞掉上下无关字段。"
         },
         {
           "type": "badge",
           "label": "2",
-          "focus": [62.6, 65.0, 36.7, 14.0],
-          "label_box": [60.1, 62.4, 2.4, 4.4],
-          "delay_ms": 17400,
-          "draft": "出现顺序：编号 2 接管模型下行与最终 Assistant 条目；保留关系：编号 1 交接后消失；淡出时点：镜头结束。"
+          "focus": [66.0, 34.0, 30.8, 19.0],
+          "focus_padding": [0.52, 0.58],
+          "focus_style": "spotlight",
+          "label_box": [63.2, 41.0, 2.2, 3.9],
+          "delay_ms": 13000,
+          "draft": "编号 1 降权后，编号 2 包住 properties、required、additionalProperties 和 strict 的完整连续区域；不让边线穿过任一字段名。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
     },
     {
-      "id": "08-raw-redaction",
-      "title": "Raw 保留完整请求，也显示脱敏事实",
-      "start_seconds": 186,
-      "end_seconds": 208,
-      "source_image": "/assets/demo/source/custom-harness/recording/raw/01-openai-overview.png",
-      "narration": "完整请求保留模型、instructions、工具 schema、参数、input、路径和捕获信息。这里还能看到 authorization 已替换成脱敏占位符，并记录 sensitive header 原因。Header 脱敏不等于正文安全；公开截图前仍要人工检查 System、用户内容、工具参数和结果。",
+      "id": "09-improved-result",
+      "title": "把改善落到可观察行为",
+      "start_seconds": 209,
+      "end_seconds": 232,
+      "source_image": "/assets/demo/source/custom-harness/recording/raw/09-after-result.png",
+      "narration": "第一次调用直接带上 README.md，工具结果返回公开原文，最终回答引用 src main mjs。从三次 Request 降到两次，只是这条固定场景的结果；换成真实模型时仍应重跑、观察并保留失败样本。",
       "subtitle_cues": [
-        "完整请求保留上行字段与捕获信息。",
-        "authorization 已替换为脱敏占位符。",
-        "Raw 还记录 sensitive header 原因。",
-        "但正文仍然必须人工审查。"
+        "第一次调用直接带上 README.md。",
+        "工具结果返回公开原文。",
+        "最终回答引用 src/main.mjs。",
+        "固定场景从三次 Request 降到两次。",
+        "真实模型仍需要重跑并保留失败样本。"
       ],
       "overlays": [
         {
-          "type": "focus",
-          "focus": [62.6, 6.1, 5.1, 2.9],
-          "delay_ms": 350,
-          "end_ms": 5900,
-          "draft": "完整请求标签已经清楚命名，只用轻描边说明 Raw 入口；不叠加编号；在 Header 证据出现前淡出。"
-        },
-        {
           "type": "badge",
           "label": "1",
-          "focus": [63.6, 34.8, 35.6, 29.0],
-          "label_box": [60.1, 32.2, 2.4, 4.4],
-          "delay_ms": 6100,
-          "draft": "出现顺序：编号 1 聚焦 headers、authorization 脱敏值和 header_redactions；保留关系：本镜头只有一个证据重点；淡出时点：镜头结束。"
-        }
-      ],
-      "transition": { "type": "crossfade", "duration_ms": 650 }
-    },
-    {
-      "id": "09-anthropic-protocol",
-      "title": "同一入口也能观察 Anthropic Messages",
-      "start_seconds": 208,
-      "end_seconds": 238,
-      "source_image": "/assets/demo/source/custom-harness/recording/raw/08-anthropic-protocol.png",
-      "narration": "把变量换成 Anthropic base URL，同一个 pma observe 入口会按真实 wire path 识别 Anthropic Messages，并使用 Claude 配色审阅。这里的工具调用是 assistant 的 tool use；结果则位于后续 user message 的 tool result。摘要可以统一叫工具调用和结果，但原生角色不能被改写。",
-      "subtitle_cues": [
-        "同一入口也能观察 Anthropic Messages。",
-        "协议类型仍来自真实 wire path 与 body。",
-        "工具调用是 assistant 的 tool_use。",
-        "工具结果位于后续 user message。",
-        "摘要不会改写原生角色。"
-      ],
-      "overlays": [
-        {
-          "type": "focus",
-          "focus": [62.6, 12.9, 36.7, 9.0],
-          "focus_padding": [0.45, 0.50],
-          "delay_ms": 350,
-          "end_ms": 6800,
-          "draft": "Anthropic Messages 标题和 Claude 配色已经清楚说明协议，只用轻描边建立当前范围；在角色对比开始前淡出。"
-        },
-        {
-          "type": "badge",
-          "label": "1",
-          "focus": [62.85, 48.0, 36.1, 6.3],
-          "focus_padding": [0.45, 0.25],
-          "focus_style": "stacked",
-          "label_box": [59.5, 45.55, 2.4, 4.4],
-          "delay_ms": 7100,
-          "dim_ms": 18700,
-          "draft": "出现顺序：编号 1 先聚焦 assistant/tool_use；左右各留约九像素呼吸空间，上下只留约三像素；编号 2 出现后继续保留用于角色对照，但通过 dim_ms 退为次要。"
+          "focus": [62.7, 27.3, 36.5, 6.3],
+          "focus_padding": [0.52, 0.58],
+          "focus_style": "spotlight",
+          "label_box": [59.9, 28.3, 2.2, 3.9],
+          "delay_ms": 900,
+          "dim_ms": 11500,
+          "draft": "先框住右栏完整 README 工具输出，包含 path、content 与 src/main.mjs；边框不贴 JSON 文字。"
         },
         {
           "type": "badge",
           "label": "2",
-          "focus": [62.85, 55.2, 36.1, 6.0],
-          "focus_padding": [0.45, 0.25],
-          "focus_style": "stacked",
-          "label_box": [59.5, 52.75, 2.4, 4.4],
-          "delay_ms": 18700,
-          "draft": "出现顺序：编号 2 后出现并聚焦 user/tool_result；两框左右边界对齐、共享边只留约四像素，避免相邻区域被扩成松散卡片；编号 1 已降权，共同建立原生角色对照。"
+          "focus": [14.0, 45.0, 45.8, 5.8],
+          "focus_padding": [0.52, 0.58],
+          "label_box": [11.2, 45.9, 2.2, 3.9],
+          "delay_ms": 11500,
+          "draft": "再聚焦中栏完整最终回答行，编号 1 降权保留，表达工具证据怎样进入结论。"
         }
       ],
       "transition": { "type": "crossfade", "duration_ms": 650 }
     },
     {
-      "id": "10-boundary-outro",
-      "title": "通用桥证明协议，不猜 Harness 私有机制",
-      "start_seconds": 238,
-      "end_seconds": 251,
+      "id": "10-anthropic-boundary",
+      "title": "Anthropic 也能接入，但不猜私有语义",
+      "start_seconds": 232,
+      "end_seconds": 247,
+      "source_image": "/assets/demo/source/custom-harness/recording/raw/10-anthropic-boundary.png",
+      "narration": "Anthropic compatible Harness 也可以通过同一入口观察 tool use 与 tool result。这里原生结果属于 user message；PMA 可以统一整理工具闭环，但不会仅凭品牌名猜测 Skill、权限、压缩或子 Agent 语义。",
+      "subtitle_cues": [
+        "Anthropic-compatible Harness 也能从同一入口接入。",
+        "原生 tool_result 属于 user message。",
+        "PMA 可以统一整理工具闭环。",
+        "但不会猜测 Harness 私有语义。"
+      ],
+      "overlays": [
+        {
+          "type": "badge",
+          "label": "1",
+          "focus": [62.7, 18.0, 36.5, 15.5],
+          "focus_padding": [0.52, 0.58],
+          "focus_style": "spotlight",
+          "label_box": [59.9, 23.5, 2.2, 3.9],
+          "delay_ms": 900,
+          "draft": "使用 Claude 配色的真实 Anthropic Source；框住完整 tool_result 角色、id 和输出，不跨到顶部标签。"
+        }
+      ],
+      "transition": { "type": "crossfade", "duration_ms": 650 }
+    },
+    {
+      "id": "11-outro",
+      "title": "形成最小人工改进闭环",
+      "start_seconds": 247,
+      "end_seconds": 262,
       "source_image": null,
       "card": {
-        "eyebrow": "接入完成 · 记住证据边界",
-        "headline": "先用通用桥验证 HTTP，再按证据开发 adapter",
-        "steps": ["请求与回复", "工具交换", "Raw 与脱敏"],
-        "footer": "Skill、权限、压缩、恢复和子 Agent 语义需要额外 Evidence Pack"
+        "eyebrow": "自研 Harness 工作流",
+        "headline": "观察 → 定位 → 修改 → 重跑",
+        "steps": ["保留失败样本", "核对 Tools / Raw", "修正 Harness", "同一输入重跑"],
+        "footer": "PMA 提供可复查证据；正式评估仍需要多样本与明确指标"
       },
-      "narration": "通用桥已经证明请求、回复、工具交换和 Raw 被精确捕获；它不会仅凭品牌名猜测 Skill、权限、压缩、恢复或子 Agent 关系。先用这条最小路径定位协议问题，只有确实需要 Harness 私有语义时，再根据真实 Evidence Pack 开发专用 adapter。",
+      "narration": "这套方法可以重复：先捕获一次真实任务，沿时间线定位异常 Request，回到 Tools、结果和 Raw 找根因，修改 Harness 后用同一输入重跑。PMA 的价值不是替你猜答案，而是让每一次改进都有可以复查的证据。",
       "subtitle_cues": [
-        "通用桥证明 HTTP 交换被精确捕获。",
-        "它不会猜测 Harness 私有机制。",
-        "先定位协议问题，再决定是否开发 adapter。"
+        "先保留一次真实失败。",
+        "沿时间线定位异常 Request。",
+        "回到 Tools、结果和 Raw 找根因。",
+        "修改后用同一输入重跑。",
+        "让每次改进都有可复查证据。"
       ],
       "transition": { "type": "crossfade", "duration_ms": 700 }
     }

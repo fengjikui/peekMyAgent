@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="peekMyAgent 中文产品演示：可暂停、拖动、回看并切换字幕。">
+    <title>peekMyAgent 中文产品演示</title>
+    <link rel="stylesheet" href="./gallery.css?v=1">
+  </head>
+  <body>
+    <header class="hero">
+      <p class="eyebrow">peekMyAgent · 中文产品演示</p>
+      <h1>看清 Agent 与模型之间<br>真正发生了什么</h1>
+      <p class="hero-copy">每一章只回答一个问题。暂停、拖动、回看，或关闭字幕复用同一份干净画面。</p>
+    </header>
+
+    <main class="layout">
+      <nav class="chapter-nav" aria-label="选择演示章节">
+        <p class="nav-label">十个核心问题</p>
+        <div class="chapter-list" aria-live="polite"></div>
+      </nav>
+
+      <section class="demo" aria-labelledby="chapter-title">
+        <div class="chapter-heading">
+          <div>
+            <p class="chapter-kicker">当前演示</p>
+            <h2 id="chapter-title">正在载入</h2>
+          </div>
+          <a class="guide-link" href="#" hidden>阅读对应中文章节</a>
+        </div>
+
+        <iframe
+          class="demo-player"
+          title="peekMyAgent 可控产品演示"
+          src="./index.html?embed=1&amp;autoplay=0"
+          allow="fullscreen"
+          allowfullscreen
+        ></iframe>
+
+        <div class="chapter-facts">
+          <section>
+            <p class="fact-label">这一章回答</p>
+            <p class="chapter-question"></p>
+          </section>
+          <section>
+            <p class="fact-label">素材边界</p>
+            <p class="chapter-boundary"></p>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./gallery.js?v=1"></script>
+  </body>
+</html>

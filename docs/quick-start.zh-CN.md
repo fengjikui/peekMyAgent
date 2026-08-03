@@ -15,7 +15,9 @@ PMA 不替代 Agent，也不替你判断答案一定正确。它把 Harness 与�
   → 模型给出有依据的最终回答
 ```
 
-![PMA 中的完整工具调用闭环](../assets/demo/quickstart-tool-loop.gif)
+[![PMA 中的完整工具调用闭环](../assets/demo/source/quickstart/recording/review-1024/03-overview.jpg)](../assets/demo/storyboard/gallery.zh-CN.html?chapter=quickstart)
+
+静态封面适配 GitHub；在本地或文档站打开链接后，可以暂停、拖动、逐镜头回看、切换字幕和全屏。
 
 这张演示使用真实 PMA Viewer 和确定性假上游生成，不包含真实账号、API Key、用户源码或本地隐私路径。画面采用中文界面、Codex 主题和 2048×1056 视口；六个镜头共 42.7 秒，复杂协议画面停留最久。
 
@@ -177,7 +179,7 @@ PMA 不判断答案一定正确；它提供足够的证据，让你判断“模�
 - `Turn Rail` 是全局轮次导航，用来先跳到“用户提出哪一个任务”的阶段；
 - `Request Rail` 是当前轮次的局部导航。当 active Turn 至少有 5 条主线 Request 时出现，用来在工具调用、结果回传和最终回答之间精确定位。
 
-![Turn / Request 两级导航](../assets/demo/two-level-navigation.gif)
+[![Turn / Request 两级导航](../assets/demo/quickstart/07-two-level-navigation.png)](../assets/demo/storyboard/gallery.zh-CN.html?chapter=quickstart)
 
 图中的确定性长轨迹包含 6 个 Turn、13 个 Request，各轮请求数为 `1、1、3、2、5、1`。第五轮先后核对目录、README、颜色配置和说明文件，因此同时显示：
 

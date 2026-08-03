@@ -249,6 +249,14 @@ function auditStoryboardCatalog() {
 
   const html = fs.readFileSync(path.join(storyboardRoot, "index.html"), "utf8");
   const player = fs.readFileSync(path.join(storyboardRoot, "player.js"), "utf8");
+  const galleryHtmlPath = path.join(storyboardRoot, "gallery.zh-CN.html");
+  const galleryScriptPath = path.join(storyboardRoot, "gallery.js");
+  assertFile(galleryHtmlPath, "Chinese controlled demo gallery");
+  assertFile(galleryScriptPath, "Chinese controlled demo gallery script");
+  assertTrackable(galleryHtmlPath, "Chinese controlled demo gallery");
+  assertTrackable(galleryScriptPath, "Chinese controlled demo gallery script");
+  const galleryHtml = fs.readFileSync(galleryHtmlPath, "utf8");
+  const galleryScript = fs.readFileSync(galleryScriptPath, "utf8");
   assert(html.includes("chapter-select") && html.includes("review-point-select"),
     "storyboard player must expose chapter and review-point controls");
   assert(html.includes("guide-link"),
@@ -268,6 +276,13 @@ function auditStoryboardCatalog() {
   assert(player.includes('params.get("edit")') && player.includes("annotationDraftExport")
     && html.includes("annotation-editor"),
     "storyboard player must support local editable annotation review and JSON handoff");
+  assert(player.includes('params.get("embed")') && player.includes("requestFullscreen")
+    && html.includes('data-action="subtitles"') && html.includes('data-action="fullscreen"'),
+    "storyboard player must support controlled document embedding with subtitles and fullscreen");
+  assert(galleryHtml.includes("demo-player") && galleryHtml.includes("allowfullscreen")
+    && galleryScript.includes("catalog.zh-CN.json") && galleryScript.includes('"embed", "1"')
+    && galleryScript.includes('"autoplay", "0"'),
+    "Chinese demo gallery must load every catalog chapter in a non-autoplay controlled player");
   totals.catalogEntries = catalog.chapters.length;
 }
 

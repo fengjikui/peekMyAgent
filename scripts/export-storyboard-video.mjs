@@ -21,8 +21,15 @@ if (options.help) {
 
 const catalog = readJson(catalogPath);
 const chapter = catalog.chapters?.find((candidate) => candidate.id === options.chapter);
-assert(chapter, `unknown storyboard chapter: ${options.chapter}`);
-const timelinePath = repoPathFromHref(chapter.timeline, "chapter timeline");
+const standaloneTimeline = !chapter && options.chapter.endsWith(".json");
+assert(chapter || standaloneTimeline, `unknown storyboard chapter or timeline: ${options.chapter}`);
+const timelinePath = chapter
+  ? repoPathFromHref(chapter.timeline, "chapter timeline")
+  : path.resolve(root, options.chapter);
+assert(timelinePath === root || timelinePath.startsWith(`${root}${path.sep}`),
+  "standalone timeline must stay inside the repository");
+const timelineHref = chapter?.timeline || `/${relative(timelinePath)}`;
+const chapterId = chapter?.id || path.basename(path.dirname(timelinePath));
 const timeline = readJson(timelinePath);
 validateTimeline(timeline);
 
@@ -37,7 +44,9 @@ const totalFrames = Math.round(requestedSeconds * options.fps);
 const renderedSeconds = totalFrames / options.fps;
 assert(totalFrames > 0, "the selected range contains no video frames");
 
-const outputPath = options.output || defaultOutputPath(options.chapter, options.includeSubtitles);
+assert(chapter || options.output,
+  "standalone timeline export requires an explicit --output and is always non-publishable");
+const outputPath = options.output || defaultOutputPath(chapterId, options.includeSubtitles);
 assert(path.extname(outputPath).toLowerCase() === ".mp4", "--output must end in .mp4");
 if (fs.existsSync(outputPath) && !options.force) {
   throw new Error(`output already exists; pass --force to replace it: ${outputPath}`);
@@ -83,7 +92,7 @@ async function main() {
     });
 
     const startPoint = resolveStartPoint(timeline, startSeconds);
-    const targetUrl = buildPlaybackUrl(origin, chapter.timeline, startPoint, options.includeSubtitles);
+    const targetUrl = buildPlaybackUrl(origin, timelineHref, startPoint, options.includeSubtitles);
     await page.navigate(targetUrl, { timeoutMs: options.timeoutMs });
     await waitForStoryboard(page, timeline, startPoint.scene, options.timeoutMs);
 
@@ -169,7 +178,8 @@ async function main() {
       && Math.abs(renderedSeconds - timeline.duration_seconds) <= 1 / options.fps;
     const renderManifest = {
       schema_version: 1,
-      chapter: options.chapter,
+      chapter: chapterId,
+      cataloged_chapter: Boolean(chapter),
       source_timeline: relative(timelinePath),
       source_commit: gitHead(),
       source_worktree_dirty: workingTreeDirty,
@@ -187,14 +197,17 @@ async function main() {
       subtitles_visible: options.includeSubtitles,
       audio: false,
       external_requests: false,
-      publishable_picture_master: !workingTreeDirty && fullTimeline && !options.includeSubtitles,
+      publishable_picture_master: Boolean(chapter)
+        && !workingTreeDirty
+        && fullTimeline
+        && !options.includeSubtitles,
       privacy: "Only repository-local storyboard assets were served through a loopback-only temporary server.",
     };
     writeJsonAtomically(renderManifestPath, renderManifest);
 
     console.log([
       "storyboard video export passed:",
-      options.chapter,
+      chapterId,
       `${renderedSeconds.toFixed(3)}s,`,
       `${totalFrames} frames,`,
       `${receivedFrames} browser frames,`,
@@ -268,6 +281,7 @@ function parseArguments(args) {
 function printHelp() {
   console.log(`Usage:
   node scripts/export-storyboard-video.mjs <chapter-id> [options]
+  node scripts/export-storyboard-video.mjs <repo-relative-timeline.json> --output <file.mp4> [options]
 
 Options:
   --output <file.mp4>       Output path (default: tmp/storyboard-video/<chapter>/...)
@@ -283,7 +297,8 @@ Options:
   -h, --help                Show this help
 
 The default is a silent, subtitle-free 1920x1080 picture master. Browser discovery
-also honors PMA_STORYBOARD_BROWSER. Outputs under tmp/ are Git-ignored.`);
+also honors PMA_STORYBOARD_BROWSER. Outputs under tmp/ are Git-ignored. Standalone
+timeline exports require --output and are never marked publishable.`);
 }
 
 function requiredValue(args, index, option) {

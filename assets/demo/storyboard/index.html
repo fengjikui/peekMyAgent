@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>PMA 演示故事板</title>
-    <link rel="stylesheet" href="./player.css?v=4">
+    <link rel="stylesheet" href="./player.css?v=5">
   </head>
   <body>
     <main class="shell">
@@ -35,6 +35,8 @@
           <button type="button" data-action="previous" aria-label="上一镜头">←</button>
           <button type="button" data-action="toggle" aria-label="播放或暂停">播放</button>
           <button type="button" data-action="next" aria-label="下一镜头">→</button>
+          <button type="button" data-action="subtitles" aria-label="显示或隐藏字幕" aria-pressed="true">字幕开</button>
+          <button type="button" data-action="fullscreen" aria-label="进入或退出全屏">全屏</button>
         </div>
         <input class="scrubber" type="range" min="0" max="1000" value="0" aria-label="播放进度">
         <output class="timecode">00:00 / 00:00</output>
@@ -118,6 +120,6 @@
         <nav class="review-sheet-artifacts" aria-label="本章审阅资料"></nav>
       </article>
     </dialog>
-    <script type="module" src="./player.js?v=5"></script>
+    <script type="module" src="./player.js?v=6"></script>
   </body>
 </html>

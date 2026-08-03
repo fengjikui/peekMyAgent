@@ -16,6 +16,14 @@ python3 -m http.server 43115 --bind 127.0.0.1
 http://127.0.0.1:43115/assets/demo/storyboard/index.html
 ```
 
+面向读者的十章可控演示页：
+
+```text
+http://127.0.0.1:43115/assets/demo/storyboard/gallery.zh-CN.html
+```
+
+这张页面把当前章节、目标问题、Source 边界和对应中文手册放在同一处，并在页内嵌入播放器。读者可以暂停、拖动时间轴、前后切换镜头、开关字幕和进入全屏；默认不会自动播放。正式文档站点应直接嵌入 `index.html?embed=1&autoplay=0&timeline=...`，GitHub README 则使用静态封面链接作为降级，因为 GitHub 不执行仓库中的 iframe / HTML 播放器。
+
 如果需要一次看到十章的 HTML、干净播放和本地 MP4，而不是逐个拼接链接，先生成 Git 忽略的统一审片首页：
 
 ```bash
@@ -52,6 +60,7 @@ node scripts/storyboard-review-handoff.mjs \
 
 常用参数：
 
+- `embed=1`：进入面向文档读者的紧凑播放模式，保留播放、拖动、逐镜头切换、字幕和全屏，隐藏制作审阅面板；默认不自动播放；
 - `present=1`：隐藏控制栏并按浏览器画布播放；
 - `autoplay=0`：停在当前镜头，适合逐帧验收；
 - `scene=6`：直接打开从 0 开始计数的指定镜头；
@@ -77,7 +86,7 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html?edit=1&autoplay=0&timel
 
 `catalog.zh-CN.json` 是统一章节目录和审阅状态源。每个条目必须同时声明时间线、对应中文文档、真实标题，以及 `review` 中的目标问题、观众、Source 边界、状态、下一道确认门、五类审阅资料和本章依赖的产品影响 id。点击制作控制区的“章节审阅”即可在同一页面打开这份合同；它不会进入 `present=1` 成片。新增可发布章节时必须同步增加 catalog 条目；`demo-production-audit.mjs` 与 `documentation-consistency-audit.mjs` 会拒绝缺失章节、错误路径、未知产品边界、失效资料、未纳入中文公开文档审计的文件或不存在的小节标题。
 
-根 README 的 74 秒主 GIF 是完整快速上手时间线的精简剪辑，不等同于 255 秒章节。通过 `plan` 参数可以让同一播放器直接读取 `readme-gif.zh-CN.json`，逐镜头手动检查 GIF 实际采用的 17 张画面、停留时间和用途说明：
+历史 74 秒 README GIF 是完整快速上手时间线的精简剪辑，不等同于 255 秒章节。根 README 已改用静态封面，长 GIF 只保留为迁移与重建记录。通过 `plan` 参数仍可让播放器读取 `readme-gif.zh-CN.json`，逐镜头检查当时采用的 17 张画面、停留时间和用途说明：
 
 ```text
 http://127.0.0.1:43115/assets/demo/storyboard/index.html?plan=%2Fassets%2Fdemo%2Fsource%2Fquickstart%2Freadme-gif.zh-CN.json&autoplay=0

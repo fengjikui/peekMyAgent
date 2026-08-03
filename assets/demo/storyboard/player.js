@@ -5,13 +5,16 @@ const requestedTimelineUrl = params.get("timeline");
 const requestedPlanUrl = params.get("plan");
 const editMode = params.get("edit") === "1";
 const presentMode = params.get("present") === "1";
+const embedMode = params.get("embed") === "1";
 const reviewMode = params.get("review") === "1" || editMode;
 const startScene = Number.parseInt(params.get("scene") || "0", 10);
 const startElapsedMs = Number.parseInt(params.get("at_ms") || "0", 10);
-const autoplay = params.get("autoplay") !== "0" && !editMode;
-const subtitlesVisible = params.get("subtitles") !== "0";
+const autoplay = params.get("autoplay") === "1"
+  || (params.get("autoplay") !== "0" && !editMode && !embedMode);
+let subtitlesVisible = params.get("subtitles") !== "0";
 
 if (presentMode && !editMode) document.body.classList.add("present");
+if (embedMode && !presentMode) document.body.classList.add("embed");
 if (reviewMode) document.body.classList.add("review");
 if (editMode) document.body.classList.add("edit-mode");
 if (!subtitlesVisible) document.body.classList.add("no-subtitles");
@@ -36,6 +39,8 @@ const elements = {
   toggle: document.querySelector('[data-action="toggle"]'),
   previous: document.querySelector('[data-action="previous"]'),
   next: document.querySelector('[data-action="next"]'),
+  subtitles: document.querySelector('[data-action="subtitles"]'),
+  fullscreen: document.querySelector('[data-action="fullscreen"]'),
   chapterSelect: document.querySelector(".chapter-select"),
   chapterFieldLabel: document.querySelector(".chapter-field-label"),
   reviewPointSelect: document.querySelector(".review-point-select"),
@@ -105,6 +110,8 @@ function setControlsDisabled(disabled) {
     elements.toggle,
     elements.previous,
     elements.next,
+    elements.subtitles,
+    elements.fullscreen,
     elements.scrubber,
     elements.chapterSelect,
     elements.reviewPointSelect,
@@ -1035,6 +1042,19 @@ function setPlaying(next) {
   elements.toggle.textContent = next ? "暂停" : "播放";
 }
 
+function setSubtitlesVisible(next) {
+  subtitlesVisible = next;
+  document.body.classList.toggle("no-subtitles", !next);
+  elements.subtitles.textContent = next ? "字幕开" : "字幕关";
+  elements.subtitles.setAttribute("aria-pressed", next ? "true" : "false");
+}
+
+function updateFullscreenControl() {
+  const fullscreen = Boolean(document.fullscreenElement);
+  elements.fullscreen.textContent = fullscreen ? "退出全屏" : "全屏";
+  elements.fullscreen.setAttribute("aria-label", fullscreen ? "退出全屏" : "进入全屏");
+}
+
 function seekAbsolute(seconds) {
   const clamped = Math.max(0, Math.min(seconds, state.timeline.duration_seconds - 0.001));
   const nextIndex = state.timeline.scenes.findIndex(
@@ -1073,6 +1093,12 @@ function tick(timestamp) {
 elements.toggle.addEventListener("click", () => setPlaying(!state.playing));
 elements.previous.addEventListener("click", () => editMode ? moveEditableReviewPoint(-1) : moveScene(-1));
 elements.next.addEventListener("click", () => editMode ? moveEditableReviewPoint(1) : moveScene(1));
+elements.subtitles.addEventListener("click", () => setSubtitlesVisible(!subtitlesVisible));
+elements.fullscreen.addEventListener("click", async () => {
+  if (document.fullscreenElement) await document.exitFullscreen();
+  else await document.querySelector(".shell").requestFullscreen();
+});
+document.addEventListener("fullscreenchange", updateFullscreenControl);
 elements.scrubber.addEventListener("input", () => {
   setPlaying(false);
   seekAbsolute((Number(elements.scrubber.value) / 1000) * state.timeline.duration_seconds);
@@ -1180,6 +1206,8 @@ elements.annotationEditorResetScene.addEventListener("click", () => {
 });
 
 renderLoading();
+setSubtitlesVisible(subtitlesVisible);
+updateFullscreenControl();
 
 try {
   const catalog = await loadCatalog();

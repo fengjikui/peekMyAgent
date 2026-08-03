@@ -76,19 +76,37 @@ Capture Proxy 应只绑定 loopback。认证 header 在持久化前按现有规�
 
 这些信息在没有证据时应保持 unknown。
 
-## 真实例子：两次 Request 的目录工具闭环
+## 真实例子：用 PMA 找出一次多余重试
 
-仓库内置了一条不需要业务背景的公开教学场景：用户只要求“列出当前演示目录第一层的内容，并说明新用户应该先看哪个文件”。同一任务分别通过 OpenAI Responses 和 Anthropic Messages 发送，两个 Source 都由真实 `pma observe` 包装，远端回复则由确定性 loopback 假上游生成。
+仓库内置了一条不需要业务背景的 before / after 场景。两次运行使用完全相同的问题、公开目录和确定性假上游：
 
-| 阶段 | Harness 与模型之间的交换 | 在 Viewer 中看什么 |
+> 请从 README 中找出项目入口文件，并引用原文依据。
+
+旧版 Harness 的 `read_file` schema 没把 `path` 设为必填。模型第一次发送空对象，Harness 返回 `path is required`，模型第二次才用 `README.md` 重试，因此一共出现 3 次 Request。新版补齐工具说明和严格 schema 后，同一任务一次工具调用完成，只需要 2 次 Request。
+
+| 人的判断步骤 | 在 Viewer 中查看 | 能得到的证据 |
 | --- | --- | --- |
-| Request 1 | System、用户消息、模型参数和 `list_directory` 工具定义上行；模型返回工具调用 | 时间线先定位 `工具调用`，右栏再核对 Metadata、Tools 与调用参数 |
-| Harness 本地动作 | Harness 执行虚构目录的只读枚举，得到 `README.md` 和 `docs/` | 点 `工具结果`，再用 `来源 #1` 回到对应调用 |
-| Request 2 | Harness 把工具结果送回模型；模型返回“新用户先读 README.md” | 协议视图核对角色、顺序和 call id，Raw 核对原始 body 与 header 脱敏 |
+| 先确认哪里多了一步 | `harness-before` 的机制流程与时间线 | 同一 Turn 有 3 次 Request、2 次 `read_file` 调用 |
+| 检查模型看到什么 | Request 1 → `Tools` | 工具说明只有“读取项目文档”，`path` 说明只有“文件” |
+| 检查模型实际做了什么 | 第一次 `工具调用 read_file` | 参数是空对象，不是 Viewer 的推测 |
+| 检查 Harness 怎样反馈 | Request 2 → `工具结果 read_file` | 结果包含 `path is required`，并通过 call id 关联第一次调用 |
+| 定位应修改的边界 | Request 1 → `完整请求` | `path` 没有进入 `required`，`strict` 为 `false` |
+| 用同一输入重跑 | 切换 `harness-after` | 只有 2 次 Request，第一次调用直接携带 `README.md` |
+| 证明改动真的上行 | 新版 Request 1 → `Tools` / `完整请求` | `required: ["path"]`、`additionalProperties: false`、`strict: true` 都在真实 body 中 |
 
-![OpenAI Responses 中工具调用与结果回传的协议证据](../../assets/demo/source/custom-harness/recording/review-1920/07c-openai-output.png)
+![旧版 Harness 返回可关联的 path-is-required 工具结果](../../assets/demo/source/custom-harness/recording/review-1920/05a-error-result.jpg)
 
-OpenAI Responses 中，工具调用和结果分别是 `function_call` 与 `function_call_output` Item；它们在 wire 层没有原生 role，Viewer 为统一阅读补充 assistant / tool 语义标签。Anthropic Messages 中，对应的原生结构是 assistant message 中的 `tool_use` 与后续 user message 中的 `tool_result`。PMA 用捕获到的 wire path 和 body 识别协议，不靠 Source 名称猜测。
+旧版的错误结果不是孤立日志：右栏显示原始 `function_call_output`，时间线中的来源链接和 call id 可以把它追溯到第一次空参数调用，再继续找到后续重试。
+
+![新版上行请求中的 required 与 strict 工具契约](../../assets/demo/source/custom-harness/recording/review-1920/08b-improved-schema.jpg)
+
+新版画面把工具说明和完整参数组一起保留，再逐步强调 `required`、`additionalProperties` 与 `strict`。这样能确认改动确实进入模型上行，而不是只修改了 Harness 源码却没有生效。
+
+这里的重点不是“schema 越长越好”，而是把失败归因到模型真正看到的契约，再用同一输入重跑。只改文案、不保留旧 Capture，或只看最终答案，都很难证明改善来自哪里。
+
+这条固定场景从 3 次 Request 降到 2 次，不代表 PMA 提供自动 A/B 评分，也不证明任何真实远端模型都会获得同样幅度的改善。PMA 提供的是可供人比较的证据；正式评估仍需要多样本、稳定输入和明确指标。
+
+OpenAI Responses 中，工具调用和结果分别是 `function_call` 与 `function_call_output` Item；它们通过 `call_id` 关联。Anthropic Messages 中，对应结构是 assistant message 中的 `tool_use` 与后续 user message 中的 `tool_result`。PMA 用捕获到的 wire path 和 body 识别协议，不靠 Source 名称猜测。
 
 可重复素材保存在 `assets/demo/source/custom-harness/`：`manifest.json` 记录 Source、产品 SHA、脱敏边界与原图校验值；`narration.zh-CN.md` 是完整镜头脚本；两档 `review-*` 目录用于检查 1920×1080 和 1024×576 下逐步出现的标注。重新生成 Source 时运行：
 

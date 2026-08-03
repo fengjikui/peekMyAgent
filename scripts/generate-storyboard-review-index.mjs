@@ -116,7 +116,9 @@ function findFormalVideo(chapterId, timelineHref, expectedDuration) {
     path.join(directory, `pma-${chapterId}-picture-full.mp4`),
     path.join(directory, `pma-${chapterId}-picture.mp4`),
   ];
-  const filePath = candidates.find((candidate) => fs.existsSync(candidate));
+  const filePath = candidates
+    .filter((candidate) => fs.existsSync(candidate))
+    .sort((left, right) => fs.statSync(right).mtimeMs - fs.statSync(left).mtimeMs)[0];
   if (!filePath) return null;
 
   const manifestPath = filePath.replace(/\.mp4$/i, ".render.json");

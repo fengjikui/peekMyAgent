@@ -16,20 +16,20 @@ const storePath = path.join(stateDir, "store.sqlite");
 const descriptorPath = path.join(runRoot, "session.json");
 const upstreamLogPath = path.join(runRoot, "model-requests.jsonl");
 const translationLogPath = path.join(runRoot, "translation-requests.jsonl");
-const workspace = "/tmp/pma-translation-viewer-demo/public-project";
-const conversationId = "translation-viewer-demo-session";
-const sourceName = "codex-translation-guide";
+const workspace = "/tmp/pma-translation-codex-demo/public-project";
+const conversationId = "translation-codex-demo-session";
+const sourceName = "Codex · translation demo";
 const correctCallId = "call_list_public_directory";
 
 const systemBlocks = [
-  "You are a repository guide for first-time users. Explain evidence before conclusions.",
-  "Safety rules:\n- Read only files inside the public demo directory.\n- Never modify files.\n- Preserve exact filenames and command names.",
-  "Answer contract:\n1. Name the best file to read first.\n2. Explain why in one sentence.\n3. Cite the tool result you used.",
+  "You are Codex, a coding agent working in a repository. Inspect evidence before answering.",
+  "Repository instructions:\n- Read AGENTS.md and README.md before changing code.\n- Work only inside the public demo directory.\n- Preserve exact filenames, command names, and tool identifiers.",
+  "Answer contract:\n1. Name the two files a new contributor should read first.\n2. Explain the purpose of each file.\n3. Cite the directory result you used.",
 ];
 const translations = new Map([
-  [systemBlocks[0], "你是面向首次使用者的仓库向导。先说明证据，再给出结论。"],
-  [systemBlocks[1], "安全规则：\n- 只读取公开演示目录中的文件。\n- 不得修改文件。\n- 保留准确的文件名和命令名。"],
-  [systemBlocks[2], "回答约定：\n1. 指出最适合首先阅读的文件。\n2. 用一句话解释原因。\n3. 引用你使用的工具结果。"],
+  [systemBlocks[0], "你是 Codex，一名在仓库中工作的编程 Agent。回答前先检查证据。"],
+  [systemBlocks[1], "仓库指令：\n- 修改代码前先阅读 AGENTS.md 和 README.md。\n- 只在公开演示目录内工作。\n- 保留准确的文件名、命令名和工具标识符。"],
+  [systemBlocks[2], "回答约定：\n1. 指出新贡献者应该先阅读的两个文件。\n2. 解释每个文件的用途。\n3. 引用你使用的目录结果。"],
   ["List one level of entries in a public directory.", "列出公开目录第一层的条目。"],
   ["Relative path inside the public demo directory.", "公开演示目录内的相对路径。"],
   ["Maximum directory depth. Use 1 for this task.", "最大目录深度。本任务使用 1。"],
@@ -43,8 +43,8 @@ fs.rmSync(runRoot, { recursive: true, force: true });
 fs.rmSync(path.dirname(workspace), { recursive: true, force: true });
 fs.mkdirSync(workspace, { recursive: true });
 fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
-fs.writeFileSync(path.join(workspace, "README.md"), "# Public Agent Guide\n\nStart here to understand the demo.\n");
-fs.writeFileSync(path.join(workspace, "guide.md"), "# Guide\n\nA second public document.\n");
+fs.writeFileSync(path.join(workspace, "AGENTS.md"), "# Agent Rules\n\nRead-only public teaching rules.\n");
+fs.writeFileSync(path.join(workspace, "README.md"), "# Public Codex Demo\n\nStart here to understand the project.\n");
 
 process.env.PEEKMYAGENT_STATE_DIR = stateDir;
 process.env.PEEKMYAGENT_TRANSLATION_PROTOCOL = "openai";
@@ -56,7 +56,7 @@ const userMessage = {
   role: "user",
   content: [{
     type: "input_text",
-    text: "请告诉我新用户先读哪个文件，以及为什么。",
+    text: "如果第一次用 Codex 参与这个项目，修改代码前应该先读哪两个文件？",
   }],
 };
 const systemMessages = systemBlocks.map((text) => ({
@@ -112,7 +112,7 @@ const commonRequest = {
   max_output_tokens: 180,
   metadata: { agent: sourceName, demo: "translation-viewer", privacy: "synthetic" },
 };
-const toolOutput = JSON.stringify({ path: ".", max_depth: 1, entries: ["README.md", "guide.md"] });
+const toolOutput = JSON.stringify({ path: ".", max_depth: 1, entries: ["AGENTS.md", "README.md"] });
 
 let modelRequestIndex = 0;
 const modelUpstream = http.createServer(async (request, response) => {
@@ -147,7 +147,7 @@ const modelUpstream = http.createServer(async (request, response) => {
       status: "completed",
       content: [{
         type: "output_text",
-        text: "新用户先读 README.md，因为目录结果表明它是公开项目的入口文档。",
+        text: "先读 AGENTS.md 了解协作规则，再读 README.md 了解项目入口；目录结果同时包含这两个文件。",
         annotations: [],
       }],
     }],
@@ -228,7 +228,7 @@ try {
   verifySource(source, view, { systemGeneration, toolsGeneration, cache });
 
   const descriptor = {
-    scenario_id: "translation-viewer-demo",
+    scenario_id: "translation-codex-demo",
     viewer_url: viewer.url,
     model_upstream_url: modelUpstreamUrl,
     translation_upstream_url: translationUpstreamUrl,
@@ -248,12 +248,13 @@ try {
       provider: "deterministic loopback OpenAI-compatible mock",
     },
     facts: [
-      "The Capture contains two Requests: list_directory tool call, then tool result and final answer.",
+      "The Capture contains two Requests: a Codex-shaped repository question, list_directory tool call, then tool result and final answer.",
       "System translation is split into three source blocks and keeps an expandable original under each translated card.",
       "Tools translation changes descriptions only; list_directory, read_file, path, max_depth, start_line, and end_line remain exact identifiers.",
       "Translation cache is auxiliary state and does not modify the exact Capture request body.",
     ],
     boundaries: [
+      "The Source uses a public Codex-shaped teaching request over OpenAI Responses; it does not claim to be emitted by the real Codex CLI.",
       "Both model and translation responses are deterministic loopback fixtures; the Source does not prove remote model or translation quality.",
       "The demo verifies current Viewer rendering and cache behavior only for the included public English blocks.",
       "Translated prose is for reading assistance; protocol facts remain anchored in source text and Raw.",
@@ -304,7 +305,7 @@ function verifySource(source, view, { systemGeneration, toolsGeneration, cache }
   assert.equal(cache.entry_count, 10);
   assert.equal(firstRequest.raw.body.tools[0].name, "list_directory");
   assert.equal(firstRequest.raw.body.tools[1].name, "read_file");
-  assert.equal(view.requests[1].summary.response.text, "新用户先读 README.md，因为目录结果表明它是公开项目的入口文档。");
+  assert.equal(view.requests[1].summary.response.text, "先读 AGENTS.md 了解协作规则，再读 README.md 了解项目入口；目录结果同时包含这两个文件。");
 }
 
 function translationSourceBlocks(prompt) {

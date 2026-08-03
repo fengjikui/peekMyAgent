@@ -4,9 +4,9 @@ peekMyAgent（PMA）是一个本地优先的 Agent 请求观察工作台。你�
 
 [English](README.md) · [五分钟快速上手](docs/quick-start.zh-CN.md) · [完整用户手册](docs/user-guide.md)
 
-![从一次用户请求追踪到工具结果、最终回答和原始协议](assets/demo/quickstart-tool-loop.gif)
+[![从一次用户请求追踪到工具结果、最终回答和原始协议](assets/demo/source/quickstart/recording/review-1024/03-overview.jpg)](docs/quick-start.zh-CN.md)
 
-> 这张 74 秒 GIF 来自 1920×1080 的真实 PMA Viewer、Codex 主题和完全虚构的本地数据；为适配 GitHub 页面输出为 1024×576。普通画面停留 3～5.5 秒，复杂协议与两级导航停留 6.5～7.5 秒，可以慢慢看。
+> 点击静态封面进入五分钟快速上手。仓库同时提供一套十章可控 HTML 演示，支持暂停、拖动、逐镜头回看、字幕开关和全屏；GitHub README 不执行内嵌播放器，因此这里不再放需要等待循环的长 GIF。文档站点发布后会直接嵌入同一播放器；本地入口见[演示播放器说明](assets/demo/storyboard/README.md)。
 
 ## 30 秒理解 PMA
 

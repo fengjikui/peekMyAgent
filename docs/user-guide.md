@@ -8,7 +8,9 @@ PMA 不是用来“破解隐藏提示词”的工具，只用于你自己授权�
 
 从[五分钟快速上手](quick-start.zh-CN.md)开始。它只用一个无需业务背景的目录读取任务，走完安装、启动、观察、停止和清理，并解释工具调用闭环与两级导航。
 
-![PMA 快速上手](../assets/demo/quickstart-tool-loop.gif)
+[![PMA 快速上手](../assets/demo/source/quickstart/recording/review-1024/03-overview.jpg)](../assets/demo/storyboard/gallery.zh-CN.html?chapter=quickstart)
+
+GitHub 显示静态封面；可控 HTML 版本支持暂停、拖动、逐镜头回看、字幕开关和全屏。
 
 如果更习惯视频，可以先查看[中文核心能力视频的封面、字幕和发布状态](../assets/demo/video/README.md)。约 2 分 24 秒的 v0.1 初剪已经可以本地重建；完成最终旁白和托管验收后再提供公开播放链接，避免把频繁变化的 MP4 放进主仓库。
 

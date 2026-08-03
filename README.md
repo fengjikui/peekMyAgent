@@ -10,9 +10,9 @@ peekMyAgent is not meant to "steal hidden prompts". It is an observability tool 
 
 ## Visual Overview
 
-![Trace one user request through tool results, the final answer, and the native protocol](assets/demo/quickstart-tool-loop.gif)
+[![Trace one user request through tool results, the final answer, and the native protocol](assets/demo/source/quickstart/recording/review-1024/03-overview.jpg)](docs/quick-start.zh-CN.md)
 
-The 74-second reviewed walkthrough follows one background-free task from the user request to two tool calls, their returned evidence, the final answer, the original OpenAI Responses exchange, and PMA's two-level navigation. It is rendered at 1024×576 from full-frame 1920×1080 Viewer sources for GitHub readability. See the [Chinese five-minute quick start](docs/quick-start.zh-CN.md) for the exact commands and the [visual production guide](docs/visual-usage-guide.zh-CN.md) for its deterministic Source, privacy boundary, and rebuild steps.
+The static cover links to the Chinese five-minute quick start. The repository also contains a ten-chapter HTML player with pause, seek, scene navigation, subtitle controls, and fullscreen. GitHub READMEs do not run the embedded player, so this page no longer relies on a long looping GIF; see the [storyboard player guide](assets/demo/storyboard/README.md) for local playback and the [visual production guide](docs/visual-usage-guide.zh-CN.md) for its deterministic Source and privacy boundary.
 
 ## What You Can Do Today
 

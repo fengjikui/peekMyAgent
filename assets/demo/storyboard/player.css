@@ -881,6 +881,60 @@ body.present .controls {
   display: none;
 }
 
+body.embed {
+  display: grid;
+  place-items: start center;
+  padding: 0;
+  background: var(--surface);
+}
+
+body.embed .shell {
+  width: min(100vw, calc((100dvh - 64px) * 16 / 9));
+}
+
+body.embed .stage {
+  box-shadow: none;
+}
+
+body.embed .controls {
+  grid-template-areas:
+    "transport scrubber timecode scene";
+  grid-template-columns: auto minmax(160px, 1fr) auto minmax(150px, .52fr);
+  gap: 10px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+body.embed .review-nav,
+body.embed .annotation-editor {
+  display: none;
+}
+
+body.embed .controls button {
+  min-width: 42px;
+  min-height: 38px;
+  border-radius: 10px;
+}
+
+.shell:fullscreen {
+  display: grid;
+  place-content: center;
+  width: 100vw;
+  min-height: 100vh;
+  padding: 0;
+  background: var(--surface);
+}
+
+.shell:fullscreen .stage {
+  width: min(100vw, calc((100vh - 64px) * 16 / 9));
+  box-shadow: none;
+}
+
+.shell:fullscreen .controls {
+  width: min(100vw, calc((100vh - 64px) * 16 / 9));
+}
+
 body.review .visual.is-transitioning,
 body.review .product-frame,
 body.review .annotation-lines polyline,
@@ -997,6 +1051,14 @@ body.review .click-pulse {
   .annotation-editor-actions {
     justify-content: flex-start;
   }
+
+  body.embed .controls {
+    grid-template-areas:
+      "transport timecode"
+      "scrubber scrubber"
+      "scene scene";
+    grid-template-columns: 1fr auto;
+  }
 }
 
 @media (max-width: 680px) {
@@ -1041,6 +1103,19 @@ body.review .click-pulse {
   .review-sheet-header,
   .review-sheet-status-row {
     align-items: flex-start;
+  }
+
+  body.embed .controls {
+    grid-template-areas:
+      "transport"
+      "scrubber"
+      "timecode"
+      "scene";
+    grid-template-columns: 1fr;
+  }
+
+  body.embed .transport {
+    flex-wrap: wrap;
   }
 
   .review-sheet-status-row {

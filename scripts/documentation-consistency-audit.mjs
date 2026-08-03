@@ -351,9 +351,12 @@ export function runDocumentationConsistencyAudit({ log = true } = {}) {
   assert(chineseReadme.includes("(docs/quick-start.zh-CN.md)"), "Chinese README must link quick start");
   assert(chineseReadme.includes("(docs/user-guide.md)"), "Chinese README must link user guide index");
   assert(
-    chineseReadme.includes("![从一次用户请求追踪到工具结果、最终回答和原始协议](assets/demo/quickstart-tool-loop.gif)"),
-    "Chinese README must keep the reviewed primary demo",
+    chineseReadme.includes("assets/demo/source/quickstart/recording/review-1024/03-overview.jpg")
+      && chineseReadme.includes("(assets/demo/storyboard/README.md)"),
+    "Chinese README must keep the reviewed static cover and controlled-player handoff",
   );
+  assert(!chineseReadme.includes("assets/demo/quickstart-tool-loop.gif"),
+    "Chinese README must not fall back to the long looping GIF");
 
   const englishReadme = readRepoFile("README.md");
   assert(englishReadme.includes("(docs/quick-start.zh-CN.md)"),
@@ -361,11 +364,12 @@ export function runDocumentationConsistencyAudit({ log = true } = {}) {
   assert(englishReadme.includes("(docs/user-guide.md)"),
     "English README must link the current user guide while translation is pending");
   assert(
-    englishReadme.includes(
-      "![Trace one user request through tool results, the final answer, and the native protocol](assets/demo/quickstart-tool-loop.gif)",
-    ),
-    "English README must keep the reviewed primary demo",
+    englishReadme.includes("assets/demo/source/quickstart/recording/review-1024/03-overview.jpg")
+      && englishReadme.includes("(assets/demo/storyboard/README.md)"),
+    "English README must keep the reviewed static cover and controlled-player handoff",
   );
+  assert(!englishReadme.includes("assets/demo/quickstart-tool-loop.gif"),
+    "English README must not fall back to the long looping GIF");
   for (const fact of [
     "pma openclaw chat",
     "OpenAI Responses",

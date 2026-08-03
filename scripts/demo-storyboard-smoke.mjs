@@ -70,10 +70,17 @@ for (const [index, scene] of timeline.scenes.entries()) {
     if (overlay.type === "callout" || overlay.type === "badge") {
       assert(typeof overlay.label === "string" && overlay.label.length > 0, `${overlayLabel} needs a label`);
       assertBox(overlay.label_box, `${overlayLabel}.label_box`);
+      if (overlay.type === "badge" && /^\d+$/.test(overlay.label)) {
+        assertNumberBadge(overlay.label_box, timeline.resolution, `${overlayLabel}.label_box`);
+      }
     }
     if (overlay.type === "focus") assertBox(overlay.focus, `${overlayLabel}.focus`);
     if (overlay.type === "click") assertPoint(overlay.click, `${overlayLabel}.click`);
     if (overlay.focus) assertBox(overlay.focus, `${overlayLabel}.focus`);
+    if (overlay.focus) {
+      assert(overlay.focus_padding !== undefined,
+        `${overlayLabel}.focus needs explicit focus_padding so authored breathing room survives re-rendering`);
+    }
     if (overlay.focus_padding !== undefined) {
       assert(overlay.focus, `${overlayLabel}.focus_padding requires a focus box`);
       assertPadding(overlay.focus_padding, `${overlayLabel}.focus_padding`);
@@ -82,6 +89,10 @@ for (const [index, scene] of timeline.scenes.entries()) {
     if (overlay.focus_style !== undefined) {
       assert(["control", "stacked", "spotlight"].includes(overlay.focus_style),
         `${overlayLabel}.focus_style must be control, stacked, or spotlight`);
+    }
+    if (overlay.focus && overlay.focus[2] < 8 && overlay.focus[3] < 8) {
+      assert(["control", "spotlight"].includes(overlay.focus_style),
+        `${overlayLabel} is a small target and needs control or spotlight emphasis`);
     }
     if (overlay.route) {
       assert(Array.isArray(overlay.route) && overlay.route.length >= 2, `${overlayLabel}.route needs at least two points`);
@@ -158,6 +169,16 @@ function assertExpandedBox([x, y, width, height], [paddingX, paddingY], label) {
   assert(x - paddingX >= 0 && y - paddingY >= 0, `${label} must start inside the frame`);
   assert(x + width + paddingX <= 100 && y + height + paddingY <= 100,
     `${label} must stay inside the frame`);
+}
+
+function assertNumberBadge([, , width, height], [frameWidth, frameHeight], label) {
+  const pixelWidth = width / 100 * frameWidth;
+  const pixelHeight = height / 100 * frameHeight;
+  const ratio = pixelWidth / pixelHeight;
+  assert(pixelWidth >= 32 && pixelWidth <= 64 && pixelHeight >= 32 && pixelHeight <= 64,
+    `${label} must render as a restrained 32-64px numbered marker`);
+  assert(ratio >= 0.82 && ratio <= 1.18,
+    `${label} must render close to a circle instead of a visibly off-center oval`);
 }
 
 function validateTitleCard(card, label) {
