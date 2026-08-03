@@ -5,7 +5,7 @@
 ## 当前决策
 
 - 主仓库跟踪：生成脚本、镜头表、字幕、封面、素材 manifest、脱敏说明和发布目录；
-- 主仓库跟踪：可控 HTML 播放器和十章中文演示页；文档站点可直接部署这些静态文件；
+- 主仓库跟踪：可控 HTML 播放器和十章中文演示页；GitHub Pages 从 `main` 自动部署到 <https://fengjikui.github.io/peekMyAgent/>；
 - 主仓库可以跟踪：符合 `assets/demo/media-budget.json` 的确定性原图、双尺寸审阅图和紧凑 GIF；
 - 主仓库不跟踪：MP4、独立旁白 M4A、逐镜头合成帧、临时片段和剪辑器缓存；
 - 内部审阅：从主仓库脚本在本地生成成片，通过文件或临时链接审阅；
@@ -15,7 +15,7 @@
 
 GitHub 官方建议用 Releases 分发大型二进制，而不是把它们作为普通 Git 对象跟踪；单个 Release asset 必须小于 2 GiB，Release 的资产总大小和带宽当前没有硬性额度。[About large files on GitHub](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) · [About releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)
 
-长演示在文档中优先使用 `assets/demo/storyboard/index.html?embed=1&autoplay=0&timeline=...`：它支持暂停、拖动、逐镜头回看、字幕开关和全屏，避免 GIF 只能等待下一轮循环。统一入口是 `assets/demo/storyboard/gallery.zh-CN.html`。GitHub README 不能可靠执行仓库内 iframe，因此只放静态封面与公开演示链接；MP4 仍用于 B 站、YouTube 和其他社交媒体。
+长演示在文档中优先使用 `assets/demo/storyboard/index.html?embed=1&autoplay=0&timeline=...`：它支持暂停、拖动、逐镜头回看、字幕开关和全屏，避免 GIF 只能等待下一轮循环。公开统一入口是 <https://fengjikui.github.io/peekMyAgent/>，本地制作入口是 `assets/demo/storyboard/gallery.zh-CN.html`。GitHub README 不能可靠执行仓库内 iframe，因此只放静态封面与公开演示链接；MP4 仍用于 B 站、YouTube 和其他社交媒体。
 
 ## 为什么暂不使用 Git LFS
 

@@ -1,6 +1,6 @@
 # peekMyAgent
 
-[中文 README](README.zh-CN.md) · [Chinese five-minute quick start](docs/quick-start.zh-CN.md) · [Chinese user guide](docs/user-guide.md)
+[中文 README](README.zh-CN.md) · [Interactive demos](https://fengjikui.github.io/peekMyAgent/) · [Chinese five-minute quick start](docs/quick-start.zh-CN.md) · [Chinese user guide](docs/user-guide.md)
 
 peekMyAgent is a local-first dashboard for inspecting what coding agents send to model providers.
 
@@ -10,9 +10,9 @@ peekMyAgent is not meant to "steal hidden prompts". It is an observability tool 
 
 ## Visual Overview
 
-[![Trace one user request through tool results, the final answer, and the native protocol](assets/demo/source/quickstart/recording/review-1024/03-overview.jpg)](docs/quick-start.zh-CN.md)
+[![Trace one user request through tool results, the final answer, and the native protocol](assets/demo/source/quickstart/recording/review-1024/03-overview.jpg)](https://fengjikui.github.io/peekMyAgent/?chapter=quickstart)
 
-The static cover links to the Chinese five-minute quick start. The repository also contains a ten-chapter HTML player with pause, seek, scene navigation, subtitle controls, and fullscreen. GitHub READMEs do not run the embedded player, so this page no longer relies on a long looping GIF; see the [storyboard player guide](assets/demo/storyboard/README.md) for local playback and the [visual production guide](docs/visual-usage-guide.zh-CN.md) for its deterministic Source and privacy boundary.
+The static cover opens the public ten-chapter HTML player with pause, seek, scene navigation, subtitle controls, and fullscreen. GitHub READMEs do not run embedded players, so this page no longer relies on a long looping GIF; see the [Chinese five-minute quick start](docs/quick-start.zh-CN.md), [storyboard player guide](assets/demo/storyboard/README.md), and [visual production guide](docs/visual-usage-guide.zh-CN.md) for the deterministic Source and privacy boundary.
 
 ## What You Can Do Today
 

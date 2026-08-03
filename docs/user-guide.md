@@ -8,7 +8,7 @@ PMA 不是用来“破解隐藏提示词”的工具，只用于你自己授权�
 
 从[五分钟快速上手](quick-start.zh-CN.md)开始。它只用一个无需业务背景的目录读取任务，走完安装、启动、观察、停止和清理，并解释工具调用闭环与两级导航。
 
-[![PMA 快速上手](../assets/demo/source/quickstart/recording/review-1024/03-overview.jpg)](../assets/demo/storyboard/gallery.zh-CN.html?chapter=quickstart)
+[![PMA 快速上手](../assets/demo/source/quickstart/recording/review-1024/03-overview.jpg)](https://fengjikui.github.io/peekMyAgent/?chapter=quickstart)
 
 GitHub 显示静态封面；可控 HTML 版本支持暂停、拖动、逐镜头回看、字幕开关和全屏。
 

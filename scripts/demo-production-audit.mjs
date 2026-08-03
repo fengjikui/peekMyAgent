@@ -279,6 +279,10 @@ function auditStoryboardCatalog() {
   assert(player.includes('params.get("embed")') && player.includes("requestFullscreen")
     && html.includes('data-action="subtitles"') && html.includes('data-action="fullscreen"'),
     "storyboard player must support controlled document embedding with subtitles and fullscreen");
+  assert(player.includes('new URL("../../../", import.meta.url)')
+    && player.includes("resolveRepositoryUrl(scene.source_image)")
+    && galleryScript.includes('new URL("../../../", import.meta.url)'),
+    "storyboard player and gallery must resolve repository assets under a GitHub Pages project subpath");
   assert(galleryHtml.includes("demo-player") && galleryHtml.includes("allowfullscreen")
     && galleryScript.includes("catalog.zh-CN.json") && galleryScript.includes('"embed", "1"')
     && galleryScript.includes('"autoplay", "0"'),

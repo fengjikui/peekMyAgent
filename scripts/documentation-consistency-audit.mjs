@@ -241,6 +241,7 @@ const impactRules = [
     patterns: [
       /^assets\/demo\/storyboard\//i,
       /^assets\/demo\/source\/[^/]+\/(?:manifest\.json|narration\.zh-CN\.md|video\/)/i,
+      /^\.github\/workflows\/docs-pages\.yml$/i,
       /^scripts\/.*(?:storyboard|demo-production|timeline-subtitles|demo-video)/i,
       /^scripts\/build-(?:readme|user-guide).*\.(?:py|mjs)$/i,
     ],
@@ -248,6 +249,7 @@ const impactRules = [
       "docs/demo-chapter-production.zh-CN.md",
       "docs/visual-usage-guide.zh-CN.md",
       "docs/video-production.zh-CN.md",
+      "docs/media-publishing.zh-CN.md",
       "docs/documentation-maintenance.md",
     ],
     demos: ["统一章节 catalog、HTML 动效模板、本地审片首页、双尺寸复核帧与干净画面母版"],
@@ -352,7 +354,8 @@ export function runDocumentationConsistencyAudit({ log = true } = {}) {
   assert(chineseReadme.includes("(docs/user-guide.md)"), "Chinese README must link user guide index");
   assert(
     chineseReadme.includes("assets/demo/source/quickstart/recording/review-1024/03-overview.jpg")
-      && chineseReadme.includes("(assets/demo/storyboard/README.md)"),
+      && chineseReadme.includes("(assets/demo/storyboard/README.md)")
+      && chineseReadme.includes("https://fengjikui.github.io/peekMyAgent/"),
     "Chinese README must keep the reviewed static cover and controlled-player handoff",
   );
   assert(!chineseReadme.includes("assets/demo/quickstart-tool-loop.gif"),
@@ -365,7 +368,8 @@ export function runDocumentationConsistencyAudit({ log = true } = {}) {
     "English README must link the current user guide while translation is pending");
   assert(
     englishReadme.includes("assets/demo/source/quickstart/recording/review-1024/03-overview.jpg")
-      && englishReadme.includes("(assets/demo/storyboard/README.md)"),
+      && englishReadme.includes("(assets/demo/storyboard/README.md)")
+      && englishReadme.includes("https://fengjikui.github.io/peekMyAgent/"),
     "English README must keep the reviewed static cover and controlled-player handoff",
   );
   assert(!englishReadme.includes("assets/demo/quickstart-tool-loop.gif"),

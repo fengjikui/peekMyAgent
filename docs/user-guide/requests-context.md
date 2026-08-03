@@ -2,7 +2,7 @@
 
 普通日志经常只保留“模型被调用了”和“模型返回了什么”。调试 Agent 时，更关键的问题是：这一刻模型到底收到了哪些固定指令、历史消息、工具定义和新增内容？相邻请求之间又发生了什么变化？
 
-[![从请求详情进入 System diff](../../assets/demo/user-guide/context-system-diff.png)](../../assets/demo/storyboard/gallery.zh-CN.html?chapter=codex-compact)
+[![从请求详情进入 System diff](../../assets/demo/user-guide/context-system-diff.png)](https://fengjikui.github.io/peekMyAgent/?chapter=codex-compact)
 
 静态图适配 GitHub；可控 HTML 版本可以暂停和拖动，继续查看 Codex 压缩前后的 History 与规则重注入。
 

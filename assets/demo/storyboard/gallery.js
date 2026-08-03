@@ -1,4 +1,5 @@
-const catalogUrl = "/assets/demo/storyboard/catalog.zh-CN.json";
+const repositoryRootUrl = new URL("../../../", import.meta.url);
+const catalogUrl = new URL("assets/demo/storyboard/catalog.zh-CN.json", repositoryRootUrl);
 const elements = {
   list: document.querySelector(".chapter-list"),
   title: document.querySelector("#chapter-title"),
@@ -33,7 +34,7 @@ function selectChapter(chapter) {
   elements.title.textContent = chapter.label;
   elements.question.textContent = chapter.review.question;
   elements.boundary.textContent = `${chapter.review.source.label}。${chapter.review.source.boundary}`;
-  elements.guide.href = `${chapter.guide}#${markdownHeadingSlug(chapter.guide_section)}`;
+  elements.guide.href = resolveGuideUrl(chapter.guide, chapter.guide_section);
   elements.guide.hidden = false;
 
   const playerUrl = new URL("./index.html", window.location.href);
@@ -60,4 +61,16 @@ function markdownHeadingSlug(value) {
     .toLowerCase()
     .replace(/[\p{P}\p{S}]+/gu, "")
     .replace(/\s+/g, "-");
+}
+
+function resolveGuideUrl(path, section) {
+  const slug = markdownHeadingSlug(section);
+  if (window.location.hostname.endsWith(".github.io")) {
+    const owner = window.location.hostname.split(".")[0];
+    const repository = repositoryRootUrl.pathname.split("/").filter(Boolean)[0];
+    if (owner && repository) {
+      return `https://github.com/${owner}/${repository}/blob/main/${String(path).replace(/^\/+/, "")}#${slug}`;
+    }
+  }
+  return `${new URL(String(path).replace(/^\/+/, ""), repositoryRootUrl).href}#${slug}`;
 }

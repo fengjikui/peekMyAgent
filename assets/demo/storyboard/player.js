@@ -1,4 +1,5 @@
 const params = new URLSearchParams(window.location.search);
+const repositoryRootUrl = new URL("../../../", import.meta.url);
 const catalogUrl = "/assets/demo/storyboard/catalog.zh-CN.json";
 const fallbackTimelineUrl = "/assets/demo/source/quickstart/video/timeline.zh-CN.json";
 const requestedTimelineUrl = params.get("timeline");
@@ -82,6 +83,25 @@ const reviewArtifactLabels = {
   review_1920: ["1920", "桌面尺寸渐进标注联系表"],
   review_1024: ["1024", "README 宽度渐进标注联系表"],
 };
+
+function resolveRepositoryUrl(value) {
+  const text = String(value || "");
+  if (/^[a-z][a-z0-9+.-]*:/i.test(text)) return text;
+  if (text.startsWith("/")) return new URL(text.slice(1), repositoryRootUrl).href;
+  return new URL(text, window.location.href).href;
+}
+
+function resolveGuideUrl(path, section) {
+  const slug = markdownHeadingSlug(section);
+  if (window.location.hostname.endsWith(".github.io")) {
+    const owner = window.location.hostname.split(".")[0];
+    const repository = repositoryRootUrl.pathname.split("/").filter(Boolean)[0];
+    if (owner && repository) {
+      return `https://github.com/${owner}/${repository}/blob/main/${String(path).replace(/^\/+/, "")}#${slug}`;
+    }
+  }
+  return `${resolveRepositoryUrl(path)}#${slug}`;
+}
 
 const state = {
   catalog: null,
@@ -239,7 +259,7 @@ function populateReviewPointSelect() {
 
   const chapter = currentCatalogChapter();
   if (chapter?.guide && chapter?.guide_section) {
-    elements.guideLink.href = `${chapter.guide}#${markdownHeadingSlug(chapter.guide_section)}`;
+    elements.guideLink.href = resolveGuideUrl(chapter.guide, chapter.guide_section);
     elements.guideLink.textContent = `对应章节：${chapter.guide_section}`;
     elements.guideLink.title = chapter.guide;
     elements.guideLink.hidden = false;
@@ -373,7 +393,7 @@ function moveEditableReviewPoint(delta) {
 }
 
 async function loadCatalog() {
-  const response = await fetch(catalogUrl);
+  const response = await fetch(resolveRepositoryUrl(catalogUrl));
   if (!response.ok) throw new Error(`无法载入章节目录：${response.status}`);
   const catalog = await response.json();
   if (!Array.isArray(catalog.chapters) || catalog.chapters.length === 0) {
@@ -385,7 +405,7 @@ async function loadCatalog() {
 
 async function loadTimeline(timelineUrl, { sceneIndex = 0, elapsedMs = 0, updateUrl = false } = {}) {
   renderLoading("正在载入章节");
-  const response = await fetch(timelineUrl);
+  const response = await fetch(resolveRepositoryUrl(timelineUrl));
   if (!response.ok) throw new Error(`无法载入时间线：${response.status}`);
   const timeline = await response.json();
   if (!Array.isArray(timeline.scenes) || timeline.scenes.length === 0) {
@@ -470,13 +490,13 @@ async function preloadTimelineImages(timeline) {
     const image = new Image();
     image.addEventListener("load", resolve, { once: true });
     image.addEventListener("error", () => reject(new Error(`无法载入 README 镜头：${scene.source_image}`)), { once: true });
-    image.src = scene.source_image;
+    image.src = resolveRepositoryUrl(scene.source_image);
   })));
 }
 
 async function loadReadmePlan(planUrl, { sceneIndex = 0, elapsedMs = 0, updateUrl = false } = {}) {
   renderLoading("正在载入 README 精简版");
-  const response = await fetch(planUrl);
+  const response = await fetch(resolveRepositoryUrl(planUrl));
   if (!response.ok) throw new Error(`无法载入 README GIF 计划：${response.status}`);
   const timeline = readmePlanToTimeline(await response.json());
   await preloadTimelineImages(timeline);
@@ -986,7 +1006,7 @@ function renderScene({ resetElapsed = true } = {}) {
   elements.visual.classList.add("is-transitioning");
 
   if (scene.source_image) {
-    elements.image.src = scene.source_image;
+    elements.image.src = resolveRepositoryUrl(scene.source_image);
     elements.image.alt = scene.title;
     elements.image.hidden = false;
     elements.titleCard.hidden = true;

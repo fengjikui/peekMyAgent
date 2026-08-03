@@ -14,7 +14,7 @@
 
 首屏快速上手不承担安装、子 Agent、上下文压缩、翻译和所有 Harness 差异的讲解。把太多概念塞进一条演示，会迫使第一次使用者先理解项目背景，反而看不清 PMA 的核心价值。这些主题在十章 HTML 演示页和各自的社交媒体视频中独立展开。
 
-本地可控入口为 `http://127.0.0.1:43115/assets/demo/storyboard/gallery.zh-CN.html`。文档站点发布后直接嵌入同一播放器；GitHub README 只显示静态封面，因为仓库 Markdown 不能可靠运行 iframe。历史 GIF 与 `readme-gif.zh-CN.json` 继续保留为旧节奏和素材迁移记录，但不再是产品首页唯一入口。
+公开可控入口为 <https://fengjikui.github.io/peekMyAgent/>，本地制作入口为 `http://127.0.0.1:43115/assets/demo/storyboard/gallery.zh-CN.html`。GitHub Pages 与本地页面读取同一套时间线和素材；GitHub README 只显示链接封面，因为仓库 Markdown 不能可靠运行 iframe。历史 GIF 与 `readme-gif.zh-CN.json` 继续保留为旧节奏和素材迁移记录，但不再是产品首页唯一入口。
 
 需要横向比较全部十章时，不再从本文手工复制逐章链接。运行 `node scripts/generate-storyboard-review-index.mjs --require-videos`，再打开 `http://127.0.0.1:43115/tmp/storyboard-video/review-index.html`；统一审片首页会把 HTML 模板、无字幕干净播放、本地 MP4、正式 / 历史素材边界和对应中文章节放在同一页。它只链接 Git 忽略的本地母版，不增加仓库媒体体积。每章的结论与短备注只保存在当前浏览器，并按候选 SHA 隔离；导出 JSON 后先由 `storyboard-review-handoff.mjs` 检查精确候选、章节清单和隐私哨兵，再人工查看备注并决定是否更新 catalog，不能把本地选择直接当成发布事实。
 

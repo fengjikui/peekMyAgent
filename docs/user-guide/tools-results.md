@@ -2,7 +2,7 @@
 
 工具闭环不是一条日志，而是跨多次模型请求形成的因果链：模型先看到工具定义，再产生工具调用；Harness 执行工具；结果随后作为新的上行内容回到模型；模型才据此继续或作答。
 
-[![迟到工具结果仍然关联到最初调用](../../assets/demo/user-guide/delayed-tool-result-arrives.png)](../../assets/demo/storyboard/gallery.zh-CN.html?chapter=claude-tool-loop)
+[![迟到工具结果仍然关联到最初调用](../../assets/demo/user-guide/delayed-tool-result-arrives.png)](https://fengjikui.github.io/peekMyAgent/?chapter=claude-tool-loop)
 
 静态图保留迟到结果的关键状态；可控 HTML 版本演示 Claude Code 中完整的工具调用与结果回传闭环。
 

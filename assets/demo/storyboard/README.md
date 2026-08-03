@@ -22,7 +22,13 @@ http://127.0.0.1:43115/assets/demo/storyboard/index.html
 http://127.0.0.1:43115/assets/demo/storyboard/gallery.zh-CN.html
 ```
 
-这张页面把当前章节、目标问题、Source 边界和对应中文手册放在同一处，并在页内嵌入播放器。读者可以暂停、拖动时间轴、前后切换镜头、开关字幕和进入全屏；默认不会自动播放。正式文档站点应直接嵌入 `index.html?embed=1&autoplay=0&timeline=...`，GitHub README 则使用静态封面链接作为降级，因为 GitHub 不执行仓库中的 iframe / HTML 播放器。
+公开 GitHub Pages 入口：
+
+```text
+https://fengjikui.github.io/peekMyAgent/
+```
+
+这张页面把当前章节、目标问题、Source 边界和对应中文手册放在同一处，并在页内嵌入播放器。读者可以暂停、拖动时间轴、前后切换镜头、开关字幕和进入全屏；默认不会自动播放。`.github/workflows/docs-pages.yml` 只把 `assets/demo/` 发布到 GitHub Pages，不发布 Git 忽略的 Capture、MP4 或本地审片记录。GitHub README 使用静态封面链接进入公开页面，因为仓库 Markdown 不执行 iframe / HTML 播放器。
 
 如果需要一次看到十章的 HTML、干净播放和本地 MP4，而不是逐个拼接链接，先生成 Git 忽略的统一审片首页：
 
