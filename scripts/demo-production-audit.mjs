@@ -251,12 +251,16 @@ function auditStoryboardCatalog() {
   const player = fs.readFileSync(path.join(storyboardRoot, "player.js"), "utf8");
   const galleryHtmlPath = path.join(storyboardRoot, "gallery.zh-CN.html");
   const galleryScriptPath = path.join(storyboardRoot, "gallery.js");
+  const pagesIndexPath = path.join(storyboardRoot, "pages-index.html");
   assertFile(galleryHtmlPath, "Chinese controlled demo gallery");
   assertFile(galleryScriptPath, "Chinese controlled demo gallery script");
+  assertFile(pagesIndexPath, "GitHub Pages demo entry");
   assertTrackable(galleryHtmlPath, "Chinese controlled demo gallery");
   assertTrackable(galleryScriptPath, "Chinese controlled demo gallery script");
+  assertTrackable(pagesIndexPath, "GitHub Pages demo entry");
   const galleryHtml = fs.readFileSync(galleryHtmlPath, "utf8");
   const galleryScript = fs.readFileSync(galleryScriptPath, "utf8");
+  const pagesIndex = fs.readFileSync(pagesIndexPath, "utf8");
   assert(html.includes("chapter-select") && html.includes("review-point-select"),
     "storyboard player must expose chapter and review-point controls");
   assert(html.includes("guide-link"),
@@ -287,6 +291,10 @@ function auditStoryboardCatalog() {
     && galleryScript.includes("catalog.zh-CN.json") && galleryScript.includes('"embed", "1"')
     && galleryScript.includes('"autoplay", "0"'),
     "Chinese demo gallery must load every catalog chapter in a non-autoplay controlled player");
+  assert(pagesIndex.includes("galleryUrl.search = window.location.search")
+    && pagesIndex.includes("galleryUrl.hash = window.location.hash")
+    && pagesIndex.includes("window.location.replace(galleryUrl)"),
+    "GitHub Pages demo entry must preserve chapter and review deep-link parameters");
   totals.catalogEntries = catalog.chapters.length;
 }
 

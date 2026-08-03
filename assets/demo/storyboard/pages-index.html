@@ -3,8 +3,16 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="refresh" content="0; url=./assets/demo/storyboard/gallery.zh-CN.html">
     <title>peekMyAgent 中文产品演示</title>
+    <script>
+      const galleryUrl = new URL("./assets/demo/storyboard/gallery.zh-CN.html", window.location.href);
+      galleryUrl.search = window.location.search;
+      galleryUrl.hash = window.location.hash;
+      window.location.replace(galleryUrl);
+    </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0; url=./assets/demo/storyboard/gallery.zh-CN.html">
+    </noscript>
   </head>
   <body>
     <p><a href="./assets/demo/storyboard/gallery.zh-CN.html">打开 peekMyAgent 中文产品演示</a></p>
